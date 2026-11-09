@@ -125,10 +125,17 @@
     * TECH-INVISIBLE: there is no shared presence/online indicator, so a tech session is already
       invisible to the customer; only actual unit-state changes would show. KEEP it that way when
       units eventually move to shared backend state (don't broadcast "who is online"/"tech did X").
-    * STILL TODO (next build): MASTER/CC MODE engine (backend poll loop, discovery, CRC-16 reply
-      parse, command inject, configurable timing, raw capture log) — on-site + capture-gated, not
-      testable off-site. Also: move UNITS to shared backend state (so all browsers see the same
-      units) when master mode lands.
+    * (v1.3.0) MASTER/CC MODE (beta) SHIPPED: browser-side poll loop reusing the /bus bridge
+      (TX via bus.port.writable; RX via a MASTER.tap hook in ingestBytes). Tech > Bus > Debug >
+      "Master / CC mode": editable query (AA=addr placeholder; default "80 00 A0 AA 01 00 00",
+      auto-appends sum ck for the 8-byte form), scan range lo..hi, turnaround+reply-wait timing,
+      Discover / Start poll loop / Import found / Save capture. Reply validated with crc16xmodem
+      (0x1021/init0) over [0..13] vs [14:15]; unverified replies still logged. EVERY frame logged
+      (m-log) + downloadMasterLog() -> cortex-master-capture.txt. KINKS/UNCONFIRMED: exact query
+      opcode (we send a guess) + reply field offsets — need an on-wire capture to lock.
+      Old `ctrl` stub object/functions left in place but unused (dead code; ok).
+    * NEXT: use the capture to fix the real query bytes + reply field map; then move UNITS to
+      shared backend state so all browsers see the same discovered units.
   - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
     (cool+heat) °C, transmits, with editable cmd/flags bytes.
   - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
@@ -1053,7 +1060,55 @@ function decodeFrame(f){
     d.mode=BMODE[f[5]&0x0f]||("m"+(f[5]&0x0f));d.fan=BFAN[f[5]>>4]||("f"+(f[5]>>4));
     d.setF=SP_CONFIRMED?Math.round((f[6]+13)*9/5+32):null;}
   return d;}
+function crc16xmodem(buf,n){let c=0;for(let i=0;i<n;i++){c^=(buf[i]&0xff)<<8;for(let k=0;k<8;k++)c=(c&0x8000)?((c<<1)^0x1021)&0xffff:(c<<1)&0xffff;}return c&0xffff;}
+/* ---- MASTER / CC mode (beta) — Cortex drives the bus like the LG ACP ----
+   Cortex becomes the single master: it sends a query addressed to each unit, waits, and reads
+   the 16-byte reply (validated with CRC-16/XMODEM). The exact query bytes + reply field layout
+   still need one on-wire capture to perfect, so the query is editable and every byte is logged. */
+let MASTER={tap:null,running:false,abort:false,rxbuf:[],found:new Map(),log:[],
+  lo:0x00,hi:0xff,turnaround:30,timeout:200,query:"80 00 A0 AA 01 00 00"};
+function mhex(x){return x.toString(16).padStart(2,"0").toUpperCase();}
+function mlog(s){MASTER.log.unshift(new Date().toLocaleTimeString()+"  "+s);if(MASTER.log.length>400)MASTER.log.pop();bus.dirty=true;}
+function masterWrite(bytes){if(!bus.port||!bus.port.writable)return false;
+  try{const w=bus.port.writable.getWriter();w.write(new Uint8Array(bytes));w.releaseLock();return true;}catch(e){return false;}}
+function buildQuery(addr){
+  const toks=MASTER.query.trim().split(/\s+/).map(t=>(t==="AA"||t==="aa")?addr:parseInt(t,16));
+  let b=toks.filter(x=>Number.isFinite(x)&&x>=0&&x<256);
+  if(b.length===7&&b[2]===0xA0)b=[...b,lgapCk(b,7)];  // auto-append the sum checksum for the 8-byte LG form
+  return b;}
+async function masterPoll(addr){
+  MASTER.rxbuf=[];MASTER.tap=(bytes)=>{for(const x of bytes)MASTER.rxbuf.push(x);};
+  const q=buildQuery(addr);mlog("TX "+hx(addr)+"  "+q.map(mhex).join(" "));
+  masterWrite(q);
+  await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout));
+  MASTER.tap=null;const rx=MASTER.rxbuf.slice();
+  if(rx.length)mlog("RX "+hx(addr)+"  "+rx.map(mhex).join(" "));
+  for(let i=0;i+16<=rx.length;i++){const f=rx.slice(i,i+16);const c=crc16xmodem(f,14);
+    if(((c>>8)&0xff)===f[14]&&(c&0xff)===f[15])return{addr,raw:f,crc:true};}
+  return rx.length?{addr,raw:rx,crc:false}:null;}
+async function masterDiscover(){
+  if(!bus.port){toast("Connect the adapter first");return;}
+  MASTER.abort=false;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(MASTER.hi)+" —");busUpdate();
+  for(let a=MASTER.lo;a<=MASTER.hi&&!MASTER.abort;a++){const r=await masterPoll(a);
+    if(r){MASTER.found.set(a,r);mlog("  ✓ reply at "+hx(a)+(r.crc?" (CRC ok)":" (unverified)"));busUpdate();}}
+  mlog("— discovery done: "+MASTER.found.size+" responder(s) —");if(view==="busscan")renderBusScan();}
+async function masterLoopRun(){
+  if(!bus.port){toast("Connect the adapter first");return;}
+  MASTER.running=true;MASTER.abort=false;mlog("— master poll loop started —");if(view==="busscan")renderBusScan();
+  while(MASTER.running&&!MASTER.abort&&bus.port){
+    const addrs=[...MASTER.found.keys()];
+    if(!addrs.length){await new Promise(r=>setTimeout(r,500));continue;}
+    for(const a of addrs){if(!MASTER.running||MASTER.abort)break;const r=await masterPoll(a);if(r)MASTER.found.set(a,r);busUpdate();
+      await new Promise(r=>setTimeout(r,MASTER.turnaround));}}
+  MASTER.running=false;mlog("— master poll loop stopped —");if(view==="busscan")renderBusScan();}
+function masterStop(){MASTER.abort=true;MASTER.running=false;if(view==="busscan")renderBusScan();}
+function masterImport(){let n=0;for(const a of MASTER.found.keys())if(!units.find(u=>u.addr===a)){units.push(makeDiscoveredUnit(a,"System A",""));n++;}
+  if(n){saveUnits();renderAll();}toast(n?("Imported "+n+" unit(s)"):"No new units to import");if(view==="busscan")renderBusScan();}
+function masterCaptureText(){return MASTER.log.slice().reverse().join("\n");}
+function downloadMasterLog(){const t=masterCaptureText();const bl=new Blob([t],{type:"text/plain"});const u=URL.createObjectURL(bl);
+  const a=document.createElement("a");a.href=u;a.download="cortex-master-capture.txt";a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}
 function ingestBytes(bytes){
+  if(typeof MASTER!=="undefined"&&MASTER.tap){try{MASTER.tap(bytes);}catch(e){}}  // master-mode reply capture
   bus.bytes+=bytes.length;bus.dirty=true;
   for(const x of bytes)bus.recent.push(x);if(bus.recent.length>96)bus.recent=bus.recent.slice(-96);
   if(bus.proto==="lg"){
@@ -1337,7 +1392,8 @@ function busUpdate(){
   const cnt=document.getElementById("bus-count");if(cnt)cnt.textContent=bus.proto==="lg"?(bus.addrs.size+" addresses · "+bus.raw.length+" frames"):(bus.bytes+" bytes captured");
   const cs=document.getElementById("ctrl-status");if(cs&&ctrl.running)cs.textContent="● MASTER — sent: "+ctrl.sent+" · received: "+(bus.bytes-ctrl.rx0)+" bytes"+(ctrl.cmds.size?(" · "+ctrl.cmds.size+" command override(s)"):"");
   const rawm=document.getElementById("bus-rawmon");if(rawm){const hexs=bus.recent.slice(-48).map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");
-    rawm.innerHTML=bus.bytes?`<b>${bus.bytes}</b> raw bytes seen · last: <span class="mono" style="color:var(--text-dim)">${hexs||"—"}</span>`:'<span style="color:var(--text-faint)">0 bytes — nothing arriving on the wire yet</span>';}}
+    rawm.innerHTML=bus.bytes?`<b>${bus.bytes}</b> raw bytes seen · last: <span class="mono" style="color:var(--text-dim)">${hexs||"—"}</span>`:'<span style="color:var(--text-faint)">0 bytes — nothing arriving on the wire yet</span>';}
+  const mlogEl=document.getElementById("m-log");if(mlogEl){const atBottom=mlogEl.scrollTop+mlogEl.clientHeight>=mlogEl.scrollHeight-20;mlogEl.textContent=MASTER.log.slice(0,140).join("\n");if(atBottom)mlogEl.scrollTop=0;}}
 function renderBusScan(){
   const supported="serial" in navigator;const conn=bus.scanning;
   const opts=siteProtocols();if(!opts.includes(bus.proto))bus.proto=opts[0]||"lg";
@@ -1410,17 +1466,23 @@ function renderBusScan(){
       </div>
     </div>
     <div class="lab" style="margin-bottom:14px">
-      <div class="labhead"><span class="dot ${ctrl.running?'':'idle'}"></span><b>Controller mode</b> · Cortex as bus master</div>
+      <div class="labhead"><span class="dot ${MASTER.running?'':'idle'}"></span><b>Master / CC mode</b> · Cortex as bus master <span style="color:#6fe3c6">beta</span></div>
       <div class="labbody">
-        <div class="labsub">Replaces the LG CC — Cortex drives the sweep so units stay commandable with no CC. Disconnect the real CC first; capture a sweep while it's still connected, then start.</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-          <button class="btn" id="ctrl-cap" ${bus.scanning?"":"disabled"}>① capture sweep</button>
-          ${ctrl.running?`<button class="btn go" id="ctrl-stop">■ stop</button>`:`<button class="btn primary" id="ctrl-start" ${ctrl.script.length?"":"disabled"}>② start controller</button>`}
-          <span class="mono" style="font-size:11.5px;color:#5f8a84">script ${ctrl.script.length} · ${ctrl.addrs||0} addr</span>
-          <label style="font-size:11.5px;color:#5f8a84">listen <select class="sel-box" id="ctrl-listen" style="padding:3px 6px">${[25,45,70,100,150].map(v=>`<option value="${v}" ${ctrl.listenMs===v?"selected":""}>${v}ms</option>`).join("")}</select></label>
+        <div class="labsub">Cortex becomes the controller: it polls each address and reads the 16-byte reply (CRC-16 checked). <b>Disconnect the real LG central controller first.</b> Query bytes are editable (AA = the address byte) — leave the default to try, or paste the real query from a sniff. Every frame is logged; hit “save capture” and send it over.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0">
+          <label style="font-size:11.5px;color:#5f8a84">scan <input id="m-lo" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.lo)}"> .. <input id="m-hi" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.hi)}"></label>
+          <label style="font-size:11.5px;color:#5f8a84">turnaround <input id="m-ta" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.turnaround}">ms</label>
+          <label style="font-size:11.5px;color:#5f8a84">reply wait <input id="m-to" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.timeout}">ms</label>
         </div>
-        <div id="ctrl-status" class="mono" style="font-size:12px;color:${ctrl.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${ctrl.running?("● MASTER — sent "+ctrl.sent+" · rx "+(bus.bytes-ctrl.rx0)+"b"):"idle"}</div>
-        ${ctrl.err?`<div style="font-size:12px;color:#ffb36b;margin-top:6px">${ctrl.err}</div>`:""}
+        <label style="font-size:11.5px;color:#5f8a84;display:block">query bytes <input id="m-q" class="inp mono" style="width:100%;padding:4px 6px;font-size:12px" value="${MASTER.query}"></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
+          <button class="btn" id="m-disc" ${bus.scanning?"":"disabled"}>① discover</button>
+          ${MASTER.running?`<button class="btn go" id="m-stop">■ stop loop</button>`:`<button class="btn primary" id="m-start" ${bus.scanning?"":"disabled"}>② start poll loop</button>`}
+          <button class="btn" id="m-import" ${MASTER.found.size?"":"disabled"}>③ import ${MASTER.found.size} found</button>
+          <button class="btn" id="m-dl">⬇ save capture</button>
+        </div>
+        <div class="mono" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(MASTER.found.size+" responder(s) found")}</div>
+        <pre id="m-log" class="mono" style="max-height:220px;overflow:auto;border:1px solid #123a40;border-radius:8px;padding:9px;background:#05080b;font-size:11.5px;white-space:pre-wrap;margin:9px 0 0;color:#7fe8cf">${MASTER.log.slice(0,140).join("\n")}</pre>
       </div>
     </div>
     <div class="lab">
@@ -1473,10 +1535,17 @@ function renderBusScan(){
   const t5arm=document.getElementById("t5-arm");if(t5arm)t5arm.onclick=busSend5;
   const t5go=document.getElementById("t5-go");if(t5go)t5go.onclick=busSend5;
   const t5cn=document.getElementById("t5-cancel");if(t5cn)t5cn.onclick=()=>{tx5.armed=false;renderBusScan();};
-  const cc1=document.getElementById("ctrl-cap");if(cc1)cc1.onclick=ctrlCapture;
-  const cst=document.getElementById("ctrl-start");if(cst)cst.onclick=ctrlStart;
-  const csp=document.getElementById("ctrl-stop");if(csp)csp.onclick=ctrlStop;
-  const cls=document.getElementById("ctrl-listen");if(cls)cls.onchange=e=>{ctrl.listenMs=+e.target.value;};
+  // master / CC mode wiring
+  const mlo=document.getElementById("m-lo");if(mlo)mlo.onchange=e=>{const v=parseInt(e.target.value,16);if(Number.isFinite(v))MASTER.lo=Math.max(0,Math.min(255,v));};
+  const mhi=document.getElementById("m-hi");if(mhi)mhi.onchange=e=>{const v=parseInt(e.target.value,16);if(Number.isFinite(v))MASTER.hi=Math.max(0,Math.min(255,v));};
+  const mta=document.getElementById("m-ta");if(mta)mta.onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isFinite(v))MASTER.turnaround=Math.max(0,Math.min(2000,v));};
+  const mto=document.getElementById("m-to");if(mto)mto.onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isFinite(v))MASTER.timeout=Math.max(20,Math.min(5000,v));};
+  const mq=document.getElementById("m-q");if(mq)mq.onchange=e=>{MASTER.query=e.target.value;};
+  const md=document.getElementById("m-disc");if(md)md.onclick=masterDiscover;
+  const ms=document.getElementById("m-start");if(ms)ms.onclick=masterLoopRun;
+  const msp=document.getElementById("m-stop");if(msp)msp.onclick=masterStop;
+  const mi=document.getElementById("m-import");if(mi)mi.onclick=masterImport;
+  const mdl=document.getElementById("m-dl");if(mdl)mdl.onclick=downloadMasterLog;
   busUpdate();}
 function renderCycle(){renderGroupNav();
   const oduLoad=Math.max(...units.map(u=>u.zoneLoad),0);
