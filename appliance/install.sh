@@ -43,8 +43,9 @@ systemctl enable --now avahi-daemon 2>/dev/null || true
 mkdir -p "$REL/$VER" "$DATA"
 cp -f "$HERE/server.js" "$HERE/package.json" "$HERE/VERSION" "$HERE/cortex-update.sh" "$REL/$VER"/
 [ -f "$HERE/package-lock.json" ] && cp -f "$HERE/package-lock.json" "$REL/$VER"/ || true
+[ -f "$HERE/cortex.sudoers" ] && cp -f "$HERE/cortex.sudoers" "$REL/$VER"/ || true
 chmod +x "$REL/$VER/cortex-update.sh"
-for f in cortex.html command-center.html setup.html; do
+for f in cortex.html command-center.html setup.html LGAP_reference.md; do
   [ -f "$UIDIR/$f" ] && cp -f "$UIDIR/$f" "$REL/$VER"/ || true
   [ -f "$HERE/$f"  ] && cp -f "$HERE/$f"  "$REL/$VER"/ || true
 done
@@ -83,6 +84,11 @@ cp -f "$HERE/cortex-appliance.service" "$HERE/cortex-updater.service" "$HERE/cor
 systemctl daemon-reload
 systemctl enable --now cortex-appliance
 systemctl enable --now cortex-updater.timer
+
+# 6b) sudoers: let the service reboot/power off the box from the UI (scoped, validated)
+if [ -f "$HERE/cortex.sudoers" ] && visudo -cf "$HERE/cortex.sudoers" >/dev/null 2>&1; then
+  install -m 0440 "$HERE/cortex.sudoers" /etc/sudoers.d/cortex
+fi
 
 # 7) lockdown: firewall + automatic security updates
 ufw --force reset >/dev/null

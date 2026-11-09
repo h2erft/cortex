@@ -84,7 +84,7 @@
       true} + netplan apply. (b) RTC can be hours behind -> apt refuses "Release not valid yet" and
       install.sh aborts; fix: timedatectl set-ntp false; set-time 'UTC'; set-ntp true. (c) install:
       token-clone repo -> cd appliance -> sudo bash install.sh (idempotent).
-    * STATE AS OF TONIGHT: first box (site "vista 7", hostname cortex) is running v1.1.2 via OTA,
+    * STATE AS OF TONIGHT: first box (hostname cortex) is running v1.1.2 via OTA,
       self-healing timer active; v1.1.1 release=mock-era UI, v1.1.2=empty-units + real update page.
       cortex.html loadUnits() returns [] (no demo seed). Updates page auto-calls /api/update/check.
   - 2026-11-09 MASTER-MODE FIRMWARE DIG (comm daemon bins2/f88a2ccf_33363456.elf, NOT stripped,
@@ -108,6 +108,27 @@
       Recommend sniffing the real ACP's discovery+poll first to nail query+offsets so it works 1st try.
     * Analysis tooling: /home/claude/work/dis.py (capstone+pyelftools fn disassembler; host objdump
       has NO arm support). ELF base vaddr via PT_LOAD segs. control_ac=bins2/4f2fdd00_36345344.elf.
+  - 2026-11-09 v1.2.0 (public-launch build): repo going PUBLIC; history squashed clean.
+    * SHARED SETUP/ACCOUNTS: config (CFG: site + user accounts) now stored on the appliance
+      (DATA/appconfig.json; GET/POST /api/appconfig), not just per-browser localStorage. boot()
+      is async: fetches server CFG first -> a NEW browser/computer gets the LOGIN screen, not the
+      first-run wizard (that was the bug). saveCfg() also POSTs up. Migration: a browser that has
+      local CFG but server has none pushes it up on next load (so open Cortex once on the browser
+      you set up on). file:// demo still falls back to localStorage.
+    * POWER CONTROLS: Settings > Advanced has Restart / Power off (admin). Backend POST
+      /api/power/reboot|shutdown -> `sudo -n systemctl reboot|poweroff`. Privilege via scoped
+      /etc/sudoers.d/cortex (appliance/cortex.sudoers), installed by install.sh AND reconciled by
+      cortex-update.sh on each OTA (validated w/ visudo -c) — so it reaches already-deployed boxes.
+    * PROTOCOL DOC IN-APP: Settings > About > "Protocol reference" opens LGAP_reference.md
+      (served at /LGAP_reference.md; shipped in the release) rendered via a tiny md renderer
+      (mdLite). About version now pulls from /version (was hardcoded).
+    * TECH-INVISIBLE: there is no shared presence/online indicator, so a tech session is already
+      invisible to the customer; only actual unit-state changes would show. KEEP it that way when
+      units eventually move to shared backend state (don't broadcast "who is online"/"tech did X").
+    * STILL TODO (next build): MASTER/CC MODE engine (backend poll loop, discovery, CRC-16 reply
+      parse, command inject, configurable timing, raw capture log) — on-site + capture-gated, not
+      testable off-site. Also: move UNITS to shared backend state (so all browsers see the same
+      units) when master mode lands.
   - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
     (cool+heat) °C, transmits, with editable cmd/flags bytes.
   - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
@@ -580,6 +601,16 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .connbar .pulse{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 1.6s infinite}
 .connbar .pulse.off{background:var(--stopped);animation:none}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(67,192,114,.5)}70%{box-shadow:0 0 0 7px rgba(67,192,114,0)}100%{box-shadow:0 0 0 0 rgba(67,192,114,0)}}
+/* protocol reference (markdown) viewer */
+.md{font-size:13.5px;line-height:1.55;color:var(--text);max-height:65vh;overflow:auto;padding-right:6px}
+.md .md-h{font-weight:700;margin:16px 0 6px;color:var(--text)}
+.md .md-h1{font-size:19px} .md .md-h2{font-size:16px;border-bottom:1px solid var(--border);padding-bottom:4px} .md .md-h3{font-size:14.5px}
+.md .md-p{margin:6px 0} .md .md-sp{height:6px}
+.md .md-ul{margin:6px 0 6px 2px;padding-left:18px} .md .md-ul li{margin:3px 0}
+.md .md-tr{white-space:pre-wrap;font-size:12px;color:var(--text-dim);padding:1px 0}
+.md .md-pre{background:var(--panel-2,rgba(127,127,127,.12));border:1px solid var(--border);border-radius:8px;padding:10px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre}
+.md .md-code{background:rgba(127,127,127,.18);border-radius:4px;padding:1px 5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.md .md-hr{border:0;border-top:1px solid var(--border);margin:14px 0}
 </style>
 </head>
 <body>
@@ -1801,6 +1832,9 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   ${row("Allow customer control","Let customers change setpoints/modes",tog("custctl",true))}
   ${row("Allow customer All-On/Off","",tog("custall",true))}
   ${row("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Enabled via Tailscale":"Not configured",`<button class="linklike" onclick="startWizard()">Re-run setup</button>`)}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
+  ${row("Restart controller","Reboot the device — back online in ~1 min",`<button class="linklike" onclick="powerCtl('reboot')">Restart</button>`)}
+  ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}
   ${row("Factory reset (demo)","Clear this controller's saved config",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset</button>`)}
   <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Advanced settings affect every user on this controller.</div>`;}
 function usersTab(){return `
@@ -1818,12 +1852,58 @@ function aboutTab(){const isPriv=session.admin||session.tech;return `
   ${row("Version","",`<span class="mono" id="verline" style="color:var(--text-dim);cursor:default">v0.1.0</span>`)}
   ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${(CFG&&CFG.site&&CFG.site.name)||'Site'}</span>`)}
   ${row("Remote access","",`<span style="color:var(--text-dim)">${(CFG&&CFG.remote&&CFG.remote.enabled)?'Tailscale — on':'Off'}</span>`)}
+  ${row("Protocol reference","The LGAP protocol — everything we've decoded",`<button class="linklike" onclick="viewProtocolDoc()">Open</button>`)}
   ${isPriv?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Owner recovery</div>
      <div class="sd" style="margin-bottom:8px">Per-site code to regain owner access if you're locked out. Keep it somewhere safe.</div>
      <div class="recovery">${(CFG&&CFG.recovery)||RECOVERY}</div>`:
      `<div style="margin-top:16px;font-size:12px;color:var(--text-faint)">AIROW Control — custom VRF controller. © you.</div>`}`;}
 
-function wireSettings(){
+/* ---- protocol reference viewer (the "what we know" doc, served by the appliance) ---- */
+function inlineMd(s){return s.replace(/`([^`]+)`/g,'<code class="md-code">$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');}
+function mdLite(md){
+  const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const lines=esc(md).split('\n');let out=[],inCode=false,inList=false;
+  for(const ln of lines){
+    if(/^```/.test(ln)){out.push(inCode?'</pre>':'<pre class="md-pre">');inCode=!inCode;continue;}
+    if(inCode){out.push(ln);continue;}
+    let m;
+    if((m=ln.match(/^(#{1,6})\s(.*)/))){if(inList){out.push('</ul>');inList=false;}const l=m[1].length;out.push(`<div class="md-h md-h${l}">${inlineMd(m[2])}</div>`);continue;}
+    if(/^\s*[-*]\s/.test(ln)){if(!inList){out.push('<ul class="md-ul">');inList=true;}out.push(`<li>${inlineMd(ln.replace(/^\s*[-*]\s/,''))}</li>`);continue;}
+    if(/^\s*\|/.test(ln)){out.push(`<div class="md-tr mono">${inlineMd(ln)}</div>`);continue;}
+    if(/^(---+|===+)\s*$/.test(ln)){out.push('<hr class="md-hr">');continue;}
+    if(inList){out.push('</ul>');inList=false;}
+    out.push(ln.trim()===''?'<div class="md-sp"></div>':`<p class="md-p">${inlineMd(ln)}</p>`);
+  }
+  if(inCode)out.push('</pre>');if(inList)out.push('</ul>');
+  return out.join('\n');
+}
+function powerCtl(kind){
+  const isReboot=kind==='reboot';
+  modal(head(isReboot?'Restart controller?':'Power off controller?')+`<div class="modal-body">
+    <div class="note-box">${isReboot
+      ?'The controller will reboot and come back on its own in about a minute. Units keep their last state during the reboot.'
+      :'The controller will shut down. Units keep their last state, but you will need to physically power the device back on, so only do this if you can reach it.'}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn ${isReboot?'primary':''}" ${isReboot?'':'style="background:var(--err);color:#fff"'} id="pwrgo">${isReboot?'Restart':'Power off'}</button></div></div>`);
+  const go=document.getElementById('pwrgo');if(go)go.onclick=async()=>{
+    try{await fetch(isReboot?'/api/power/reboot':'/api/power/shutdown',{method:'POST'});}catch(e){}
+    modal(head(isReboot?'Restarting…':'Powering off…')+`<div class="modal-body"><div class="note-box">${isReboot
+      ?'The controller is rebooting. This page will reconnect automatically in about a minute.'
+      :'The controller is shutting down. Power it back on physically when you need it again.'}</div></div>`);
+  };
+}
+async function viewProtocolDoc(){
+  modal(head("Protocol reference")+`<div class="modal-body" id="pdoc"><div class="note-box">Loading…</div></div>`,true);
+  let txt=null;
+  try{const r=await fetch('/LGAP_reference.md',{cache:'no-store'});if(r.ok)txt=await r.text();}catch(e){}
+  const el=document.getElementById('pdoc');if(!el)return;
+  el.innerHTML=txt?`<div class="md">${mdLite(txt)}</div>`
+    :`<div class="note-box">The protocol reference ships with the installed appliance — open Cortex from the device to read it here.</div>`;
+}
+function fillVersion(){const el=document.getElementById('verline');if(!el)return;
+  fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.version)el.textContent='v'+j.version;}).catch(()=>{});}
+function wireSettings(){fillVersion();
   mroot.querySelectorAll("[data-set]").forEach(el=>{
     if(el.tagName==="SELECT")el.onchange=()=>{settings[el.dataset.set]=el.value;if(el.dataset.set==="groupBy")groupFilter="all";saveSettings();applyTheme();drawSettings();refreshBackground();};
     else el.onclick=()=>{settings[el.dataset.set]=el.dataset.val;saveSettings();applyTheme();drawSettings();refreshBackground();};});
@@ -1989,7 +2069,9 @@ let CFG=null, currentUser=null, elev={admin:false,tech:false};
 const LOGO='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg>';
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
 function loadCfg(){try{const c=JSON.parse(localStorage.getItem("airow_cfg"));if(c&&!c.protocols)c.protocols=["lg"];return c;}catch(e){return null;}}
-function saveCfg(c){try{localStorage.setItem("airow_cfg",JSON.stringify(c));}catch(e){}}
+function saveCfg(c){try{localStorage.setItem("airow_cfg",JSON.stringify(c));}catch(e){}
+  // also push to the appliance so every browser/computer shares the same setup + accounts
+  try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)});}catch(e){}}
 function roleCaps(r){return{admin:r==="admin"||r==="owner",tech:r==="technician"||r==="owner"};}
 function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};session.admin=b.admin||elev.admin;session.tech=b.tech||elev.tech;}
 function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}
@@ -1999,7 +2081,17 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();renderAll();}
 function logout(){try{sessionStorage.removeItem("airow_user");}catch(e){}currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin();}
 function factoryReset(){try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_units");}catch(e){}units=makeUnits();closeModal();CFG=null;currentUser=null;startWizard();}
-function boot(){applyTheme();CFG=loadCfg();let su=null;try{su=JSON.parse(sessionStorage.getItem("airow_user"));}catch(e){}
+async function boot(){applyTheme();
+  // Shared setup/accounts come from the appliance first, so a NEW browser or computer sees the
+  // same state (login screen), not the first-run wizard. Falls back to local for the file:// demo.
+  let server=null;
+  try{const r=await fetch('/api/appconfig',{cache:'no-store'});if(r.ok)server=await r.json();}catch(e){}
+  if(server&&server.provisioned){CFG=server;try{localStorage.setItem("airow_cfg",JSON.stringify(server));}catch(e){}}
+  else{CFG=loadCfg();
+    // this browser is already set up but the appliance isn't yet -> migrate it up once
+    if(CFG&&CFG.provisioned&&server!==null){try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(CFG)});}catch(e){}}
+  }
+  let su=null;try{su=JSON.parse(sessionStorage.getItem("airow_user"));}catch(e){}
   if(!CFG||!CFG.provisioned){startWizard();return;}
   if(su&&CFG.users&&CFG.users.some(u=>u.username===su.username)){enterApp(CFG.users.find(u=>u.username===su.username));return;}
   showLogin();}

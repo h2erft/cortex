@@ -19,6 +19,7 @@ const { WebSocketServer } = require('ws');
 const { SerialPort } = require('serialport');
 const path = require('path');
 const fs   = require('fs');
+const { execFile } = require('child_process');
 
 const PORT   = parseInt(process.env.CORTEX_PORT || '8080', 10);
 const SERIAL = process.env.CORTEX_SERIAL || '/dev/ttyUSB0';
@@ -140,6 +141,39 @@ app.get('/api/update/check', async (_req, res) => {
     res.json({ current, configured: true, updateAvailable: false, error: e.message });
   }
 });
+
+// --- shared app config (site identity + user accounts) ------------------------
+// Stored on the appliance so EVERY browser/computer sees the same setup + logins:
+// first visit runs the wizard once; everyone after gets the login screen.
+const APPCFG = path.join(DATA, 'appconfig.json');
+app.get('/api/appconfig', (_req, res) => {
+  cors(res);
+  try { res.type('application/json').send(fs.readFileSync(APPCFG, 'utf8')); }
+  catch (_) { res.json({}); }
+});
+app.post('/api/appconfig', (req, res) => {
+  cors(res);
+  try { fs.writeFileSync(APPCFG, JSON.stringify(req.body || {}, null, 2)); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ err: e.message }); }
+});
+
+// --- power control ------------------------------------------------------------
+// Reboot / shut down the appliance from the UI (owner/admin only — the UI gates this).
+// Needs root, so it shells out via sudo; install.sh + the updater drop a scoped sudoers
+// rule (/etc/sudoers.d/cortex) allowing exactly `systemctl reboot` / `systemctl poweroff`.
+function powerAction(kind, res) {
+  cors(res);
+  const arg = kind === 'reboot' ? 'reboot' : 'poweroff';
+  // respond first so the browser gets an ack before the box goes down
+  res.json({ ok: true, action: arg });
+  setTimeout(() => {
+    execFile('sudo', ['-n', 'systemctl', arg], (err) => {
+      if (err) console.error('power ' + arg + ' failed:', err.message);
+    });
+  }, 500);
+}
+app.post('/api/power/reboot',   (_req, res) => powerAction('reboot', res));
+app.post('/api/power/shutdown', (_req, res) => powerAction('poweroff', res));
 
 // --- first-run redirect -------------------------------------------------------
 // An unconfigured box sends you straight to the setup wizard; once named, '/' is the app.

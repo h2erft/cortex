@@ -134,6 +134,17 @@ else
   chown -R cortex:cortex "$REL/$NEW" 2>/dev/null || true
 fi
 
+# --- reconcile system config shipped in the release (sudoers for UI power control) ----
+# Lets privilege/policy changes ride in over OTA. Validated before install; never fatal.
+if [ -f "$REL/$NEW/cortex.sudoers" ] && command -v visudo >/dev/null 2>&1; then
+  if visudo -cf "$REL/$NEW/cortex.sudoers" >/dev/null 2>&1; then
+    install -m 0440 "$REL/$NEW/cortex.sudoers" /etc/sudoers.d/cortex 2>/dev/null \
+      && log "sudoers rule reconciled" || true
+  else
+    log "shipped sudoers failed validation — skipping"
+  fi
+fi
+
 # --- activate: atomic symlink flip + restart ---------------------------------
 PREV="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
 log "activating $NEW (previous: ${PREV:-none})"
