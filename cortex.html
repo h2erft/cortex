@@ -645,7 +645,7 @@ function makeUnits(){
 /* Persist units (incl. imported ones) so they survive reload AND app updates.
    localStorage is keyed to this local file, so a new cortex.html keeps the data. */
 function saveUnits(){try{localStorage.setItem("airow_units",JSON.stringify(units));}catch(e){}}
-function loadUnits(){try{const u=JSON.parse(localStorage.getItem("airow_units"));if(Array.isArray(u)&&u.length)return u;}catch(e){}return makeUnits();}
+function loadUnits(){try{const u=JSON.parse(localStorage.getItem("airow_units"));if(Array.isArray(u))return u;}catch(e){}return [];}
 let units=loadUnits();
 /* Migrate older saved units up to the current model: dual (cool/heat) setpoints in °C,
    plus mode/fan/temp locks. Runs once on load; new fields default sensibly. */
@@ -1489,25 +1489,42 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
     if(!CFG.schedules)CFG.schedules=[];const idx=CFG.schedules.findIndex(x=>x.id===s.id);
     if(idx>=0)CFG.schedules[idx]=s;else CFG.schedules.push(s);saveCfg(CFG);closeModal();renderSchedule();};}
 
-/* ---- updates (admin) ---- */
-let updateFound=false;
+/* ---- updates ---- real OTA check against the appliance backend ---- */
+let updateState=null;  // null = not checked yet; else {current,latest,updateAvailable,configured,error,checkedAt,checking}
+function ue(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+async function doUpdateCheck(){
+  updateState={checking:true}; renderUpdates();
+  try{
+    const r=await fetch('/api/update/check',{cache:'no-store'});
+    updateState=await r.json();
+  }catch(e){
+    updateState={error:'Could not reach the update service — this screen works on the installed appliance, not the file:// demo.'};
+  }
+  renderUpdates();
+}
 function renderUpdates(){renderGroupNav();
+  if(updateState===null){ doUpdateCheck(); return; }   // auto-check the first time the page opens
+  const s=updateState, cur=s.current||'—';
+  let badge='', body='';
+  if(s.checking){ badge='<span class="badge-ok">Checking…</span>'; }
+  else if(s.updateAvailable){ badge='<span class="badge-new">Update available</span>';
+    body=`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-weight:600">v${ue(s.latest)} is available</div>
+      ${s.notes?`<div style="font-size:13.5px;color:var(--text-dim);margin-top:6px">${ue(s.notes)}</div>`:''}
+      <div class="note-box" style="margin-top:12px">This controller installs updates automatically within about 30 minutes — it verifies the download first and rolls back on its own if anything's wrong. No action needed here.</div></div>`; }
+  else if(s.configured===false){ body=`<div class="note-box" style="margin-top:12px">Automatic updates aren't turned on for this controller yet.</div>`; }
+  else if(s.error){ body=`<div class="note-box" style="margin-top:12px">Couldn't check for updates: ${ue(s.error)}</div>`; }
+  else if(s.latest){ badge='<span class="badge-ok">Up to date</span>'; }
   main.innerHTML=`<div class="update-card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div>
       <div style="font-size:12px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px">This controller</div>
-      <div class="ver-big">Cortex v0.1.0</div><div style="font-size:13px;color:var(--text-dim)">${(CFG&&CFG.site&&CFG.site.name)||'Site'} · checked just now</div></div>
-      ${updateFound?'<span class="badge-new">Update available</span>':'<span class="badge-ok">Up to date</span>'}</div>
-    ${updateFound?`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
-       <div style="font-weight:600">v0.2.0</div>
-       <ul style="font-size:13.5px;color:var(--text-dim);margin:8px 0 0;padding-left:18px">
-         <li>Mode / fan / setpoint commands decoded</li><li>Outdoor cycle data on the diagnostics screen</li><li>Faster bus polling and bug fixes</li></ul>
-       ${session.admin?`<div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" id="inst">Install now</button><button class="btn" id="later">Schedule for 2:00 AM</button></div>`:`<div class="note-box" style="margin-top:12px">An administrator applies updates for this site.</div>`}</div>`:
-      `<div style="margin-top:14px"><button class="btn" id="check">Check for updates</button></div>`}
-    <div style="margin-top:16px;font-size:12px;color:var(--text-faint)">${currentUser&&currentUser.role==="owner"?"As owner you can also push a release to every deployed site from the fleet console (handled by the backend update server).":"Updates arrive over-the-air from AIROW."}</div>
+      <div class="ver-big">Cortex v${ue(cur)}</div>
+      <div style="font-size:13px;color:var(--text-dim)">${ue((CFG&&CFG.site&&CFG.site.name)||'Site')}${s.checkedAt?' · checked '+new Date(s.checkedAt).toLocaleTimeString():''}</div></div>
+      ${badge}</div>
+    ${body}
+    <div style="margin-top:14px"><button class="btn" id="check" ${s.checking?'disabled':''}>${s.checking?'Checking…':'Check for updates'}</button></div>
   </div>`;
-  const ch=document.getElementById("check");if(ch)ch.onclick=()=>{updateFound=true;renderUpdates();};
-  const inst=document.getElementById("inst");if(inst)inst.onclick=()=>modal(head("Install v0.2.0")+`<div class="modal-body"><div class="note-box">In the real system this downloads the signed release, verifies the signature, applies it, and restarts the controller. Units keep their last state during the swap, so nothing turns off.</div><div style="text-align:right"><button class="btn primary" onclick="closeModal()">OK</button></div></div>`);
-  const la=document.getElementById("later");if(la)la.onclick=()=>{updateFound=false;renderUpdates();};}
+  const ch=document.getElementById("check"); if(ch) ch.onclick=doUpdateCheck;}
 
 /* ---- device health ---- */
 const DEV={host:"Raspberry Pi 5",os:"Cortex OS 0.1 · Debian 12",uptime:"12d 4h",cpu:14,temp:48,mem:38,disk:22,frames:41,errs:0};
@@ -1819,7 +1836,7 @@ function showCredits(){modal(head("Cortex")+`<div class="modal-body" style="text
   <div style="font-size:38px">🛠️</div>
   <div style="font-weight:600;margin:10px 0 4px">Built by a tech, not a megacorp.</div>
   <div style="font-size:13px;color:var(--text-dim)">A local-first central controller for people who'd rather own their building than rent it back from a laggy touchscreen.</div>
-  <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Cortex by AIROW · v1.0.0</div>
+  <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Cortex by AIROW</div>
   <div style="margin-top:16px"><button class="btn primary" onclick="closeModal()">Nice</button></div></div>`);}
 let keybuf="";const KON=["arrowup","arrowup","arrowdown","arrowdown","arrowleft","arrowright","arrowleft","arrowright","b","a"];let koni=0;
 function panelOpen(){return !!mroot.innerHTML || drawer.classList.contains("show");}

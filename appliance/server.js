@@ -91,6 +91,47 @@ app.post('/api/config', (req, res) => {
   catch (e) { res.status(500).json({ err: e.message }); }
 });
 
+// --- OTA update check ---------------------------------------------------------
+// Reads the manifest URL (+ optional private-repo token) from data/update.conf, fetches
+// the manifest server-side, and reports whether a newer version is available. Done in the
+// backend so the token never touches the browser and there's no CORS issue.
+function readUpdateConf() {
+  const out = {};
+  try {
+    for (const line of fs.readFileSync(path.join(DATA, 'update.conf'), 'utf8').split('\n')) {
+      if (/^\s*#/.test(line)) continue;
+      const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
+      if (m) out[m[1]] = m[2];
+    }
+  } catch (_) {}
+  return out;
+}
+function isNewer(cur, next) {               // true if next > cur (semver-ish, 3 parts)
+  const a = String(cur).split('.').map(n => parseInt(n, 10) || 0);
+  const b = String(next).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) { if ((b[i]||0) > (a[i]||0)) return true; if ((b[i]||0) < (a[i]||0)) return false; }
+  return false;
+}
+app.get('/api/update/check', async (_req, res) => {
+  cors(res);
+  const current = readVersion();
+  const conf = readUpdateConf();
+  const url = conf.CORTEX_UPDATE_MANIFEST;
+  if (!url) return res.json({ current, configured: false, updateAvailable: false });
+  try {
+    const headers = {};
+    if (conf.CORTEX_UPDATE_TOKEN) headers.Authorization = 'Bearer ' + conf.CORTEX_UPDATE_TOKEN;
+    const r = await fetch(url, { headers, redirect: 'follow' });
+    if (!r.ok) throw new Error('manifest HTTP ' + r.status);
+    const m = await r.json();
+    const latest = m.version || '';
+    res.json({ current, latest, configured: true, updateAvailable: isNewer(current, latest),
+               notes: m.notes || '', checkedAt: new Date().toISOString() });
+  } catch (e) {
+    res.json({ current, configured: true, updateAvailable: false, error: e.message });
+  }
+});
+
 // --- first-run redirect -------------------------------------------------------
 // An unconfigured box sends you straight to the setup wizard; once named, '/' is the app.
 app.get('/', (_req, res, next) => {
