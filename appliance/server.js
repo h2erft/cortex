@@ -116,17 +116,26 @@ app.get('/api/update/check', async (_req, res) => {
   cors(res);
   const current = readVersion();
   const conf = readUpdateConf();
-  const url = conf.CORTEX_UPDATE_MANIFEST;
-  if (!url) return res.json({ current, configured: false, updateAvailable: false });
+  const headers = { 'User-Agent': 'cortex-appliance' };
+  if (conf.CORTEX_UPDATE_TOKEN) headers.Authorization = 'Bearer ' + conf.CORTEX_UPDATE_TOKEN;
   try {
-    const headers = {};
-    if (conf.CORTEX_UPDATE_TOKEN) headers.Authorization = 'Bearer ' + conf.CORTEX_UPDATE_TOKEN;
-    const r = await fetch(url, { headers, redirect: 'follow' });
-    if (!r.ok) throw new Error('manifest HTTP ' + r.status);
-    const m = await r.json();
-    const latest = m.version || '';
+    let latest = '', notes = '';
+    if (conf.CORTEX_UPDATE_REPO) {
+      // GitHub API mode — same path the updater uses (works with private repos + fine-grained tokens)
+      const r = await fetch(`https://api.github.com/repos/${conf.CORTEX_UPDATE_REPO}/releases/latest`,
+        { headers: { ...headers, Accept: 'application/vnd.github+json' } });
+      if (!r.ok) throw new Error('GitHub API HTTP ' + r.status);
+      latest = ((await r.json()).tag_name || '').replace(/^v/, '');
+    } else if (conf.CORTEX_UPDATE_MANIFEST) {
+      const r = await fetch(conf.CORTEX_UPDATE_MANIFEST, { headers, redirect: 'follow' });
+      if (!r.ok) throw new Error('manifest HTTP ' + r.status);
+      const m = await r.json();
+      latest = m.version || ''; notes = m.notes || '';
+    } else {
+      return res.json({ current, configured: false, updateAvailable: false });
+    }
     res.json({ current, latest, configured: true, updateAvailable: isNewer(current, latest),
-               notes: m.notes || '', checkedAt: new Date().toISOString() });
+               notes, checkedAt: new Date().toISOString() });
   } catch (e) {
     res.json({ current, configured: true, updateAvailable: false, error: e.message });
   }

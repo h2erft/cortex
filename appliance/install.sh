@@ -63,15 +63,17 @@ ENV
 fi
 if [ ! -f "$DATA/update.conf" ]; then
   cat > "$DATA/update.conf" <<'CONF'
-# OTA: paste the URL of your manifest.json here, then updates apply automatically.
-# For a GitHub repo, this URL always points at your newest release:
-#   CORTEX_UPDATE_MANIFEST=https://github.com/YOUR-GH-USER/cortex/releases/latest/download/manifest.json
+# OTA via GitHub (recommended — works with public AND private repos). Set your repo:
+#   CORTEX_UPDATE_REPO=YOUR-GH-USER/cortex
 # Leave blank to disable OTA on this appliance.
-CORTEX_UPDATE_MANIFEST=
+CORTEX_UPDATE_REPO=
 
-# PRIVATE repo only: a GitHub token with read access to the repo's contents (a fine-grained
-# PAT scoped to just this repo, Contents: Read-only, is ideal). Leave blank for a public repo.
+# PRIVATE repo only: a fine-grained GitHub token with Contents: Read on that repo.
+# Leave blank for a public repo.
 CORTEX_UPDATE_TOKEN=
+
+# Alternative to CORTEX_UPDATE_REPO: a static host serving manifest.json directly.
+#   CORTEX_UPDATE_MANIFEST=https://host/path/manifest.json
 CONF
 fi
 chown -R cortex:cortex "$ROOT"

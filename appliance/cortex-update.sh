@@ -28,38 +28,55 @@ need(){ command -v "$1" >/dev/null 2>&1 || { log "missing dependency: $1"; exit 
 need curl; need jq; need sha256sum; need tar; need node; need systemctl
 
 # --- config -------------------------------------------------------------------
-# update.conf is a shell fragment, e.g.:
-#   CORTEX_UPDATE_MANIFEST=https://example.com/cortex/manifest.json
+# update.conf is a shell fragment. Point at updates one of two ways:
+#   GitHub (recommended — works with PRIVATE repos + fine-grained tokens):
+#     CORTEX_UPDATE_REPO=owner/repo
+#     CORTEX_UPDATE_TOKEN=github_pat_...   # fine-grained, Contents: Read. Omit for a public repo.
+#   Any static host serving the files directly:
+#     CORTEX_UPDATE_MANIFEST=https://host/path/manifest.json
 # shellcheck disable=SC1090
 [ -f "$CONF" ] && . "$CONF" || true
-MANIFEST="${CORTEX_UPDATE_MANIFEST:-}"
-if [ -z "$MANIFEST" ]; then
-  log "no CORTEX_UPDATE_MANIFEST set in $CONF — nothing to do"
-  exit 0
-fi
 
-# Private GitHub repo? A token in update.conf authenticates the manifest + asset fetches.
-# curl drops this header on the cross-host redirect to the signed download URL, which is
-# what we want (the signed URL carries its own auth) — never use --location-trusted here.
+# Token header. For GitHub it authenticates api.github.com; curl drops it on the cross-host
+# redirect to the signed asset URL (which self-authenticates) — never use --location-trusted.
 AUTH=()
 [ -n "${CORTEX_UPDATE_TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer ${CORTEX_UPDATE_TOKEN}")
 
 CUR="$(cat "$ROOT/current/VERSION" 2>/dev/null || echo 0.0.0)"
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-
-# --- fetch + parse manifest ---------------------------------------------------
-if ! curl -fsSL "${AUTH[@]}" --max-time 60 "$MANIFEST" -o "$TMP/manifest.json"; then
-  log "manifest fetch failed from $MANIFEST — leaving $CUR running"
-  exit 0
+# ACCEPT_OCTET makes the GitHub asset API return the file bytes (not JSON metadata).
+ACCEPT_OCTET=()
+if [ -n "${CORTEX_UPDATE_REPO:-}" ]; then
+  # --- GitHub API mode -------------------------------------------------------
+  ACCEPT_OCTET=(-H "Accept: application/octet-stream")
+  API="${CORTEX_UPDATE_API_BASE:-https://api.github.com}/repos/${CORTEX_UPDATE_REPO}"
+  if ! curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" --max-time 60 "$API/releases/latest" -o "$TMP/rel.json"; then
+    log "GitHub release lookup failed for $CORTEX_UPDATE_REPO — leaving $CUR running"; exit 0
+  fi
+  NEW="$(jq -r '.tag_name // empty' "$TMP/rel.json" | sed 's/^v//')"
+  MANURL="$(jq -r '.assets[]? | select(.name=="manifest.json") | .url' "$TMP/rel.json" | head -1)"
+  TGZURL="$(jq -r '.assets[]? | select(.name|endswith(".tgz")) | .url' "$TMP/rel.json" | head -1)"
+  if [ -z "$NEW" ] || [ -z "$MANURL" ] || [ -z "$TGZURL" ]; then
+    log "latest release has no tag or is missing its manifest.json/.tgz assets — ignoring"; exit 0
+  fi
+  if ! curl -fsSL "${AUTH[@]}" "${ACCEPT_OCTET[@]}" --max-time 60 "$MANURL" -o "$TMP/manifest.json"; then
+    log "manifest asset download failed — leaving $CUR running"; exit 0
+  fi
+  SHA="$(jq -r '.sha256 // empty' "$TMP/manifest.json")"
+elif [ -n "${CORTEX_UPDATE_MANIFEST:-}" ]; then
+  # --- static-host mode: manifest.json carries version/url/sha256 directly ----
+  if ! curl -fsSL "${AUTH[@]}" --max-time 60 "$CORTEX_UPDATE_MANIFEST" -o "$TMP/manifest.json"; then
+    log "manifest fetch failed from $CORTEX_UPDATE_MANIFEST — leaving $CUR running"; exit 0
+  fi
+  NEW="$(jq -r '.version // empty' "$TMP/manifest.json")"
+  TGZURL="$(jq -r '.url // empty'  "$TMP/manifest.json")"
+  SHA="$(jq -r '.sha256 // empty'  "$TMP/manifest.json")"
+else
+  log "no CORTEX_UPDATE_REPO or CORTEX_UPDATE_MANIFEST set in $CONF — nothing to do"; exit 0
 fi
-NEW="$(jq -r '.version // empty' "$TMP/manifest.json")"
-URL="$(jq -r '.url // empty'     "$TMP/manifest.json")"
-SHA="$(jq -r '.sha256 // empty'  "$TMP/manifest.json")"
-if [ -z "$NEW" ] || [ -z "$URL" ] || [ -z "$SHA" ]; then
-  log "manifest missing version/url/sha256 — ignoring"
-  exit 0
+if [ -z "$NEW" ] || [ -z "$TGZURL" ] || [ -z "$SHA" ]; then
+  log "update info incomplete (version/url/sha256) — ignoring"; exit 0
 fi
 
 # --- is it actually newer? (semver-ish, via sort -V) --------------------------
@@ -78,8 +95,8 @@ else
   log "update available: $CUR -> $NEW  (downloading)"
 
   # --- download + verify ------------------------------------------------------
-  if ! curl -fsSL "${AUTH[@]}" --max-time 600 "$URL" -o "$TMP/pkg.tgz"; then
-    log "download failed from $URL — leaving $CUR running"
+  if ! curl -fsSL "${AUTH[@]}" "${ACCEPT_OCTET[@]}" --max-time 600 "$TGZURL" -o "$TMP/pkg.tgz"; then
+    log "download failed from $TGZURL — leaving $CUR running"
     exit 0
   fi
   got="$(sha256sum "$TMP/pkg.tgz" | cut -d' ' -f1)"
