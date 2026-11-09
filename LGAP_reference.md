@@ -39,12 +39,18 @@ directly instead of being locked to LG's controllers.
 
 ## 1. Physical bus
 - The indoor / central-control bus is **RS485, 4800 baud, 8 data bits, no parity, 1 stop bit
-  (4800 8N1)**. *CONFIRMED on the wire.*
-- A controller maps each physical channel to a protocol in its config. LGAP runs on the
-  AC/AHU channels. *CONFIRMED.*
-- Chillers and water systems use **MODBUS** on a *separate* channel (typically 9600 or
-  19200 8N1). That is a different protocol on a different pair of wires — do not mix it with
-  the indoor LGAP bus.
+  (4800 8N1)**. *CONFIRMED on the wire AND in firmware.*
+- **Baud is set in firmware** by `rs485_open()` (comm daemon): it writes termios `c_cflag`
+  with a per-port-type baud. The supported speeds are exactly the standard termios set —
+  **B1200, B4800, B9600, B38400** (B19200 also selectable). There is **no 3600** — it is not
+  a valid termios baud and the hardware cannot be set to it. For the LGAP AC port the code
+  selects **B4800** (`c_cflag = 0x8b0 | 0x0C` = CLOCAL|CREAD|CS8|B4800).
+- A controller maps each physical channel to a protocol in its config (`/mnt/flash/config.ini`;
+  ch1 = `/dev/ttymxc2`). LGAP runs on the AC/AHU channels. *CONFIRMED.*
+- Chillers and water systems use **MODBUS** on a *separate* channel at **9600 8N1**
+  (`rs485_open_modbus`, config `MOD_PORT.BAUDRATE='9600'`, protocol `LGMODBUS`). Different
+  protocol, different wires — do not mix it with the indoor LGAP bus. (A 9600 reading on the
+  wrong channel is the likely source of any "it's not 4800" confusion.)
 
 Every indoor unit has a **bus address** (one byte). Commands are addressed to a single unit;
 the controller also broadcasts state and polls the bus to discover who is present.
@@ -167,8 +173,17 @@ capacity, error code, filter sign, and current mode/fan/lock state.
   pipe temps as whole °C.
 - `err` is a raw number; the `CHxx` labels (§6) are the standard LG mapping.
 
-The exact byte **offsets** of this frame live one layer down in the receive parser and are
-best pinned from a single real reply capture (§9) rather than more static analysis.
+**Reply framing — CONFIRMED from firmware (`CheckRecvPacket`):** a reply is exactly
+**16 bytes**, and its integrity is a **CRC-16/XMODEM** (poly 0x1021, init 0x0000) over bytes
+**[0..13]**, stored big-endian in the last two bytes: **byte[14] = CRC high, byte[15] = CRC
+low**. This is *different* from the command-frame checksum (sum XOR 0x55, §2) — replies are
+**not** sum-checksummed, so validating a reply with the command checksum fails and makes the
+unit look like it's "reporting wrong." Validate replies with CRC-16/XMODEM.
+- A reply shorter than 16 bytes = "No Response" (unit absent / timed out).
+- An all-zero 16-byte reply also = no real unit at that address.
+
+The exact byte **offsets** of the telemetry fields within those 16 bytes still want one real
+reply capture (§9) to pin precisely.
 
 ### 4f. Poll / roll-call frames
 On a bus with **no** indoor units answering, a controller just calls roll. Those sweep
@@ -245,6 +260,37 @@ The controller keeps unit state in an SQLite `ac` table. Two shapes exist:
 To command a unit, the engine sets `exe_cmd5='ON'` (with a repeat count) on that address,
 then builds and sends the cmd5 frame. In other words, `exe_cmd5` means "a setpoint/mode
 command is pending for this unit."
+
+## 7b. Master / central-controller operation (how the ACP drives the bus)
+*From the comm daemon: `SendPacketID`, `SetSendPacket`, `WriteCommBlock`, `ReadCommBlock`,
+`CheckRecvPacket`, `rs485_*`.* The ACP is the **single bus master** — it addresses one unit at
+a time, sends, then waits for that unit's reply. Nothing else may drive the bus; to take over,
+the original ACP must be physically disconnected.
+
+Per-unit transaction (`SendPacketID(id, addr, cmd, …)`):
+1. **Build** the outgoing packet for that unit — a **64-byte** slot. `SetSendPacket` writes the
+   **address into byte [3]**, command nibbles into [6] (high)/[7]/[8], and lays the buffer out
+   as blocks: three 16-byte command blocks (each ending in the sum-XOR-0x55 `+1` checksum, §2)
+   plus a trailing **32-bit CRC** over the first 60 bytes in bytes [60..63] (`gen_crc_table`/
+   `update_crc`).
+2. **Transmit** the packet (`WriteCommBlock` → `rs485_tx1`/`writen`).
+3. **Turnaround delay**, then **read the reply** (`ReadCommBlock` → loops `rs485_rx1` until it
+   has bytes or hits a per-try limit). The reply is expected to be **exactly 16 bytes**; fewer
+   = "No Response! From ID". `SendPacketID` in the slow/probe path even does a full `sleep(1s)`
+   between write and read — discovery is deliberately unhurried.
+4. **Validate** the 16-byte reply with `CheckRecvPacket` = CRC-16/XMODEM (see §4e). A valid,
+   non-zero reply means the unit exists and carries its telemetry.
+
+Discovery = run that transaction across the address range; every address that returns a valid
+16-byte reply is a present unit. There is also `SendBroadCastStream` (broadcast) and
+`SendGroupsPacket` (group) for non-addressed sends.
+
+Timing notes (the practical part): RS485 is half-duplex, so the master must finish sending,
+let the line turn around, then listen. The firmware has a configurable **packet delay (default
+20 ms)** and reads the reply with its own timeout/retry loop rather than a fixed wait. In
+practice on a USB-RS485 adapter you need a short inter-frame gap and a generous read timeout
+(tens to a few hundred ms) — too short and you miss the reply (the "set delay to 150 ms so
+bytes could be received" symptom); plenty long is fine because the master sets the pace.
 
 ## 8. Open questions
 - **AUTO fan code** — the "AUTO" fan token's numeric wire value hasn't been read.

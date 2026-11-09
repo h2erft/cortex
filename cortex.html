@@ -87,6 +87,27 @@
     * STATE AS OF TONIGHT: first box (site "vista 7", hostname cortex) is running v1.1.2 via OTA,
       self-healing timer active; v1.1.1 release=mock-era UI, v1.1.2=empty-units + real update page.
       cortex.html loadUnits() returns [] (no demo seed). Updates page auto-calls /api/update/check.
+  - 2026-11-09 MASTER-MODE FIRMWARE DIG (comm daemon bins2/f88a2ccf_33363456.elf, NOT stripped,
+    has debug_info — function names intact!). Findings (see LGAP_reference.md §1, §4e, §7b):
+    * BAUD = 4800 CONFIRMED in firmware. rs485_open() sets termios c_cflag=0x8b0|baudbits;
+      LGAP AC port = B4800 (0x8bc). Supported bauds: B1200/B4800/B9600/B38400(/B19200). 3600 is
+      NOT a termios baud — impossible. MODBUS/chiller channel = 9600 (separate). The LG rep's
+      "3600" is wrong; likely confusion with the 9600 modbus channel.
+    * MASTER TRANSACTION: SendPacketID(id,addr,...) -> SetSendPacket builds a 64-BYTE query
+      (addr at BYTE[3], cmd nibbles at [6]hi/[7]/[8]; three 16-byte blocks each sum-XOR-0x55 +1
+      checksummed, + 32-bit CRC over first 60B in [60..63]) -> WriteCommBlock -> turnaround ->
+      ReadCommBlock expects EXACTLY 16 bytes (else "No Response") -> CheckRecvPacket.
+    * REPLY = 16 bytes, integrity = CRC-16/XMODEM (poly 0x1021, init 0) over [0..13], big-endian
+      [14]=hi [15]=lo. NOT the sum checksum! This is almost certainly why addr 12 "read wrong" —
+      Cortex wasn't treating replies as CRC16 16-byte frames. all-zero reply = absent.
+    * TIMING: half-duplex; firmware packet delay default 20ms; ReadCommBlock loops rs485_rx1 with
+      its own timeout/retry; probe path even sleep(1s) between write and read. His 150ms need fits.
+    * STILL NEED A CAPTURE to lock: exact 64-byte query opcode bytes + the telemetry FIELD OFFSETS
+      within the 16-byte reply. Plan: build backend master poll loop (continuous, configurable
+      turnaround+timeout, discovery sweep, CRC16 reply validation, raw TX/RX log, command inject).
+      Recommend sniffing the real ACP's discovery+poll first to nail query+offsets so it works 1st try.
+    * Analysis tooling: /home/claude/work/dis.py (capstone+pyelftools fn disassembler; host objdump
+      has NO arm support). ELF base vaddr via PT_LOAD segs. control_ac=bins2/4f2fdd00_36345344.elf.
   - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
     (cool+heat) °C, transmits, with editable cmd/flags bytes.
   - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
