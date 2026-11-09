@@ -42,11 +42,16 @@ jobs:
           JSON
           echo "built release $VER"; cat dist/manifest.json
 
-      - name: Publish release
+      - name: Publish release (create if missing, always (re)attach assets)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            dist/cortex-*.tgz dist/manifest.json \
-            --title "Cortex $GITHUB_REF_NAME" \
-            --notes "Automated Cortex appliance release."
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # release already exists (e.g. created in the UI) — just attach/replace the files
+            gh release upload "$GITHUB_REF_NAME" dist/cortex-*.tgz dist/manifest.json --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/cortex-*.tgz dist/manifest.json \
+              --title "Cortex $GITHUB_REF_NAME" \
+              --notes "Automated Cortex appliance release."
+          fi
