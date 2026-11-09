@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortex Command · AIROW</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f5f7;--surface:#fff;--surface-2:#f0f1f4;--border:#e3e5ea;--shadow-lg:0 12px 40px rgba(16,24,40,.14);
+  --text:#1a1f29;--text-dim:#5b6472;--text-faint:#9aa2b1;
+  --accent:#0e7c66;--accent-ink:#0b5f4e;--accent-soft:#d9efe9;
+  --ok:#2e9e5b;--ok-soft:#e4f4ec;--warn:#c98a12;--warn-soft:#fbf0d8;--err:#d93b3b;--err-soft:#fbe6e6;
+  --radius:14px;
+}
+[data-theme="dark"]{
+  --bg:#0e1116;--surface:#161b23;--surface-2:#1d232d;--border:#2a323e;--shadow-lg:0 14px 44px rgba(0,0,0,.5);
+  --text:#e9edf3;--text-dim:#9aa6b5;--text-faint:#687283;
+  --accent:#2fb79a;--accent-ink:#8fe6d4;--accent-soft:#143029;
+  --ok:#43c072;--ok-soft:#142a20;--warn:#e0ad4e;--warn-soft:#2e2514;--err:#f26a6a;--err-soft:#2f1819;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+button{font-family:inherit;cursor:pointer}
+.hide{display:none!important}
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px}
+.brand .dot{width:22px;height:22px;border-radius:7px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff}
+.brand small{font-weight:500;color:var(--text-faint);font-size:11px;letter-spacing:.4px;text-transform:uppercase}
+.top .sp{flex:1}
+.icon-btn{background:none;border:1px solid var(--border);border-radius:9px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:var(--text-dim)}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.whoami{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim)}
+.rolebadge{font-size:10.5px;background:var(--accent-soft);color:var(--accent-ink);padding:2px 7px;border-radius:999px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+/* layout */
+.wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.kpi .n{font-size:26px;font-weight:700;letter-spacing:-.5px}
+.kpi .l{font-size:12px;color:var(--text-dim);margin-top:2px}
+.kpi .n small{font-size:13px;color:var(--text-faint);font-weight:500}
+h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);margin:26px 0 12px}
+.tabs{display:flex;gap:6px;margin-bottom:4px}
+.tab{background:none;border:none;padding:8px 14px;border-radius:9px;font-size:13.5px;font-weight:500;color:var(--text-dim)}
+.tab.on{background:var(--surface);color:var(--text);box-shadow:0 1px 0 var(--border)}
+/* site grid */
+.sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.site{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:10px}
+.site .h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.site .nm{font-weight:650;font-size:15px}
+.site .lo{font-size:12px;color:var(--text-faint);margin-top:1px}
+.pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.off{background:var(--surface-2);color:var(--text-faint)}
+.pill.err{background:var(--err-soft);color:var(--err)}
+.pdot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.stat-row{display:flex;gap:16px;font-size:12.5px;color:var(--text-dim)}
+.stat-row b{color:var(--text);font-weight:650}
+.site .foot{display:flex;gap:8px;margin-top:2px}
+.btn{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 12px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{padding:6px 10px;font-size:12.5px}
+.btn.danger{color:var(--err);border-color:var(--err-soft)}
+.btn.grow{flex:1}
+/* techs */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.trow{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:1px solid var(--border)}
+.trow:first-child{border-top:none}
+.ava{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:650;font-size:13px}
+.tinfo{flex:1;min-width:0}
+.tname{font-weight:600;font-size:14px}
+.tsub{font-size:12px;color:var(--text-faint)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.chip{font-size:11px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:2px 8px;color:var(--text-dim)}
+.chip.temp{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.chip.temp b{font-variant-numeric:tabular-nums}
+/* audit */
+.audit{font-size:12.5px}
+.arow{display:flex;gap:10px;padding:9px 16px;border-top:1px solid var(--border);color:var(--text-dim)}
+.arow:first-child{border-top:none}
+.arow .t{color:var(--text-faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+.arow .m{color:var(--text)}
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.5);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+.scrim.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);width:440px;max-width:100%;overflow:hidden}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border)}
+.mh h3{margin:0;font-size:16px}
+.mb{padding:18px}
+.flabel{display:block;font-size:12px;color:var(--text-dim);margin:12px 0 5px;font-weight:500}
+.flabel:first-child{margin-top:0}
+.inp{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text);font-size:14px;font-family:inherit}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:60px;padding:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);border-radius:9px;font-size:13px}
+.seg button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.mf{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.note{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:12.5px;color:var(--text-dim);line-height:1.5}
+/* login */
+.login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:80;padding:20px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-lg);width:380px;max-width:100%;padding:26px}
+.login-logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;margin-bottom:4px}
+.login-logo .dot{width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff}
+.login-sub{font-size:13px;color:var(--text-dim);margin-bottom:20px}
+.err-text{color:var(--err);font-size:12.5px;min-height:16px;margin-top:6px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--surface);padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;transition:.25s;z-index:200;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<!-- login -->
+<div class="login" id="login">
+  <div class="login-card">
+    <div class="login-logo"><span class="dot"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex Command</div>
+    <div class="login-sub">Fleet console · AIROW</div>
+    <label class="flabel">Owner login</label>
+    <input class="inp" id="lg-user" placeholder="username" autocomplete="off">
+    <input class="inp" id="lg-pass" type="password" placeholder="password" style="margin-top:8px">
+    <div class="err-text" id="lg-err"></div>
+    <button class="btn primary" id="lg-go" style="width:100%;margin-top:6px">Sign in</button>
+    <div class="note" style="margin-top:16px">Demo login — <b>owner</b> / <b>airow</b>. This master account always has access to every building; techs get only what you assign.</div>
+  </div>
+</div>
+
+<!-- app -->
+<div id="app" class="hide">
+  <div class="top">
+    <div class="brand"><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex Command <small>Fleet</small></div>
+    <div class="sp"></div>
+    <div class="whoami"><span id="who">Owner</span><span class="rolebadge">owner</span></div>
+    <button class="icon-btn" id="settings" title="Settings">⚙</button>
+    <button class="icon-btn" id="theme" title="Theme">◑</button>
+    <button class="icon-btn" id="logout" title="Sign out">⏻</button>
+  </div>
+  <div class="wrap">
+    <div class="kpis" id="kpis"></div>
+    <div class="tabs">
+      <button class="tab on" data-tab="sites">Buildings</button>
+      <button class="tab" data-tab="alerts">Alerts</button>
+      <button class="tab" data-tab="techs">Technicians &amp; access</button>
+      <button class="tab" data-tab="audit">Audit log</button>
+    </div>
+    <div id="tab-sites"></div>
+    <div id="tab-alerts" class="hide"></div>
+    <div id="tab-techs" class="hide"></div>
+    <div id="tab-audit" class="hide"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"><div class="modal" id="modal"></div></div>
+
+<script>
+/* ---------- state ---------- */
+const OWNER={user:"owner",pass:"airow",name:"Owner"};
+let DB=load()||seed();
+/* per-user preferences (scoped to the signed-in owner account) */
+const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites"};
+let PREFS=loadPrefs();
+function prefsKey(){return "cortex_cmd_prefs_"+OWNER.user;}
+function loadPrefs(){try{return Object.assign({},PREF_DEFAULTS,JSON.parse(localStorage.getItem("cortex_cmd_prefs_owner"))||{});}catch(e){return Object.assign({},PREF_DEFAULTS);}}
+function savePrefs(){try{localStorage.setItem("cortex_cmd_prefs_owner",JSON.stringify(PREFS));}catch(e){}}
+function applyTheme(){if(PREFS.theme==="auto"){if(matchMedia("(prefers-color-scheme:dark)").matches)document.documentElement.setAttribute("data-theme","dark");else document.documentElement.removeAttribute("data-theme");}else document.documentElement.setAttribute("data-theme",PREFS.theme);}
+function seed(){
+  // Real deployments start empty — add each building by its Cortex appliance address.
+  return {sites:[],techs:[],grants:[],audit:[{t:Date.now(),m:"Fleet console provisioned"}]};
+}
+/* normalize a building's appliance address into a reachable base URL */
+function siteUrl(s){let u=(s&&(s.addr||s.url)||"").trim();if(!u)return "";if(!/^https?:\/\//i.test(u))u="http://"+u;return u.replace(/\/+$/,"");}
+/* poll each building's Cortex appliance /health to set online + version live */
+let healthTimer=null;
+async function pollSite(s){const base=siteUrl(s);if(!base){s.online=false;return;}
+  const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),3000);
+  try{const r=await fetch(base+"/health",{signal:ctl.signal,cache:"no-store"});const j=await r.json();
+    s.online=!!j.ok;if(j.version)s.ver=j.version;}
+  catch(e){s.online=false;}finally{clearTimeout(to);}}
+async function pollAllSites(){if(!DB.sites.length)return;const before=DB.sites.map(s=>s.online);
+  await Promise.all(DB.sites.map(pollSite));
+  if(DB.sites.some((s,i)=>s.online!==before[i])){save();if(tab==="sites")renderSites();renderKpis();renderAlerts();}}
+function startHealthPolling(){if(healthTimer)clearInterval(healthTimer);pollAllSites();healthTimer=setInterval(pollAllSites,15000);}
+function load(){try{return JSON.parse(localStorage.getItem("cortex_command"));}catch(e){return null;}}
+function save(){try{localStorage.setItem("cortex_command",JSON.stringify(DB));}catch(e){}}
+function log(m){DB.audit.unshift({t:Date.now(),m});DB.audit=DB.audit.slice(0,60);save();}
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+function siteName(id){const s=DB.sites.find(x=>x.id===id);return s?s.name:id;}
+function initials(n){return n.split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();}
+function fmtTime(ts){const d=new Date(ts);return d.toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});}
+function activeGrants(){const now=Date.now();return DB.grants.filter(g=>g.until>now);}
+function techAccess(tid){const t=DB.techs.find(x=>x.id===tid);const perm=t?t.assigned.slice():[];
+  const temp=activeGrants().filter(g=>g.tech===tid).map(g=>g.site);return {perm,temp};}
+
+/* ---------- toast ---------- */
+let tT;function toast(m){let t=$("toast");if(!t){t=document.createElement("div");t.id="toast";t.className="toast";document.body.appendChild(t);}
+  t.textContent=m;t.classList.add("show");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("show"),2400);}
+
+/* ---------- render ---------- */
+let tab="sites";
+if(!PREFS.siteOrder||PREFS.siteOrder.length!==DB.sites.length)PREFS.siteOrder=DB.sites.map(s=>s.id);
+let siteQuery="", siteSort=PREFS.siteSort||"custom", dragId=null;
+function orderedSites(){
+  let list=DB.sites.slice();
+  if(siteSort==="alpha")list.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(siteSort==="status")list.sort((a,b)=>(b.err-a.err)||((a.online?1:0)-(b.online?1:0)));
+  else list.sort((a,b)=>PREFS.siteOrder.indexOf(a.id)-PREFS.siteOrder.indexOf(b.id));
+  if(siteQuery)list=list.filter(s=>(s.name+" "+(s.loc||"")+" "+(s.addr||"")).toLowerCase().includes(siteQuery.toLowerCase()));
+  return list;}
+/* deterministic 30-day error history per site (sample) */
+function siteErrHist(s){const h=[];for(let i=29;i>=0;i--){const base=(s.id.charCodeAt(1)+i*7)%11;h.push(Math.max(0,(base>8?base-8:0)+(i<2?(s.err||0):0)));}return h;}
+function render(){renderKpis();renderSites();renderAlerts();renderTechs();renderAudit();}
+function renderKpis(){
+  const online=DB.sites.filter(s=>s.online).length;
+  const units=DB.sites.reduce((a,s)=>a+(s.units||0),0);
+  const errs=DB.sites.reduce((a,s)=>a+(s.err||0),0);
+  $("kpis").innerHTML=`
+    <div class="kpi"><div class="n">${DB.sites.length} <small>· ${online} online</small></div><div class="l">Buildings</div></div>
+    <div class="kpi"><div class="n">${units}</div><div class="l">Indoor units managed</div></div>
+    <div class="kpi"><div class="n" style="color:${errs?'var(--err)':'inherit'}">${errs}</div><div class="l">Units in error</div></div>
+    <div class="kpi"><div class="n">${DB.techs.length} <small>· ${activeGrants().length} temp</small></div><div class="l">Technicians</div></div>`;
+}
+function sitePill(s){return !siteUrl(s)?`<span class="pill off"><span class="pdot"></span>No address</span>`
+  :!s.online?`<span class="pill off"><span class="pdot"></span>Offline</span>`
+  :s.err?`<span class="pill err"><span class="pdot"></span>${s.err} error${s.err>1?'s':''}</span>`
+  :`<span class="pill ok"><span class="pdot"></span>Online</span>`;}
+function sitesToolbar(){return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+  <input class="inp" id="site-search" placeholder="Search buildings…" value="${siteQuery}" style="flex:1;min-width:160px">
+  <select class="inp" id="site-sort" style="width:auto"><option value="custom" ${siteSort==="custom"?"selected":""}>Custom order</option><option value="alpha" ${siteSort==="alpha"?"selected":""}>A–Z</option><option value="status" ${siteSort==="status"?"selected":""}>Problems first</option></select>
+  <button class="btn primary" id="add-building">+ Add building</button>
+  </div>${siteSort==="custom"&&!siteQuery&&PREFS.layout!=="list"&&DB.sites.length>1?'<div style="font-size:11.5px;color:var(--text-faint);margin:-8px 0 12px">Drag cards to reorder.</div>':''}`;}
+function siteAddr(s){const u=siteUrl(s);return u?`<span class="mono" style="font-size:11.5px;color:var(--text-faint)">${u.replace(/^https?:\/\//,'')}</span>`:'<span style="font-size:11.5px;color:var(--warn)">no address set</span>';}
+function renderSites(){
+  const list=orderedSites();const canDrag=siteSort==="custom"&&!siteQuery&&PREFS.layout!=="list";
+  let inner;
+  if(PREFS.layout==="list"){
+    inner=`<div class="panel">`+list.map(s=>`<div class="trow">
+      <div class="tinfo"><div class="tname">${s.name} ${sitePill(s)}</div><div class="tsub">${s.loc?s.loc+' · ':''}${siteAddr(s)}${s.ver?' · v'+s.ver:''}</div></div>
+      <button class="btn sm" data-edit="${s.id}">Edit</button>
+      <button class="btn sm" data-assign="${s.id}">Assign</button>
+      <button class="btn primary sm" data-open="${s.id}">Open ↗</button></div>`).join("")+`</div>`;
+  }else{
+    const pad=PREFS.density==="compact"?"12px":"16px";
+    inner=`<div class="sites">`+list.map(s=>`<div class="site" style="padding:${pad}${canDrag?';cursor:grab':''}" ${canDrag?`draggable="true"`:''} data-drag="${s.id}">
+      <div class="h"><div><div class="nm">${canDrag?'⠿ ':''}${s.name}</div><div class="lo">${s.loc||''}</div></div>${sitePill(s)}</div>
+      <div class="stat-row"><div>${siteAddr(s)}</div>${s.ver?`<div>v${s.ver}</div>`:''}</div>
+      <div class="foot"><button class="btn primary grow sm" data-open="${s.id}">Open dashboard ↗</button>
+        <button class="btn sm" data-assign="${s.id}">Assign</button>
+        <button class="btn sm" data-edit="${s.id}">Edit</button></div></div>`).join("")+`</div>`;
+  }
+  $("tab-sites").innerHTML=sitesToolbar()+(list.length?inner:`<div class="note">No buildings yet. Click <b>+ Add building</b> and enter the address of a Cortex appliance — its Tailscale name or IP with the port, like <span class="mono">cortex-site:8080</span> or <span class="mono">100.84.2.17:8080</span>.</div>`);
+  $("site-search").oninput=e=>{siteQuery=e.target.value;renderSites();$("site-search").focus();};
+  $("site-sort").onchange=e=>{siteSort=e.target.value;PREFS.siteSort=siteSort;savePrefs();renderSites();};
+  const ab=$("add-building");if(ab)ab.onclick=()=>buildingModal(null);
+  document.querySelectorAll("#tab-sites [data-open]").forEach(b=>b.onclick=()=>{const s=DB.sites.find(x=>x.id===b.dataset.open);const u=siteUrl(s);
+    if(!u){toast("Set this building's address first");buildingModal(s.id);return;}
+    window.open(u,"_blank","noopener");log(`Opened ${s.name} (${u.replace(/^https?:\/\//,'')})`);renderAudit();});
+  document.querySelectorAll("#tab-sites [data-edit]").forEach(b=>b.onclick=()=>buildingModal(b.dataset.edit));
+  document.querySelectorAll("#tab-sites [data-assign]").forEach(b=>b.onclick=()=>grantModal(b.dataset.assign));
+  if(canDrag)document.querySelectorAll("#tab-sites [data-drag]").forEach(el=>{
+    el.ondragstart=()=>{dragId=el.dataset.drag;el.style.opacity=".4";};
+    el.ondragend=()=>{el.style.opacity="1";};
+    el.ondragover=e=>{e.preventDefault();};
+    el.ondrop=e=>{e.preventDefault();const over=el.dataset.drag;if(!dragId||dragId===over)return;
+      const o=PREFS.siteOrder.slice();const from=o.indexOf(dragId),to=o.indexOf(over);o.splice(from,1);o.splice(to,0,dragId);
+      PREFS.siteOrder=o;savePrefs();renderSites();};
+  });
+}
+function renderAlerts(){
+  const problems=DB.sites.filter(s=>!s.online||s.err>0);
+  const rows=problems.length?problems.map(s=>`<div class="trow">
+    <span class="pill ${s.online?'err':'off'}"><span class="pdot"></span>${s.online?s.err+' error'+(s.err>1?'s':''):'Offline'}</span>
+    <div class="tinfo"><div class="tname">${s.name}</div><div class="tsub">${s.loc}</div></div>
+    <button class="btn primary sm" data-open="${s.id}" ${s.online?'':'disabled style="opacity:.5"'}>Open</button></div>`).join(""):'<div class="trow"><div class="tsub">✓ No active alerts across the fleet.</div></div>';
+  const spark=h=>{const mx=Math.max(1,...h);return `<svg width="150" height="26" viewBox="0 0 150 26">${h.map((v,i)=>`<rect x="${i*5}" y="${26-v/mx*24}" width="4" height="${v/mx*24}" fill="${v>0?'var(--err)':'var(--border)'}" rx="1"/>`).join("")}</svg>`;};
+  $("tab-alerts").innerHTML=`<h2 class="sec" style="margin-top:4px">Active alerts</h2><div class="panel">${rows}</div>
+    <h2 class="sec">Error trends · last 30 days</h2><div class="panel">${DB.sites.map(s=>{const h=siteErrHist(s),tot=h.reduce((a,b)=>a+b,0);
+      return `<div class="trow"><div class="tinfo"><div class="tname">${s.name}</div><div class="tsub">${tot} error events in 30 days</div></div>${spark(h)}</div>`;}).join("")}</div>
+    <div class="note" style="margin-top:12px">Alerts and error trends roll up what each building's controller reports. Sample data until sites are live-reporting over the tunnel.</div>`;
+  document.querySelectorAll("#tab-alerts [data-open]").forEach(b=>b.onclick=()=>{const s=DB.sites.find(x=>x.id===b.dataset.open);log(`Opened ${s.name} dashboard (remote)`);toast("Opening "+s.name+"…");renderAudit();});
+}
+function renderTechs(){
+  $("tab-techs").innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px"><button class="btn sm" id="addtech">+ Add technician</button><button class="btn primary sm" id="newgrant">+ Grant temporary access</button></div>
+   <div class="panel">`+(DB.techs.length?DB.techs.map(t=>{
+    const {perm,temp}=techAccess(t.id);
+    const chips=perm.map(id=>`<span class="chip">${siteName(id)}</span>`).join("")
+      +activeGrants().filter(g=>g.tech===t.id).map(g=>`<span class="chip temp" data-rev="${g.id}">${siteName(g.site)} · <b data-until="${g.until}"></b> · revoke ✕</span>`).join("");
+    return `<div class="trow"><div class="ava">${initials(t.name)}</div>
+      <div class="tinfo"><div class="tname">${t.name}</div><div class="tsub">${t.email} · ${perm.length} permanent${temp.length?` · ${temp.length} temporary`:''}</div>
+        <div class="chips">${chips||'<span class="tsub">no buildings assigned</span>'}</div></div>
+      <button class="btn sm" data-edit="${t.id}">Buildings</button>
+      <button class="btn sm danger" data-deltech="${t.id}">Remove</button></div>`;
+  }).join(""):`<div class="trow"><div class="tsub">No technicians yet. Add one to start assigning buildings.</div></div>`)+`</div>
+   <div class="note" style="margin-top:12px">Permanent assignments are the buildings a tech owns day-to-day. <b>Temporary access</b> is for covering someone else's site — it auto-expires at the countdown with no cleanup needed, so Bob never keeps a key to Joe's building. You (owner) always have every building.</div>`;
+  const ng=$("newgrant");if(ng)ng.onclick=()=>grantModal(null);
+  const at=$("addtech");if(at)at.onclick=addTechModal;
+  document.querySelectorAll("#tab-techs [data-rev]").forEach(c=>c.onclick=()=>revoke(c.dataset.rev));
+  document.querySelectorAll("#tab-techs [data-edit]").forEach(b=>b.onclick=()=>editTech(b.dataset.edit));
+  document.querySelectorAll("#tab-techs [data-deltech]").forEach(b=>b.onclick=()=>removeTech(b.dataset.deltech));
+  tickCountdowns();
+}
+function renderAudit(){
+  $("tab-audit").innerHTML=`<div class="panel audit">`+DB.audit.map(a=>`<div class="arow"><span class="t">${fmtTime(a.t)}</span><span class="m">${a.m}</span></div>`).join("")+`</div>`;
+}
+
+/* ---------- countdowns ---------- */
+function fmtLeft(ms){if(ms<=0)return"expired";const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=s%60;
+  if(h>0)return h+"h "+m+"m";if(m>0)return m+"m "+ss+"s";return ss+"s";}
+function tickCountdowns(){let changed=false;const now=Date.now();
+  document.querySelectorAll("[data-until]").forEach(el=>{el.textContent=fmtLeft(+el.dataset.until-now);});
+  DB.grants.forEach(g=>{if(!g.expired&&g.until<=now){g.expired=true;changed=true;log(`Temporary access expired: ${siteName(g.site)} for ${techName(g.tech)}`);}});
+  if(changed){save();renderTechs();renderAudit();renderKpis();}
+}
+function techName(id){const t=DB.techs.find(x=>x.id===id);return t?t.name:id;}
+setInterval(()=>{if(!$("app").classList.contains("hide")&&tab==="techs")tickCountdowns();
+  else{/* still expire silently */DB.grants.forEach(g=>{if(!g.expired&&g.until<=Date.now()){g.expired=true;log(`Temporary access expired: ${siteName(g.site)} for ${techName(g.tech)}`);save();renderKpis();}});}},1000);
+
+/* ---------- modals ---------- */
+function openModal(html){$("modal").innerHTML=html;$("scrim").classList.add("show");}
+function closeModal(){$("scrim").classList.remove("show");$("modal").innerHTML="";}
+$("scrim").onclick=e=>{if(e.target.id==="scrim")closeModal();};
+function buildingModal(id){
+  const s=id?DB.sites.find(x=>x.id===id):null;
+  openModal(`<div class="mh"><h3>${s?'Edit building':'Add building'}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb">
+      <label class="fl">Building name</label>
+      <input class="inp" id="b-name" placeholder="Main Street Office" value="${s?s.name.replace(/"/g,'&quot;'):''}">
+      <label class="fl" style="margin-top:12px">Location <span style="color:var(--text-faint);font-weight:400">(optional)</span></label>
+      <input class="inp" id="b-loc" placeholder="City, ST" value="${s&&s.loc?s.loc.replace(/"/g,'&quot;'):''}">
+      <label class="fl" style="margin-top:12px">Cortex appliance address</label>
+      <input class="inp mono" id="b-addr" placeholder="cortex-site:8080" value="${s&&s.addr?s.addr.replace(/"/g,'&quot;'):''}">
+      <div class="note" style="margin-top:8px">The Tailscale name or IP of the Cortex box in this building, with its port. Examples: <span class="mono">cortex-site:8080</span> or <span class="mono">100.84.2.17:8080</span>. Leave off <span class="mono">http://</span> — it's added for you.</div>
+    </div>
+    <div class="mf">${s?'<button class="btn danger" id="b-del" style="margin-right:auto">Remove</button>':''}<button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="b-save">${s?'Save':'Add building'}</button></div>`);
+  $("b-name").focus();
+  $("b-save").onclick=()=>{
+    const name=$("b-name").value.trim();if(!name){$("b-name").focus();toast("Give the building a name");return;}
+    const loc=$("b-loc").value.trim();
+    let addr=$("b-addr").value.trim().replace(/^https?:\/\//,'').replace(/\/+$/,'');
+    if(s){s.name=name;s.loc=loc;s.addr=addr;log(`Edited building ${name}`);}
+    else{const ns={id:"s"+Date.now(),name,loc,addr,online:false,ver:"",units:0,run:0,sys:0,err:0};DB.sites.push(ns);PREFS.siteOrder=[...(PREFS.siteOrder||[]),ns.id];savePrefs();log(`Added building ${name}`);}
+    save();closeModal();render();toast(s?"Building saved":"Building added");
+    if(addr)pollAllSites();
+  };
+  const del=$("b-del");if(del)del.onclick=()=>{
+    DB.sites=DB.sites.filter(x=>x.id!==s.id);PREFS.siteOrder=(PREFS.siteOrder||[]).filter(x=>x!==s.id);savePrefs();
+    DB.grants=DB.grants.filter(g=>g.site!==s.id);DB.techs.forEach(t=>t.assigned=(t.assigned||[]).filter(x=>x!==s.id));
+    log(`Removed building ${s.name}`);save();closeModal();render();toast("Building removed");
+  };
+}
+function grantModal(presetSite){
+  const durs=[["2h",2*3600],["4h",4*3600],["8h",8*3600],["24h",24*3600],["3d",3*86400]];
+  openModal(`<div class="mh"><h3>Grant temporary access</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb">
+      <label class="flabel">Technician</label>
+      <select class="inp" id="g-tech">${DB.techs.map(t=>`<option value="${t.id}">${t.name}</option>`).join("")}</select>
+      <label class="flabel">Building</label>
+      <select class="inp" id="g-site">${DB.sites.map(s=>`<option value="${s.id}" ${s.id===presetSite?'selected':''}>${s.name}</option>`).join("")}</select>
+      <label class="flabel">Expires after</label>
+      <div class="seg" id="g-dur">${durs.map((d,i)=>`<button data-d="${d[1]}" class="${i===1?'on':''}">${d[0]}</button>`).join("")}</div>
+      <div class="note" style="margin-top:14px">Access ends automatically at the timer — you don't have to remember to pull it back.</div>
+      <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="g-go">Grant access</button></div>
+    </div>`);
+  let dur=4*3600;
+  document.querySelectorAll("#g-dur button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#g-dur button").forEach(x=>x.classList.remove("on"));b.classList.add("on");dur=+b.dataset.d;});
+  $("g-go").onclick=()=>{const tech=$("g-tech").value,site=$("g-site").value;
+    DB.grants.push({id:"g"+Date.now(),tech,site,until:Date.now()+dur*1000,expired:false});
+    log(`Granted ${techName(tech)} temporary access to ${siteName(site)} (${fmtLeft(dur*1000)})`);
+    save();closeModal();toast("Temporary access granted");tab="techs";setTab();render();};
+}
+function revoke(gid){const g=DB.grants.find(x=>x.id===gid);if(!g)return;
+  g.until=Date.now()-1;g.expired=true;log(`Revoked ${techName(g.tech)}'s access to ${siteName(g.site)}`);save();renderTechs();renderAudit();renderKpis();toast("Access revoked");}
+function editTech(tid){const t=DB.techs.find(x=>x.id===tid);
+  openModal(`<div class="mh"><h3>${t.name} · buildings</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb"><label class="flabel">Permanent assignments</label>
+      <div class="seg" id="e-sites" style="flex-direction:column">${DB.sites.map(s=>`<button data-s="${s.id}" class="${t.assigned.includes(s.id)?'on':''}" style="justify-content:flex-start;text-align:left">${t.assigned.includes(s.id)?'✓ ':''}${s.name}</button>`).join("")}</div>
+      <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="e-save">Save</button></div></div>`);
+  let set=new Set(t.assigned);
+  document.querySelectorAll("#e-sites button").forEach(b=>b.onclick=()=>{const id=b.dataset.s;
+    if(set.has(id)){set.delete(id);b.classList.remove("on");b.textContent=siteName(id);}else{set.add(id);b.classList.add("on");b.textContent="✓ "+siteName(id);}});
+  $("e-save").onclick=()=>{t.assigned=[...set];log(`Updated ${t.name}'s building assignments (${t.assigned.length})`);save();closeModal();render();toast("Assignments saved");};
+}
+
+function addTechModal(){
+  openModal(`<div class="mh"><h3>Add technician</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb">
+      <label class="flabel">Name</label><input class="inp" id="nt-name" placeholder="Full name" autocomplete="off">
+      <label class="flabel">Email / username</label><input class="inp" id="nt-email" placeholder="name@airow" autocomplete="off">
+      <div class="note" style="margin-top:12px">They start with no buildings. Assign them after, or grant temporary access anytime.</div>
+      <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="nt-save">Add</button></div></div>`);
+  $("nt-save").onclick=()=>{const name=$("nt-name").value.trim(),email=$("nt-email").value.trim();
+    if(!name){toast("Enter a name");return;}
+    DB.techs.push({id:"t"+Date.now(),name,email:email||"—",assigned:[]});log(`Added technician ${name}`);save();closeModal();render();toast("Technician added");};
+}
+function removeTech(tid){const t=DB.techs.find(x=>x.id===tid);if(!t)return;
+  openModal(`<div class="mh"><h3>Remove ${t.name}?</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb"><div class="note">This removes ${t.name} and any temporary access they hold. Building assignments are cleared. This can't be undone.</div>
+    <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" id="rt-go">Remove technician</button></div></div>`);
+  $("rt-go").onclick=()=>{DB.techs=DB.techs.filter(x=>x.id!==tid);DB.grants=DB.grants.filter(g=>g.tech!==tid);log(`Removed technician ${t.name}`);save();closeModal();render();toast("Technician removed");};
+}
+function mt(key,label){const v=!!PREFS[key];return `<div class="trow" style="padding:9px 0;border-top:1px solid var(--border)"><div class="tinfo"><div class="tname" style="font-size:13.5px;font-weight:500">${label}</div></div><button class="btn sm ${v?'primary':''}" data-mt="${key}">${v?'On':'Off'}</button></div>`;}
+/* ---------- tabs / chrome ---------- */
+function setTab(){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  ["sites","alerts","techs","audit"].forEach(t=>$("tab-"+t).classList.toggle("hide",tab!==t));}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;setTab();if(tab==="techs")tickCountdowns();});
+$("theme").onclick=()=>{const dark=document.documentElement.getAttribute("data-theme")==="dark";PREFS.theme=dark?"light":"dark";savePrefs();applyTheme();};
+applyTheme();
+$("settings").onclick=openSettings;
+function openSettings(){
+  openModal(`<div class="mh"><h3>Settings</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb">
+      <label class="flabel">Theme</label>
+      <div class="seg" id="st-theme">${["auto","light","dark"].map(t=>`<button data-t="${t}" class="${PREFS.theme===t?'on':''}">${t[0].toUpperCase()+t.slice(1)}</button>`).join("")}</div>
+      <label class="flabel">Buildings layout</label>
+      <div class="seg" id="st-layout">${[["grid","Grid"],["list","List"]].map(l=>`<button data-l="${l[0]}" class="${PREFS.layout===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
+      <label class="flabel">Density</label>
+      <div class="seg" id="st-density">${[["comfortable","Comfortable"],["compact","Compact"]].map(d=>`<button data-d="${d[0]}" class="${PREFS.density===d[0]?'on':''}">${d[1]}</button>`).join("")}</div>
+      <label class="flabel">Default landing tab</label>
+      <div class="seg" id="st-land">${[["sites","Buildings"],["alerts","Alerts"],["techs","Techs"]].map(l=>`<button data-land="${l[0]}" class="${PREFS.landing===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
+      <label class="flabel">More</label>
+      <div>${mt("showOffline","Show offline buildings")}${mt("autorefresh","Auto-refresh fleet status")}${mt("clock24","24-hour clock")}${mt("confirmOpen","Confirm before opening a site remotely")}${mt("compactNums","Compact large numbers")}${mt("soundAlerts","Sound on new alert")}</div>
+      <div class="note" style="margin-top:14px">These preferences are saved to your account (<b>${OWNER.user}</b>). Each person who logs in keeps their own theme and layout.</div>
+      <div class="mf"><button class="btn primary" onclick="closeModal()">Done</button></div>
+    </div>`);
+  document.querySelectorAll("#st-theme button").forEach(b=>b.onclick=()=>{PREFS.theme=b.dataset.t;savePrefs();applyTheme();openSettings();});
+  document.querySelectorAll("#st-layout button").forEach(b=>b.onclick=()=>{PREFS.layout=b.dataset.l;savePrefs();renderSites();openSettings();});
+  document.querySelectorAll("#st-density button").forEach(b=>b.onclick=()=>{PREFS.density=b.dataset.d;savePrefs();renderSites();openSettings();});
+  document.querySelectorAll("#st-land button").forEach(b=>b.onclick=()=>{PREFS.landing=b.dataset.land;savePrefs();openSettings();});
+  document.querySelectorAll("[data-mt]").forEach(b=>b.onclick=()=>{const k=b.dataset.mt;PREFS[k]=!PREFS[k];savePrefs();renderSites();openSettings();});
+}
+$("logout").onclick=()=>{sessionStorage.removeItem("cortex_cmd_in");$("app").classList.add("hide");$("login").style.display="flex";};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
+
+/* ---------- login ---------- */
+function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";render();setTab();if(tab==="techs")tickCountdowns();startHealthPolling();pollAllSites();}
+$("lg-go").onclick=()=>{const u=$("lg-user").value.trim(),p=$("lg-pass").value;
+  if(u===OWNER.user&&p===OWNER.pass){sessionStorage.setItem("cortex_cmd_in","1");enter();}
+  else $("lg-err").textContent="Wrong username or password.";};
+$("lg-pass").addEventListener("keydown",e=>{if(e.key==="Enter")$("lg-go").click();});
+if(sessionStorage.getItem("cortex_cmd_in")==="1")enter();
+</script>
+</body>
+</html>

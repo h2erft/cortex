@@ -1,0 +1,35 @@
+[Unit]
+Description=Cortex by AIROW - HVAC controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cortex
+# 'current' is a symlink to the live release under /opt/cortex/releases/<version>.
+# OTA repoints this symlink and restarts us, so an update is an atomic swap.
+WorkingDirectory=/opt/cortex/current
+EnvironmentFile=-/opt/cortex/data/appliance.env
+Environment=CORTEX_PORT=8080
+Environment=CORTEX_SERIAL=/dev/ttyUSB0
+Environment=CORTEX_DIR=/opt/cortex/current
+ExecStart=/usr/bin/node /opt/cortex/current/server.js
+Restart=always
+RestartSec=3
+
+# --- lockdown ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/opt/cortex/data
+# the app reads its release dir through the 'current' symlink
+ReadOnlyPaths=/opt/cortex/releases
+# the adapter shows up in the 'dialout' group
+SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target

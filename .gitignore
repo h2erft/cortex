@@ -1,0 +1,9 @@
+# build + runtime artifacts — never committed
+node_modules/
+appliance/node_modules/
+appliance/dist/
+*.log
+
+# local scratch
+.DS_Store
+*.swp

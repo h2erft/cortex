@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortex · Setup</title>
+<style>
+  :root{ --bg:#0b0f14; --card:#121922; --line:#223041; --ink:#e7eef5; --dim:#8aa0b2; --teal:#2fd1b5; --tealdk:#1b9c87; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,Arial;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px 26px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .dot{width:11px;height:11px;border-radius:50%;background:var(--teal);box-shadow:0 0 12px var(--teal)}
+  .brand b{font-size:19px;letter-spacing:.3px}
+  h1{font-size:17px;margin:18px 0 2px}
+  p.sub{color:var(--dim);margin:0 0 20px;font-size:14px}
+  label{display:block;font-size:13px;color:var(--dim);margin:16px 0 6px}
+  input,select{width:100%;background:#0c1319;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 12px;font-size:15px;outline:none}
+  input:focus,select:focus{border-color:var(--tealdk)}
+  .row{display:flex;gap:8px}
+  .row select{flex:1}
+  button{width:100%;margin-top:22px;background:var(--teal);color:#06231e;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .ghost{background:transparent;color:var(--dim);border:1px solid var(--line);width:auto;padding:9px 12px;margin:0;font-weight:500;font-size:13px;white-space:nowrap}
+  .hint{color:var(--dim);font-size:12.5px;margin-top:6px}
+  .msg{margin-top:16px;font-size:14px;min-height:20px}
+  .msg.ok{color:var(--teal)} .msg.err{color:#ff8e8e}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand"><span class="dot"></span><b>Cortex</b></div>
+    <h1>Set up this controller</h1>
+    <p class="sub">Name the site and pick the RS485 adapter. You can change these later from the same screen.</p>
+
+    <label for="name">Site name</label>
+    <input id="name" placeholder="e.g. Maple Street Office" autocomplete="off">
+    <div class="hint">Shown in your fleet console so you can tell sites apart.</div>
+
+    <label for="serial">RS485 adapter</label>
+    <div class="row">
+      <select id="serial"></select>
+      <button class="ghost" id="rescan" type="button">Rescan</button>
+    </div>
+    <div class="hint" id="serialHint">Plug the adapter in before scanning. Default is <code>/dev/ttyUSB0</code>.</div>
+
+    <button id="save" type="button">Save &amp; open Cortex</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const DEFAULT_SERIAL = '/dev/ttyUSB0';
+
+async function loadPorts(selected){
+  const sel = $('serial'); sel.innerHTML = '';
+  let ports = [];
+  try { ports = (await (await fetch('/api/serial-ports')).json()).ports || []; } catch(_){}
+  const seen = new Set();
+  const add = (val, label) => { if(seen.has(val))return; seen.add(val);
+    const o=document.createElement('option'); o.value=val; o.textContent=label||val;
+    if(val===selected) o.selected=true; sel.appendChild(o); };
+  ports.forEach(p => add(p.path, p.manufacturer ? `${p.path} — ${p.manufacturer}` : p.path));
+  add(DEFAULT_SERIAL, DEFAULT_SERIAL + ' (default)');
+  // allow a manual path if theirs isn't listed
+  add('__custom__', 'Other / type a path…');
+  if(selected && !seen.has(selected)){ // previously-saved custom path
+    const o=document.createElement('option'); o.value=selected; o.textContent=selected; o.selected=true; sel.insertBefore(o, sel.firstChild);
+  }
+  sel.onchange = () => {
+    if(sel.value==='__custom__'){
+      const v = prompt('Enter the serial device path:', DEFAULT_SERIAL);
+      if(v){ const o=document.createElement('option'); o.value=v; o.textContent=v; o.selected=true; sel.insertBefore(o, sel.firstChild); }
+      else sel.value = DEFAULT_SERIAL;
+    }
+  };
+  $('serialHint').textContent = ports.length
+    ? 'Found ' + ports.length + ' adapter' + (ports.length>1?'s':'') + '. Pick yours (a USB-RS485 shows a manufacturer).'
+    : 'No adapter detected yet — plug it in and hit Rescan, or leave the default.';
+}
+
+async function init(){
+  let cfg = {};
+  try { cfg = await (await fetch('/api/config')).json(); } catch(_){}
+  $('name').value = cfg.name || '';
+  await loadPorts(cfg.serial || DEFAULT_SERIAL);
+}
+$('rescan').onclick = () => loadPorts($('serial').value);
+$('save').onclick = async () => {
+  const name = $('name').value.trim();
+  const serial = $('serial').value;
+  const msg = $('msg');
+  if(!name){ msg.className='msg err'; msg.textContent='Give the site a name first.'; return; }
+  if(serial==='__custom__'){ msg.className='msg err'; msg.textContent='Pick or type a serial device.'; return; }
+  $('save').disabled = true; msg.className='msg'; msg.textContent='Saving…';
+  try {
+    const r = await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,serial})});
+    const j = await r.json();
+    if(!r.ok || j.err) throw new Error(j.err||'save failed');
+    msg.className='msg ok'; msg.textContent='Saved. Opening Cortex…';
+    setTimeout(()=>{ location.href='/'; }, 700);
+  } catch(e){
+    $('save').disabled=false; msg.className='msg err'; msg.textContent='Could not save: '+e.message;
+  }
+};
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+[Unit]
+Description=Check for Cortex updates periodically
+
+[Timer]
+# First check 3 min after boot, then every 30 min. Randomized so a fleet of sites
+# doesn't hammer the update host at the same instant.
+OnBootSec=3min
+OnUnitActiveSec=30min
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

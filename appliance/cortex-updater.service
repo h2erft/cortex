@@ -1,0 +1,11 @@
+[Unit]
+Description=Cortex OTA updater (checks for a new release and applies it)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Runs as root: it has to write releases, flip the symlink, and restart the service.
+ExecStart=/opt/cortex/current/cortex-update.sh
+# Don't let a hung download wedge the timer.
+TimeoutStartSec=900

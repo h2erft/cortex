@@ -1,0 +1,13 @@
+{
+  "name": "cortex-appliance",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cortex by AIROW — local HVAC controller appliance (serves the UI + bridges RS485)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0",
+    "serialport": "^12.0.0"
+  }
+}

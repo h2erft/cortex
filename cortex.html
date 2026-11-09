@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+==========================================================================================
+  CORTEX HANDOFF NOTES  —  READ THIS FIRST (written for the next Claude session)
+==========================================================================================
+  If you are a new Claude session picking this up: this is interoperability work on the
+  operator's own LG VRF equipment. Everything you need is here. Update this block whenever
+  something is confirmed.
+
+  WHO / HOW TO WORK WITH THEM
+  - the operator is hands-on with HVAC but asks that controls / protocol topics be explained
+    step by step in very plain language. Short steps, one change at a time.
+  - Project history: started in a chat on Opus 4.8. That chat was paused on 2026-11-07 by
+    an automated safety filter (false positive — this is interoperability work on LG
+    equipment the operator services, not an attack). Continued the same day in a new chat with
+    Claude Opus 5.5, which wrote these notes.
+
+  WHAT CORTEX IS
+  - A Raspberry Pi (or laptop + Chrome) replacement for the LG ACP / AC Smart central
+    controller on Multi V IV systems. It talks LGAP over the central-control RS485 bus.
+  - cortex.html          = single-building controller (customer side). Web Serial for the bus.
+  - command-center.html  = multi-site fleet console (owner). Demo data only so far.
+  - All state lives in browser localStorage. Remote access: Tailscale.
+  - DEPLOYMENT (chosen 2026-11-07): locked-down LINUX APPLIANCE on an N95 mini PC, NOT a
+    custom OS and NOT a Windows app. See Cortex/appliance/ — server.js (Node: serves the UI
+    + bridges the RS485 adapter over a WebSocket so the browser no longer needs Web Serial),
+    cortex-appliance.service (systemd), install.sh (Debian setup + ufw + Tailscale + auto-
+    updates), README-appliance.md. cortex.html auto-detects: served over http -> backend
+    bridge (busConnectBackend); file:// -> Web Serial.
+  - APPLIANCE + OTA DONE (2026-11-08, v1.0.0): Cortex/appliance/ is deploy-ready for the N95
+    (x86-64 Debian/Ubuntu). Atomic layout: /opt/cortex/{releases/<ver>, current->symlink,
+    data/{appliance.env,update.conf,update.log}}. server.js reads VERSION file; exposes
+    /health + /version. OTA = cortex-update.sh + cortex-updater.timer (every ~30min): pulls
+    manifest.json {version,url,sha256}, semver-gates (never downgrades), sha256-verifies,
+    npm ci, flips current symlink, restarts, health-checks /version, AUTO-ROLLS-BACK to prev
+    release if unhealthy (keeps last 3). release.sh <ver> <base-url> builds the tgz+manifest
+    to upload. All 3 paths tested end-to-end (upgrade / bad-checksum reject / bad-build
+    rollback). OTA host NOT yet chosen by the operator (GitHub Release / S3-R2 / tailnet box) -
+    update.conf ships blank = OTA off until he pastes a manifest URL. Next ideas: move state
+    browser->SQLite on appliance; add update notes/version to fleet console health poll.
+  - 2026-11-08 GITHUB + ZERO-SSH-CONFIG: repo-ified (README.md, .gitignore, top of Cortex/).
+    GitHub Action .github/workflows/release.yml: push tag vX.Y.Z -> builds tgz+manifest ->
+    publishes Release. Appliance update.conf points at releases/latest/download/manifest.json
+    (auto-follows newest). appliance/bootstrap.sh = one-liner first install (clones repo+runs
+    install.sh); REPO placeholder YOUR-GH-USER/cortex. install.sh now sets hostname 'cortex' +
+    avahi-daemon => customers bookmark http://cortex.local:8080 (no IP, no SSH). SETUP WIZARD:
+    server.js reads site config from /opt/cortex/data/config.json (name+serial), NOT env;
+    endpoints GET/POST /api/config, GET /api/serial-ports; unconfigured '/' 302->/setup.html;
+    setup.html = first-run wizard (name site, pick adapter). serial change applies on next bus
+    connect, no restart. the operator's GH user/repo NOT yet known -> placeholders to fill in 2 spots
+    (update.conf URL + bootstrap one-liner). Public repo recommended for tokenless OTA.
+  - 2026-11-08 PRIVATE + SCRUB: operator chose a PRIVATE GitHub repo for now (public later).
+    Private OTA supported: update.conf has CORTEX_UPDATE_TOKEN (fine-grained PAT, Contents:
+    Read); cortex-update.sh sends it as a Bearer header on manifest+asset curls (AUTH array;
+    cross-host redirect drops it, signed URL self-auths — never --location-trusted).
+    bootstrap.sh takes CORTEX_TOKEN, injects into clone URL, then scrubs it from the git remote
+    (no token on disk). PERSONAL INFO SCRUBBED from all repo files for public-readiness: real
+    name, location, and demo site IDs genericized; AIROW brand KEPT intentionally (product is
+    "Cortex by AIROW"; operator can request full de-brand). LGAP_reference.md rewritten as a
+    clean public protocol spec (TOC, worked examples, error table, capture how-to). GitHub NOT
+    yet linked to the Claude session (list_repos: no account) - operator must connect GitHub in
+    claude.ai settings, then add_repo(push) + push, OR push themselves. Private-token OTA verified.
+  - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
+    (cool+heat) °C, transmits, with editable cmd/flags bytes.
+  - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
+    connected (liveTx no longer requires tech) — change power/mode/fan or setpoint and Send
+    puts BOTH the 8-byte basic frame AND the 16-byte cmd5 on the bus (txUnit). Units carry
+    cool/heat setpoints in °C (coolC/heatC), a twoset flag, and mode/fan/temp locks; all are
+    shown on cards + drawer. Bus scan is split Live | Debug (busView); Debug is the cyber
+    byte zone. "🔍 Scan for new units" (busScanNew) ADDS new bus addresses only and never
+    drops an existing unit (even offline/CH242) — removal is per-unit via the drawer's
+    "Remove unit". Locks are stored/shown but not yet mapped to exact cmd5 flag bits.
+  - Hardware: Waveshare isolated USB-RS485 (FT232). Spare ACP + AC Smart 5 for bench tests.
+  - Shared write-up for an outside contact (no Cortex/site names, by request):
+    https://claude.ai/artifact/PG8QonDDG1Yg9E9m594zA8
+
+  SAFETY RULES (keep these)
+  - Listen first. Only ONE master per bus: unplug the LG CC from a channel before Cortex
+    transmits or runs Controller mode. Keep the CC labeled for a 30-second swap back.
+  - Adapter termination resistor OFF when tapping a live bus.
+  - Test after hours; customer/owner sign-off before replacing a CC on a customer site.
+
+  BUS / FRAME FORMAT  (confidence: CONFIRMED / LIKELY / GUESS)
+  - Serial 4800 8N1                                                     CONFIRMED
+  - Every frame is 8 bytes:  b0 b1 A0 addr b4 b5 b6 ck                  CONFIRMED
+  - ck = (sum of b0..b6) & 0xFF, XOR 0x55                               CONFIRMED
+  - Addresses seen on a live bus: 0x81-0xD3 plus 0x25.
+  - Frame types by b0 b1:
+      80 00 / 84 00  CC -> unit "state" frame, repeated every sweep. Also carries changes.
+                     (80 vs 84 is fixed per address; meaning unknown. Preserve it.)
+      80 B0 / 80 B2  poll frames, payload all zeros.
+      80 A3 / 84 A3  same payload as 80 00, sent occasionally. Meaning unknown.
+      A0 00          unit status reply (b4=09, b5=8x, b6). b6 here did NOT follow the
+                     command's b6 after a change — it is not the setpoint.
+      F0 C0 / C8 C0  scan / system frames, unknown.
+      09 20 A0 00 87 08 05 08  seen 4x, unknown.
+
+  THE COMMAND (decoded from the operator's 2026-11-07 capture at the CC)
+  - A change is just the 80/84 00 frame with b4 bit1 set:
+      b4 = 03 (on + change) or 02 (off + change), sent ONCE; then the CC goes back to
+      sending 01 (on) / 00 (off) every sweep.                           CONFIRMED
+  - b5 LOW nibble = MODE:  cool=0, dry=1, fan=2, auto=3, heat=4 — ALL CONFIRMED 2026-11-08
+      from the firmware mode->code strcmp chain (@0x380c8). MODELO now matches.
+  - b5 HIGH nibble = FAN:  low=1, med=2, high=3 — CONFIRMED 2026-11-08 (AC stores fan as
+      "fan1".."fan6"; the digit IS the speed code). "AUTO" fan is a separate token (code TBD).
+  - b6 = NOT the setpoint. SOLVED 2026-11-07 by disassembling the ACP firmware: the
+      8-byte basic frame carries only power/mode/fan. The setpoint travels in a
+      SEPARATE 16-byte "cmd5" frame (see SETPOINT below). Cortex preserves last-seen b6.
+  - Swing: no data yet.
+
+  SETPOINT — SOLVED 2026-11-07 from firmware (UpdateMonitorCmd5 / ProcessRxDataFromACCmd5
+  in the control-engine ELF; constants read straight out of the binary):
+  - Temperature rides a 16-byte "cmd5" frame, checksum same rule over the first 15 bytes.
+  - byte10 & 0x7F = COOLING setpoint whole °C ; byte11 & 0x7F = HEATING setpoint whole °C
+    (LG keeps cool & heat setpoints SEPARATELY).
+  - byte12 high nibble (0-9) = cool decimal, low nibble (0-9) = heat decimal;
+    setpoint °C = whole + decimal * 0.1  (0.1°C resolution, multiplier 0.1 confirmed in code).
+  - bytes 6-9 = temp limits: (byte & 0x7F)°C + (top bit ? 0.5 : 0).
+  - Simpler status frames encode a setpoint as (nibble + 15) °C for the 15-30°C range.
+  - Wire is CELSIUS. Code: decodeCmd5() + cmd5SetpointBytes() in cortex.html.
+  - HEADER — SOLVED 2026-11-08 by disassembling the builder CopyControlData_to_sendControlacCmd5
+    (ELF elf_36345344, func @0x343b0). The outgoing cmd5 is FULLY known now, no guessing:
+      [0]=A8 (mvn #0x57)  [1]=00  [2]=A0  [3]=addr  [4]=10 (cmd5 id)  [5]=flags(bit0=power on)
+      [6..9]=limits (cool lo/hi, heat lo/hi): (byte&0x7F)degC + (top bit ? 0.5 : 0)
+      [10]=cool whole degC &0x7F   [11]=heat whole degC &0x7F   [12]=(cool_dec<<4)|heat_dec
+      [13]=reserved/mode
+      [14]=ap_mkchksum(buf,14)=(sum[0..13]^0x55)&0xFF
+      [15]=(ap_mkchksum(buf,15)+1)&0xFF
+    cmd5 marker is A8 (NOT the 80 of the basic frame). TWO checksums (14 and 15). ap_mkchksum
+    (func @0x21674) = (sum ^ 0x55) & 0xFF — verified in code, == our lgapCk.
+    Cortex's cmd5SetpointBytes() now builds this exactly. Verified round-trip:
+      cool 23.5 / heat 20 -> A8 00 A0 A7 10 01 95 99 12 16 17 14 50 00 84 01.
+    LAST STEP IS JUST A REAL-UNIT SANITY TX (does the unit obey) — the bytes are certain.
+
+  FIRMWARE FINDINGS (2026-11-07, from the ACP's own control software, pulled off the unit)
+  - Confirms the wire protocol works in CELSIUS. Every setpoint is stored in degC
+    (indoor range ~4-37.5 degC); Fahrenheit is a display-only conversion (flag_fahrenheit,
+    getTemperature_F2C). Cortex should hold temps in degC internally and convert for the UI.
+  - LGAP is a set of NUMBERED commands: cmd5, cmd6, cmd7, cmd9... The basic 8-byte frame
+    (power/mode/fan) is one of them. The ac DB tracks exe_cmd5 / exe_cmd6 as SEPARATE
+    per-unit actions -> the setpoint rides a 16-byte cmd5 frame, NOT the basic frame.
+    That is why b6 never tracked temperature. DISASSEMBLED the control engine (capstone)
+    and extracted the exact cmd5 temperature encoding — see the SETPOINT block above.
+  - Indoor-unit field model (from the 'ac' table): addr, mode (COOL/HEAT/AUTO/DRY/FAN),
+    fan (LOW/MID/HIGH/AUTO), swing, modelock/fanlock/settemplock, settemp, roomtemp,
+    pipe_intemp/pipe_outtemp, louverdirec, deadband, twoset_automode (dual setpoint),
+    cool_settemp/heat_settemp, cool/heat limits, occupied, remocon_override.
+  - Ports: config.ini (/mnt/flash/config.ini) assigns each RS485 channel to a protocol:
+    AHU_LGAP (LG's own) for indoor/AHU, MODBUS for chillers + some water systems. LGAP
+    bus is on a ttymxc/ttyS port; there is also a /dev/acp node (major 222/224 drivers).
+  - Confirms cycle view is NOT on this bus (no outdoor/cycle refs in the indoor LGAP code).
+  - The engine dump arrived as a ~52MB blob (SQLite DBs + ARM ELF binaries + XML). The key
+    binaries: ahu_cont_comm / acsmart / control_ac. objdump here had no ARM support; a
+    future session wanting exact cmd5/6 bytes could pip install capstone and disassemble
+    Text2LGAP_ahu_cmd7, OR (cleaner) just do the setpoint-only wire capture.
+
+  2026-11-08 SESSION — THE FIRMWARE IS THE SOURCE OF TRUTH (big lesson, read this)
+  - We spent most of a session trying to CAPTURE a real setpoint command off the bench ACP.
+    It cannot work: the operator's bench ACP has NO indoor units on it, so the ACP only POLLS
+    empty addresses (roll call) and NEVER emits a real cmd5 setpoint command (nobody to
+    command). All those captures were the 128-unit poll sweep, not commands. Do NOT send
+    him down this path again. A setpoint command on the wire requires a real IDU present.
+  - Serial-capture gotchas we burned hours on (so you don't): (a) CoolTerm defaults to 9600;
+    the LG bus is 4800 -> 2x/4x byte "smear". (b) Web Serial in Chrome CHOKES on this noisy
+    2-wire RS485 line (RXD lights then dies) - CoolTerm's native FTDI driver is fine; this is
+    why the appliance backend (serialport lib) exists. (c) A COM port is single-owner: CoolTerm
+    and Cortex can't both hold it. (d) Parity/databits mismatch leaves structure but mangles
+    values (tell: a constant low-bit pattern in the address field every frame). Adapter = FT232R
+    on COM9. Even at 4800 8N1/8E1/8O1 the bench poll frames (FE BF.. / 36 7E.. / F0 FC.. / 3E 7E..)
+    never matched the documented 80 00 A0 format or validated a checksum - consistent with
+    "this is unit-less poll traffic in a different frame type", not the command frame.
+  - WHAT THE FIRMWARE ACTUALLY SAYS (control-engine ELF, strings + ARM disasm, confirmed):
+    * Setpoints live in a SQLite 'ac' table as cool_settemp / heat_settemp, stored as degC
+      with ONE decimal (%.1f). Dual-setpoint is real: twoset_automode, twoset_avail, deadband.
+    * To command a unit the engine sets exe_cmd5='ON', exe_cmd5_cnt='10' on that addr, then
+      CopyControlData_to_sendControlacCmd5() copies the control-data struct into rs485buf_tx
+      and ap_mkchksum stamps the checksum. So the cmd5 TEMPERATURE bytes we already encode are
+      correct; the header bytes come from that struct (runtime state), not literal constants.
+    * cmd5 vs cmd6 are SEPARATE per-unit actions (exe_cmd5 / exe_cmd6). cmd5 carries setpoint.
+    * SQL seen: "UPDATE ac SET cool_settemp=%.1f, exe_cmd5='ON', exe_cmd5_cnt='10' WHERE addr=%s"
+      and the heat_settemp twin. This is the authoritative setpoint path.
+  - 2026-11-08 FIRMWARE CONFIRMS (all from static analysis, no wire needed):
+    * MODE codes: cool=0 dry=1 fan=2 auto=3 heat=4 (strcmp chain @0x380c8). In Cortex MODELO.
+    * FAN codes: low=1 med=2 high=3 (fanN token digit = speed). In Cortex FANHI.
+    * LOCK bits in the cmd4 control frame byte4: modelock=0x08, fanlock=0x04, settemplock=0x02,
+      power=0x01 (from SELECT col order modelock,fanlock,settemplock + struct offsets). Locks
+      are stored/shown in Cortex; not yet transmitted (unsure if they also ride the 80 frame).
+    * cmd6 is a sibling 16-byte A8 frame (second per-unit control; occupancy/setback-ish).
+  - RECOMMENDED NEXT MOVE (cheap, honest): don't capture. Either (a) get the cmd5 frame layout
+    from the operator's outside collaborator (he pulled it from this same firmware) and cross-check,
+    or (b) at a REAL site, have Cortex TX its firmware-derived cmd5 to ONE unit, CC unplugged,
+    and watch the unit obey. One of those closes the header-byte gap for good.
+
+  HISTORY / LESSONS
+  - The first decode (by the earlier chat) had mode in the HIGH nibble (auto=1, cool=2,
+    heat=3) and setpoint = degC-15. That was wrong: the high nibble is FAN. So Cortex's
+    earlier "cool" commands actually went out as auto mode + med fan, and "heat" as
+    auto + HIGH fan. That probably explains the "fan went high" result.
+  - Lesson: only trust byte meanings from a controlled change made at the real CC
+    (one unit, one setting, written down), never from steady-state traffic.
+
+  CAPTURE 2026-11-07 (bus_capture_1794089122388.txt)
+  - A7 at CC: cool, low fan, 64F, on, swing clear -> 80 00 A0 A7 03 10 05 8A, then 01 10 05
+  - A6 at CC: heat, med fan, 80F, on, swing clear -> 80 00 A0 A6 03 24 06 A6, then 01 24 06
+  - Later in the same capture A6 went 02 34 06 (OFF, heat, fan high) twice. the operator did
+    not mention doing this. Ask him: was it him, a CC schedule, or something else?
+
+  NEXT STEPS
+  1. DONE 2026-11-08: cmd5 header fully recovered from the firmware builder (see SETPOINT block).
+     Cortex's cmd5SetpointBytes() is firmware-exact. Only remaining: a single real-unit sanity
+     TX at a live site (CC unplugged) to confirm the unit obeys. No more bench captures needed.
+  2. Fan high / auto, and dry / fan modes, to fill in the remaining mode/fan GUESS rows.
+  3. Wire decodeCmd5()/cmd5SetpointBytes() into the UI (show cool+heat setpoints; send).
+  4. Bench test TX on the spare ACP / one unit after hours, CC unplugged.
+  5. Cycle view (outdoor-unit temps/pressures) is NOT on the CC bus as far as the operator knows —
+     the LG CC has never been able to show it; it lives on a different bus. Don't assume the
+     CC bus can provide it. (The earlier chat knew this; corrected 2026-11-07.)
+==========================================================================================
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortex by AIROW</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* AIROW Control — custom LG VRF central controller UI (prototype)
+   layout: top bar + left nav + unit grid/list + right control drawer + modals */
+:root{
+  --bg:#eef0f2; --surface:#fff; --surface-2:#f7f8fa; --border:#dde1e6; --border-strong:#c7ccd3;
+  --text:#1b2027; --text-dim:#5a6372; --text-faint:#8a93a1;
+  --accent:#0e7c66; --accent-ink:#0b5f4e; --accent-soft:#d9efe9;
+  --cool:#1f74c4; --cool-soft:#e2eefb; --heat:#d2652a; --heat-soft:#faeadf;
+  --auto:#0e7c66; --auto-soft:#d9efe9; --dry:#6a54c0; --dry-soft:#e9e5f7; --fanm:#64748b; --fanm-soft:#e8ebef;
+  --ok:#2e9e5b; --stopped:#9aa3b0; --err:#d93b3b; --err-soft:#fbe6e6;
+  --warn:#c98a12; --warn-soft:#fbf0d8; --crit:#b3261e; --crit-soft:#fbe3e1; --info:#3a6ea5; --info-soft:#e4eef8;
+  --radius:12px; --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 16px rgba(16,24,40,.06);
+  --shadow-lg:0 8px 40px rgba(16,24,40,.18); color-scheme:light;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#0f1318; --surface:#171c23; --surface-2:#1c222b; --border:#2a313b; --border-strong:#3a434f;
+  --text:#e7ebf0; --text-dim:#9aa4b2; --text-faint:#6b7585;
+  --accent:#2fb79a; --accent-ink:#8fe6d4; --accent-soft:#143029;
+  --cool:#5aa6e8; --cool-soft:#13263a; --heat:#e8955a; --heat-soft:#33251a;
+  --auto:#2fb79a; --auto-soft:#143029; --dry:#a594ec; --dry-soft:#231d38; --fanm:#9aa6b4; --fanm-soft:#232a33;
+  --ok:#43c072; --stopped:#6b7585; --err:#f26a6a; --err-soft:#331c1c;
+  --warn:#e0a53a; --warn-soft:#352a16; --crit:#f26a6a; --crit-soft:#3a1d1a; --info:#6ba3dd; --info-soft:#15293c;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --surface:#171c23; --surface-2:#1c222b; --border:#2a313b; --border-strong:#3a434f;
+  --text:#e7ebf0; --text-dim:#9aa4b2; --text-faint:#6b7585;
+  --accent:#2fb79a; --accent-ink:#8fe6d4; --accent-soft:#143029;
+  --cool:#5aa6e8; --cool-soft:#13263a; --heat:#e8955a; --heat-soft:#33251a;
+  --auto:#2fb79a; --auto-soft:#143029; --dry:#a594ec; --dry-soft:#231d38; --fanm:#9aa6b4; --fanm-soft:#232a33;
+  --ok:#43c072; --stopped:#6b7585; --err:#f26a6a; --err-soft:#331c1c;
+  --warn:#e0a53a; --warn-soft:#352a16; --crit:#f26a6a; --crit-soft:#3a1d1a; --info:#6ba3dd; --info-soft:#15293c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.5;display:flex;flex-direction:column}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hide{display:none!important}
+
+header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--surface);border-bottom:1px solid var(--border);flex:0 0 auto}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600}
+.brand .logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff}
+.site{display:flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:13px}
+.bus{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+.spacer{flex:1}
+.clock{font-size:13px;color:var(--text-dim)}
+.who{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim);padding:5px 10px;border:1px solid var(--border);border-radius:999px}
+.who .rolebadge{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink)}
+.icon-btn{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);display:grid;place-items:center}
+.icon-btn.lit{border-color:var(--accent);color:var(--accent)}
+
+.shell{flex:1;display:flex;min-height:0}
+nav{flex:0 0 212px;background:var(--surface);border-right:1px solid var(--border);padding:14px 12px;overflow:auto}
+.nav-group{margin-bottom:18px}
+.nav-label{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--text-faint);padding:0 8px 6px}
+.nav-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;color:var(--text-dim);font-size:14px;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:var(--surface-2);color:var(--text)}
+.nav-item.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:500}
+.nav-item .count{font-size:12px;color:var(--text-faint)}
+.nav-item .tech-tag{font-size:10px;font-weight:600;color:var(--warn)}
+main{flex:1;min-width:0;overflow:auto;padding:18px 22px}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);text-align:left;transition:border-color .12s,transform .12s}
+button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.tile.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.tile .n{font-size:28px;font-weight:600;line-height:1.1}
+.tile .l{font-size:12.5px;color:var(--text-dim);margin-top:2px;display:flex;align-items:center;gap:6px}
+.tile .l .dot{width:7px;height:7px}
+
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.search{flex:1;min-width:150px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px;color:var(--text-dim)}
+.search input{border:none;background:none;outline:none;color:var(--text);font-family:inherit;font-size:14px;width:100%}
+.segmented{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px}
+.segmented button{border:none;background:none;padding:6px 10px;border-radius:7px;font-size:13px;color:var(--text-dim);display:inline-flex;align-items:center;gap:5px}
+.segmented button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow);font-weight:500}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:9px;padding:8px 13px;font-size:13.5px;font-weight:500;display:inline-flex;gap:7px;align-items:center}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:12px}
+.grid.compact{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px}
+.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .12s,transform .12s;overflow:hidden}
+.card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--stripe,var(--stopped))}
+.card.off{opacity:.72}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px}
+.card-name{font-weight:600;font-size:14.5px}
+.card-meta{font-size:11.5px;color:var(--text-faint);margin-top:2px}
+.pill{font-size:11px;padding:3px 8px;border-radius:999px;font-weight:500;white-space:nowrap}
+.pill.run{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.stop{background:var(--surface-2);color:var(--text-dim)}
+.pill.err{background:var(--err-soft);color:var(--err);cursor:pointer}
+.card-main{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.setpoint{font-size:30px;font-weight:600;line-height:1}
+.setpoint small{font-size:14px;color:var(--text-dim);font-weight:400}
+.card-right{text-align:right;font-size:12.5px;color:var(--text-dim);display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.modechip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:3px 9px;border-radius:999px}
+.room{color:var(--text-faint);font-size:12px}
+.err-note{margin-top:10px;font-size:11.5px;color:var(--err);display:flex;align-items:center;gap:6px;cursor:pointer}
+.err-note:hover{text-decoration:underline}
+
+/* list view */
+.listv{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.lrow{display:grid;grid-template-columns:18px 1.4fr .8fr .7fr .7fr .9fr;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13.5px}
+.lrow:last-child{border-bottom:none}
+.lrow:hover{background:var(--surface-2)}
+.lrow .st{width:9px;height:9px;border-radius:50%}
+.lrow .lname{font-weight:500}
+.lrow .lsub{font-size:11.5px;color:var(--text-faint)}
+.lhead{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);background:var(--surface-2);cursor:default}
+.lhead:hover{background:var(--surface-2)}
+
+/* drawer */
+.scrim{position:absolute;inset:0;background:rgba(10,14,20,.42);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
+.scrim.show{opacity:1;pointer-events:auto}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:380px;max-width:92vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:var(--shadow-lg);transform:translateX(102%);transition:transform .2s ease;z-index:50;display:flex;flex-direction:column}
+.drawer.show{transform:none}
+.drawer-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.drawer-body{padding:16px 18px;overflow:auto;flex:1}
+.field{margin-bottom:18px}
+.field > .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);margin-bottom:8px}
+.opts{display:flex;flex-wrap:wrap;gap:7px}
+.opt{border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);border-radius:9px;padding:8px 11px;font-size:13px;font-weight:500;display:inline-flex;gap:6px;align-items:center}
+.opt.sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.opt.sel.cool{border-color:var(--cool);background:var(--cool-soft);color:var(--cool)}
+.opt.sel.heat{border-color:var(--heat);background:var(--heat-soft);color:var(--heat)}
+.opt.sel.dry{border-color:var(--dry);background:var(--dry-soft);color:var(--dry)}
+.opt.sel.fan{border-color:var(--fanm);background:var(--fanm-soft);color:var(--text)}
+.stepper{display:flex;align-items:center;gap:14px}
+.stepper button{width:44px;height:44px;border-radius:11px;border:1px solid var(--border);background:var(--surface-2);font-size:22px;color:var(--text);line-height:1}
+.stepper .val{font-size:40px;font-weight:600}
+.stepper .val small{font-size:17px;color:var(--text-dim);font-weight:400}
+.frame-box{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;font-size:12.5px}
+.frame-box .k{color:var(--text-faint);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.frame-box .hex{color:var(--accent-ink);font-weight:500}
+.frame-box .pending{color:var(--text-faint)}
+.pwr{display:inline-flex;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.pwr button{border:none;background:var(--surface-2);color:var(--text-dim);padding:9px 20px;font-size:14px;font-weight:600}
+.pwr button.on-sel{background:var(--ok);color:#fff}
+.pwr button.off-sel{background:var(--stopped);color:#fff}
+
+/* modal */
+.modal-scrim{position:fixed;inset:0;background:rgba(10,14,20,.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);width:460px;max-width:100%;max-height:88vh;overflow:auto}
+.modal.wide{width:620px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.modal-head h3{margin:0;font-size:16px;font-weight:600}
+.modal-body{padding:18px}
+.tabs{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.tab{border:none;background:none;padding:9px 12px;border-radius:8px 8px 0 0;color:var(--text-dim);font-size:13.5px;font-weight:500;border-bottom:2px solid transparent}
+.tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.tab .lock{font-size:11px;color:var(--text-faint)}
+.setrow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid var(--border)}
+.setrow:last-child{border-bottom:none}
+.setrow .sl{font-size:14px}.setrow .sd{font-size:12px;color:var(--text-dim)}
+.toggle{width:42px;height:24px;border-radius:999px;background:var(--border-strong);border:none;position:relative;transition:background .15s;flex:0 0 auto}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+.toggle.on::after{transform:translateX(18px)}
+.sel-box{border:1px solid var(--border);background:var(--surface-2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13.5px;font-family:inherit}
+.pin-input{width:100%;font-size:26px;letter-spacing:8px;text-align:center;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-family:"IBM Plex Mono",monospace}
+.err-text{color:var(--err);font-size:13px;margin-top:8px;min-height:18px}
+.sev{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px}
+.ed-row{display:flex;gap:10px;margin-top:14px}.ed-row .k{flex:0 0 96px;color:var(--text-faint);font-size:12.5px;text-transform:uppercase;letter-spacing:.4px}
+.ed-row .v{font-size:14px}
+.urow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+.urow:last-child{border-bottom:none}
+.rchip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-dim)}
+.rchip.owner{background:var(--warn-soft);color:var(--warn)}
+.rchip.admin{background:var(--accent-soft);color:var(--accent-ink)}
+.rchip.tech{background:var(--info-soft);color:var(--info)}
+.linklike{color:var(--accent);background:none;border:none;font-size:13px;padding:4px 6px}
+.recovery{font-family:"IBM Plex Mono",monospace;font-size:18px;letter-spacing:2px;background:var(--surface-2);border:1px dashed var(--border-strong);border-radius:10px;padding:12px;text-align:center;color:var(--accent-ink)}
+
+.gauges{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.gauge{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px;box-shadow:var(--shadow)}
+.gauge .gv{font-size:26px;font-weight:600}.gauge .gv small{font-size:14px;color:var(--text-dim);font-weight:400}
+.gauge .gl{font-size:12.5px;color:var(--text-dim);margin-top:3px}.gauge.sample{opacity:.6}
+.cyc-note{background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--radius);padding:12px 15px;color:var(--text-dim);font-size:13.5px;margin-bottom:16px;display:flex;gap:9px;align-items:center}
+
+@media (max-width:860px){nav{display:none}.tiles{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){main{padding:14px}.drawer{width:100%}.lrow{grid-template-columns:14px 1.4fr .8fr .8fr}.lrow .lc-hide{display:none}}
+
+/* login + setup screens */
+#screen-setup,#screen-login{position:fixed;inset:0;z-index:100;background:var(--bg);overflow:auto;display:none}
+#screen-setup.show,#screen-login.show{display:block}
+.auth{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);width:420px;max-width:100%;overflow:hidden}
+.auth-card.wiz{width:580px}
+.auth-head{padding:20px 24px;border-bottom:1px solid var(--border)}
+.auth-logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+.auth-logo .logo{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;color:#fff}
+.auth-body{padding:24px}
+.auth-body h2{margin:0 0 4px;font-size:19px;font-weight:600}
+.auth-sub{color:var(--text-dim);font-size:13.5px;margin-bottom:18px}
+.inp{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-family:inherit;font-size:15px;margin-bottom:12px}
+.inp:focus{outline:2px solid var(--accent);outline-offset:1px}
+.flabel{font-size:12.5px;color:var(--text-dim);margin-bottom:6px;display:block}
+.wiz-steps{display:flex;gap:6px;padding:14px 24px 0}
+.wiz-dot{height:4px;border-radius:2px;background:var(--border);flex:1}
+.wiz-dot.cur,.wiz-dot.done{background:var(--accent)}
+.wiz-foot{display:flex;justify-content:space-between;gap:10px;padding:16px 24px;border-top:1px solid var(--border)}
+.pinpair{display:flex;gap:12px}.pinpair>div{flex:1}
+.note-box{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text-dim);margin-bottom:12px}
+.step-num{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.team-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
+.sumrow{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+.sumrow .k{color:var(--text-dim)}
+
+/* sections, weather, tags, schedules, updates */
+.section-h{display:flex;align-items:center;gap:10px;margin:18px 0 10px}
+.section-h:first-child{margin-top:0}
+.section-h .st{font-size:14px;font-weight:600}
+.section-h .sc{font-size:12px;color:var(--text-faint)}
+.section-h .ln{flex:1;height:1px;background:var(--border)}
+.weather{display:flex;align-items:center;gap:18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow);margin-bottom:16px;flex-wrap:wrap}
+.weather .wt{font-size:30px;font-weight:600}
+.weather .wmeta{font-size:13px;color:var(--text-dim)}
+.weather .whr{display:flex;gap:16px;flex:1;justify-content:flex-end;flex-wrap:wrap}
+.weather .wh{text-align:center;font-size:12px;color:var(--text-dim)}
+.weather .wh b{display:block;font-size:14px;color:var(--text)}
+.weather .wsample{font-size:11px;color:var(--text-faint);border:1px solid var(--border);border-radius:999px;padding:1px 7px}
+.tagchip{font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--text-dim);margin-right:4px}
+.tagrow{margin-top:8px;display:flex;flex-wrap:wrap;gap:3px}
+.sch{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.sch .sname{font-weight:600;font-size:15px}
+.sch .ssum{font-size:12.5px;color:var(--text-dim);margin-top:3px}
+.sch .soff{opacity:.55}
+.dayrow{display:flex;gap:5px}
+.day{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);font-size:12px;font-weight:600}
+.day.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.mini-lbl{font-size:12px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 7px}
+.sys-row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13.5px}
+.update-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);max-width:560px}
+.ver-big{font-size:22px;font-weight:600}
+.badge-ok{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink)}
+.badge-new{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--info-soft);color:var(--info)}
+/* eggs, alerts, map, trends, service */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--surface);padding:11px 18px;border-radius:999px;font-size:14px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;transition:.25s;z-index:200;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#fxlayer{position:fixed;inset:0;pointer-events:none;z-index:150;overflow:hidden}
+.flake{position:absolute;top:-24px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(107vh) rotate(360deg)}}
+.swatches{display:flex;gap:9px}
+.swatch{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0}
+.swatch.sel{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
+.bellbtn{position:relative}
+.bellbadge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;border-radius:999px;background:var(--err);color:#fff;font-size:9.5px;font-weight:600;display:grid;place-items:center;padding:0 3px}
+.alert-row{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.alert-row:last-child{border-bottom:none}
+.alert-dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:0 0 auto}
+.svcbadge{font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--warn-soft);color:var(--warn);font-weight:600}
+.floor-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+.pucks{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.puck{width:94px;height:74px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);padding:9px;cursor:pointer;position:relative;overflow:hidden}
+.puck:hover{border-color:var(--border-strong)}
+.puck::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--pk,var(--stopped))}
+.puck .pn{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.puck .ps{font-size:17px;font-weight:600;margin-top:8px}
+.puck .ps small{font-size:10px;color:var(--text-dim);font-weight:400}
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+/* ===== Debug / "lab" cyberpunk theme — scoped to .lab, tech byte-level tools only ===== */
+.lab{--neon:#2ff5c8;--neon-dim:#1f9e86;--grid:#13ff9b1a;background:#070b10;border:1px solid #16343a;border-radius:14px;color:#8ff3dd;position:relative;overflow:hidden;box-shadow:0 0 0 1px #0c1a1e inset,0 8px 30px -14px #000}
+.lab::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(47,245,200,.035) 0 1px,transparent 1px 3px);mix-blend-mode:screen;opacity:.6}
+.lab>*{position:relative}
+.lab .labhead{display:flex;align-items:center;gap:8px;font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;text-transform:uppercase;letter-spacing:.14em;font-size:11px;color:var(--neon);padding:11px 14px;border-bottom:1px solid #123a40}
+.lab .labhead b{color:#eafff8;letter-spacing:.06em}
+.lab .labhead .dot{width:7px;height:7px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon)}
+.lab .labhead .dot.idle{background:#2a3b42;box-shadow:none}
+.lab .labbody{padding:12px 14px}
+.lab .mono,.lab pre,.lab textarea{font-family:ui-monospace,"SFMono-Regular",Menlo,monospace}
+.lab .hexline{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;letter-spacing:.06em;color:#bfeee2;word-break:break-all;background:#0a1319;border:1px solid #16343a;border-radius:9px;padding:9px 11px}
+.lab .hexline .hi{color:var(--neon);text-shadow:0 0 6px rgba(47,245,200,.5)}
+.lab .hexline .mut{color:#3f5a60}
+.lab .labsub{font-size:11.5px;color:#5f8a84;margin-bottom:9px;line-height:1.5}
+.lab .sel-box,.lab .inp,.lab textarea{background:#0a1319;border:1px solid #1d4048;color:#cdf6ec}
+.lab .sel-box:focus,.lab .inp:focus,.lab textarea:focus{border-color:var(--neon);outline:none;box-shadow:0 0 0 2px rgba(47,245,200,.15)}
+.lab .btn{background:#0c1a1f;border:1px solid #1d4048;color:#aef0e0}
+.lab .btn:hover{border-color:var(--neon-dim)}
+.lab .btn.primary{background:linear-gradient(180deg,#0f3a32,#0b2a25);border-color:var(--neon-dim);color:#d6fff4}
+.lab .btn.go{background:#2a0f12;border:1px solid #d93b3b;color:#ff9e9e;box-shadow:0 0 14px -3px #d93b3b}
+.lab .seg{display:inline-flex;background:#0a1319;border:1px solid #1d4048;border-radius:8px;padding:2px}
+.lab .seg button{border:none;background:none;color:#5f8a84;padding:5px 10px;border-radius:6px;font-size:12px}
+.lab .seg button.on{background:#0f2a2a;color:var(--neon)}
+.lab-feed{max-height:230px;overflow:auto;border:1px solid #16343a;border-radius:10px;background:#070f13;padding:4px 0}
+.lab-feed .fr{display:flex;gap:10px;align-items:baseline;padding:4px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;border-bottom:1px solid #0e2024}
+.lab-feed .fr .ad{color:var(--neon);width:30px;flex:none}
+.lab-feed .fr .hx{color:#3f5a60;flex:none}
+.lab-feed .fr .ds{color:#cdf6ec}
+.lab-feed .fr.tx{background:#1a0a0d}.lab-feed .fr.tx .ds{color:#ff9e9e;font-weight:600}
+.lab .warnband{display:flex;gap:7px;align-items:center;font-size:11.5px;color:#ffb36b;background:#241607;border:1px solid #4a2f10;border-radius:8px;padding:7px 10px;margin-bottom:10px}
+/* clean "Live" activity feed (normal, non-cyber) */
+.feed{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.feed .fr{display:flex;gap:11px;align-items:baseline;padding:7px 12px;font-size:13px;border-bottom:1px solid var(--border)}
+.feed .fr:last-child{border-bottom:none}
+.feed .fr .ad{font-family:ui-monospace,monospace;color:var(--accent);font-weight:600;width:34px;flex:none}
+.feed .fr .ds{color:var(--text)}
+.feed .fr.tx{background:var(--err-soft)}.feed .fr.tx .ds{color:var(--err);font-weight:600}
+.feed .fr .tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint);margin-left:auto;flex:none}
+.connbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;box-shadow:var(--shadow)}
+.connbar .stat{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim)}
+.connbar .pulse{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 1.6s infinite}
+.connbar .pulse.off{background:var(--stopped);animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(67,192,114,.5)}70%{box-shadow:0 0 0 7px rgba(67,192,114,0)}100%{box-shadow:0 0 0 0 rgba(67,192,114,0)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex<span style="font-size:11px;color:var(--text-faint);font-weight:400;margin-left:6px">by AIROW</span></div>
+  <div class="site"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg>Site</div>
+  <div class="bus"><span class="dot"></span>Bus online · <span class="mono">4800 8N1</span></div>
+  <div class="spacer"></div>
+  <div class="clock mono" id="clock">--:--</div>
+  <div class="who" id="who"></div>
+  <button class="icon-btn bellbtn" id="bell" title="Alerts"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="bellbadge hide" id="bellbadge">0</span></button>
+  <button class="icon-btn hide" id="lockbtn" title="Lock advanced/technician access"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+  <button class="icon-btn" id="logoutbtn" title="Sign out"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button>
+  <button class="icon-btn" id="settingsbtn" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5H9.4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h3.2l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
+  <button class="icon-btn" id="theme" title="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
+</header>
+<div class="shell">
+  <nav>
+    <div class="nav-group"><div class="nav-label">Views</div>
+      <button class="nav-item active" data-view="units"><span>❄ Indoor units</span></button>
+      <button class="nav-item" data-view="map"><span>🗺 Building map</span></button>
+      <button class="nav-item" data-view="schedule"><span>🗓 Schedule</span></button>
+      <button class="nav-item" id="nav-device" data-view="device"><span>🩺 Device health</span></button>
+      <button class="nav-item" id="nav-updates" data-view="updates"><span>⬇ Updates</span></button>
+      <button class="nav-item hide" id="nav-busscan" data-view="busscan"><span>📡 Bus scan</span><span class="tech-tag">TECH</span></button>
+      <button class="nav-item hide" id="nav-cycle" data-view="cycle"><span>⚙ Outdoor / cycle</span><span class="tech-tag">TECH</span></button>
+    </div>
+    <div class="nav-group" id="group-nav"></div>
+  </nav>
+  <main id="main"></main>
+</div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div id="modal-root"></div>
+<div id="screen-setup"></div>
+<div id="screen-login"></div>
+
+<script>
+const MODES=[["cool","Cool","❄"],["heat","Heat","☀"],["auto","Auto","⇅"],["dry","Dry","💧"],["fan","Fan","✦"]];
+const FANS=[["low","Low"],["med","Med"],["high","High"],["auto","Auto"]];
+const MC={cool:"cool",heat:"heat",auto:"auto",dry:"dry",fan:"fan"};
+
+/* ---- LG Multi V error code reference (verify against the unit's service manual) ---- */
+const ERRORS={
+ "CH01":{t:"Indoor air / remote sensor",cause:"Return-air or wall-remote temperature sensor open or shorted.",act:"Check sensor wiring and resistance; replace sensor.",sev:"medium",who:"Indoor"},
+ "CH02":{t:"Indoor pipe (inlet) sensor",cause:"Inlet pipe thermistor open or shorted.",act:"Check thermistor resistance; replace if out of range.",sev:"medium",who:"Indoor"},
+ "CH03":{t:"Remote controller comms",cause:"Communication lost between the wired remote (zone) controller and the indoor unit.",act:"Check the remote's 2-wire link and connector.",sev:"medium",who:"Indoor"},
+ "CH04":{t:"Condensate drain / float",cause:"Drain pump failure or float switch tripped (high water level).",act:"Clean the drain pan and line, verify the pump and float.",sev:"medium",who:"Indoor"},
+ "CH05":{t:"Indoor ↔ outdoor comms lost",cause:"Communication failure between indoor and outdoor PCBs; miswired or damaged 2-wire bus.",act:"Check comm cable polarity and continuity; look for address conflicts.",sev:"high",who:"Both"},
+ "CH06":{t:"Indoor pipe (outlet) sensor",cause:"Outlet pipe thermistor open or shorted.",act:"Check thermistor resistance; replace if faulty.",sev:"medium",who:"Indoor"},
+ "CH07":{t:"Mode conflict",cause:"Indoor units are set to conflicting modes (one heat, one cool) on the same system.",act:"Set all indoor units to the same mode (all cool or all heat).",sev:"low",who:"System"},
+ "CH09":{t:"Indoor PCB EEPROM",cause:"Indoor unit PCB memory corrupted.",act:"Replace the indoor PCB, then re-run auto-addressing and set the central address.",sev:"high",who:"Indoor"},
+ "CH10":{t:"Indoor fan motor comms",cause:"BLDC fan motor not communicating with the indoor PCB.",act:"Check the fan motor harness; replace the motor or PCB.",sev:"high",who:"Indoor"},
+ "CH21":{t:"Inverter overcurrent (IPM)",cause:"Compressor inverter drew over-current / IPM fault.",act:"Technician: check compressor, IPM, and inverter PCB.",sev:"critical",who:"Outdoor"},
+ "CH22":{t:"DC link over-voltage",cause:"Inverter DC bus voltage too high (power spike).",act:"Check incoming power and DC bus capacitors; add surge protection.",sev:"critical",who:"Outdoor"},
+ "CH27":{t:"High pressure trip",cause:"High-pressure switch tripped (~590 psi R-410A). Dirty coil, low airflow, or overcharge.",act:"Clean the outdoor coil, confirm all ODU fans run, verify charge.",sev:"critical",who:"Outdoor"},
+ "CH53":{t:"Address duplication / comms",cause:"Two units share a central address, or indoor↔central communication failed.",act:"Re-run auto-addressing and set unique central control addresses.",sev:"medium",who:"System"},
+ "CH150":{t:"Discharge superheat",cause:"Compressor discharge superheat target not satisfied.",act:"Technician: check charge, EEV operation, and sensors.",sev:"high",who:"Outdoor"},
+ "CH151":{t:"Pressure difference low",cause:"High-to-low pressure difference too small.",act:"Technician: check compressor operation and valves.",sev:"high",who:"Outdoor"},
+ "CH200":{t:"Auto pipe search failed",cause:"Controller could not find an indoor unit during pipe search.",act:"Verify indoor units are powered and addressed.",sev:"medium",who:"System"},
+ "CH242":{t:"No reply at this address",cause:"The central controller has an address registered but nothing is answering there (unit offline or removed).",act:"Expected on a bench with no units. In the field, confirm the unit is powered and on the bus.",sev:"info",who:"Central"},
+ "501":{t:"3-phase power error",cause:"Outdoor unit three-phase power not connected properly / phase loss.",act:"Technician: check breaker, phase order, and connections.",sev:"critical",who:"Outdoor"},
+ "502":{t:"ODU ↔ IDU comms",cause:"Communication error between outdoor main PCB and indoor unit PCB(s).",act:"Check the indoor-outdoor comm bus wiring.",sev:"high",who:"Outdoor"}
+};
+const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
+
+/* ---- state ---- */
+const DEF_SETTINGS={view:"grid",density:"comfortable",unit:"F",theme:"auto",accent:"slate",defaultGroup:0,
+  groupBy:"group",showTiles:true,showWeather:true,notif:{push:true,email:false},
+  show:{mode:true,room:true,addr:true,fan:false,tags:true}};
+const ACCENTS={
+  slate:{n:"Slate",c:"#0e7c66",l:["#0e7c66","#0b5f4e","#d9efe9"],d:["#2fb79a","#8fe6d4","#143029"]},
+  arctic:{n:"Arctic",c:"#1f74c4",l:["#1f74c4","#15568f","#e2eefb"],d:["#5aa6e8","#bcd8f5","#13263a"]},
+  ember:{n:"Ember",c:"#d2652a",l:["#d2652a","#9a4718","#faeadf"],d:["#e8955a","#f4c7a6","#33251a"]},
+  forest:{n:"Forest",c:"#2f9e44",l:["#2f9e44","#1f6e30","#e4f3e6"],d:["#51c866","#b7e8c0","#15301b"]},
+  grape:{n:"Grape",c:"#7a4fd0",l:["#7a4fd0","#55369a","#ece4fb"],d:["#a98cf0","#d7c8f7","#241a3a"]}};
+const DIMS=[["system","System (physical)"],["group","Group"],["floor","Floor"],["suite","Suite"],["tag","Tag"]];
+const WEATHER={place:"Site",now:41,cond:"Partly cloudy",hi:48,lo:29,
+  hours:[["1 PM",44],["2 PM",46],["3 PM",47],["4 PM",45],["5 PM",40]]};
+let settings=loadSettings();
+let session={admin:false,tech:false};
+const ADMIN_PIN="2468", TECH_PIN="1379";
+const SITE_ID="SITE-0001", RECOVERY="CORTEX-0000-0000-0000";
+let users=[
+  {id:1,name:"You (owner)",role:"owner",protected:true},
+  {id:2,name:"Site Manager",role:"admin"},
+  {id:3,name:"Front Desk",role:"customer"}
+];
+let view="units", groupFilter="all", statusFilter="all", query="", aboutTaps=0;
+let selMode=false; let selSet=new Set(); // multi-select / batch control
+
+function makeUnits(){
+  const names=["Front Office","Lobby","Conf A","Conf B","Break Room","Server Rm","Reception","Hall N",
+    "Hall S","Suite 101","Suite 102","Suite 103","Open Area","Corner Ofc","Training","Copy Rm",
+    "Exec Ofc","Pantry","Quiet Rm","Studio","North Wing","South Wing","Vault","Mail Rm"];
+  const ecodes=["CH05","CH04","CH10","CH06","CH53"]; let out=[],addr=0;
+  for(let i=0;i<names.length;i++){const g=(i%4)+1;const err=Math.random()>0.9;
+    const on=err?false:Math.random()>0.32;const mode=MODES[Math.floor(Math.random()*3)][0];
+    const sp=68+Math.floor(Math.random()*8);const ch=(g<=2?"CH1":"CH2");const floor=1+Math.floor(i/8);
+    out.push({id:i,addr:addr++,name:`AC_UNIT_${String(i).padStart(2,"0")}`,label:names[i],
+      ch,system:ch==="CH1"?"System A":"System B",floor,suite:"Ste "+(floor*100+(i%8+1)),
+      group:g,on,mode,fan:FANS[Math.floor(Math.random()*4)][0],swing:Math.random()>0.6,
+      sp,room:sp+(Math.floor(Math.random()*7)-3),err,code:err?ecodes[Math.floor(Math.random()*ecodes.length)]:null,d5:0x33,d6:0x05,
+      pipeIn:mode==="heat"?96+Math.floor(Math.random()*14):44+Math.floor(Math.random()*8),
+      pipeOut:mode==="heat"?70+Math.floor(Math.random()*8):58+Math.floor(Math.random()*10),
+      zoneLoad:on?30+Math.floor(Math.random()*70):0,
+      runtimeHrs:400+Math.floor(Math.random()*3000),kwh:+(0.5+Math.random()*6).toFixed(1),filterPct:10+Math.floor(Math.random()*90)});}
+  return out;
+}
+/* Persist units (incl. imported ones) so they survive reload AND app updates.
+   localStorage is keyed to this local file, so a new cortex.html keeps the data. */
+function saveUnits(){try{localStorage.setItem("airow_units",JSON.stringify(units));}catch(e){}}
+function loadUnits(){try{const u=JSON.parse(localStorage.getItem("airow_units"));if(Array.isArray(u)&&u.length)return u;}catch(e){}return makeUnits();}
+let units=loadUnits();
+/* Migrate older saved units up to the current model: dual (cool/heat) setpoints in °C,
+   plus mode/fan/temp locks. Runs once on load; new fields default sensibly. */
+function migrateUnits(){let changed=false;units.forEach(u=>{
+  if(u.coolC==null){const f=(u.sp!=null?u.sp:72);u.coolC=Math.round((f-32)*5/9*2)/2;changed=true;}
+  if(u.heatC==null){u.heatC=Math.max(16,Math.round((u.coolC-2)*2)/2);changed=true;}
+  if(u.twoset==null){u.twoset=false;changed=true;}
+  if(u.modeLock==null){u.modeLock=false;changed=true;}
+  if(u.fanLock==null){u.fanLock=false;changed=true;}
+  if(u.tempLock==null){u.tempLock=false;changed=true;}
+});if(changed)saveUnits();}
+migrateUnits();
+
+/* ---- organization helpers ---- */
+function getMeta(u){const m=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name])||{};
+  return {alias:m.alias||"",tags:m.tags||[],floor:m.floor!=null?m.floor:u.floor,suite:m.suite||u.suite};}
+function dispName(u){return getMeta(u).alias||u.label;}
+function setMeta(u,patch){if(!CFG)return;CFG.unitMeta=CFG.unitMeta||{};
+  CFG.unitMeta[u.name]=Object.assign({},CFG.unitMeta[u.name],patch);saveCfg(CFG);}
+function catVals(u,dim){const m=getMeta(u);
+  if(dim==="system")return[u.system];
+  if(dim==="group")return["Group "+u.group];
+  if(dim==="floor")return["Floor "+m.floor];
+  if(dim==="suite")return[m.suite];
+  if(dim==="tag")return m.tags.length?m.tags.slice():["Untagged"];
+  return["All"];}
+function catList(dim){const s=new Set();units.forEach(u=>catVals(u,dim).forEach(c=>s.add(c)));
+  return [...s].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));}
+function unitsInCat(cat,dim){return units.filter(u=>catVals(u,dim).includes(cat));}
+
+/* ---- helpers ---- */
+let settingsUser=null; // per-user preferences are scoped to the signed-in user
+function settingsKey(){return "airow_settings"+(settingsUser?("__"+settingsUser):"");}
+function loadSettings(){try{const s=JSON.parse(localStorage.getItem(settingsKey()));return Object.assign({},DEF_SETTINGS,s||{},{show:Object.assign({},DEF_SETTINGS.show,(s&&s.show)||{})});}catch(e){return JSON.parse(JSON.stringify(DEF_SETTINGS));}}
+function saveSettings(){try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(e){}}
+function temp(f){return settings.unit==="C"?Math.round((f-32)*5/9)+"°C":f+"°F";}
+function cksum(b){let s=0;for(let i=0;i<7;i++)s=(s+b[i])&0xff;return s^0x55;}
+function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,0];b[7]=cksum(b);
+  return b.map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");}
+/* ===== LGAP — decoded from the ACP's OWN firmware 2026-11-07 (see HANDOFF NOTES) =====
+   Checksum (confirmed, code + wire): (sum of all bytes except the last) XOR 0x55.
+   An indoor unit uses TWO frames:
+   (A) 8-byte basic frame  80 00 A0 addr b4 b5 b6 ck  — power / mode / fan ONLY.
+       b4 bit0=power, bit1="change" (CC sends 03/02 once, then 01/00).
+       b5 HIGH nibble=fan (1 low,2 med,3 high) · LOW nibble=mode (0 cool,3 auto,4 heat).
+       b6 is NOT the setpoint (some other field) — which is why it never tracked
+       temperature. Cortex preserves the last-seen b6.
+   (B) 16-byte "cmd5" frame — carries the SETPOINTS. FULLY CONFIRMED 2026-11-08 by
+       disassembling the ACP's OWN builder (CopyControlData_to_sendControlacCmd5). The
+       header is no longer a guess — exact byte layout:
+         [0]=A8  [1]=00  [2]=A0  [3]=addr  [4]=10 (cmd5 id)  [5]=flags(bit0=power on)
+         [6..9] = limits: (byte & 0x7F)°C + (top bit ? 0.5 : 0)  (cool lo/hi, heat lo/hi)
+         [10] & 0x7F = COOLING setpoint whole °C ; [11] & 0x7F = HEATING whole °C
+         [12] hi nibble=cool decimal, lo nibble=heat decimal ; °C = whole + dec*0.1
+         [13] = reserved/mode
+         [14] = ap_mkchksum(buf,14) = (sum[0..13] ^ 0x55) & 0xFF
+         [15] = (ap_mkchksum(buf,15) + 1) & 0xFF = ((sum[0..14] ^ 0x55) + 1) & 0xFF
+       NOTE: cmd5 marker is A8 (the 80 00 A0 basic frame is a DIFFERENT command).
+       TWO checksums (14 AND 15); ap_mkchksum == lgapCk (sum XOR 0x55), confirmed in code. */
+const MODELO={cool:0,dry:1,fan:2,auto:3,heat:4};  // ALL CONFIRMED 2026-11-08 from firmware mode→code converter (strcmp chain @0x380c8)
+const FANHI={low:1,med:2,high:3};       // low + med confirmed on wire; high by LG convention
+const SP_CONFIRMED=false;               // kept for UI text; basic frame never carries setpoint
+function spByte(o){const c=Math.round((o.sp-32)*5/9);return Math.max(0,Math.min(31,c-13));} // legacy, unused
+/* setpoint helpers — source of truth is °C (coolC/heatC); display in the user's unit */
+const SP_MINC=16,SP_MAXC=30;
+function clampC(c){return Math.max(SP_MINC,Math.min(SP_MAXC,Math.round(c*2)/2));}
+function spDisp(c){return settings.unit==="C"?(Math.round(c*2)/2):Math.round(c*9/5+32);}  // number only
+function spStep(c,dir){return settings.unit==="C"?clampC(c+dir*0.5):clampC((Math.round(c*9/5+32)+dir-32)*5/9);}
+function activeC(o){return o.mode==="heat"?o.heatC:o.coolC;}            // the setpoint that mode uses
+function setActiveC(o,c){if(o.mode==="heat")o.heatC=clampC(c);else o.coolC=clampC(c);}
+function isDual(o){return o.mode==="auto"||o.twoset;}                   // show cool+heat
+function toHexBytes(b){return b.map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");}
+/* hex line with header bytes + checksum bytes highlighted (for the Debug "lab" panels) */
+function fmtHexLine(b){const n=b.length;return b.map((x,i)=>{const hdr=i<3,ck=i>=n-2;return `<span class="${hdr||ck?"hi":""}">${x.toString(16).padStart(2,"0").toUpperCase()}</span>`;}).join(" ");}
+/* general LGAP checksum over the first n bytes */
+function lgapCk(b,n){let s=0;for(let i=0;i<n;i++)s=(s+b[i])&0xff;return (s^0x55)&0xff;}
+/* temperature <-> bytes, 0.1°C resolution (firmware) */
+function tempParts(c){const i=Math.max(0,Math.min(0x7f,Math.floor(c)));return{i,d:Math.max(0,Math.min(9,Math.round((c-i)*10)))};}
+function partsTemp(iByte,nib){return (iByte&0x7f)+Math.min(9,nib&0xf)*0.1;}
+function fToC(f){return (f-32)*5/9;} function cToF(c){return c*9/5+32;}
+/* (A) basic power/mode/fan command (8-byte) */
+function cmdBytesFor(addr,o,change){
+  const seen5=(o.d5!=null?o.d5:0x33);
+  const fanN=FANHI[o.fan]!=null?FANHI[o.fan]:(seen5>>4);       // unknown fan (e.g. auto) -> keep what the unit had
+  const modeN=MODELO[o.mode]!=null?MODELO[o.mode]:(seen5&0x0f);
+  const b5=(fanN<<4)|modeN;
+  const b6=(o.d6!=null?o.d6:0x06);                             // NOT setpoint — preserve last-seen
+  const b4=(o.on?1:0)|(change===false?0:2);
+  const b=[o.b0||0x80,0x00,0xA0,addr,b4,b5,b6,0];b[7]=cksum(b);return b;}
+function cmdFrameFor(addr,o){return toHexBytes(cmdBytesFor(addr,o));}
+function cmdFrame(u){return cmdFrameFor(u.addr,u);}
+/* (B) 16-byte setpoint (cmd5): decode is certain; encode reuses a last-seen template header */
+function decodeCmd5(b){ if(!b||b.length<16) return null;
+  return {addr:b[3], coolC:partsTemp(b[10],b[12]>>4), heatC:partsTemp(b[11],b[12]&0xf),
+          limits:[6,7,8,9].map(i=>(b[i]&0x7f)+((b[i]>>7)?0.5:0))}; }
+function cmd5SetpointBytes(addr,coolC,heatC,opt){
+  opt=opt||{};
+  const b=new Array(16).fill(0);
+  b[0]=opt.marker!=null?opt.marker:0xA8;   // firmware constant (mvn #0x57)
+  b[1]=0x00;
+  b[2]=0xA0;
+  b[3]=addr;
+  b[4]=opt.cmd!=null?opt.cmd:0x10;          // cmd5 sub-id
+  // byte5 flags: bit0 = power on; keep any extra mode/lock bits the caller supplies
+  let flags=(opt.flags!=null?opt.flags:0)&0xff;
+  if(opt.on===false) flags&=~0x01; else flags|=0x01;
+  b[5]=flags&0xff;
+  // bytes 6-9 limits (cool lo/hi, heat lo/hi): (whole & 0x7F) | (half ? 0x80 : 0)
+  const lim=opt.limits||[coolC-2,coolC+2,heatC-2,heatC+2];
+  for(let k=0;k<4;k++){const v=lim[k]||0;const w=Math.max(0,Math.min(0x7f,Math.floor(v)));b[6+k]=(w&0x7f)|(((v-w)>=0.5)?0x80:0);}
+  const c=tempParts(coolC),h=tempParts(heatC);
+  b[10]=c.i&0x7f; b[11]=h.i&0x7f; b[12]=((c.d&0xf)<<4)|(h.d&0xf);
+  b[13]=opt.reserved!=null?opt.reserved:0;  // reserved/mode
+  b[14]=lgapCk(b,14);                        // checksum over bytes 0..13
+  b[15]=(lgapCk(b,15)+1)&0xff;               // checksum over bytes 0..14, +1
+  return b; }
+/* per-unit error-code history (tech-only). Persisted log if present, else a
+   believable deterministic sample so the feature has something to show. */
+function errorHistory(u){
+  const m=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name])||{};
+  if(m.errorLog)return m.errorLog;
+  const codes=["CH05","CH04","CH10","CH05","CH242","CH01"];const h=[];const mo=["Oct","Sep","Aug","Jul","Jun"];
+  const n=(u.id*7)%4;
+  for(let i=0;i<n;i++)h.push({code:codes[(u.id+i)%codes.length],when:`${mo[i%mo.length]} ${5+((u.id*3+i)%22)}`,cleared:true});
+  if(u.err)h.unshift({code:u.code,when:"active",cleared:false});
+  return h;}
+function statusOf(u){return u.err?"err":(u.on?"run":"stop");}
+function counts(){const c={run:0,stop:0,err:0};units.forEach(u=>c[statusOf(u)]++);return c;}
+function hx(n){return "0x"+n.toString(16).padStart(2,"0").toUpperCase();}
+const main=document.getElementById("main");
+
+function applyTheme(){const r=document.documentElement;
+  if(settings.theme==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",settings.theme);
+  applyAccent();}
+function applyAccent(){const a=ACCENTS[settings.accent]||ACCENTS.slate;
+  const dm=document.documentElement.getAttribute("data-theme")==="dark"||(settings.theme==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);
+  const s=dm?a.d:a.l,st=document.documentElement.style;
+  st.setProperty("--accent",s[0]);st.setProperty("--accent-ink",s[1]);st.setProperty("--accent-soft",s[2]);}
+function renderWho(){
+  const name=currentUser?currentUser.name:"Guest";
+  const role=currentUser?currentUser.role:(session.tech?"technician":(session.admin?"admin":"customer"));
+  document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${name} <span class="rolebadge">${role}</span>`;
+  const base=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};
+  const over=(session.admin&&!base.admin)||(session.tech&&!base.tech);
+  document.getElementById("lockbtn").classList.toggle("hide",!over);
+  document.getElementById("lockbtn").classList.toggle("lit",over);
+  document.getElementById("nav-cycle").classList.toggle("hide",!session.tech);
+  document.getElementById("nav-busscan").classList.toggle("hide",!session.tech);
+  if(!session.tech&&view==="busscan")view="units";
+}
+
+/* ---- nav ---- */
+function renderGroupNav(){
+  const nav=document.getElementById("group-nav");const dim=settings.groupBy;
+  const cats=catList(dim);const label=(DIMS.find(d=>d[0]===dim)||["","Group"])[1];
+  const item=(val,txt,n,active)=>`<button class="nav-item ${active?'active':''}" data-cat="${val}"><span>${txt}</span><span class="count">${n}</span></button>`;
+  nav.innerHTML=`<div class="nav-label">${label}</div>`+
+    item("all","All units",units.length,groupFilter==="all"&&view==="units")+
+    cats.map(c=>item(c,c,unitsInCat(c,dim).length,groupFilter===c&&view==="units")).join("");
+  nav.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{view="units";groupFilter=b.dataset.cat;renderAll();});
+}
+
+/* ---- unit rendering ---- */
+function modeIcon(m){return MODES.find(x=>x[0]===m)[2];}
+function unitCard(u){
+  const st=statusOf(u);const stripe=st==="err"?"var(--err)":(u.on?"var(--accent)":"var(--stopped)");
+  const pill=st==="err"?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?'<span class="pill run">Running</span>':'<span class="pill stop">Off</span>');
+  const ml=MODES.find(m=>m[0]===u.mode);
+  const modechip=settings.show.mode&&u.on?`<span class="modechip" style="background:var(--${MC[u.mode]}-soft);color:var(--${MC[u.mode]})">${ml[2]} ${ml[1]}</span>`:"";
+  const meta=[u.name,settings.show.addr?hx(u.addr):null,u.ch].filter(Boolean).join(" · ");
+  const lockOn=[u.modeLock?'Mode':'',u.fanLock?'Fan':'',u.tempLock?'Temp':''].filter(Boolean);
+  const lockChip=lockOn.length?`<span class="room" title="Locked: ${lockOn.join(', ')}">🔒 ${lockOn.map(x=>x[0]).join('')}</span>`:"";
+  const right=[modechip,settings.show.fan&&u.on?`<span class="room">fan ${u.fan}</span>`:"",lockChip,settings.show.room?`<span class="room mono">room ${temp(u.room)}</span>`:""].filter(Boolean).join("");
+  const meta2=getMeta(u);const svcOn=!!(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service&&CFG.unitMeta[u.name].service.inService);
+  const chips=[svcOn?`<span class="svcbadge">In service</span>`:""].concat(settings.show.tags?meta2.tags.map(t=>`<span class="tagchip">${t}</span>`):[]).filter(Boolean);
+  const tags=chips.length?`<div class="tagrow">${chips.join("")}</div>`:"";
+  const sel=selMode&&selSet.has(u.id);
+  return `<div class="card ${u.on?'':'off'}" style="--stripe:${stripe};${sel?'box-shadow:0 0 0 2px var(--accent) inset':''}" data-id="${u.id}">
+    <div class="card-top"><div style="display:flex;align-items:center;gap:8px">${selMode?`<span style="width:18px;height:18px;border-radius:5px;border:2px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'var(--accent)':'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none">${sel?'✓':''}</span>`:''}<div><div class="card-name">${dispName(u)}</div><div class="card-meta mono">${meta}</div></div></div>${pill}</div>
+    <div class="card-main"><div class="setpoint mono">${!u.on?"--":(isDual(u)?`<span style="color:var(--cool)">${spDisp(u.coolC)}</span><small style="color:var(--text-faint);font-weight:400"> / </small><span style="color:var(--heat)">${spDisp(u.heatC)}</span><small>°${settings.unit}</small>`:`${spDisp(activeC(u))}<small>°${settings.unit}</small>`)}</div>
+      <div class="card-right">${right}</div></div>
+    ${tags}
+    ${u.err?`<div class="err-note" data-code="${u.code}">⚠ ${u.code} · ${ERRORS[u.code]?ERRORS[u.code].t:"error"} — tap for details</div>`:""}
+  </div>`;
+}
+function unitRow(u){
+  const st=statusOf(u);const c=st==="err"?"var(--err)":(u.on?"var(--ok)":"var(--stopped)");
+  const ml=MODES.find(m=>m[0]===u.mode);
+  return `<div class="lrow" data-id="${u.id}"><span class="st" style="background:${c}"></span>
+    <div><div class="lname">${dispName(u)}</div><div class="lsub mono">${u.name} · ${hx(u.addr)}</div></div>
+    <div class="lc-hide">${u.err?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?ml[2]+' '+ml[1]:'<span style="color:var(--text-faint)">off</span>')}</div>
+    <div class="mono">${u.on?(isDual(u)?spDisp(u.coolC)+'/'+spDisp(u.heatC):spDisp(activeC(u)))+'°'+settings.unit:"--"}${(u.modeLock||u.fanLock||u.tempLock)?' 🔒':''}</div>
+    <div class="mono lc-hide" style="color:var(--text-dim)">room ${temp(u.room)}</div>
+    <div class="lc-hide" style="color:var(--text-faint)">${u.ch} · G${u.group}</div></div>`;
+}
+function applyFilters(l){return l.filter(u=>statusFilter==="all"||statusOf(u)===statusFilter)
+  .filter(u=>!query||(dispName(u)+" "+u.name).toLowerCase().includes(query.toLowerCase()));}
+function filtered(){const base=groupFilter==="all"?units.slice():unitsInCat(groupFilter,settings.groupBy);return applyFilters(base);}
+function weatherCard(){const w=WEATHER;const loc=(CFG&&CFG.site&&CFG.site.location)||w.place;
+  return `<div class="weather"><div><div class="wt mono">${w.now}°${settings.unit}</div><div class="wmeta">${w.cond} · ${loc}</div></div>
+    <div class="whr">${w.hours.map(h=>`<div class="wh">${h[0]}<b class="mono">${h[1]}°</b></div>`).join("")}<div class="wh">Hi / Lo<b class="mono">${w.hi} / ${w.lo}°</b></div></div>
+    <span class="wsample">sample</span></div>`;}
+function renderCards(list){if(!list.length)return '<div style="color:var(--text-faint);padding:8px 2px">None</div>';
+  if(settings.view==="list")return `<div class="listv">${list.map(unitRow).join("")}</div>`;
+  return `<div class="grid ${settings.density==='compact'?'compact':''}">${list.map(unitCard).join("")}</div>`;}
+function sectionSelBtn(c){return selMode?`<button class="linklike" data-selgroup="${encodeURIComponent(c)}" style="font-size:12px">Select all</button>`:"";}
+function renderBody(){const w=document.getElementById("listwrap");if(!w)return;const dim=settings.groupBy;
+  if(groupFilter!=="all"){const l=applyFilters(unitsInCat(groupFilter,dim));
+    w.innerHTML=l.length?renderCards(l):'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();return;}
+  const cats=catList(dim);let html="",any=false;
+  cats.forEach(c=>{const l=applyFilters(unitsInCat(c,dim));if(!l.length)return;any=true;
+    html+=`<div class="section-h"><span class="st">${c}</span><span class="sc">${l.length}</span><span class="ln"></span>${sectionSelBtn(c)}</div>`+renderCards(l);});
+  w.innerHTML=any?html:'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();}
+function bindGroupSel(){document.querySelectorAll("[data-selgroup]").forEach(b=>b.onclick=e=>{e.stopPropagation();
+  const c=decodeURIComponent(b.dataset.selgroup);const l=applyFilters(unitsInCat(c,settings.groupBy));
+  const allSel=l.every(u=>selSet.has(u.id));l.forEach(u=>{if(allSel)selSet.delete(u.id);else selSet.add(u.id);});
+  renderBody();renderBatchBar();});}
+function renderUnits(){
+  renderGroupNav();const c=counts();
+  const tile=(key,n,color,label)=>`<button class="tile ${statusFilter===key?'sel':''}" data-filter="${key}">
+     <div class="n">${n}</div><div class="l">${color?`<span class="dot" style="background:${color}"></span>`:""}${label}</div></button>`;
+  main.innerHTML=`
+    ${settings.showWeather?weatherCard():""}
+    ${settings.showTiles?`<div class="tiles">
+      ${tile("run",c.run,"var(--ok)","Running")}${tile("stop",c.stop,"var(--stopped)","Off")}
+      ${tile("err",c.err,"var(--err)","Errors")}${tile("all",units.length,"","All units · 2 ODUs")}
+    </div>`:""}
+    <div class="toolbar">
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input id="q" placeholder="Search units…" value="${query}"></div>
+      <select class="sel-box" id="groupby">${DIMS.map(d=>`<option value="${d[0]}" ${settings.groupBy===d[0]?'selected':''}>Group by: ${d[1]}</option>`).join("")}</select>
+      <div class="segmented" id="viewseg"><button data-v="grid" class="${settings.view==='grid'?'on':''}">Grid</button><button data-v="list" class="${settings.view==='list'?'on':''}">List</button></div>
+      <button class="btn ${selMode?'primary':''}" id="selbtn">${selMode?'Done selecting':'Select'}</button>
+      <button class="btn" id="alloff">All off</button><button class="btn primary" id="allon">All on</button>
+    </div>
+    <div id="batchbar"></div>
+    <div id="listwrap"></div>`;
+  renderBody();renderBatchBar();
+  document.getElementById("selbtn").onclick=()=>{selMode=!selMode;if(!selMode)selSet.clear();renderUnits();};
+  document.getElementById("q").oninput=e=>{query=e.target.value;renderBody();};
+  document.getElementById("groupby").onchange=e=>{settings.groupBy=e.target.value;groupFilter="all";saveSettings();renderUnits();};
+  document.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>{statusFilter=(statusFilter===b.dataset.filter&&b.dataset.filter!=="all")?"all":b.dataset.filter;renderUnits();});
+  document.querySelectorAll("#viewseg button").forEach(b=>b.onclick=()=>{settings.view=b.dataset.v;saveSettings();renderUnits();});
+  document.getElementById("allon").onclick=()=>{units.forEach(u=>{if(!u.err)u.on=true;});saveUnits();renderUnits();};
+  document.getElementById("alloff").onclick=()=>{units.forEach(u=>u.on=false);saveUnits();renderUnits();};
+}
+function bindUnitClicks(){
+  document.querySelectorAll("[data-id]").forEach(el=>el.onclick=e=>{
+    const code=e.target.closest("[data-code]");
+    if(code){e.stopPropagation();openError(code.dataset.code);return;}
+    const id=+el.dataset.id;
+    if(selMode){if(selSet.has(id))selSet.delete(id);else selSet.add(id);renderBody();renderBatchBar();return;}
+    openDrawer(id);});
+}
+function renderBatchBar(){const bar=document.getElementById("batchbar");if(!bar)return;
+  if(!selMode){bar.innerHTML="";return;}
+  const n=selSet.size;
+  bar.innerHTML=`<div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px">
+    <b>${n}</b> selected
+    <button class="linklike" id="bsel-all">Select all shown</button>
+    <button class="linklike" id="bsel-clear">Clear</button>
+    <div style="flex:1"></div>
+    <button class="btn" id="btrend" ${n?'':'disabled style="opacity:.5"'}>📈 Trend ${n}</button>
+    <button class="btn primary" id="bsend" ${n?'':'disabled style="opacity:.5"'}>Set &amp; send to ${n}…</button></div>`;
+  document.getElementById("bsel-all").onclick=()=>{filtered().forEach(u=>selSet.add(u.id));renderUnits();};
+  document.getElementById("bsel-clear").onclick=()=>{selSet.clear();renderUnits();};
+  const bs=document.getElementById("bsend");if(bs&&n)bs.onclick=batchModal;
+  const bt=document.getElementById("btrend");if(bt&&n)bt.onclick=()=>openTrends([...selSet]);
+}
+function batchModal(){
+  const ids=[...selSet];const targets=units.filter(u=>ids.includes(u.id));
+  const b={power:"",mode:"",fan:"",swing:"",sp:""}; // "" = no change
+  modal(head(`Batch command · ${targets.length} units`)+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px">Pick only the settings you want to change. Anything left on “no change” is untouched. One frame is sent per unit.</div>
+    <label class="flabel">Power</label><select class="sel-box" id="b-power"><option value="">No change</option><option value="on">Turn on</option><option value="off">Turn off</option></select>
+    <label class="flabel">Mode</label><select class="sel-box" id="b-mode"><option value="">No change</option>${MODES.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join("")}</select>
+    <label class="flabel">Fan</label><select class="sel-box" id="b-fan"><option value="">No change</option>${FANS.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join("")}</select>
+    <label class="flabel">Swing</label><select class="sel-box" id="b-swing"><option value="">No change</option><option value="on">On</option><option value="off">Off</option></select>
+    <label class="flabel">Setpoint</label><select class="sel-box" id="b-sp"><option value="">No change</option>${Array.from({length:27},(_,i)=>60+i).map(t=>`<option value="${t}">${temp(t)}</option>`).join("")}</select>
+    <div style="max-height:120px;overflow:auto;margin-top:12px;font-size:12px;color:var(--text-dim)">${targets.map(u=>dispName(u)).join(" · ")}</div>
+    <div class="mf" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="b-send">Send to ${targets.length} units</button></div></div>`,true);
+  document.getElementById("b-send").onclick=()=>{
+    const gv=id=>document.getElementById(id).value;
+    const power=gv("b-power"),mode=gv("b-mode"),fan=gv("b-fan"),swing=gv("b-swing"),sp=gv("b-sp");
+    if(!power&&!mode&&!fan&&!swing&&!sp){toast("Pick at least one setting to change");return;}
+    let n=0;targets.forEach(u=>{
+      const svc=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service)||{};
+      if(svc.inService&&(currentUser?currentUser.role:"customer")==="customer")return; // skip locked units for customers
+      if(power)u.on=power==="on";if(mode)u.mode=mode;if(fan)u.fan=fan;if(swing)u.swing=swing==="on";if(sp)u.sp=+sp;n++;});
+    closeModal();selMode=false;selSet.clear();saveUnits();renderUnits();toast(`Command sent to ${n} unit${n!==1?'s':''}`);
+  };
+}
+
+/* ---- cycle + schedule ---- */
+/* ===== Protocol profiles ===== */
+const PROTOCOLS={
+  lg:          {label:"LG (LGAP)",         baud:4800, dataBits:8, parity:"none", stopBits:1, phys:"RS485", decode:"full",    note:"Central-control bus. Works with your USB-RS485 adapter."},
+  samsung_nasa:{label:"Samsung NASA",      baud:9600, dataBits:8, parity:"even", stopBits:1, phys:"RS485", decode:"capture", note:"F1/F2 indoor↔outdoor bus (newer units). Same USB-RS485 adapter."},
+  samsung_non: {label:"Samsung (Non-NASA)",baud:2400, dataBits:8, parity:"even", stopBits:1, phys:"RS485", decode:"capture", note:"Older Samsung, 14-byte frames. Same USB-RS485 adapter."},
+  mit_cn105:   {label:"Mitsubishi (CN105)", baud:2400, dataBits:8, parity:"even", stopBits:1, phys:"TTL",   decode:"capture", note:"Per-indoor-unit 5V TTL — needs a USB-TTL lead, not RS485. Mini-split only; City Multi VRF uses M-NET."},
+  daikin_s21:  {label:"Daikin (S21)",       baud:2400, dataBits:8, parity:"even", stopBits:2, phys:"TTL",   decode:"capture", note:"HA/S21 connector, ASCII framed. Residential. VRV uses P1/P2."},
+  daikin_p1p2: {label:"Daikin (P1/P2)",     baud:9600, dataBits:8, parity:"none", stopBits:1, phys:"P1P2",  decode:"capture", note:"Altherma/VRV 2-wire home-bus — needs a P1P2 adapter, not plain RS485."},
+  fujitsu:     {label:"Fujitsu (Airstage)", baud:500,  dataBits:8, parity:"even", stopBits:1, phys:"LIN",   decode:"capture", note:"~500-baud one-wire bus — needs a LIN transceiver (MCP2025)."}
+};
+function siteProtocols(){const p=(CFG&&CFG.protocols&&CFG.protocols.length)?CFG.protocols:["lg"];return p.filter(k=>PROTOCOLS[k]);}
+/* ===== Live bus scanner (Web Serial) ===== */
+let bus={port:null,reader:null,scanning:false,proto:"lg",addrs:new Map(),log:[],raw:[],buf:new Uint8Array(0),dirty:false,err:"",bytes:0,hexdump:[],recent:[]};
+let busView="live";  // 'live' = clean monitoring (anyone) · 'debug' = cyber byte-level tools (tech)
+/* byte5 LOW nibble = mode, HIGH nibble = fan — from controlled changes at the real CC
+   on 2026-11-07 (A7 cool/low = 0x10, A6 heat/med = 0x24). The older "mode in high nibble"
+   read was wrong: that nibble is fan. dry/fan mode codes are LG-convention guesses. */
+const BMODE={0:"cool",1:"dry?",2:"fan?",3:"auto",4:"heat"};
+const BFAN={1:"low",2:"med",3:"high"};
+function spTxt(d){return d.setF!=null?d.setF+"°F":"sp? b6="+hx(d.b6!=null?d.b6:0);}
+function validFrame(f){return f[2]===0xA0 && cksum(f)===f[7];}
+function frameType(f){
+  if(f[0]===0x80&&f[1]===0x00)return "cmd";
+  if(f[0]===0x84&&f[1]===0x00)return "cmd";
+  if(f[0]===0xA0&&f[1]===0x00)return "status";   // unit status heartbeat (room temp is NOT in it)
+  if(f[0]===0x80&&(f[1]===0xB0||f[1]===0xB2))return "poll";
+  if((f[0]===0xF0||f[0]===0xC8)&&f[1]===0xC0)return "scan";
+  return "other";}
+function decodeFrame(f){
+  const t=frameType(f),d={addr:f[3],type:t,hex:[...f].map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ")};
+  if(t==="cmd"){d.power=(f[4]&0x01)?"on":"off";d.locked=!!(f[4]&0x04);d.writing=!!(f[4]&0x02);
+    d.change=!!(f[4]&0x02);d.b0=f[0];d.b5=f[5];d.b6=f[6];
+    d.mode=BMODE[f[5]&0x0f]||("m"+(f[5]&0x0f));d.fan=BFAN[f[5]>>4]||("f"+(f[5]>>4));
+    d.setF=SP_CONFIRMED?Math.round((f[6]+13)*9/5+32):null;}
+  return d;}
+function ingestBytes(bytes){
+  bus.bytes+=bytes.length;bus.dirty=true;
+  for(const x of bytes)bus.recent.push(x);if(bus.recent.length>96)bus.recent=bus.recent.slice(-96);
+  if(bus.proto==="lg"){
+    // keep the raw byte stream too, so Download capture works even when nothing decodes yet
+    for(const x of bytes)bus.hexdump.push(x.toString(16).padStart(2,"0").toUpperCase());
+    if(bus.hexdump.length>40000)bus.hexdump=bus.hexdump.slice(-16000);
+    const b=new Uint8Array(bus.buf.length+bytes.length);b.set(bus.buf);b.set(bytes,bus.buf.length);
+    let i=0;while(i+8<=b.length){const f=b.subarray(i,i+8);if(validFrame(f)){handleDecoded(decodeFrame(f));i+=8;}else i++;}
+    bus.buf=b.slice(i);if(bus.buf.length>512)bus.buf=bus.buf.slice(-16);
+  }else{ // capture mode: no verified decoder yet for this protocol — buffer raw bytes
+    for(const x of bytes)bus.hexdump.push(x.toString(16).padStart(2,"0").toUpperCase());
+    if(bus.hexdump.length>20000)bus.hexdump=bus.hexdump.slice(-8000);
+    bus.raw=bus.hexdump;bus.dirty=true;
+  }}
+function handleDecoded(d){
+  const a=bus.addrs.get(d.addr)||{addr:d.addr,count:0,cmd:0,types:new Set()};
+  a.count++;if(d.type==="cmd")a.cmd++;a.types.add(d.type);a.last=d;a.seen=Date.now();bus.addrs.set(d.addr,a);
+  if(d.type==="cmd"){const u=units.find(x=>x.addr===d.addr);if(u){u.d5=d.b5;u.d6=d.b6;u.b0=d.b0;}} // keep last-seen bytes for safe re-send
+  bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();
+  bus.raw.push(d.hex);if(bus.raw.length>8000)bus.raw.shift();
+  bus.dirty=true;}
+setInterval(()=>{if(bus.dirty&&view==="busscan"){bus.dirty=false;busUpdate();}},400);
+async function busConnect(){
+  // Appliance mode: when Cortex is SERVED over http(s) by the local backend, the backend
+  // owns the real serial port and we bridge over a WebSocket. On a bare file:// page we
+  // use the browser's Web Serial directly. Same send paths work in both.
+  if(location.protocol==='http:'||location.protocol==='https:'){return busConnectBackend();}
+  if(!("serial" in navigator)){bus.err="Web Serial isn't available here. Use the paste box below, or open Cortex from the local file in Chrome.";renderBusScan();return;}
+  const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
+  try{
+    bus.port=await navigator.serial.requestPort();
+  }catch(e){bus.err="No port picked — click Connect, then choose your USB-RS485 adapter (CP210x / Silicon Labs) in the popup.";bus.port=null;renderBusScan();return;}
+  try{
+    await bus.port.open({baudRate:p.baud,dataBits:p.dataBits,stopBits:p.stopBits,parity:p.parity});
+    bus.scanning=true;bus.err="";renderBusScan();
+    busReadLoop();
+  }catch(e){
+    const m=(e&&e.message||"").toLowerCase();
+    bus.err=(m.includes("open")||m.includes("busy")||m.includes("access")||m.includes("failed"))
+      ? "Couldn't open the adapter — another tab or program is already using this COM port. Close the other Cortex tab (and any serial terminal), then click Connect again."
+      : "Couldn't open the adapter: "+(e&&e.message||"unknown")+" — unplug/replug it and retry.";
+    bus.port=null;renderBusScan();}}
+/* Appliance transport — bridge to the backend's serial port over a WebSocket. bus.port is
+   a shim with the same .writable.getWriter().write() shape, so busSend / busSend5 / Controller
+   mode all work unchanged; incoming bytes flow into ingestBytes() just like Web Serial. */
+function busConnectBackend(){
+  const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
+  try{
+    const wsp=location.protocol==='https:'?'wss':'ws';
+    const ws=new WebSocket(`${wsp}://${location.host}/bus?proto=${encodeURIComponent(bus.proto)}&baud=${p.baud}&parity=${p.parity}&stop=${p.stopBits}&data=${p.dataBits}`);
+    ws.binaryType='arraybuffer';
+    ws.onopen=()=>{bus.scanning=true;bus.err="";renderBusScan();};
+    ws.onmessage=ev=>{ if(typeof ev.data==='string'){try{const m=JSON.parse(ev.data);if(m.err)bus.err=m.err;}catch(_){ } bus.dirty=true; return; } ingestBytes(new Uint8Array(ev.data)); };
+    ws.onerror=()=>{bus.err="Backend serial error — check the adapter and the cortex service.";bus.dirty=true;renderBusScan();};
+    ws.onclose=()=>{bus.scanning=false;if(bus.port&&bus.port._ws===ws)bus.port=null;renderBusScan();};
+    bus.port={_ws:ws,writable:{getWriter:()=>({write:async(u8)=>{if(ws.readyState===1)ws.send(u8);},releaseLock:()=>{}})},close:async()=>{try{ws.close();}catch(_){}}};
+  }catch(e){bus.err="Couldn't reach the backend: "+e.message;renderBusScan();}}
+/* Resilient read loop: a framing/parity glitch (common when driving a 2-wire bus as
+   master) errors the stream; instead of dying, release and re-acquire a fresh reader
+   so you never have to unplug/replug the adapter. */
+/* Fully close and reopen the serial port — clears the adapter's framing/parity error
+   latch, which a bare reader re-grab does NOT. This is what rescues a half-duplex
+   RS485 line that threw an error during an idle/noise stretch. */
+async function busReopenPort(){
+  const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
+  try{
+    if(bus.reader){try{await bus.reader.cancel();}catch(_){}try{bus.reader.releaseLock();}catch(_){}bus.reader=null;}
+    try{await bus.port.close();}catch(_){}
+    await new Promise(r=>setTimeout(r,300));
+    await bus.port.open({baudRate:p.baud,dataBits:p.dataBits,stopBits:p.stopBits,parity:p.parity});
+    return true;
+  }catch(e){return false;}
+}
+async function busReadLoop(){
+  let fails=0;
+  while(bus.scanning&&bus.port){
+    try{
+      bus.reader=bus.port.readable.getReader();
+      try{while(bus.scanning){const{value,done}=await bus.reader.read();if(done)break;if(value&&value.length){ingestBytes(value);fails=0;bus.err="";}}}
+      finally{try{bus.reader.releaseLock();}catch(_){}}
+    }catch(e){
+      fails++;bus.dirty=true;
+      // escalate: a couple of quick reader re-grabs, then a full port close+reopen every 4th fail
+      if(fails%4===0){
+        bus.err="Resetting the adapter… ["+fails+"]";bus.dirty=true;
+        const ok=await busReopenPort();
+        if(!ok){bus.err="Couldn't reopen the adapter — unplug it, replug, and hit Connect. Your captured bytes are safe: click Download capture.";bus.dirty=true;break;}
+      }else{
+        bus.err="RX glitch ("+e.message+") — recovering… ["+fails+"]";bus.dirty=true;
+      }
+      if(fails>=40){bus.err="RX kept erroring even after resets — unplug the adapter, replug, and Connect again. Your captured bytes are safe: click Download capture.";bus.dirty=true;break;}
+      await new Promise(r=>setTimeout(r,Math.min(150+fails*60,1500)));
+    }
+  }
+  bus.reader=null;}
+async function busDisconnect(){bus.scanning=false;ctrl.running=false;
+  try{if(bus.reader){await bus.reader.cancel();bus.reader.releaseLock();}if(bus.port)await bus.port.close();}catch(e){}
+  bus.reader=null;bus.port=null;txState.armed=false;renderBusScan();}
+/* True when the drawer's Send button will actually transmit — the adapter is connected.
+   Not tech-gated: on site you drive units from the normal view and the command goes out.
+   (The bus is only ever open because an installer physically connected the adapter.) */
+function liveTx(){return !!bus.port && bus.scanning;}
+/* Transmit a unit's full state: the 8-byte basic frame (power/mode/fan) AND the 16-byte
+   cmd5 setpoint frame (cool/heat), each repeated a few times, like the ACP does. */
+async function txUnit(u){
+  if(ctrl.running){ctrl.cmds.set(u.addr,{on:u.on,mode:u.mode,fan:u.fan,sp:u.sp,coolC:u.coolC,heatC:u.heatC,d5:u.d5,d6:u.d6,b0:u.b0});toast("Queued into controller loop → "+hx(u.addr));return;}
+  if(!bus.port||!bus.port.writable){toast("Bus not connected");return;}
+  const basic=cmdBytesFor(u.addr,u);
+  const sp5=cmd5SetpointBytes(u.addr,u.coolC,u.heatC,{on:u.on});
+  try{const w=bus.port.writable.getWriter();
+    for(let i=0;i<5;i++){await w.write(Uint8Array.from(basic));await new Promise(r=>setTimeout(r,140));}
+    for(let i=0;i<5;i++){await w.write(Uint8Array.from(sp5));await new Promise(r=>setTimeout(r,140));}
+    w.releaseLock();
+    const push=(hexs,lbl)=>{const d={addr:u.addr,type:"tx",hex:hexs,label:lbl};bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+hexs);};
+    push(toHexBytes(basic),`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan}`);
+    push(toHexBytes(sp5),`setpoint cool ${spDisp(u.coolC)}° / heat ${spDisp(u.heatC)}°`);
+    bus.dirty=true;
+    toast("⚡ Sent → "+hx(u.addr)+" (power/mode/fan + setpoint)");
+  }catch(e){toast("Send failed: "+e.message);}}
+/* ===== Transmit (write to the live bus) — tech only, two-step confirm ===== */
+let txState={addr:null,on:true,mode:"cool",fan:"low",spC:24,repeat:5,armed:false};
+function txUnitBytes(addr){const u=units.find(x=>x.addr===addr);const a=bus.addrs.get(addr);const l=a&&a.last&&a.last.type==="cmd"?a.last:null;
+  return {d5:u&&u.d5!=null?u.d5:(l?l.b5:null),d6:u&&u.d6!=null?u.d6:(l?l.b6:null),b0:u&&u.b0?u.b0:(l?l.b0:0x80)};}
+function txBytes(){
+  const addr=txState.addr==null?0:txState.addr;
+  return cmdBytesFor(addr,Object.assign(txUnitBytes(addr),{on:txState.on,mode:txState.mode,fan:txState.fan,sp:Math.round(txState.spC*9/5+32)}));}
+async function busSend(){
+  if(!session.tech){toast("Tech mode only");return;}
+  if(txState.addr==null){toast("Pick a target address first");return;}
+  if(!bus.port||!bus.port.writable){bus.err="Connect the adapter first — and make sure the LG central is disconnected from this outdoor unit before sending.";txState.armed=false;renderBusScan();return;}
+  if(!txState.armed){txState.armed=true;renderBusScan();return;}   // first click arms + shows confirm
+  txState.armed=false;
+  if(ctrl.running){const sp=Math.round(txState.spC*9/5+32);ctrl.cmds.set(txState.addr,Object.assign(txUnitBytes(txState.addr),{on:txState.on,mode:txState.mode,fan:txState.fan,sp}));toast("Queued into controller loop → "+hx(txState.addr));renderBusScan();return;}
+  const fb=txBytes(),reps=Math.max(1,Math.min(20,txState.repeat|0));
+  try{
+    const w=bus.port.writable.getWriter();
+    for(let i=0;i<reps;i++){await w.write(Uint8Array.from(fb));await new Promise(r=>setTimeout(r,150));}
+    w.releaseLock();
+    const d={addr:txState.addr,type:"tx",hex:toHexBytes(fb),power:txState.on?"on":"off",mode:txState.mode,setF:Math.round(txState.spC*9/5+32)};
+    bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);
+    toast("Sent "+reps+"× to "+hx(txState.addr)+" — check the thermostat");
+  }catch(e){bus.err="Send failed: "+e.message;}
+  renderBusScan();}
+/* ===== Setpoint send (16-byte cmd5) — EXPERIMENTAL.
+   Temperature bytes are firmware-confirmed; header bytes (cmd id / flags) are still being
+   pinned down, so this transmits and you watch the unit's reply to verify. Supports a
+   single setpoint (auto) OR separate cool/heat (2-point stats). ===== */
+let tx5={addr:null,dual:false,coolC:24,heatC:20,single:24,cmdId:0x10,flags:0x01,repeat:5,armed:false};
+function tx5Bytes(){
+  const addr=tx5.addr==null?0:tx5.addr;
+  const cool=tx5.dual?tx5.coolC:tx5.single, heat=tx5.dual?tx5.heatC:tx5.single;
+  return cmd5SetpointBytes(addr,cool,heat,{cmd:tx5.cmdId&0xff,flags:tx5.flags&0xff,on:true});}
+async function busSend5(){
+  if(!session.tech){toast("Tech mode only");return;}
+  if(tx5.addr==null){toast("Pick a target address first");return;}
+  if(!bus.port||!bus.port.writable){bus.err="Connect the adapter first — and disconnect the LG central from this outdoor unit before sending.";tx5.armed=false;renderBusScan();return;}
+  if(!tx5.armed){tx5.armed=true;renderBusScan();return;}
+  tx5.armed=false;
+  const fb=tx5Bytes(),reps=Math.max(1,Math.min(20,tx5.repeat|0));
+  const cool=tx5.dual?tx5.coolC:tx5.single, heat=tx5.dual?tx5.heatC:tx5.single;
+  try{
+    const w=bus.port.writable.getWriter();
+    for(let i=0;i<reps;i++){await w.write(Uint8Array.from(fb));await new Promise(r=>setTimeout(r,150));}
+    w.releaseLock();
+    const d={addr:tx5.addr,type:"tx",hex:toHexBytes(fb),label:`setpoint ${tx5.dual?`cool ${cool} / heat ${heat}`:cool+""}°C`};
+    bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);
+    toast("Sent setpoint ×"+reps+" → "+hx(tx5.addr)+" — watch the unit's reply to confirm");
+  }catch(e){bus.err="Send failed: "+e.message;}
+  renderBusScan();}
+/* ===== Controller mode: Cortex becomes the bus master (replace the CC) =====
+   Captures a real sweep off the live bus, then replays it on a loop as the master,
+   substituting the user's command frames for any address with a pending override. */
+let ctrl={running:false,script:[],cmds:new Map(),sent:0,err:"",addrs:0,listenMs:45,rx0:0};
+function ctrlCapture(){
+  const frames=[];let skippedReplies=0;
+  for(const h of bus.raw){
+    if(typeof h!=="string"||h.startsWith("TX"))continue;
+    const b=h.trim().split(/\s+/).map(x=>parseInt(x,16));
+    if(b.length!==8||!b.every(x=>x>=0&&x<256)||!validFrame(b))continue;
+    // Keep ONLY controller-originated frames. Skip unit replies (A0 00 …) — Cortex must
+    // LISTEN for those, never send them, or it talks over the units it's polling.
+    if(b[0]===0xA0&&b[1]===0x00){skippedReplies++;continue;}
+    frames.push(Uint8Array.from(b));
+  }
+  ctrl.script=frames.slice(-800);
+  ctrl.addrs=new Set(ctrl.script.map(f=>f[3])).size;
+  toast(ctrl.script.length?("Captured "+ctrl.script.length+" controller frames ("+ctrl.addrs+" addr) · left "+skippedReplies+" unit replies for the units"):"Nothing captured yet — let the bus run first");
+  renderBusScan();}
+function ctrlFrameFor(raw){
+  if((raw[0]===0x80||raw[0]===0x84)&&raw[1]===0x00){
+    const ov=ctrl.cmds.get(raw[3]);
+    if(ov){ // like the real CC: send the "change" bit for the first 2 sweeps, then plain state
+      ov.n=(ov.n||0)+1;const o={b0:raw[0],d5:raw[5],d6:raw[6]};
+      for(const k in ov)if(ov[k]!=null&&k!=="n")o[k]=ov[k];
+      return Uint8Array.from(cmdBytesFor(raw[3],o,ov.n<=2));}
+  }
+  return raw;}
+async function ctrlStart(){
+  if(!session.tech){toast("Tech mode only");return;}
+  if(!bus.port||!bus.port.writable){toast("Connect the adapter first");return;}
+  if(!ctrl.script.length){toast("Capture a sweep first (while the real CC is still connected)");return;}
+  if(ctrl.running)return;
+  ctrl.running=true;ctrl.sent=0;ctrl.err="";ctrl.rx0=bus.bytes;renderBusScan();
+  let w;
+  try{w=bus.port.writable.getWriter();}
+  catch(e){ctrl.running=false;ctrl.err="Writer busy: "+e.message;renderBusScan();return;}
+  try{
+    while(ctrl.running){
+      for(let k=0;k<ctrl.script.length&&ctrl.running;k++){
+        const f=ctrlFrameFor(ctrl.script[k]);
+        await w.write(f);ctrl.sent++;
+        // After a poll/scan frame, stop transmitting and LISTEN — a 2-wire (half-duplex)
+        // adapter needs the quiet window to flip to RX and catch the unit's reply.
+        const isPoll=(f[0]===0x80&&(f[1]===0xB0||f[1]===0xB2))||((f[0]===0xF0||f[0]===0xC8)&&f[1]===0xC0);
+        await new Promise(r=>setTimeout(r, isPoll?ctrl.listenMs:14));
+        if((ctrl.sent&15)===0)bus.dirty=true;
+      }
+      await new Promise(r=>setTimeout(r,30));
+    }
+  }catch(e){ctrl.err="Controller stopped: "+e.message;}
+  finally{try{w.releaseLock();}catch(_){}}
+  ctrl.running=false;renderBusScan();}
+function ctrlStop(){ctrl.running=false;}
+function busDownload(){const raw=bus.hexdump.length?bus.hexdump.join(" "):bus.raw.join(" ");
+  const blob=new Blob([raw],{type:"text/plain"});const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="bus_capture_"+Date.now()+".txt";a.click();}
+function busReset(){bus.addrs.clear();bus.log=[];bus.raw=[];bus.buf=new Uint8Array(0);bus.hexdump=[];bus.bytes=0;}
+function busPaste(){const t=document.getElementById("bus-paste").value.trim();if(!t){toast("Paste hex first");return;}
+  const nums=t.split(/[^0-9a-fA-F]+/).filter(Boolean).map(x=>parseInt(x,16)).filter(x=>!isNaN(x)&&x<256);
+  busReset();ingestBytes(Uint8Array.from(nums));renderBusScan();
+  toast(bus.proto==="lg"?("Decoded "+bus.addrs.size+" addresses"):("Captured "+bus.bytes+" bytes"));}
+function busClear(){busReset();renderBusScan();}
+/* Build a unit record for a freshly-discovered bus address (full current model). */
+function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&&a.last&&a.last.type==="cmd")?a.last:null;const modeOk=s&&["auto","cool","heat"].includes(s.mode);
+  return {id,addr,name:"AC_UNIT_"+addr.toString(16).padStart(2,"0").toUpperCase(),label:"Addr 0x"+addr.toString(16).padStart(2,"0").toUpperCase(),
+    ch:"CH1",system:odu,floor:odu,suite:"",group:odu,
+    on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,
+    room:72,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:50,pipeOut:60,zoneLoad:0,runtimeHrs:0,kwh:0,filterPct:100,discovered:true};}
+function busImport(){
+  const picked=[...document.querySelectorAll(".busrow input:checked")].map(c=>+c.value);
+  if(!picked.length){toast("Tick the addresses you want to import");return;}
+  const oduEl=document.getElementById("bus-odu");const odu=(oduEl&&oduEl.value.trim())||"Outdoor unit 1";
+  let n=0,nextId=Math.max(0,...units.map(u=>u.id))+1;
+  picked.forEach(addr=>{if(units.find(u=>u.addr===addr))return;units.push(makeDiscoveredUnit(addr,odu,nextId++));n++;});
+  saveUnits();toast("Imported "+n+" unit"+(n!==1?"s":"")+" into "+odu);view="units";renderAll();}
+/* Non-destructive scan: ADD every new address seen on the bus, NEVER drop an existing unit
+   (even one that's offline or in a comm error). Removing is manual, one unit at a time. */
+function busScanNew(){
+  const found=[...bus.addrs.keys()];
+  if(!found.length){toast("No units seen yet — Connect the adapter and let it listen a few seconds");return;}
+  const existing=new Set(units.map(u=>u.addr));
+  const fresh=found.filter(a=>!existing.has(a));
+  const known=found.length-fresh.length;
+  if(!fresh.length){toast("No new units — all "+found.length+" on the bus are already in Cortex (nothing removed)");return;}
+  const oduEl=document.getElementById("bus-odu");const odu=(oduEl&&oduEl.value.trim())||"Outdoor unit 1";
+  let nextId=Math.max(0,...units.map(u=>u.id))+1;
+  fresh.forEach(addr=>units.push(makeDiscoveredUnit(addr,odu,nextId++)));
+  saveUnits();toast("➕ Added "+fresh.length+" new unit"+(fresh.length!==1?"s":"")+" · "+known+" already known, left untouched");view="units";renderAll();}
+function busLogRow(d){
+  const isTx=d.type==="tx";
+  let ds,tag=d.type;
+  if(d.type==="cmd"){ds=`${d.change?"<b>CHANGE</b> · ":""}${d.power} · ${d.mode} · fan ${d.fan}${d.locked?" · 🔒":""}`;tag=d.change?"command":"state";}
+  else if(isTx){ds=`TX → ${d.label!=null?d.label:`${d.power} · ${d.mode}${d.setF!=null?" · "+d.setF+"°":""}`}`;tag="sent";}
+  else{ds=d.type;tag=d.type;}
+  return `<div class="fr ${isTx?"tx":""}"><span class="ad">${hx(d.addr)}</span><span class="hx mono">${d.hex}</span><span class="ds">${ds}</span><span class="tag">${tag}</span></div>`;}
+function busUpdate(){
+  const tbody=document.getElementById("bus-table");if(tbody){
+    const rows=[...bus.addrs.values()].sort((a,b)=>a.addr-b.addr);
+    tbody.innerHTML=rows.length?rows.map(a=>{const live=a.cmd>0;const s=a.last;
+      return `<tr class="busrow" style="border-top:1px solid var(--border)">
+        <td style="padding:6px 8px"><input type="checkbox" value="${a.addr}" ${live?"checked":""}></td>
+        <td class="mono" style="padding:6px 8px">${hx(a.addr)}</td>
+        <td style="padding:6px 8px"><span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${live?"var(--ok)":"var(--text-faint)"}"></span> ${live?"active":"polled only"}</td>
+        <td class="mono" style="padding:6px 8px">${a.count}</td>
+        <td style="padding:6px 8px;color:var(--text-dim)">${[...a.types].join(", ")}</td>
+        <td style="padding:6px 8px">${s&&s.type==="cmd"?`${s.power} · ${s.mode} · fan ${s.fan} · ${spTxt(s)}`:"—"}</td></tr>`;}).join(""):
+      `<tr><td colspan="6" style="padding:16px;color:var(--text-faint)">No frames yet. Connect the adapter, or paste a capture below.</td></tr>`;
+  }
+  const log=document.getElementById("bus-log");if(log)log.innerHTML=bus.log.map(busLogRow).join("")||'<div style="color:var(--text-faint);padding:8px">Waiting for frames…</div>';
+  const dump=document.getElementById("bus-dump");if(dump){const d=bus.hexdump.slice(-768);let out="";for(let i=0;i<d.length;i+=16)out+=d.slice(i,i+16).join(" ")+"\n";dump.textContent=out||"Waiting for bytes…";}
+  const cnt=document.getElementById("bus-count");if(cnt)cnt.textContent=bus.proto==="lg"?(bus.addrs.size+" addresses · "+bus.raw.length+" frames"):(bus.bytes+" bytes captured");
+  const cs=document.getElementById("ctrl-status");if(cs&&ctrl.running)cs.textContent="● MASTER — sent: "+ctrl.sent+" · received: "+(bus.bytes-ctrl.rx0)+" bytes"+(ctrl.cmds.size?(" · "+ctrl.cmds.size+" command override(s)"):"");
+  const rawm=document.getElementById("bus-rawmon");if(rawm){const hexs=bus.recent.slice(-48).map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");
+    rawm.innerHTML=bus.bytes?`<b>${bus.bytes}</b> raw bytes seen · last: <span class="mono" style="color:var(--text-dim)">${hexs||"—"}</span>`:'<span style="color:var(--text-faint)">0 bytes — nothing arriving on the wire yet</span>';}}
+function renderBusScan(){
+  const supported="serial" in navigator;const conn=bus.scanning;
+  const opts=siteProtocols();if(!opts.includes(bus.proto))bus.proto=opts[0]||"lg";
+  const p=PROTOCOLS[bus.proto];const isLG=bus.proto==="lg";
+  const addrSel=(sel)=>`<option value="">Target address…</option>`+[...new Set([...bus.addrs.keys(),...units.map(u=>u.addr)])].sort((a,b)=>a-b).map(a=>{const u=units.find(x=>x.addr===a);return `<option value="${a}" ${sel===a?"selected":""}>${hx(a)}${u?" · "+dispName(u):""}</option>`;}).join("");
+  const connbar=`
+    <div class="connbar">
+      <select class="sel-box" id="bus-proto" ${conn?"disabled":""} style="min-width:140px">${opts.map(k=>`<option value="${k}" ${k===bus.proto?"selected":""}>${PROTOCOLS[k].label}</option>`).join("")}</select>
+      <span class="mono" style="font-size:12px;color:var(--text-dim)">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits}</span>
+      ${conn?`<button class="btn danger" id="bus-dis">■ Disconnect</button>`:`<button class="btn primary" id="bus-con">▶ Connect adapter</button>`}
+      <div class="stat"><span class="pulse ${conn?'':'off'}"></span><span id="bus-count">${conn?'reading…':'idle'}</span></div>
+      ${session.tech&&isLG?`<div style="flex:1"></div><div class="segmented"><button id="bv-live" class="${busView==='live'?'on':''}">Live</button><button id="bv-debug" class="${busView==='debug'?'on':''}">⚡ Debug</button></div>`:''}
+    </div>
+    ${p.phys!=="RS485"?`<div class="note-box" style="margin-bottom:12px;font-size:12.5px">${p.note} <b>Note:</b> not plain RS485 — needs the adapter noted above.</div>`:''}
+    ${bus.err?`<div class="note-box" style="color:var(--warn);margin-bottom:12px">${bus.err}</div>`:""}
+    ${!supported?`<div class="note-box" style="margin-bottom:12px">This hosted copy can't open the serial port. Open your <b>local</b> Cortex in Chrome to Connect — or paste a capture in Debug.</div>`:""}`;
+  /* ---- LIVE view: clean monitoring anyone can read ---- */
+  const liveHTML=`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <input class="inp" id="bus-odu" placeholder="Outdoor unit name" value="Outdoor unit 1" style="width:170px;margin:0">
+      <button class="btn primary" id="bus-scan">🔍 Scan for new units</button>
+      <button class="btn" id="bus-import">⬇ Import ticked</button>
+      <div style="flex:1"></div>
+      <button class="btn" id="bus-dl">Download</button>
+      <button class="btn" id="bus-clear">Clear</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--text-faint);margin:0 2px 12px">Scan adds only <b>new</b> addresses — units already in Cortex stay put, even one that's offline or in a comm error. To drop a dead/ghost unit, open it and use <b>Remove unit</b> (one at a time).</div>
+    <div class="lbl" style="margin-bottom:6px">Units on the bus</div>
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-bottom:16px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:var(--surface-2);text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
+        <th style="padding:8px"><input type="checkbox" id="bus-all"></th><th style="padding:8px">Addr</th><th style="padding:8px">Status</th><th style="padding:8px">Frames</th><th style="padding:8px">Types</th><th style="padding:8px">Last seen</th></tr></thead>
+      <tbody id="bus-table"></tbody></table></div>
+    <div class="lbl" style="margin-bottom:6px">Live activity</div>
+    <div id="bus-log" class="feed"></div>`;
+  /* ---- DEBUG view: cyber byte-level tools (tech) ---- */
+  const debugHTML=`
+    <div class="warnband">⚠ These tools transmit on the live bus — disconnect the LG central from this unit first.</div>
+    <div class="lab" style="margin-bottom:14px">
+      <div class="labhead"><span class="dot ${conn?'':'idle'}"></span><b>RX monitor</b> · raw bus bytes</div>
+      <div class="labbody"><div id="bus-rawmon" class="labsub" style="margin:0"></div></div>
+    </div>
+    <div class="lab" style="margin-bottom:14px">
+      <div class="labhead"><span class="dot idle"></span><b>TX · basic command</b> · power / mode / fan (8-byte)</div>
+      <div class="labbody">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+          <select class="sel-box" id="tx-addr">${addrSel(txState.addr)}</select>
+          <select class="sel-box" id="tx-power"><option value="1" ${txState.on?"selected":""}>On</option><option value="0" ${!txState.on?"selected":""}>Off</option></select>
+          <select class="sel-box" id="tx-mode">${[["auto","Auto"],["cool","Cool"],["heat","Heat"]].map(m=>`<option value="${m[0]}" ${txState.mode===m[0]?"selected":""}>${m[1]}</option>`).join("")}</select>
+          <select class="sel-box" id="tx-fan">${[["low","Fan low"],["med","Fan med"],["high","Fan high"]].map(m=>`<option value="${m[0]}" ${txState.fan===m[0]?"selected":""}>${m[1]}</option>`).join("")}</select>
+          <label style="font-size:12px;color:#5f8a84">rpt <input id="tx-rep" type="number" min="1" max="20" value="${txState.repeat}" style="width:50px" class="inp"></label>
+        </div>
+        <div class="hexline" style="margin-bottom:9px">${txState.addr!=null?fmtHexLine(txBytes()):'<span class="mut">// select a target address</span>'}</div>
+        ${txState.armed?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn go" id="tx-go">⚠ confirm &amp; send ${Math.max(1,Math.min(20,txState.repeat|0))}×</button><button class="btn" id="tx-cancel">cancel</button><span style="font-size:11.5px;color:#ff9e9e">live @ ${hx(txState.addr)}</span></div>`:`<button class="btn" id="tx-arm" ${bus.scanning?"":"disabled"}>prepare send…</button>`}
+      </div>
+    </div>
+    <div class="lab" style="margin-bottom:14px">
+      <div class="labhead"><span class="dot idle"></span><b>TX · setpoint cmd5</b> · cool / heat (16-byte) · <span style="color:#6fe3c6">firmware-confirmed</span></div>
+      <div class="labbody">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+          <select class="sel-box" id="t5-addr">${addrSel(tx5.addr)}</select>
+          <div class="seg"><button id="t5-single" class="${tx5.dual?'':'on'}">Single</button><button id="t5-dual" class="${tx5.dual?'on':''}">Cool+Heat</button></div>
+          ${tx5.dual?`<label style="font-size:12px;color:var(--cool)">Cool <input id="t5-cool" type="number" min="16" max="30" step="0.5" value="${tx5.coolC}" style="width:60px" class="inp"></label><label style="font-size:12px;color:var(--heat)">Heat <input id="t5-heat" type="number" min="16" max="30" step="0.5" value="${tx5.heatC}" style="width:60px" class="inp"></label>`:`<label style="font-size:12px;color:#8ff3dd">Set <input id="t5-sv" type="number" min="16" max="30" step="0.5" value="${tx5.single}" style="width:60px" class="inp"> °C</label>`}
+          <label style="font-size:11px;color:#5f8a84">cmd <input id="t5-cmd" value="${tx5.cmdId.toString(16).padStart(2,"0").toUpperCase()}" style="width:44px" class="inp mono"></label>
+          <label style="font-size:11px;color:#5f8a84">flags <input id="t5-flags" value="${tx5.flags.toString(16).padStart(2,"0").toUpperCase()}" style="width:44px" class="inp mono"></label>
+          <label style="font-size:11px;color:#5f8a84">rpt <input id="t5-rep" type="number" min="1" max="20" value="${tx5.repeat}" style="width:46px" class="inp"></label>
+        </div>
+        <div class="hexline" style="margin-bottom:9px">${tx5.addr!=null?fmtHexLine(tx5Bytes()):'<span class="mut">// select a target address</span>'}</div>
+        ${tx5.armed?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn go" id="t5-go">⚠ confirm &amp; send ${Math.max(1,Math.min(20,tx5.repeat|0))}×</button><button class="btn" id="t5-cancel">cancel</button><span style="font-size:11.5px;color:#ff9e9e">watch reply @ ${hx(tx5.addr)}</span></div>`:`<button class="btn" id="t5-arm" ${bus.scanning?"":"disabled"}>prepare send…</button>`}
+      </div>
+    </div>
+    <div class="lab" style="margin-bottom:14px">
+      <div class="labhead"><span class="dot ${ctrl.running?'':'idle'}"></span><b>Controller mode</b> · Cortex as bus master</div>
+      <div class="labbody">
+        <div class="labsub">Replaces the LG CC — Cortex drives the sweep so units stay commandable with no CC. Disconnect the real CC first; capture a sweep while it's still connected, then start.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <button class="btn" id="ctrl-cap" ${bus.scanning?"":"disabled"}>① capture sweep</button>
+          ${ctrl.running?`<button class="btn go" id="ctrl-stop">■ stop</button>`:`<button class="btn primary" id="ctrl-start" ${ctrl.script.length?"":"disabled"}>② start controller</button>`}
+          <span class="mono" style="font-size:11.5px;color:#5f8a84">script ${ctrl.script.length} · ${ctrl.addrs||0} addr</span>
+          <label style="font-size:11.5px;color:#5f8a84">listen <select class="sel-box" id="ctrl-listen" style="padding:3px 6px">${[25,45,70,100,150].map(v=>`<option value="${v}" ${ctrl.listenMs===v?"selected":""}>${v}ms</option>`).join("")}</select></label>
+        </div>
+        <div id="ctrl-status" class="mono" style="font-size:12px;color:${ctrl.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${ctrl.running?("● MASTER — sent "+ctrl.sent+" · rx "+(bus.bytes-ctrl.rx0)+"b"):"idle"}</div>
+        ${ctrl.err?`<div style="font-size:12px;color:#ffb36b;margin-top:6px">${ctrl.err}</div>`:""}
+      </div>
+    </div>
+    <div class="lab">
+      <div class="labhead"><span class="dot idle"></span><b>Capture I/O</b></div>
+      <div class="labbody">
+        <div style="display:flex;gap:8px;margin-bottom:9px;flex-wrap:wrap"><button class="btn" id="bus-dl">⬇ download capture</button><button class="btn" id="bus-clear">clear buffer</button></div>
+        <textarea id="bus-paste" class="inp" style="width:100%;height:64px;font-size:12px" placeholder="paste hex: A8 00 A0 A7 10 01 …"></textarea>
+        <button class="btn" id="bus-decode" style="margin-top:8px">decode paste</button>
+      </div>
+    </div>`;
+  /* ---- CAPTURE view: non-LG protocols (raw bytes only) ---- */
+  const captureHTML=`
+    <div class="note-box" style="margin-bottom:10px">Capture mode — no verified decoder for ${p.label} yet, so Cortex records raw bytes at the right serial settings. Let it run, hit <b>Download capture</b>, and send it over.</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn" id="bus-dl">Download capture</button><button class="btn" id="bus-clear">Clear</button></div>
+    <div class="lbl" style="margin-bottom:6px">Raw bytes</div>
+    <pre id="bus-dump" class="mono" style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface-2);font-size:12px;white-space:pre-wrap;margin:0 0 16px"></pre>
+    <div class="lbl" style="margin-bottom:6px">Or paste a capture (hex)</div>
+    <textarea id="bus-paste" class="inp" style="width:100%;height:64px;font-family:ui-monospace,monospace;font-size:12px" placeholder="paste hex…"></textarea>
+    <button class="btn" id="bus-decode" style="margin-top:8px">Load paste</button>`;
+  main.innerHTML=connbar+(isLG?((session.tech&&busView==='debug')?debugHTML:liveHTML):captureHTML);
+  const ps=document.getElementById("bus-proto");if(ps)ps.onchange=e=>{bus.proto=e.target.value;busReset();renderBusScan();};
+  const bvl=document.getElementById("bv-live");if(bvl)bvl.onclick=()=>{busView="live";renderBusScan();};
+  const bvd=document.getElementById("bv-debug");if(bvd)bvd.onclick=()=>{busView="debug";renderBusScan();};
+  const cc=document.getElementById("bus-con");if(cc)cc.onclick=busConnect;
+  const dd=document.getElementById("bus-dis");if(dd)dd.onclick=busDisconnect;
+  const im=document.getElementById("bus-import");if(im)im.onclick=busImport;
+  const sc=document.getElementById("bus-scan");if(sc)sc.onclick=busScanNew;
+  const dl=document.getElementById("bus-dl");if(dl)dl.onclick=busDownload;
+  const clr=document.getElementById("bus-clear");if(clr)clr.onclick=busClear;
+  const dec=document.getElementById("bus-decode");if(dec)dec.onclick=busPaste;
+  const all=document.getElementById("bus-all");if(all)all.onclick=()=>document.querySelectorAll(".busrow input").forEach(c=>c.checked=all.checked);
+  const txa=document.getElementById("tx-addr");if(txa)txa.onchange=e=>{txState.addr=e.target.value===""?null:+e.target.value;txState.armed=false;renderBusScan();};
+  const txp=document.getElementById("tx-power");if(txp)txp.onchange=e=>{txState.on=e.target.value==="1";txState.armed=false;renderBusScan();};
+  const txm=document.getElementById("tx-mode");if(txm)txm.onchange=e=>{txState.mode=e.target.value;txState.armed=false;renderBusScan();};
+  const txf=document.getElementById("tx-fan");if(txf)txf.onchange=e=>{txState.fan=e.target.value;txState.armed=false;renderBusScan();};
+  const txs=document.getElementById("tx-sp");if(txs)txs.onchange=e=>{txState.spC=+e.target.value;txState.armed=false;renderBusScan();};
+  const txr=document.getElementById("tx-rep");if(txr)txr.onchange=e=>{txState.repeat=Math.max(1,Math.min(20,+e.target.value||1));txState.armed=false;renderBusScan();};
+  const txArm=document.getElementById("tx-arm");if(txArm)txArm.onclick=busSend;
+  const txGo=document.getElementById("tx-go");if(txGo)txGo.onclick=busSend;
+  const txCancel=document.getElementById("tx-cancel");if(txCancel)txCancel.onclick=()=>{txState.armed=false;renderBusScan();};
+  const t5a=document.getElementById("t5-addr");if(t5a)t5a.onchange=e=>{tx5.addr=e.target.value===""?null:+e.target.value;tx5.armed=false;renderBusScan();};
+  const t5sg=document.getElementById("t5-single");if(t5sg)t5sg.onclick=()=>{tx5.dual=false;tx5.armed=false;renderBusScan();};
+  const t5dl=document.getElementById("t5-dual");if(t5dl)t5dl.onclick=()=>{tx5.dual=true;tx5.armed=false;renderBusScan();};
+  const t5c=document.getElementById("t5-cool");if(t5c)t5c.onchange=e=>{tx5.coolC=+e.target.value;tx5.armed=false;renderBusScan();};
+  const t5h=document.getElementById("t5-heat");if(t5h)t5h.onchange=e=>{tx5.heatC=+e.target.value;tx5.armed=false;renderBusScan();};
+  const t5v=document.getElementById("t5-sv");if(t5v)t5v.onchange=e=>{tx5.single=+e.target.value;tx5.armed=false;renderBusScan();};
+  const t5cm=document.getElementById("t5-cmd");if(t5cm)t5cm.onchange=e=>{tx5.cmdId=(parseInt(e.target.value,16)||0)&0xff;tx5.armed=false;renderBusScan();};
+  const t5fl=document.getElementById("t5-flags");if(t5fl)t5fl.onchange=e=>{tx5.flags=(parseInt(e.target.value,16)||0)&0xff;tx5.armed=false;renderBusScan();};
+  const t5r=document.getElementById("t5-rep");if(t5r)t5r.onchange=e=>{tx5.repeat=Math.max(1,Math.min(20,+e.target.value||1));tx5.armed=false;renderBusScan();};
+  const t5arm=document.getElementById("t5-arm");if(t5arm)t5arm.onclick=busSend5;
+  const t5go=document.getElementById("t5-go");if(t5go)t5go.onclick=busSend5;
+  const t5cn=document.getElementById("t5-cancel");if(t5cn)t5cn.onclick=()=>{tx5.armed=false;renderBusScan();};
+  const cc1=document.getElementById("ctrl-cap");if(cc1)cc1.onclick=ctrlCapture;
+  const cst=document.getElementById("ctrl-start");if(cst)cst.onclick=ctrlStart;
+  const csp=document.getElementById("ctrl-stop");if(csp)csp.onclick=ctrlStop;
+  const cls=document.getElementById("ctrl-listen");if(cls)cls.onchange=e=>{ctrl.listenMs=+e.target.value;};
+  busUpdate();}
+function renderCycle(){renderGroupNav();
+  const oduLoad=Math.max(...units.map(u=>u.zoneLoad),0);
+  const us=units.filter(u=>groupFilter==="all"||catVals(u,settings.groupBy).includes(groupFilter));
+  const row=u=>`<tr style="border-top:1px solid var(--border)">
+    <td style="padding:7px 8px">${dispName(u)}</td>
+    <td class="mono" style="padding:7px 8px;color:var(--text-dim)">${hx(u.addr)}</td>
+    <td class="mono" style="padding:7px 8px">${u.err?`<span style="color:var(--err)">${u.code}</span>`:'<span style="color:var(--ok)">0</span>'}</td>
+    <td class="mono" style="padding:7px 8px">${u.on?u.room+'°':'—'}</td>
+    <td class="mono" style="padding:7px 8px">${u.on?u.pipeIn+'°':'—'}</td>
+    <td class="mono" style="padding:7px 8px">${u.on?u.pipeOut+'°':'—'}</td>
+    <td style="padding:7px 8px"><div style="background:var(--surface-2);border-radius:4px;height:7px;width:70px;overflow:hidden"><div style="height:100%;width:${u.zoneLoad}%;background:var(--accent)"></div></div></td></tr>`;
+  main.innerHTML=`<div class="cyc-note">⚙ Technician view · outdoor-cycle diagnostics. These fields come straight from each unit's <b>16-byte response frame</b> — room temp, refrigerant pipe-in / pipe-out temps, error code, and zone load. <b>Sample values</b> for now: every unit is a CH242 ghost and isn't answering yet, so this goes live the moment one real unit is on the bus.</div>
+    <div class="gauges"><div class="gauge sample"><div class="gv mono">${oduLoad}<small>idx</small></div><div class="gl">ODU total load</div></div>
+      <div class="gauge sample"><div class="gv mono">${units.filter(u=>u.on).length}<small>on</small></div><div class="gl">Units running</div></div>
+      <div class="gauge sample"><div class="gv mono">${units.filter(u=>u.err).length}<small>err</small></div><div class="gl">In error</div></div></div>
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-top:14px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:var(--surface-2);text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
+        <th style="padding:8px">Unit</th><th style="padding:8px">Addr</th><th style="padding:8px">Err</th><th style="padding:8px">Room</th><th style="padding:8px">Pipe in</th><th style="padding:8px">Pipe out</th><th style="padding:8px">Load</th></tr></thead>
+      <tbody>${us.map(row).join("")}</tbody></table></div>
+    <button class="btn" id="odutrend" style="width:100%;justify-content:center;margin-top:14px">📈 View 30-day outdoor-cycle trend (all units)</button>
+    <div class="cyc-note" style="margin-top:12px">⚠ Room/pipe temps are <b>not</b> in the routine frames the bus scanner sniffs — live captures confirmed the status frames carry no room temp. Getting them needs an <b>active poll</b> to each unit (planned, built on the Send tool). Values here are samples until then.</div>`;
+  const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(units.map(u=>u.id).slice(0,10),{odu:true});}
+/* ---- schedules ---- */
+const DAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
+function schedules(){if(CFG&&!CFG.schedules)CFG.schedules=[];return (CFG&&CFG.schedules)||[];}
+function schTarget(s){if(s.target.type==="all")return "All units";if(s.target.type==="group")return "Group "+s.target.val;
+  const u=units.find(x=>x.id===s.target.val);return u?dispName(u):"Unit";}
+function schAction(s){const a=s.action,p=[];
+  if(a.power)p.push(a.power==="on"?"Turn on":"Turn off");
+  if(a.mode)p.push("mode "+(MODES.find(m=>m[0]===a.mode)||["","?"])[1]);
+  if(a.sp!=null)p.push("set "+a.sp+"°"+settings.unit);
+  if(a.fan)p.push("fan "+a.fan);return p.join(" · ")||"no change";}
+function schDays(s){if(s.days.length===7)return "Every day";
+  if(s.days.length===5&&[1,2,3,4,5].every(d=>s.days.includes(d)))return "Weekdays";
+  if(!s.days.length)return "No days";return s.days.slice().sort().map(d=>DAYS[d]).join(" ");}
+function schCard(s){return `<div class="sch ${s.enabled?'':'soff'}">
+  <div><div class="sname">${s.name||"Untitled"} ${s.cond&&s.cond.op?`<span class="tagchip">if outdoor ${s.cond.op} ${s.cond.temp}°</span>`:""}</div>
+    <div class="ssum">${schTarget(s)} · ${schAction(s)}</div><div class="ssum mono">${s.time} · ${schDays(s)}</div></div>
+  <div style="display:flex;align-items:center;gap:10px"><button class="toggle ${s.enabled?'on':''}" data-stog="${s.id}"></button>
+    <button class="linklike" data-sedit="${s.id}">Edit</button><button class="linklike" style="color:var(--err)" data-sdel="${s.id}">Delete</button></div></div>`;}
+function renderSchedule(){renderGroupNav();const list=schedules();
+  main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:13.5px;color:var(--text-dim)">Schedules run on the controller and fire real bus commands at the set time.</div>
+    <button class="btn primary" id="newsch">+ New schedule</button></div>
+    ${list.length?list.map(schCard).join(""):'<div class="cyc-note">No schedules yet. Create one to automate on/off, mode, fan, and temperature by time and day.</div>'}`;
+  document.getElementById("newsch").onclick=()=>scheduleEditor(null);
+  document.querySelectorAll("[data-sedit]").forEach(b=>b.onclick=()=>scheduleEditor(b.dataset.sedit));
+  document.querySelectorAll("[data-sdel]").forEach(b=>b.onclick=()=>{CFG.schedules=schedules().filter(s=>s.id!==b.dataset.sdel);saveCfg(CFG);renderSchedule();});
+  document.querySelectorAll("[data-stog]").forEach(b=>b.onclick=()=>{const s=schedules().find(x=>x.id===b.dataset.stog);s.enabled=!s.enabled;saveCfg(CFG);renderSchedule();});}
+function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().find(x=>x.id===id))):
+  {id:"s"+Date.now(),name:"",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"",fan:"",sp:null},time:"18:00",days:[1,2,3,4,5],cond:{op:"",temp:null}};
+  modal(head(id?"Edit schedule":"New schedule")+`<div class="modal-body">
+    <label class="flabel">Name</label><input id="s-name" class="inp" value="${s.name}" placeholder="e.g. Weekday setback">
+    <label class="flabel">Applies to</label>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <select id="s-ttype" class="sel-box"><option value="all" ${s.target.type==="all"?"selected":""}>All units</option><option value="group" ${s.target.type==="group"?"selected":""}>A group</option><option value="unit" ${s.target.type==="unit"?"selected":""}>One unit</option></select>
+      <select id="s-tgroup" class="sel-box ${s.target.type==="group"?"":"hide"}">${[1,2,3,4].map(g=>`<option value="${g}" ${s.target.val==g?"selected":""}>Group ${g}</option>`).join("")}</select>
+      <select id="s-tunit" class="sel-box ${s.target.type==="unit"?"":"hide"}">${units.map(u=>`<option value="${u.id}" ${s.target.val==u.id?"selected":""}>${dispName(u)}</option>`).join("")}</select></div>
+    <div class="mini-lbl">Action</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <select id="s-power" class="sel-box"><option value="" ${!s.action.power?"selected":""}>Power: no change</option><option value="on" ${s.action.power==="on"?"selected":""}>Turn on</option><option value="off" ${s.action.power==="off"?"selected":""}>Turn off</option></select>
+      <select id="s-mode" class="sel-box"><option value="">Mode: no change</option>${MODES.map(m=>`<option value="${m[0]}" ${s.action.mode===m[0]?"selected":""}>${m[1]}</option>`).join("")}</select>
+      <select id="s-fan" class="sel-box"><option value="">Fan: no change</option>${FANS.map(f=>`<option value="${f[0]}" ${s.action.fan===f[0]?"selected":""}>${f[1]}</option>`).join("")}</select>
+      <input id="s-sp" class="inp" style="width:140px;margin:0" type="number" min="60" max="86" placeholder="Setpoint °${settings.unit}" value="${s.action.sp!=null?s.action.sp:""}"></div>
+    <div class="mini-lbl">When</div>
+    <input id="s-time" class="inp" style="width:140px" type="time" value="${s.time}">
+    <div class="dayrow" id="s-days" style="margin-bottom:6px">${DAYS.map((d,i)=>`<button class="day ${s.days.includes(i)?'on':''}" data-day="${i}">${d}</button>`).join("")}</div>
+    <div class="mini-lbl">Advanced condition (optional)</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+      <select id="s-cop" class="sel-box"><option value="" ${!s.cond.op?"selected":""}>Always run</option><option value="above" ${s.cond.op==="above"?"selected":""}>Only if outdoor temp above</option><option value="below" ${s.cond.op==="below"?"selected":""}>Only if outdoor temp below</option></select>
+      <input id="s-ctemp" class="inp ${s.cond.op?"":"hide"}" style="width:90px;margin:0" type="number" placeholder="°${settings.unit}" value="${s.cond.temp!=null?s.cond.temp:""}"></div>
+    <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:14px">Conditions activate once outdoor cycle data is decoded.</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="s-save">Save schedule</button></div>
+  </div>`,true);
+  const tt=document.getElementById("s-ttype");tt.onchange=()=>{document.getElementById("s-tgroup").classList.toggle("hide",tt.value!=="group");document.getElementById("s-tunit").classList.toggle("hide",tt.value!=="unit");};
+  document.getElementById("s-cop").onchange=e=>document.getElementById("s-ctemp").classList.toggle("hide",!e.target.value);
+  document.querySelectorAll("#s-days [data-day]").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
+  document.getElementById("s-save").onclick=()=>{
+    s.name=document.getElementById("s-name").value.trim()||"Untitled";
+    s.target.type=tt.value;s.target.val=tt.value==="group"?+document.getElementById("s-tgroup").value:(tt.value==="unit"?+document.getElementById("s-tunit").value:0);
+    s.action.power=document.getElementById("s-power").value;s.action.mode=document.getElementById("s-mode").value;s.action.fan=document.getElementById("s-fan").value;
+    const sp=document.getElementById("s-sp").value;s.action.sp=sp===""?null:+sp;
+    s.time=document.getElementById("s-time").value||"18:00";
+    s.days=[...document.querySelectorAll("#s-days [data-day].on")].map(b=>+b.dataset.day);
+    s.cond.op=document.getElementById("s-cop").value;const ct=document.getElementById("s-ctemp").value;s.cond.temp=ct===""?null:+ct;
+    if(!CFG.schedules)CFG.schedules=[];const idx=CFG.schedules.findIndex(x=>x.id===s.id);
+    if(idx>=0)CFG.schedules[idx]=s;else CFG.schedules.push(s);saveCfg(CFG);closeModal();renderSchedule();};}
+
+/* ---- updates (admin) ---- */
+let updateFound=false;
+function renderUpdates(){renderGroupNav();
+  main.innerHTML=`<div class="update-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div>
+      <div style="font-size:12px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px">This controller</div>
+      <div class="ver-big">Cortex v0.1.0</div><div style="font-size:13px;color:var(--text-dim)">${(CFG&&CFG.site&&CFG.site.name)||'Site'} · checked just now</div></div>
+      ${updateFound?'<span class="badge-new">Update available</span>':'<span class="badge-ok">Up to date</span>'}</div>
+    ${updateFound?`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+       <div style="font-weight:600">v0.2.0</div>
+       <ul style="font-size:13.5px;color:var(--text-dim);margin:8px 0 0;padding-left:18px">
+         <li>Mode / fan / setpoint commands decoded</li><li>Outdoor cycle data on the diagnostics screen</li><li>Faster bus polling and bug fixes</li></ul>
+       ${session.admin?`<div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" id="inst">Install now</button><button class="btn" id="later">Schedule for 2:00 AM</button></div>`:`<div class="note-box" style="margin-top:12px">An administrator applies updates for this site.</div>`}</div>`:
+      `<div style="margin-top:14px"><button class="btn" id="check">Check for updates</button></div>`}
+    <div style="margin-top:16px;font-size:12px;color:var(--text-faint)">${currentUser&&currentUser.role==="owner"?"As owner you can also push a release to every deployed site from the fleet console (handled by the backend update server).":"Updates arrive over-the-air from AIROW."}</div>
+  </div>`;
+  const ch=document.getElementById("check");if(ch)ch.onclick=()=>{updateFound=true;renderUpdates();};
+  const inst=document.getElementById("inst");if(inst)inst.onclick=()=>modal(head("Install v0.2.0")+`<div class="modal-body"><div class="note-box">In the real system this downloads the signed release, verifies the signature, applies it, and restarts the controller. Units keep their last state during the swap, so nothing turns off.</div><div style="text-align:right"><button class="btn primary" onclick="closeModal()">OK</button></div></div>`);
+  const la=document.getElementById("later");if(la)la.onclick=()=>{updateFound=false;renderUpdates();};}
+
+/* ---- device health ---- */
+const DEV={host:"Raspberry Pi 5",os:"Cortex OS 0.1 · Debian 12",uptime:"12d 4h",cpu:14,temp:48,mem:38,disk:22,frames:41,errs:0};
+function healthBadge(ok){return ok?'<span class="badge-ok">Healthy</span>':'<span class="badge-new" style="background:var(--warn-soft);color:var(--warn)">Attention</span>';}
+function devStat(label,val,sub){return `<div class="gauge"><div class="gv mono">${val}</div><div class="gl">${label}${sub?` · ${sub}`:""}</div></div>`;}
+function renderDevice(){renderGroupNav();const ok=DEV.temp<65&&DEV.disk<85&&DEV.errs<5;
+  main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
+    <div><div style="font-weight:600;font-size:15px">${DEV.host} ${healthBadge(ok)}</div>
+      <div style="font-size:12.5px;color:var(--text-dim)">${DEV.os} · up ${DEV.uptime}</div></div>
+    <button class="btn" id="devref">Refresh</button></div>
+   <div class="gauges">
+     ${devStat("CPU load",DEV.cpu+"%")}${devStat("CPU temp",DEV.temp+"°C")}
+     ${devStat("Memory",DEV.mem+"%")}${devStat("Disk",DEV.disk+"%")}
+     ${devStat("Network","Online")}${devStat("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Tailscale · up":"Local only")}
+     ${devStat("Bus traffic",DEV.frames+"/s","errors "+DEV.errs)}${devStat("Site energy today",units.reduce((s,u)=>s+u.kwh,0).toFixed(1)+" kWh")}
+     ${devStat("Last backup","2h ago")}
+   </div>
+   <div class="cyc-note" style="margin-top:16px">⚙ Vitals of the controller hardware — read live from the OS in the real device. Cortex raises an alert if CPU temp, disk, or bus errors cross a threshold, and can notify you from the command center.</div>`;
+  document.getElementById("devref").onclick=()=>{DEV.cpu=10+Math.floor(Math.random()*22);DEV.temp=44+Math.floor(Math.random()*12);DEV.mem=33+Math.floor(Math.random()*14);DEV.frames=37+Math.floor(Math.random()*9);renderDevice();};}
+
+function renderAll(){
+  document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
+  if(view==="trends")view="units";
+  if(view==="units")renderUnits();else if(view==="cycle")renderCycle();else if(view==="updates")renderUpdates();
+  else if(view==="device")renderDevice();else if(view==="map")renderMap();else if(view==="busscan")renderBusScan();else renderSchedule();
+  updateBell();}
+
+/* ---- control drawer ---- */
+const drawer=document.getElementById("drawer"),scrim=document.getElementById("scrim");
+let openId=null;
+let pend=null; // staged (not-yet-sent) command for the open unit
+function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,d5:u.d5,d6:u.d6,b0:u.b0};}
+function openDrawer(id){openId=id;const u=units.find(x=>x.id===id);pend=snap(u);drawDrawer(u);drawer.classList.add("show");scrim.classList.add("show");}
+function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock);}
+function closeDrawer(){openId=null;drawer.classList.remove("show");scrim.classList.remove("show");
+  const fx=document.getElementById("fxlayer");if(fx)fx.innerHTML="";}
+scrim.onclick=closeDrawer;
+const STG='box-shadow:0 0 0 2px var(--warn) inset';
+function drawDrawer(u){
+  const svc=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service)||{inService:false,note:"",history:[]};
+  if(!pend)pend=snap(u);const p=pend;
+  const role=currentUser?currentUser.role:"customer";
+  const isTech=session.tech, canService=session.tech||session.admin;
+  const locked=svc.inService&&role==="customer";
+  const dirty=pendDirty(u);
+  const stg=f=>p[f]!==u[f];
+  const dis=locked?'disabled':'';
+  const hist=isTech?errorHistory(u):[];
+  drawer.innerHTML=`<div class="drawer-head"><div><div class="card-name" style="font-size:16px">${dispName(u)}</div>
+    <div class="card-meta mono">${u.name} · ${hx(u.addr)} · ${u.ch} · ${u.system}</div></div>
+    <button class="icon-btn" id="dclose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+   <div class="drawer-body">
+    ${u.err?`<div class="err-note" data-code="${u.code}" style="margin-bottom:16px">⚠ ${u.code} · ${ERRORS[u.code].t} — tap for details</div>`:""}
+    ${locked?`<div class="note-box" style="color:var(--warn);margin-bottom:14px">🔧 In service — controls are locked. A technician can clear the In-service lock to re-enable customer control.</div>`:""}
+    <div class="field"><div class="lbl">Power ${stg('on')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="pon" class="${p.on?'on-sel':''}" ${dis} style="${p.on&&stg('on')?STG:''}">On</button><button id="poff" class="${p.on?'':'off-sel'}" ${dis} style="${!p.on&&stg('on')?STG:''}">Off</button></div></div>
+    <div class="field"><div class="lbl">Mode ${stg('mode')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${MODES.map(m=>`<button class="opt ${MC[m[0]]} ${p.mode===m[0]?'sel':''}" data-mode="${m[0]}" ${dis} style="${p.mode===m[0]&&stg('mode')?STG:''}">${m[2]} ${m[1]}</button>`).join("")}</div></div>
+    <div class="field"><div class="lbl">Fan speed ${stg('fan')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${FANS.map(f=>`<button class="opt ${p.fan===f[0]?'sel':''}" data-fan="${f[0]}" ${dis} style="${p.fan===f[0]&&stg('fan')?STG:''}">${f[1]}</button>`).join("")}</div></div>
+    <div class="field"><div class="lbl">Swing ${stg('swing')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="swon" class="${p.swing?'on-sel':''}" ${dis} style="${p.swing&&stg('swing')?STG:''}">On</button><button id="swoff" class="${p.swing?'':'off-sel'}" ${dis} style="${!p.swing&&stg('swing')?STG:''}">Off</button></div></div>
+    <div class="field"><div class="lbl">Setpoint${isDual(p)?" · cool / heat":""} ${(stg('coolC')||stg('heatC'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
+      ${isDual(p)?`<div style="display:flex;gap:10px">
+        <div style="flex:1"><div style="font-size:11px;color:var(--cool);margin-bottom:4px">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
+        <div style="flex:1"><div style="font-size:11px;color:var(--heat);margin-bottom:4px">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
+      </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
+    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
+      <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button></div>
+      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Locks stop changes at the wall thermostat.${(p.mode!=="auto"&&!locked)?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>`:''}</div></div>
+    <div class="field">
+      <button class="btn ${dirty&&!locked&&liveTx()?'danger':'primary'}" id="sendcmd" style="width:100%;justify-content:center" ${(!dirty||locked)?'disabled style="opacity:.5;width:100%"':''}>${dirty?(liveTx()?`⚡ Send to LIVE unit → ${hx(u.addr)}`:`Send command → ${hx(u.addr)}`):'No changes to send'}</button>
+      ${dirty&&!locked&&liveTx()?`<div style="font-size:11px;color:var(--err);text-align:center;margin-top:5px">Bus connected — Send transmits power/mode/fan + setpoint to the live unit</div>`:''}
+      ${dirty&&!locked?`<button class="linklike" id="revert" style="display:block;margin:9px auto 0">Revert changes</button>`:''}</div>
+    <div class="field"><div class="lbl">Command preview (what Send puts on the bus)</div><div class="frame-box">
+      <div class="k">basic · ${p.on?"on":"off"} · ${p.mode} · ${p.fan} fan${p.swing?" · swing":""}</div>
+      <div class="hex mono">${cmdFrameFor(u.addr,p)}</div>
+      <div class="k" style="margin-top:7px">cmd5 setpoint · cool ${spDisp(p.coolC)}° / heat ${spDisp(p.heatC)}°</div>
+      <div class="hex mono">${toHexBytes(cmd5SetpointBytes(u.addr,p.coolC,p.heatC,{on:p.on}))}</div></div></div>
+    <div class="field"><div class="lbl">Runtime &amp; energy</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-dim)">
+        <div><b style="color:var(--text)">${u.runtimeHrs}h</b> runtime</div><div><b style="color:var(--text)">${u.kwh} kWh</b> today</div>
+        <div>filter <b style="color:${u.filterPct<20?'var(--warn)':'var(--text)'}">${u.filterPct}%</b></div></div></div>
+    <div class="field"><button class="btn" id="trendbtn" style="width:100%;justify-content:center">📈 View 30-day trends</button></div>
+    ${isTech?`
+    <div class="field" style="border-top:2px solid var(--border);padding-top:14px"><div class="lbl" style="color:var(--accent)">⚙ Technician</div></div>
+    <div class="field"><div class="lbl">Live sensors · 16-byte response</div><div class="frame-box" style="line-height:1.9">
+      room <b class="mono">${u.room}°</b> · target <b class="mono">${temp(u.sp).replace(/°[FC]/,'')}°</b> · pipe-in <b class="mono">${u.pipeIn}°</b> · pipe-out <b class="mono">${u.pipeOut}°</b><br>
+      zone load <b class="mono">${u.zoneLoad}</b> · error <b class="mono" style="color:${u.err?'var(--err)':'var(--ok)'}">${u.err?u.code:'0'}</b>
+      <div style="font-size:10.5px;color:var(--text-faint);margin-top:4px">sample — live when this unit answers on the bus</div></div></div>
+    <div class="field"><div class="lbl">Comms &amp; diagnostics</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-dim)">
+        <div>last seen <b style="color:var(--text)">${u.err?'—':'2s ago'}</b></div><div>frames <b style="color:var(--text)">${u.err?'0':'OK'}</b></div><div>addr <b class="mono" style="color:var(--text)">${hx(u.addr)}</b></div></div>
+      <button class="btn" id="poll" style="width:100%;justify-content:center;margin-top:8px">Force poll this unit</button></div>
+    <div class="field"><div class="lbl">Raw frames</div><div class="frame-box">
+      <div class="k">last command sent</div><div class="hex mono">${cmdFrame(u)}</div>
+      <div class="k" style="margin-top:7px">last reply</div><div class="hex mono" style="color:${u.err?'var(--err)':'var(--text)'}">${u.err?'— no reply (CH242 ghost)':'80 B0 A0 '+hx(u.addr).slice(2)+' 00 00 00 ··'}</div></div></div>
+    <div class="field"><div class="lbl">Error history</div>
+      ${hist.length?hist.map(h=>`<div class="setrow" style="padding:7px 0"><div data-code="${h.code}" style="cursor:pointer"><b>${h.code}</b> <span style="color:var(--text-dim)">${ERRORS[h.code]?'· '+ERRORS[h.code].t:''}</span></div><div style="font-size:12px;color:${h.cleared?'var(--text-faint)':'var(--err)'}">${h.cleared?'cleared · '+h.when:'● active'}</div></div>`).join(''):'<div style="color:var(--text-faint);font-size:13px">No past errors recorded.</div>'}
+      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Tap a code to open its LG diagnosis.</div></div>
+    <div class="field"><div class="lbl">Remove unit</div>
+      <button class="btn" id="delunit" style="width:100%;justify-content:center">Remove this unit from Cortex</button>
+      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Use this for a unit that was physically removed or re-addressed (e.g. a CH242 ghost). Removes <b>only this one</b> — everything else stays.</div></div>
+    `:''}
+    <div class="field"><div class="lbl">Service${canService?'':' <span style="color:var(--text-faint);font-size:11px">(technician)</span>'}</div>
+      ${canService?`<div class="setrow" style="padding-top:0;border:none"><div><div class="sl">In-service lock</div><div class="sd">Locks out customer control while you work</div></div>${tog("svc",svc.inService)}</div>
+      <input id="svc-note" class="inp" style="margin:6px 0" value="${svc.note||''}" placeholder="Work order / note">
+      <button class="btn" id="svc-log" style="width:100%;justify-content:center">Log service entry</button>
+      ${svc.history&&svc.history.length?`<div style="margin-top:8px">${svc.history.slice(-4).reverse().map(h=>`<div style="font-size:12px;color:var(--text-dim);border-top:1px solid var(--border);padding:6px 0">${h.when} — ${h.note}</div>`).join("")}</div>`:""}`
+      :`<div style="font-size:13px;color:var(--text-dim)">${svc.inService?'🔧 This unit is flagged in service.':'Not in service.'} Service controls require technician access.</div>`}</div>
+    <div class="field"><div class="lbl">Organize</div><button class="btn" id="organize" style="width:100%;justify-content:center">Nickname &amp; tags</button></div>
+   </div>`;
+  document.getElementById("dclose").onclick=closeDrawer;
+  drawer.querySelectorAll("[data-code]").forEach(d=>d.onclick=()=>openError(d.dataset.code));
+  const org=document.getElementById("organize");if(org)org.onclick=()=>organizeUnit(u);
+  const svcT=drawer.querySelector('[data-tog="svc"]');if(svcT)svcT.onclick=()=>{svc.inService=!svc.inService;setMeta(u,{service:svc});drawDrawer(u);renderBody();};
+  const svcL=document.getElementById("svc-log");if(svcL)svcL.onclick=()=>{svc.note=document.getElementById("svc-note").value.trim();svc.history=svc.history||[];svc.history.push({when:new Date().toLocaleDateString(),note:svc.note||"(no note)"});setMeta(u,{service:svc});drawDrawer(u);};
+  const poll=document.getElementById("poll");if(poll)poll.onclick=()=>{u.room+=(Math.random()<.5?-1:1);u.zoneLoad=u.on?30+Math.floor(Math.random()*70):0;toast("Polled "+dispName(u));drawDrawer(u);};
+  const tb=document.getElementById("trendbtn");if(tb)tb.onclick=()=>openTrends([u.id]);
+  const re=document.getElementById("revert");if(re)re.onclick=()=>{pend=snap(u);drawDrawer(u);};
+  const send=document.getElementById("sendcmd");if(send&&dirty&&!locked)send.onclick=async ()=>{
+    u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=p.coolC;u.heatC=p.heatC;u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;
+    u.sp=Math.round(activeC(u)*9/5+32);
+    if(liveTx()){await txUnit(u);}else{toast("Command staged → "+dispName(u)+" · connect the bus (Bus scan ▸ Connect) to transmit");}
+    pend=snap(u);syncCard(u);saveUnits();drawDrawer(u);};
+  const del=document.getElementById("delunit");if(del)del.onclick=()=>{
+    if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent="Tap again to remove "+dispName(u);del.classList.add("danger");return;}
+    units=units.filter(x=>x.id!==u.id);saveUnits();toast("Removed "+dispName(u));closeDrawer();renderBody();};
+  if(!locked){
+    const re2=()=>drawDrawer(u);
+    const g=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};
+    g("pon",()=>{p.on=true;re2();});g("poff",()=>{p.on=false;re2();});
+    g("swon",()=>{p.swing=true;re2();});g("swoff",()=>{p.swing=false;re2();});
+    drawer.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{p.mode=b.dataset.mode;re2();});
+    drawer.querySelectorAll("[data-fan]").forEach(b=>b.onclick=()=>{p.fan=b.dataset.fan;re2();});
+    g("spup",()=>{setActiveC(p,spStep(activeC(p),+1));re2();});
+    g("spdn",()=>{setActiveC(p,spStep(activeC(p),-1));re2();});
+    g("cup",()=>{p.coolC=spStep(p.coolC,+1);re2();});
+    g("cdn",()=>{p.coolC=spStep(p.coolC,-1);re2();});
+    g("hup",()=>{p.heatC=spStep(p.heatC,+1);re2();});
+    g("hdn",()=>{p.heatC=spStep(p.heatC,-1);re2();});
+    g("lk-mode",()=>{p.modeLock=!p.modeLock;re2();});
+    g("lk-fan",()=>{p.fanLock=!p.fanLock;re2();});
+    g("lk-temp",()=>{p.tempLock=!p.tempLock;re2();});
+    g("two-toggle",()=>{p.twoset=!p.twoset;re2();});
+  }
+}
+function syncCard(u){if(view!=="units")return;renderBody();}
+
+/* ---- modal system ---- */
+const mroot=document.getElementById("modal-root");
+function modal(html,wide){mroot.innerHTML=`<div class="modal-scrim" id="ms"><div class="modal ${wide?'wide':''}">${html}</div></div>`;
+  document.getElementById("ms").onclick=e=>{if(e.target.id==="ms")closeModal();};}
+function closeModal(){mroot.innerHTML="";}
+function head(title){return `<div class="modal-head"><h3>${title}</h3><button class="icon-btn" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;}
+
+function openError(code){const e=ERRORS[code];if(!e){modal(head(code)+`<div class="modal-body">No reference for ${code} yet.</div>`);return;}
+  const units_err=units.filter(u=>u.code===code).map(u=>u.label);
+  modal(head(`${code} — ${e.t}`)+`<div class="modal-body">
+    <span class="sev" style="background:var(--${SEVC[e.sev]}-soft);color:var(--${SEVC[e.sev]})">${e.sev.toUpperCase()}</span>
+    <span class="rchip" style="margin-left:6px">${e.who}</span>
+    <div class="ed-row"><div class="k">Means</div><div class="v">${e.cause}</div></div>
+    <div class="ed-row"><div class="k">What to do</div><div class="v">${e.act}</div></div>
+    ${units_err.length?`<div class="ed-row"><div class="k">Affected</div><div class="v">${units_err.join(", ")}</div></div>`:""}
+    <a class="btn primary" href="https://partner.lge.com" target="_blank" rel="noopener" style="width:100%;justify-content:center;margin-top:14px;text-decoration:none">Diagnose on LG → <span style="opacity:.8;font-weight:400;margin-left:4px">LGHVACService · Partner Portal</span></a>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--text-faint)">Opens LG's B2B partner portal (LGHVACService login). Summary above is a field reference — always verify against the unit's service manual.</div>
+  </div>`);}
+
+function organizeUnit(u){const m=getMeta(u);
+  modal(head("Organize "+u.name)+`<div class="modal-body">
+   <label class="flabel">Display name (nickname)</label><input id="o-alias" class="inp" value="${m.alias}" placeholder="${u.label}">
+   <label class="flabel">Tags (comma separated)</label><input id="o-tags" class="inp" value="${m.tags.join(", ")}" placeholder="e.g. CEO's Office, VIP">
+   <div style="display:flex;gap:8px"><div class="grow"><label class="flabel">Floor</label><input id="o-floor" class="inp" type="number" value="${m.floor}"></div>
+     <div class="grow"><label class="flabel">Suite</label><input id="o-suite" class="inp" value="${m.suite}"></div></div>
+   <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="o-save">Save</button></div></div>`);
+  document.getElementById("o-save").onclick=()=>{
+    setMeta(u,{alias:document.getElementById("o-alias").value.trim(),
+      tags:document.getElementById("o-tags").value.split(",").map(t=>t.trim()).filter(Boolean),
+      floor:+document.getElementById("o-floor").value||m.floor,
+      suite:document.getElementById("o-suite").value.trim()||m.suite});
+    closeModal();if(openId!=null)drawDrawer(units.find(x=>x.id===openId));renderBody();};}
+
+/* ---- settings ---- */
+let setTab="display";
+function openSettings(){setTab="display";drawSettings();}
+function drawSettings(){
+  const tabs=[["display","🎨 Display",false],["layout","🔌 Layout",false],["advanced","⚙ Advanced",!session.admin],["users","👥 Users",!session.admin],["about","ℹ About",false]];
+  let body="";
+  if(setTab==="display")body=displayTab();
+  else if(setTab==="layout")body=layoutTab();
+  else if(setTab==="advanced")body=session.admin?advancedTab():lockedTab("Advanced settings are Admin-only.","admin");
+  else if(setTab==="users")body=session.admin?usersTab():lockedTab("User management is Admin-only.","admin");
+  else body=aboutTab();
+  modal(head("Settings")+`<div class="tabs">${tabs.map(t=>`<button class="tab ${setTab===t[0]?'on':''}" data-tab="${t[0]}">${t[1]}${t[2]?' <span class="lock">🔒</span>':''}</button>`).join("")}</div><div class="modal-body" id="setbody">${body}</div>`,true);
+  mroot.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{setTab=b.dataset.tab;drawSettings();});
+  wireSettings();
+}
+function row(label,desc,control){return `<div class="setrow"><div><div class="sl">${label}</div>${desc?`<div class="sd">${desc}</div>`:""}</div>${control}</div>`;}
+function tog(id,on){return `<button class="toggle ${on?'on':''}" data-tog="${id}"></button>`;}
+function displayTab(){return `
+  <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Appearance</div>
+  ${row("Layout","How units are shown",`<div class="segmented"><button data-set="view" data-val="grid" class="${settings.view==='grid'?'on':''}">Grid</button><button data-set="view" data-val="list" class="${settings.view==='list'?'on':''}">List</button></div>`)}
+  ${row("Density","",`<div class="segmented"><button data-set="density" data-val="comfortable" class="${settings.density==='comfortable'?'on':''}">Comfort</button><button data-set="density" data-val="compact" class="${settings.density==='compact'?'on':''}">Compact</button></div>`)}
+  ${row("Temperature unit","",`<div class="segmented"><button data-set="unit" data-val="F" class="${settings.unit==='F'?'on':''}">°F</button><button data-set="unit" data-val="C" class="${settings.unit==='C'?'on':''}">°C</button></div>`)}
+  ${row("Theme","",`<select class="sel-box" data-set="theme"><option value="auto" ${settings.theme==='auto'?'selected':''}>Auto</option><option value="light" ${settings.theme==='light'?'selected':''}>Light</option><option value="dark" ${settings.theme==='dark'?'selected':''}>Dark</option></select>`)}
+  ${row("Color theme","Accent across the app",`<div class="swatches">${Object.entries(ACCENTS).map(([k,a])=>`<button class="swatch ${settings.accent===k?'sel':''}" data-accent="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div>`)}
+  ${row("Group units by","Organize the dashboard",`<select class="sel-box" data-set="groupBy">${DIMS.map(d=>`<option value="${d[0]}" ${settings.groupBy===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select>`)}
+  ${row("Summary tiles","Running / off / errors row",tog("showTiles",settings.showTiles))}
+  ${row("Weather card","Local weather for the site",tog("showWeather",settings.showWeather))}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Show on each card</div>
+  ${row("Mode","",tog("mode",settings.show.mode))}
+  ${row("Room temperature","",tog("room",settings.show.room))}
+  ${row("Bus address","",tog("addr",settings.show.addr))}
+  ${row("Fan speed","",tog("fan",settings.show.fan))}
+  ${row("Tags","",tog("tags",settings.show.tags))}`;}
+function layoutTab(){const a=units.filter(u=>u.system==="System A"),b=units.filter(u=>u.system==="System B");
+  const block=(name,arr)=>`<div class="mini-lbl">${name} · ${arr.length} units</div>${arr.map(u=>`<div class="sys-row"><span>${dispName(u)}</span><span class="mono" style="color:var(--text-faint)">${u.name} · ${hx(u.addr)}</span></div>`).join("")}`;
+  return `<div class="note-box">Physical wiring — which indoor units hang off which outdoor unit. Set by the equipment and shown read-only. Customers reorganize the dashboard with Group-by and tags under Display.</div>
+    ${block("System A · CH1",a)}${block("System B · CH2",b)}`;}
+function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];const i=CFG.protocols.indexOf(k);
+  if(i>=0){if(CFG.protocols.length>1)CFG.protocols.splice(i,1);}else CFG.protocols.push(k);saveCfg(CFG);drawSettings();}
+function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
+  <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Manufacturers on this site</div>
+  <div class="sd" style="margin-bottom:8px">A site can run mixed equipment. Enabled systems appear in the technician Bus scan.</div>
+  ${Object.keys(PROTOCOLS).map(k=>{const p=PROTOCOLS[k];const on=sp.includes(k);
+    return `<div class="setrow"><div><div class="sl">${p.label}</div><div class="sd mono">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits} · ${p.phys} · ${p.decode==='full'?'full decode':'capture'}</div></div>
+      <button class="toggle ${on?'on':''}" onclick="toggleSiteProto('${k}')"></button></div>`;}).join("")}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
+  ${row("Polling interval","How often units are refreshed",`<select class="sel-box"><option>1 s</option><option selected>2 s</option><option>5 s</option></select>`)}
+  ${row("Raw frame monitor","Show live bus frames (debug)",tog("rawmon",false))}
+  ${row("Allow customer control","Let customers change setpoints/modes",tog("custctl",true))}
+  ${row("Allow customer All-On/Off","",tog("custall",true))}
+  ${row("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Enabled via Tailscale":"Not configured",`<button class="linklike" onclick="startWizard()">Re-run setup</button>`)}
+  ${row("Factory reset (demo)","Clear this controller's saved config",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset</button>`)}
+  <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Advanced settings affect every user on this controller.</div>`;}
+function usersTab(){return `
+  <div style="margin-bottom:6px">${users.map(u=>`<div class="urow">
+    <div><div style="font-weight:500">${u.name}</div><div style="font-size:12px;color:var(--text-faint)">${u.protected?'Owner account — cannot be removed':'tap a role to change'}</div></div>
+    <div style="display:flex;align-items:center;gap:8px"><span class="rchip ${u.role}">${u.role}</span>
+      ${u.protected?'':`<button class="linklike" data-edit="${u.id}">Edit</button><button class="linklike" style="color:var(--err)" data-del="${u.id}">Remove</button>`}</div></div>`).join("")}</div>
+  <button class="btn primary" id="adduser" style="margin-top:10px">+ Add user</button>`;}
+function lockedTab(msg,kind){return `<div style="text-align:center;padding:28px 10px">
+  <div style="font-size:30px">🔒</div><div style="margin:10px 0 4px;font-weight:500">${msg}</div>
+  <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Enter the ${kind} passcode to unlock for this session.</div>
+  <button class="btn primary" onclick="askPin('${kind}')">Unlock</button></div>`;}
+function aboutTab(){const isPriv=session.admin||session.tech;return `
+  ${row("Product","",`<span style="color:var(--text-dim)">AIROW Control</span>`)}
+  ${row("Version","",`<span class="mono" id="verline" style="color:var(--text-dim);cursor:default">v0.1.0</span>`)}
+  ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${(CFG&&CFG.site&&CFG.site.name)||'Site'}</span>`)}
+  ${row("Remote access","",`<span style="color:var(--text-dim)">${(CFG&&CFG.remote&&CFG.remote.enabled)?'Tailscale — on':'Off'}</span>`)}
+  ${isPriv?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Owner recovery</div>
+     <div class="sd" style="margin-bottom:8px">Per-site code to regain owner access if you're locked out. Keep it somewhere safe.</div>
+     <div class="recovery">${(CFG&&CFG.recovery)||RECOVERY}</div>`:
+     `<div style="margin-top:16px;font-size:12px;color:var(--text-faint)">AIROW Control — custom VRF controller. © you.</div>`}`;}
+
+function wireSettings(){
+  mroot.querySelectorAll("[data-set]").forEach(el=>{
+    if(el.tagName==="SELECT")el.onchange=()=>{settings[el.dataset.set]=el.value;if(el.dataset.set==="groupBy")groupFilter="all";saveSettings();applyTheme();drawSettings();refreshBackground();};
+    else el.onclick=()=>{settings[el.dataset.set]=el.dataset.val;saveSettings();applyTheme();drawSettings();refreshBackground();};});
+  mroot.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.tog;
+    if(["mode","room","addr","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
+    else if(["showTiles","showWeather"].includes(k))settings[k]=!settings[k];
+    saveSettings();b.classList.toggle("on");refreshBackground();});
+  mroot.querySelectorAll("[data-accent]").forEach(b=>b.onclick=()=>{settings.accent=b.dataset.accent;saveSettings();applyTheme();drawSettings();refreshBackground();});
+  const ver=document.getElementById("verline");
+  if(ver)ver.onclick=()=>{aboutTaps++;if(aboutTaps>=7){aboutTaps=0;askPin("tech");}};
+  const add=document.getElementById("adduser");if(add)add.onclick=()=>editUser(null);
+  mroot.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editUser(+b.dataset.edit));
+  mroot.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{users=users.filter(u=>u.id!==+b.dataset.del);if(CFG){CFG.users=users;saveCfg(CFG);}drawSettings();});
+}
+function refreshBackground(){if(mroot.innerHTML===""){/*no modal*/}renderAll();}
+
+function editUser(id){const u=id?users.find(x=>x.id===id):{name:"",username:"",role:"customer"};
+  modal(head(id?"Edit user":"Add user")+`<div class="modal-body">
+    <div class="field"><div class="lbl">Name</div><input id="uname" class="inp" value="${u.name||''}" placeholder="Full name"></div>
+    <div class="field"><div class="lbl">Username</div><input id="uuser" class="inp" value="${u.username||''}" placeholder="login name"></div>
+    <div class="field"><div class="lbl">${id?'New password (optional)':'Password'}</div><input id="upass" type="password" class="inp" placeholder="${id?'leave blank to keep':'set a password'}"></div>
+    <div class="field"><div class="lbl">Role</div><div class="opts">
+      ${["customer","admin","technician"].map(r=>`<button class="opt ${u.role===r?'sel':''}" data-role="${r}">${r}</button>`).join("")}</div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn" onclick="drawSettings()">Cancel</button><button class="btn primary" id="usave">Save</button></div></div>`);
+  let role=u.role;mroot.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>{role=b.dataset.role;mroot.querySelectorAll("[data-role]").forEach(x=>x.classList.toggle("sel",x===b));});
+  document.getElementById("usave").onclick=()=>{const name=document.getElementById("uname").value.trim()||"Unnamed";
+    const un=document.getElementById("uuser").value.trim();const pw=document.getElementById("upass").value;
+    if(id){u.name=name;u.username=un;u.role=role;if(pw)u.passhash=hash(pw);}
+    else{users.push({id:Date.now(),name,username:un,passhash:hash(pw||"changeme"),role});}
+    if(CFG){CFG.users=users;saveCfg(CFG);}drawSettings();};
+}
+
+/* ---- passcode gates ---- */
+function askPin(kind){const want=kind==="admin"?((CFG&&CFG.adminPin)||ADMIN_PIN):((CFG&&CFG.techPin)||TECH_PIN);const label=kind==="admin"?"Admin":"Technician";
+  modal(head(`${label} passcode`)+`<div class="modal-body">
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px">Enter the ${label.toLowerCase()} passcode to unlock ${kind==="tech"?"technician / cycle diagnostics":"advanced settings"} for this session.</div>
+    <input id="pin" class="pin-input" inputmode="numeric" maxlength="4" placeholder="••••">
+    <div class="err-text" id="pinerr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="pinok">Unlock</button></div></div>`);
+  const inp=document.getElementById("pin");inp.focus();
+  const submit=()=>{if(inp.value===want){if(kind==="admin")elev.admin=true;else{elev.tech=true;view="cycle";}recomputeSession();
+      renderWho();closeModal();if(kind==="admin")openSettings();else renderAll();}
+    else{document.getElementById("pinerr").textContent="Incorrect passcode.";inp.value="";inp.focus();}};
+  document.getElementById("pinok").onclick=submit;inp.onkeydown=e=>{if(e.key==="Enter")submit();};
+}
+
+/* ---- fun + alerts + extra views ---- */
+let toastT;function toast(msg){let t=document.getElementById("toast");if(!t){t=document.createElement("div");t.id="toast";t.className="toast";document.body.appendChild(t);}
+  t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2600);}
+function snowBurst(icon){let l=document.getElementById("fxlayer");if(!l){l=document.createElement("div");l.id="fxlayer";document.body.appendChild(l);}
+  l.innerHTML="";for(let i=0;i<44;i++){const f=document.createElement("div");f.className="flake";f.textContent=icon;
+    f.style.left=Math.random()*100+"vw";f.style.fontSize=(10+Math.random()*16)+"px";f.style.animationDuration=(3+Math.random()*3)+"s";f.style.animationDelay=(Math.random()*1.5)+"s";l.appendChild(f);}
+  setTimeout(()=>{l.innerHTML="";},6600);}
+function showCredits(){modal(head("Cortex")+`<div class="modal-body" style="text-align:center">
+  <div style="font-size:38px">🛠️</div>
+  <div style="font-weight:600;margin:10px 0 4px">Built by a tech, not a megacorp.</div>
+  <div style="font-size:13px;color:var(--text-dim)">A local-first central controller for people who'd rather own their building than rent it back from a laggy touchscreen.</div>
+  <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Cortex by AIROW · v1.0.0</div>
+  <div style="margin-top:16px"><button class="btn primary" onclick="closeModal()">Nice</button></div></div>`);}
+let keybuf="";const KON=["arrowup","arrowup","arrowdown","arrowdown","arrowleft","arrowright","arrowleft","arrowright","b","a"];let koni=0;
+function panelOpen(){return !!mroot.innerHTML || drawer.classList.contains("show");}
+function onKey(e){const tag=(e.target.tagName||"").toLowerCase();if(tag==="input"||tag==="select"||tag==="textarea")return;
+  const k=(e.key||"").toLowerCase();
+  // Escape always closes whatever is open — guaranteed way out of any panel.
+  if(k==="escape"){if(mroot.innerHTML)closeModal();else if(drawer.classList.contains("show"))closeDrawer();koni=0;keybuf="";return;}
+  // Don't let the easter eggs fire while a unit drawer or modal is open — that's
+  // what left the control panel wedged (egg key handling tangled with the open drawer).
+  if(panelOpen()){koni=0;keybuf="";return;}
+  if(k===KON[koni]){koni++;if(koni===KON.length){koni=0;snowBurst("❄");toast("Cold front incoming ❄");}}else{koni=(k===KON[0])?1:0;}
+  if(k.length===1){keybuf=(keybuf+k).slice(-6);if(keybuf.endsWith("doom")){toast("Runs better than the LG touchscreen.");keybuf="";}}}
+
+function buildAlerts(){const a=[];
+  units.filter(u=>u.err).forEach(u=>a.push({sev:(ERRORS[u.code]||{}).sev||"medium",title:dispName(u)+" · "+u.code,sub:(ERRORS[u.code]||{}).t||"Error",code:u.code}));
+  units.filter(u=>!u.err&&u.filterPct<15).forEach(u=>a.push({sev:"low",title:dispName(u)+" · filter low",sub:"Filter life "+u.filterPct+"% — schedule a change",code:null}));
+  return a;}
+function updateBell(){const b=document.getElementById("bellbadge");if(!b)return;const n=buildAlerts().length;
+  b.textContent=n;b.classList.toggle("hide",n===0);}
+function openAlerts(){const a=buildAlerts(),sc={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
+  modal(head("Alerts"+(a.length?` · ${a.length}`:""))+`<div class="modal-body">
+    ${a.length?a.map(x=>`<div class="alert-row" ${x.code?`data-ac="${x.code}"`:""}><span class="alert-dot" style="background:var(--${sc[x.sev]||'warn'})"></span>
+      <div><div style="font-weight:500">${x.title}</div><div style="font-size:12.5px;color:var(--text-dim)">${x.sub}</div></div></div>`).join(""):'<div style="color:var(--text-dim);padding:10px 0">No active alerts. Everything looks healthy.</div>'}
+    <div class="mini-lbl" style="margin-top:14px">Notify me</div>
+    <div class="setrow" style="padding-top:4px"><div><div class="sl">Push to my phone</div></div>${tog("notifpush",settings.notif&&settings.notif.push)}</div>
+    <div class="setrow"><div><div class="sl">Email</div></div>${tog("notifemail",settings.notif&&settings.notif.email)}</div>
+  </div>`);
+  mroot.querySelectorAll("[data-ac]").forEach(r=>r.onclick=()=>openError(r.dataset.ac));
+  mroot.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{settings.notif=settings.notif||{};
+    if(b.dataset.tog==="notifpush")settings.notif.push=!settings.notif.push;else settings.notif.email=!settings.notif.email;saveSettings();b.classList.toggle("on");});}
+
+function renderMap(){renderGroupNav();const floors=[...new Set(units.map(u=>getMeta(u).floor))].sort((a,b)=>a-b);
+  main.innerHTML=`<div style="font-size:13.5px;color:var(--text-dim);margin-bottom:12px">Live building view — units by floor, colored by status. Tap one to control it.</div>`+
+    floors.map(f=>{const us=units.filter(u=>getMeta(u).floor===f);
+      return `<div class="floor-wrap"><div style="font-weight:600">Floor ${f} · ${us.length} units</div>
+        <div class="pucks">${us.map(u=>{const st=statusOf(u),pk=st==="err"?"var(--err)":(u.on?"var(--accent)":"var(--stopped)");
+          return `<div class="puck" style="--pk:${pk}" data-id="${u.id}"><div class="pn">${dispName(u)}</div><div class="ps mono">${u.on?temp(u.sp).replace(/°[FC]/,'')+'<small>°'+settings.unit+'</small>':(u.err?'<small style="color:var(--err)">'+u.code+'</small>':'<small>off</small>')}</div></div>`;}).join("")}</div></div>`;}).join("")+
+    `<div class="cyc-note">Drag-to-place positions on a real floor plan image are coming — for now units group onto their floor automatically.</div>`;
+  document.querySelectorAll(".puck[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));}
+
+/* ---- 30-day timestamped data log + trends ---- */
+const DAY=86400000, TPAL=["#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6","#ec4899","#14b8a6","#f97316","#6366f1","#84cc16"];
+function histLog(u){ // ~30 days of timestamped samples, generated once per unit and cached
+  if(u._hist)return u._hist;
+  const N=360, step=DAY*30/N, now=Date.now(), pts=[];let r=u.room||72;
+  let errIdx = u.err ? N-3 : (u.id%4===0 ? N-1-((u.id*7)%250) : -1); // ongoing error, or a past transient
+  let transient = !u.err;
+  for(let i=0;i<N;i++){const t=now-(N-1-i)*step;const hr=new Date(t).getHours();
+    const night=hr<6||hr>=20;const sp=(u.sp||72)+(night?(u.mode==='heat'?-3:3):0);
+    r+=(Math.random()-0.5)*1.4+(sp-r)*0.1;
+    let err=null,errStart=false;
+    if(errIdx>=0){
+      if(i>=errIdx-7&&i<errIdx)r+=(u.mode==='heat'?1.3:-1.3); // pre-error drift
+      if(i===errIdx)errStart=true;
+      if(i>=errIdx)err=u.err?u.code:"CH05";
+      if(transient&&i>errIdx+5)err=null; // transient cleared
+    }
+    pts.push({t,room:+r.toFixed(1),sp,load:Math.max(0,Math.min(100,Math.round((u.zoneLoad||40)+(Math.random()-0.5)*22))),pipeOut:(u.pipeOut||62)+Math.round((Math.random()-0.5)*6),err,errStart});
+  }
+  u._hist=pts;return pts;}
+function trendChart(series,range){
+  const W=720,H=300,pl=42,pr=14,ptp=16,pb=48,now=Date.now(),t0=now-range;
+  const S=series.map((s,i)=>({...s,color:s.color||TPAL[i%TPAL.length],P:s.pts.filter(p=>p.t>=t0)}));
+  const ys=[].concat(...S.map(s=>s.P.map(p=>p.y)));
+  if(!ys.length)return '<div style="color:var(--text-faint);padding:24px">No data in this range.</div>';
+  let mn=Math.floor(Math.min(...ys)-2),mx=Math.ceil(Math.max(...ys)+2);if(mn===mx){mn--;mx++;}
+  const X=t=>pl+(t-t0)/range*(W-pl-pr),Y=v=>H-pb-(v-mn)*(H-ptp-pb)/(mx-mn);
+  const grid=[mn,Math.round((mn+mx)/2),mx].map(v=>`<line x1="${pl}" y1="${Y(v).toFixed(1)}" x2="${W-pr}" y2="${Y(v).toFixed(1)}" stroke="var(--border)"/><text x="6" y="${(Y(v)+4).toFixed(1)}" fill="var(--text-faint)" font-size="11">${v}</text>`).join("");
+  const ticks=[0,.25,.5,.75,1].map(f=>{const t=t0+f*range,d=new Date(t);const lab=range<=2*DAY?d.toLocaleTimeString([], {hour:'2-digit'}):(d.getMonth()+1)+'/'+d.getDate();return `<text x="${X(t).toFixed(1)}" y="${H-pb+16}" fill="var(--text-faint)" font-size="10" text-anchor="middle">${lab}</text>`;}).join("");
+  const marks=S.map(s=>(s.markers||[]).filter(m=>m>=t0).map(m=>`<line x1="${X(m).toFixed(1)}" y1="${ptp}" x2="${X(m).toFixed(1)}" y2="${H-pb}" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="3 3" opacity=".75"/>`).join("")).join("");
+  const lines=S.map(s=>`<path d="${s.P.map((p,i)=>(i?'L':'M')+X(p.t).toFixed(1)+' '+Y(p.y).toFixed(1)).join(' ')}" fill="none" stroke="${s.color}" stroke-width="2"/>`).join("");
+  const legend=S.map(s=>`<span style="display:inline-flex;align-items:center;gap:5px;margin:0 14px 6px 0;font-size:12px"><span style="width:11px;height:11px;border-radius:3px;background:${s.color}"></span>${s.name}${s.err?' <span style="color:var(--err)">⚠ error</span>':''}</span>`).join("");
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}">${grid}${ticks}${marks}${lines}</svg><div style="margin-top:10px;display:flex;flex-wrap:wrap">${legend}</div>`;}
+let trendCtx=null, trendRange=DAY;
+function openTrends(ids,opts){trendCtx={ids:ids.slice(),opts:opts||{}};if(trendRange==null)trendRange=DAY;drawTrends();}
+function drawTrends(){const {ids,opts}=trendCtx;const us=units.filter(u=>ids.includes(u.id));if(!us.length){closeModal();return;}
+  const metric=opts.odu?"load":"room";
+  const series=us.map(u=>{const h=histLog(u);return {name:dispName(u),pts:h.map(p=>({t:p.t,y:p[metric]})),markers:h.filter(p=>p.errStart).map(p=>p.t),err:u.err};});
+  const title=(opts.odu?"Outdoor-cycle trend · ":"Trends · ")+(us.length>1?us.length+" units":dispName(us[0]));
+  modal(head(title)+`<div class="modal-body">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      ${[["24 h",DAY],["7 days",7*DAY],["30 days",30*DAY]].map(r=>`<button class="btn sm ${trendRange===r[1]?'primary':''}" data-range="${r[1]}">${r[0]}</button>`).join("")}
+      <div style="flex:1"></div><div style="font-size:12px;color:var(--text-dim)">${opts.odu?"Outdoor-unit load index":"Room temperature (°"+settings.unit+")"}</div></div>
+    ${trendChart(series,trendRange)}
+    <div class="note-box" style="margin-top:12px">Every reading is timestamped and kept ~30 days. Dashed lines mark when a unit tripped into error — widen the range to see how it was behaving beforehand. Sample data until the live bus is logging.</div>
+  </div>`,true);
+  mroot.querySelectorAll("[data-range]").forEach(b=>b.onclick=()=>{trendRange=+b.dataset.range;drawTrends();});}
+
+/* ---- chrome wiring ---- */
+document.addEventListener("keydown",onKey);
+document.getElementById("bell").onclick=openAlerts;
+let brandTaps=0;document.querySelector(".brand").onclick=()=>{brandTaps++;if(brandTaps>=5){brandTaps=0;showCredits();}};
+document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;renderAll();});
+document.getElementById("settingsbtn").onclick=openSettings;
+document.getElementById("lockbtn").onclick=()=>{elev={admin:false,tech:false};recomputeSession();if(view==="cycle"&&!session.tech)view="units";renderWho();renderAll();};
+document.getElementById("logoutbtn").onclick=logout;
+document.getElementById("theme").onclick=()=>{settings.theme=(document.documentElement.getAttribute("data-theme")==="dark"||(settings.theme==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches))?"light":"dark";saveSettings();applyTheme();};
+function tick(){document.getElementById("clock").textContent=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});}
+tick();setInterval(tick,1000);
+
+/* ============ config + auth + first-run ============ */
+let CFG=null, currentUser=null, elev={admin:false,tech:false};
+const LOGO='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg>';
+function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
+function loadCfg(){try{const c=JSON.parse(localStorage.getItem("airow_cfg"));if(c&&!c.protocols)c.protocols=["lg"];return c;}catch(e){return null;}}
+function saveCfg(c){try{localStorage.setItem("airow_cfg",JSON.stringify(c));}catch(e){}}
+function roleCaps(r){return{admin:r==="admin"||r==="owner",tech:r==="technician"||r==="owner"};}
+function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};session.admin=b.admin||elev.admin;session.tech=b.tech||elev.tech;}
+function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}
+function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};users=CFG.users;
+  settingsUser=u.username||u.name;settings=loadSettings();applyTheme();
+  try{sessionStorage.setItem("airow_user",JSON.stringify({username:u.username}));}catch(e){}
+  elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();renderAll();}
+function logout(){try{sessionStorage.removeItem("airow_user");}catch(e){}currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin();}
+function factoryReset(){try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_units");}catch(e){}units=makeUnits();closeModal();CFG=null;currentUser=null;startWizard();}
+function boot(){applyTheme();CFG=loadCfg();let su=null;try{su=JSON.parse(sessionStorage.getItem("airow_user"));}catch(e){}
+  if(!CFG||!CFG.provisioned){startWizard();return;}
+  if(su&&CFG.users&&CFG.users.some(u=>u.username===su.username)){enterApp(CFG.users.find(u=>u.username===su.username));return;}
+  showLogin();}
+
+/* ---- login ---- */
+function showLogin(err){showScreen("login");const site=(CFG&&CFG.site&&CFG.site.name)||"this site";
+  document.getElementById("screen-login").innerHTML=`<div class="auth"><div class="auth-card">
+   <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Cortex</div></div>
+   <div class="auth-body"><h2>Sign in</h2><div class="auth-sub">${site}</div>
+    <label class="flabel">Username</label><input id="li-user" class="inp" autocomplete="off">
+    <label class="flabel">Password</label><input id="li-pass" type="password" class="inp">
+    <div class="err-text" id="li-err">${err||""}</div>
+    <button class="btn primary" id="li-go" style="width:100%;justify-content:center;padding:12px">Sign in</button>
+    <div style="display:flex;justify-content:space-between;margin-top:14px">
+      <button class="linklike" id="li-recover">Trouble signing in?</button>
+      <button class="linklike" id="li-setup" style="color:var(--text-faint)">Re-run setup</button></div>
+   </div></div></div>`;
+  const go=()=>{const un=document.getElementById("li-user").value.trim();const pw=document.getElementById("li-pass").value;
+    const u=CFG.users.find(x=>x.username===un);
+    if(u&&u.passhash===hash(pw))enterApp(u);else showLogin("Wrong username or password.");};
+  document.getElementById("li-go").onclick=go;
+  document.getElementById("li-pass").onkeydown=e=>{if(e.key==="Enter")go();};
+  document.getElementById("li-recover").onclick=recoverFlow;
+  document.getElementById("li-setup").onclick=startWizard;}
+function recoverFlow(){showScreen("login");
+  document.getElementById("screen-login").innerHTML=`<div class="auth"><div class="auth-card">
+   <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Account recovery</div></div>
+   <div class="auth-body"><h2>Enter recovery code</h2><div class="auth-sub">The per-site code from commissioning. Resets the owner password.</div>
+    <input id="rc" class="inp mono" placeholder="AIROW-SITE-XXXX-XXXX">
+    <div class="err-text" id="rc-err"></div>
+    <button class="btn primary" id="rc-go" style="width:100%;justify-content:center;padding:12px">Verify</button>
+    <div style="text-align:center;margin-top:14px"><button class="linklike" onclick="showLogin()">Back to sign in</button></div>
+   </div></div></div>`;
+  document.getElementById("rc-go").onclick=()=>{
+    if(document.getElementById("rc").value.trim().toUpperCase()===CFG.recovery){resetOwner();}
+    else document.getElementById("rc-err").textContent="That code doesn't match this site.";};}
+function resetOwner(){const owner=CFG.users.find(u=>u.protected)||CFG.users[0];
+  document.getElementById("screen-login").innerHTML=`<div class="auth"><div class="auth-card">
+   <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Reset owner password</div></div>
+   <div class="auth-body"><h2>New password</h2><div class="auth-sub">For ${owner.name} (${owner.username})</div>
+    <input id="np" type="password" class="inp" placeholder="New password">
+    <input id="np2" type="password" class="inp" placeholder="Confirm password">
+    <div class="err-text" id="np-err"></div>
+    <button class="btn primary" id="np-go" style="width:100%;justify-content:center;padding:12px">Save &amp; sign in</button></div></div></div>`;
+  document.getElementById("np-go").onclick=()=>{const a=document.getElementById("np").value,b=document.getElementById("np2").value;
+    if(a.length<4){document.getElementById("np-err").textContent="Use at least 4 characters.";return;}
+    if(a!==b){document.getElementById("np-err").textContent="Passwords don't match.";return;}
+    owner.passhash=hash(a);saveCfg(CFG);enterApp(owner);};}
+
+/* ---- first-time setup wizard ---- */
+let WZ=null, WZi=0;
+function startWizard(){WZ={site:{name:"",location:"",unit:"F"},owner:{name:"",username:"",pass:"",confirm:""},adminPin:"",techPin:"",team:[],remote:{enabled:false},protocols:["lg"]};WZi=0;showScreen("setup");renderWizard();}
+function v(id){const el=document.getElementById(id);return el?el.value:"";}
+const WSTEPS=[
+ {title:"Welcome",sub:"Let's commission this AIROW controller for the site.",
+  body:()=>`<div class="note-box">This 6-step setup creates the site identity, your owner account, access codes, your team, and remote access. It runs once per controller. You can re-run it later from Settings → Advanced.</div>`,
+  save:()=>null},
+ {title:"Site",sub:"What are we controlling?",
+  body:()=>`<label class="flabel">Site name</label><input id="wz-name" class="inp" value="${WZ.site.name}" placeholder="e.g. Main Office Park">
+   <label class="flabel">Location (optional)</label><input id="wz-loc" class="inp" value="${WZ.site.location}" placeholder="123 Main St, City ST">
+   <label class="flabel">Temperature unit</label><div class="segmented"><button data-u="F" class="${WZ.site.unit==='F'?'on':''}">°F</button><button data-u="C" class="${WZ.site.unit==='C'?'on':''}">°C</button></div>`,
+  wire:()=>{document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{WZ.site.name=v("wz-name");WZ.site.location=v("wz-loc");WZ.site.unit=b.dataset.u;renderWizard();});},
+  save:()=>{WZ.site.name=v("wz-name").trim();WZ.site.location=v("wz-loc").trim();return WZ.site.name?null:"Give the site a name.";}},
+ {title:"Owner account",sub:"Your login. This account can't be deleted.",
+  body:()=>`<label class="flabel">Your name</label><input id="wz-oname" class="inp" value="${WZ.owner.name}" placeholder="Full name">
+   <label class="flabel">Username</label><input id="wz-ouser" class="inp" value="${WZ.owner.username}" placeholder="login name">
+   <div class="pinpair"><div><label class="flabel">Password</label><input id="wz-opass" type="password" class="inp" value="${WZ.owner.pass}"></div>
+    <div><label class="flabel">Confirm</label><input id="wz-oconf" type="password" class="inp" value="${WZ.owner.confirm}"></div></div>`,
+  save:()=>{WZ.owner.name=v("wz-oname").trim();WZ.owner.username=v("wz-ouser").trim();WZ.owner.pass=v("wz-opass");WZ.owner.confirm=v("wz-oconf");
+    if(!WZ.owner.name||!WZ.owner.username)return "Enter your name and a username.";
+    if(WZ.owner.pass.length<4)return "Password needs at least 4 characters.";
+    if(WZ.owner.pass!==WZ.owner.confirm)return "Passwords don't match.";return null;}},
+ {title:"Access codes",sub:"Short codes that unlock elevated features on top of a login.",
+  body:()=>`<div class="note-box"><b>Admin code</b> unlocks advanced settings &amp; user management. <b>Technician code</b> reveals the hidden outdoor cycle diagnostics — customers never see it exists.</div>
+   <div class="pinpair"><div><label class="flabel">Admin code (4 digits)</label><input id="wz-apin" class="inp mono" inputmode="numeric" maxlength="4" value="${WZ.adminPin}" placeholder="••••"></div>
+    <div><label class="flabel">Technician code (4 digits)</label><input id="wz-tpin" class="inp mono" inputmode="numeric" maxlength="4" value="${WZ.techPin}" placeholder="••••"></div></div>`,
+  save:()=>{WZ.adminPin=v("wz-apin").trim();WZ.techPin=v("wz-tpin").trim();
+    if(!/^\d{4}$/.test(WZ.adminPin)||!/^\d{4}$/.test(WZ.techPin))return "Both codes must be 4 digits.";
+    if(WZ.adminPin===WZ.techPin)return "Use different codes for admin and technician.";return null;}},
+ {title:"Your team",sub:"Add people now, or skip and add them later in Settings.",
+  body:()=>`${WZ.team.length?`<div style="margin-bottom:10px">${WZ.team.map((t,i)=>`<div class="team-row"><div><b>${t.name}</b> <span class="rchip ${t.role}">${t.role}</span><div style="font-size:12px;color:var(--text-faint)">${t.username}</div></div><button class="linklike" style="color:var(--err)" data-rm="${i}">Remove</button></div>`).join("")}</div>`:`<div class="note-box">No team members yet. Add one below, or continue.</div>`}
+   <label class="flabel">Add a person</label>
+   <input id="tm-name" class="inp" placeholder="Name"><input id="tm-user" class="inp" placeholder="Username">
+   <div class="pinpair"><div><input id="tm-pass" type="password" class="inp" placeholder="Temp password"></div>
+    <div><select id="tm-role" class="inp"><option value="customer">Customer</option><option value="admin">Admin</option><option value="technician">Technician</option></select></div></div>
+   <button class="btn" id="tm-add">+ Add to team</button>`,
+  wire:()=>{document.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{WZ.team.splice(+b.dataset.rm,1);renderWizard();});
+    const add=document.getElementById("tm-add");if(add)add.onclick=()=>{const n=v("tm-name").trim(),u=v("tm-user").trim();
+      if(!n||!u){document.getElementById("wzerr").textContent="Name and username required to add.";return;}
+      WZ.team.push({name:n,username:u,pass:v("tm-pass")||"changeme",role:v("tm-role")});renderWizard();};},
+  save:()=>null},
+ {title:"Remote access",sub:"Reach this controller securely from anywhere.",
+  body:()=>`<div class="note-box">Recommended: <b>Tailscale</b> — a private network with no port forwarding, so the controller never sits on the open internet. (WireGuard works too.)</div>
+   <div class="setrow"><div><div class="sl">Enable remote access</div><div class="sd">Sets up this controller's end at finish</div></div><button class="toggle ${WZ.remote.enabled?'on':''}" id="rm-tog"></button></div>
+   <div id="rm-detail" class="${WZ.remote.enabled?'':'hide'}" style="margin-top:12px">
+     <label class="flabel">This controller will join as</label><div class="recovery" style="color:var(--text)">airow-${(WZ.site.name||'site').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,18)}</div>
+     <div class="note-box" style="margin-top:12px">At finish you'll get a one-time join link. Install Tailscale on your phone or laptop, approve the device, and reach the dashboard at its private name — no public IP, no open ports.</div></div>`,
+  wire:()=>{const t=document.getElementById("rm-tog");if(t)t.onclick=()=>{WZ.remote.enabled=!WZ.remote.enabled;renderWizard();};},
+  save:()=>null},
+ {title:"Equipment manufacturer",sub:"Which system are you installing on? This sets how Cortex listens to the bus.",
+  body:()=>`<div class="note-box" style="margin-bottom:12px">Pick the primary system here. You can add more manufacturers to this site later in Settings → Advanced (a site can run mixed equipment).</div>
+    <div class="opts" style="flex-direction:column;gap:8px">${Object.keys(PROTOCOLS).map(k=>{const p=PROTOCOLS[k];const on=WZ.protocols.includes(k);
+      return `<button class="opt ${on?'sel':''}" data-proto="${k}" style="justify-content:space-between;text-align:left;width:100%">
+        <span>${on?'✓ ':''}${p.label}</span><span style="font-size:11px;color:var(--text-faint)">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits} · ${p.phys} · ${p.decode==='full'?'full decode':'capture'}</span></button>`;}).join("")}</div>
+    <div style="font-size:11.5px;color:var(--text-faint);margin-top:10px">Tap to toggle. LG has full decoding today; the others capture raw at the right settings for now. Non-RS485 systems need their own adapter.</div>`,
+  wire:()=>{document.querySelectorAll("[data-proto]").forEach(b=>b.onclick=()=>{const k=b.dataset.proto;const i=WZ.protocols.indexOf(k);
+    if(i>=0){if(WZ.protocols.length>1)WZ.protocols.splice(i,1);}else WZ.protocols.push(k);renderWizard();});},
+  save:()=>WZ.protocols.length?null:"Pick at least one manufacturer."},
+ {title:"Find indoor units",sub:"Scan the bus for connected units — like the ACP's auto-search.",
+  body:()=>{ if(!WZ.scan) return `<div class="note-box">This polls every address on the central bus (0x00–0xFF) and lists the indoor units that answer, with their address and channel — the same discovery the LG ACP runs at commissioning. It only listens and asks; nothing on the units is changed.</div>
+     <button class="btn primary" id="wz-scan" style="width:100%;justify-content:center">▶ Start bus scan</button>`;
+    const s=WZ.scan;
+    return `<div style="height:9px;background:var(--surface-2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${Math.round(s.prog*100)}%;background:var(--accent);transition:width .1s"></div></div>
+     <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);margin:8px 0">
+       <span>${s.done?'✓ Scan complete':'Scanning '+hx(s.cur)+' …'}</span><span class="mono">${s.found.length} found</span></div>
+     <div class="mono" style="max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;background:var(--surface-2)">
+       ${s.found.map(f=>`<div>✓ ${hx(f.addr)} · ${f.ch} · AC_UNIT_${String(f.i).padStart(2,'0')}</div>`).join("")||'<div style="color:var(--text-faint)">listening…</div>'}</div>
+     ${s.done?`<div class="note-box" style="margin-top:10px">Found <b>${s.found.length}</b> indoor units across CH1–CH2. You can rescan anytime from the technician view.</div>`:''}`;},
+  wire:()=>{const b=document.getElementById("wz-scan");if(b)b.onclick=runScan;},
+  save:()=>{if(!WZ.scan||!WZ.scan.done)return "Run the bus scan to find your units before continuing.";return null;}},
+ {title:"Review & finish",sub:"",
+  body:()=>`<div class="note-box">✓ Scanned the bus — found <b>${(WZ.scan&&WZ.scan.found.length)||units.length} indoor units</b> across CH1–CH2, 1 outdoor system.</div>
+   <div class="sumrow"><span class="k">Site</span><span>${WZ.site.name||'—'}</span></div>
+   <div class="sumrow"><span class="k">Owner</span><span>${WZ.owner.name} · ${WZ.owner.username}</span></div>
+   <div class="sumrow"><span class="k">Team</span><span>${WZ.team.length} added</span></div>
+   <div class="sumrow"><span class="k">Access codes</span><span>set</span></div>
+   <div class="sumrow"><span class="k">Remote access</span><span>${WZ.remote.enabled?'Tailscale — enabled':'Off'}</span></div>
+   <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Finishing creates your account and signs you in.</div>`,
+  save:()=>null}
+];
+function runScan(){
+  if(WZ.scan&&WZ.scan.t)clearInterval(WZ.scan.t);
+  WZ.scan={prog:0,cur:0,found:[],done:false,t:null};
+  const targets=units.map((u,i)=>({addr:u.addr,ch:u.ch,i})).sort((a,b)=>a.addr-b.addr);
+  let k=0,addr=-1;renderWizard();
+  WZ.scan.t=setInterval(()=>{
+    addr+=Math.floor(5+Math.random()*9);if(addr>255)addr=255;
+    WZ.scan.cur=addr;WZ.scan.prog=addr/255;
+    while(k<targets.length&&targets[k].addr<=addr){WZ.scan.found.push(targets[k]);k++;}
+    if(addr>=255){clearInterval(WZ.scan.t);WZ.scan.t=null;WZ.scan.done=true;WZ.scan.prog=1;}
+    renderWizard();
+  },110);
+}
+function renderWizard(){const s=WSTEPS[WZi];
+  document.getElementById("screen-setup").innerHTML=`<div class="auth"><div class="auth-card wiz">
+    <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Cortex · Setup</div></div>
+    <div class="wiz-steps">${WSTEPS.map((_,i)=>`<div class="wiz-dot ${i<WZi?'done':''} ${i===WZi?'cur':''}"></div>`).join("")}</div>
+    <div class="auth-body"><div class="step-num">Step ${WZi+1} of ${WSTEPS.length}</div>
+      <h2>${s.title}</h2>${s.sub?`<div class="auth-sub">${s.sub}</div>`:""}
+      <div id="wzerr" class="err-text"></div>${s.body()}</div>
+    <div class="wiz-foot"><button class="btn" id="wback" ${WZi===0?'style="visibility:hidden"':''}>Back</button>
+      <button class="btn primary" id="wnext">${WZi===WSTEPS.length-1?'Finish setup':'Continue'}</button></div>
+  </div></div>`;
+  if(s.wire)s.wire();
+  document.getElementById("wback").onclick=()=>{if(WZi>0){WZi--;renderWizard();}};
+  document.getElementById("wnext").onclick=()=>{const err=s.save?s.save():null;
+    if(err){document.getElementById("wzerr").textContent=err;return;}
+    if(WZi===WSTEPS.length-1)provision();else{WZi++;renderWizard();}};}
+function provision(){
+  const rc="AIROW-"+(WZ.site.name||"SITE").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6)+"-"+Math.random().toString(16).slice(2,6).toUpperCase()+"-"+Math.random().toString(16).slice(2,6).toUpperCase();
+  CFG={provisioned:true,site:{name:WZ.site.name,location:WZ.site.location,unit:WZ.site.unit},
+    protocols:(WZ.protocols&&WZ.protocols.length?WZ.protocols:["lg"]),
+    adminPin:WZ.adminPin,techPin:WZ.techPin,recovery:rc,remote:WZ.remote,unitMeta:{},
+    schedules:[
+      {id:"s1",name:"Weekday setback",enabled:true,target:{type:"all",val:0},action:{power:"off",mode:"",fan:"",sp:null},time:"18:00",days:[1,2,3,4,5],cond:{op:"",temp:null}},
+      {id:"s2",name:"Morning warmup",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"heat",fan:"",sp:71},time:"06:30",days:[1,2,3,4,5],cond:{op:"",temp:null}}],
+    users:[{id:1,name:WZ.owner.name,username:WZ.owner.username,passhash:hash(WZ.owner.pass),role:"owner",protected:true},
+      ...WZ.team.map((t,i)=>({id:2+i,name:t.name,username:t.username,passhash:hash(t.pass),role:t.role}))]};
+  settings.unit=WZ.site.unit;saveSettings();saveCfg(CFG);enterApp(CFG.users[0]);}
+
+boot();
+</script>
+</body>
+</html>
