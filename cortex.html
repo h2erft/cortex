@@ -61,6 +61,32 @@
     clean public protocol spec (TOC, worked examples, error table, capture how-to). GitHub NOT
     yet linked to the Claude session (list_repos: no account) - operator must connect GitHub in
     claude.ai settings, then add_repo(push) + push, OR push themselves. Private-token OTA verified.
+  - 2026-11-08 LIVE ON GITHUB + FIRST BOX DEPLOYED (repo github.com/h2erft/cortex, PRIVATE):
+    * Pushed everything from the Claude session via add_repo(push)+clone+push. NOTE: the session
+      credential pushes BRANCHES but 403s on TAGS — operator cuts releases himself (GitHub UI:
+      Releases > Draft > new tag vX.Y.Z > Publish). GitHub Action (.github/workflows/release.yml)
+      builds the tgz+manifest on tag push.
+    * WORKFLOW BUG FIXED: 'gh release create' errors if the release already exists (UI-created),
+      so assets never attached -> 404. Now: if release exists -> 'gh release upload --clobber',
+      else create. Idempotent; UI-create + Action both work.
+    * OTA DELIVERY REWRITTEN TO USE GITHUB API (big one): fine-grained PATs authenticate against
+      api.github.com but NOT the github.com/.../releases/latest/download/ browser URLs on PRIVATE
+      repos (404). So cortex-update.sh + server.js /api/update/check now hit the API:
+      GET api.github.com/repos/REPO/releases/latest, read .tag_name for version, pull the
+      manifest.json + .tgz via their .assets[].url with 'Accept: application/octet-stream' (+Bearer
+      token; curl -L drops the header on the cross-host redirect to the signed URL, which self-auths).
+      update.conf is now CORTEX_UPDATE_REPO=owner/repo (+ CORTEX_UPDATE_TOKEN for private);
+      static CORTEX_UPDATE_MANIFEST=<url> mode still supported. CORTEX_UPDATE_API_BASE overrides
+      api host for testing. A broken updater can't fix itself, so bootstrap the new one once via:
+      curl ...api.github.com/repos/REPO/contents/appliance/cortex-update.sh?ref=main (Accept: raw).
+    * FIELD SETUP GOTCHAS (fresh Ubuntu Server N95): (a) installer-written netplan may have no
+      dhcp4 -> only lo gets an IP; fix: write /etc/netplan/01-cortex.yaml {ethernets: enpX: dhcp4:
+      true} + netplan apply. (b) RTC can be hours behind -> apt refuses "Release not valid yet" and
+      install.sh aborts; fix: timedatectl set-ntp false; set-time 'UTC'; set-ntp true. (c) install:
+      token-clone repo -> cd appliance -> sudo bash install.sh (idempotent).
+    * STATE AS OF TONIGHT: first box (site "vista 7", hostname cortex) is running v1.1.2 via OTA,
+      self-healing timer active; v1.1.1 release=mock-era UI, v1.1.2=empty-units + real update page.
+      cortex.html loadUnits() returns [] (no demo seed). Updates page auto-calls /api/update/check.
   - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
     (cool+heat) °C, transmits, with editable cmd/flags bytes.
   - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
