@@ -153,6 +153,24 @@
       a classic script tag to switch module-scoped view/elev/busView since page.evaluate cannot
       reach them; .card-main=unit card) + full self-install guide (Ubuntu + bootstrap one-liner).
     * STILL NEED on-wire capture for: exact discovery QUERY bytes, and room-temp table values.
+  - 2026-11-09 v1.4.0 FIXES/FEATURES (pre-publish batch, reported from a live 1.1.2 box):
+    * LAYOUT BUG FIXED: off-canvas .drawer was position:absolute + translateX(102%) → created
+      horizontal overflow (blank right-scroll area; closed drawer visible when scrolled). Fix:
+      .drawer/.scrim → position:fixed, added visibility:hidden (show→visible), and
+      html,body{overflow-x:hidden}.
+    * EXEC-PERMISSION BUG (why OTA/auto-update silently failed + "cannot execute cortex-update.sh
+      Permission denied"): the GitHub Action tarball didn't preserve +x. Fixed: git now tracks all
+      appliance/*.sh as 100755; updater chmod+x the new cortex-update.sh after extract; Action
+      chmod+x in staging; cortex-updater.service ExecStart=/bin/bash ... (robust). UNBLOCK a stuck
+      box with: sudo bash /opt/cortex/current/cortex-update.sh
+    * SITE NAME in header now real (renderWho sets #site-name from CFG.site.name, else /version name).
+    * UPDATES moved into Settings (new "⬇ Updates" tab, loadSettingsUpdates) with DOWNLOAD & INSTALL
+      NOW (POST /api/update/apply → sudo systemctl start cortex-updater.service, a SEPARATE cgroup so
+      it survives the restart it triggers; sudoers updated) and SKIP THIS VERSION (localStorage
+      airow_skipver). Old nav Updates item left in place too.
+    * BUS SCAN serial settings editable (tech): baud/data/parity/stop selects in the connbar →
+      bus.serial override via effSerial(); used by both Web-Serial and backend-WS connect. For
+      Multi V 5 / other buses. Resets on protocol change.
   - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
     (cool+heat) °C, transmits, with editable cmd/flags bytes.
   - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
@@ -352,7 +370,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{height:100%;margin:0}
+html,body{height:100%;margin:0;overflow-x:hidden}
 body{background:var(--bg);color:var(--text);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.5;display:flex;flex-direction:column}
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 button{font-family:inherit;cursor:pointer}
@@ -434,9 +452,10 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .lhead:hover{background:var(--surface-2)}
 
 /* drawer */
-.scrim{position:absolute;inset:0;background:rgba(10,14,20,.42);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.42);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
 .scrim.show{opacity:1;pointer-events:auto}
-.drawer{position:absolute;top:0;right:0;bottom:0;width:380px;max-width:92vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:var(--shadow-lg);transform:translateX(102%);transition:transform .2s ease;z-index:50;display:flex;flex-direction:column}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:380px;max-width:92vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:var(--shadow-lg);transform:translateX(102%);transition:transform .2s ease;z-index:50;display:flex;flex-direction:column;visibility:hidden}
+.drawer.show{visibility:visible}
 .drawer.show{transform:none}
 .drawer-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .drawer-body{padding:16px 18px;overflow:auto;flex:1}
@@ -640,7 +659,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 <body>
 <header>
   <div class="brand"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex<span style="font-size:11px;color:var(--text-faint);font-weight:400;margin-left:6px">by AIROW</span></div>
-  <div class="site"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg>Site</div>
+  <div class="site"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg><span id="site-name">Site</span></div>
   <div class="bus"><span class="dot"></span>Bus online · <span class="mono">4800 8N1</span></div>
   <div class="spacer"></div>
   <div class="clock mono" id="clock">--:--</div>
@@ -887,6 +906,10 @@ function applyAccent(){const a=ACCENTS[settings.accent]||ACCENTS.slate;
   const s=dm?a.d:a.l,st=document.documentElement.style;
   st.setProperty("--accent",s[0]);st.setProperty("--accent-ink",s[1]);st.setProperty("--accent-soft",s[2]);}
 function renderWho(){
+  const sn=document.getElementById("site-name");
+  if(sn){const n=(CFG&&CFG.site&&CFG.site.name&&CFG.site.name!=="Site")?CFG.site.name:null;
+    if(n)sn.textContent=n;
+    else fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name)sn.textContent=j.name;}).catch(()=>{});}
   const name=currentUser?currentUser.name:"Guest";
   const role=currentUser?currentUser.role:(session.tech?"technician":(session.admin?"admin":"customer"));
   document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${name} <span class="rolebadge">${role}</span>`;
@@ -1169,7 +1192,7 @@ async function busConnect(){
     bus.port=await navigator.serial.requestPort();
   }catch(e){bus.err="No port picked — click Connect, then choose your USB-RS485 adapter (CP210x / Silicon Labs) in the popup.";bus.port=null;renderBusScan();return;}
   try{
-    await bus.port.open({baudRate:p.baud,dataBits:p.dataBits,stopBits:p.stopBits,parity:p.parity});
+    const es=effSerial();await bus.port.open({baudRate:es.baud,dataBits:es.dataBits,stopBits:es.stopBits,parity:es.parity});
     bus.scanning=true;bus.err="";renderBusScan();
     busReadLoop();
   }catch(e){
@@ -1185,7 +1208,7 @@ function busConnectBackend(){
   const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
   try{
     const wsp=location.protocol==='https:'?'wss':'ws';
-    const ws=new WebSocket(`${wsp}://${location.host}/bus?proto=${encodeURIComponent(bus.proto)}&baud=${p.baud}&parity=${p.parity}&stop=${p.stopBits}&data=${p.dataBits}`);
+    const ws=new WebSocket(`${wsp}://${location.host}/bus?proto=${encodeURIComponent(bus.proto)}&baud=${effSerial().baud}&parity=${effSerial().parity}&stop=${effSerial().stopBits}&data=${effSerial().dataBits}`);
     ws.binaryType='arraybuffer';
     ws.onopen=()=>{bus.scanning=true;bus.err="";renderBusScan();};
     ws.onmessage=ev=>{ if(typeof ev.data==='string'){try{const m=JSON.parse(ev.data);if(m.err)bus.err=m.err;}catch(_){ } bus.dirty=true; return; } ingestBytes(new Uint8Array(ev.data)); };
@@ -1205,7 +1228,7 @@ async function busReopenPort(){
     if(bus.reader){try{await bus.reader.cancel();}catch(_){}try{bus.reader.releaseLock();}catch(_){}bus.reader=null;}
     try{await bus.port.close();}catch(_){}
     await new Promise(r=>setTimeout(r,300));
-    await bus.port.open({baudRate:p.baud,dataBits:p.dataBits,stopBits:p.stopBits,parity:p.parity});
+    const es=effSerial();await bus.port.open({baudRate:es.baud,dataBits:es.dataBits,stopBits:es.stopBits,parity:es.parity});
     return true;
   }catch(e){return false;}
 }
@@ -1421,6 +1444,8 @@ function busUpdate(){
   const rawm=document.getElementById("bus-rawmon");if(rawm){const hexs=bus.recent.slice(-48).map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");
     rawm.innerHTML=bus.bytes?`<b>${bus.bytes}</b> raw bytes seen · last: <span class="mono" style="color:var(--text-dim)">${hexs||"—"}</span>`:'<span style="color:var(--text-faint)">0 bytes — nothing arriving on the wire yet</span>';}
   const mlogEl=document.getElementById("m-log");if(mlogEl){const atBottom=mlogEl.scrollTop+mlogEl.clientHeight>=mlogEl.scrollHeight-20;mlogEl.textContent=MASTER.log.slice(0,140).join("\n");if(atBottom)mlogEl.scrollTop=0;}}
+function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.serial||{};
+  return {baud:s.baud||p.baud,dataBits:s.dataBits||p.dataBits,parity:s.parity||p.parity,stopBits:s.stopBits||p.stopBits};}
 function renderBusScan(){
   const supported="serial" in navigator;const conn=bus.scanning;
   const opts=siteProtocols();if(!opts.includes(bus.proto))bus.proto=opts[0]||"lg";
@@ -1429,7 +1454,11 @@ function renderBusScan(){
   const connbar=`
     <div class="connbar">
       <select class="sel-box" id="bus-proto" ${conn?"disabled":""} style="min-width:140px">${opts.map(k=>`<option value="${k}" ${k===bus.proto?"selected":""}>${PROTOCOLS[k].label}</option>`).join("")}</select>
-      <span class="mono" style="font-size:12px;color:var(--text-dim)">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits}</span>
+      ${session.tech?(()=>{const e=effSerial();return `<span style="display:flex;gap:4px;align-items:center" title="serial settings — adjust for other buses (e.g. Multi V 5)">
+        <select class="sel-box" id="ser-baud" ${conn?"disabled":""} style="padding:3px 5px">${[2400,4800,9600,19200,38400].map(b=>`<option ${e.baud===b?"selected":""}>${b}</option>`).join("")}</select>
+        <select class="sel-box" id="ser-data" ${conn?"disabled":""} style="padding:3px 5px">${[7,8].map(d=>`<option ${e.dataBits===d?"selected":""}>${d}</option>`).join("")}</select>
+        <select class="sel-box" id="ser-par" ${conn?"disabled":""} style="padding:3px 5px">${["none","even","odd"].map(x=>`<option value="${x}" ${e.parity===x?"selected":""}>${x[0].toUpperCase()}</option>`).join("")}</select>
+        <select class="sel-box" id="ser-stop" ${conn?"disabled":""} style="padding:3px 5px">${[1,2].map(s=>`<option ${e.stopBits===s?"selected":""}>${s}</option>`).join("")}</select></span>`;})():`<span class="mono" style="font-size:12px;color:var(--text-dim)">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits}</span>`}
       ${conn?`<button class="btn danger" id="bus-dis">■ Disconnect</button>`:`<button class="btn primary" id="bus-con">▶ Connect adapter</button>`}
       <div class="stat"><span class="pulse ${conn?'':'off'}"></span><span id="bus-count">${conn?'reading…':'idle'}</span></div>
       ${session.tech&&isLG?`<div style="flex:1"></div><div class="segmented"><button id="bv-live" class="${busView==='live'?'on':''}">Live</button><button id="bv-debug" class="${busView==='debug'?'on':''}">⚡ Debug</button></div>`:''}
@@ -1530,7 +1559,11 @@ function renderBusScan(){
     <textarea id="bus-paste" class="inp" style="width:100%;height:64px;font-family:ui-monospace,monospace;font-size:12px" placeholder="paste hex…"></textarea>
     <button class="btn" id="bus-decode" style="margin-top:8px">Load paste</button>`;
   main.innerHTML=connbar+(isLG?((session.tech&&busView==='debug')?debugHTML:liveHTML):captureHTML);
-  const ps=document.getElementById("bus-proto");if(ps)ps.onchange=e=>{bus.proto=e.target.value;busReset();renderBusScan();};
+  const ps=document.getElementById("bus-proto");if(ps)ps.onchange=e=>{bus.proto=e.target.value;bus.serial=null;busReset();renderBusScan();};
+  // custom serial settings (tech) — override the protocol defaults for other buses
+  const setSer=()=>{const g=id=>document.getElementById(id);if(!g("ser-baud"))return;
+    bus.serial={baud:+g("ser-baud").value,dataBits:+g("ser-data").value,parity:g("ser-par").value,stopBits:+g("ser-stop").value};};
+  ["ser-baud","ser-data","ser-par","ser-stop"].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=setSer;});
   const bvl=document.getElementById("bv-live");if(bvl)bvl.onclick=()=>{busView="live";renderBusScan();};
   const bvd=document.getElementById("bv-debug");if(bvd)bvd.onclick=()=>{busView="debug";renderBusScan();};
   const cc=document.getElementById("bus-con");if(cc)cc.onclick=busConnect;
@@ -1881,16 +1914,52 @@ function organizeUnit(u){const m=getMeta(u);
 let setTab="display";
 function openSettings(){setTab="display";drawSettings();}
 function drawSettings(){
-  const tabs=[["display","🎨 Display",false],["layout","🔌 Layout",false],["advanced","⚙ Advanced",!session.admin],["users","👥 Users",!session.admin],["about","ℹ About",false]];
+  const tabs=[["display","🎨 Display",false],["layout","🔌 Layout",false],["updates","⬇ Updates",false],["advanced","⚙ Advanced",!session.admin],["users","👥 Users",!session.admin],["about","ℹ About",false]];
   let body="";
   if(setTab==="display")body=displayTab();
   else if(setTab==="layout")body=layoutTab();
+  else if(setTab==="updates")body=updatesTab();
   else if(setTab==="advanced")body=session.admin?advancedTab():lockedTab("Advanced settings are Admin-only.","admin");
   else if(setTab==="users")body=session.admin?usersTab():lockedTab("User management is Admin-only.","admin");
   else body=aboutTab();
   modal(head("Settings")+`<div class="tabs">${tabs.map(t=>`<button class="tab ${setTab===t[0]?'on':''}" data-tab="${t[0]}">${t[1]}${t[2]?' <span class="lock">🔒</span>':''}</button>`).join("")}</div><div class="modal-body" id="setbody">${body}</div>`,true);
   mroot.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{setTab=b.dataset.tab;drawSettings();});
   wireSettings();
+  if(setTab==="updates")loadSettingsUpdates();
+}
+function updatesTab(){return `<div id="setupd"><div class="note-box">Checking for updates…</div></div>`;}
+let _skipVer=null;try{_skipVer=localStorage.getItem("airow_skipver");}catch(e){}
+async function loadSettingsUpdates(){
+  let st;try{const r=await fetch('/api/update/check',{cache:'no-store'});st=await r.json();}catch(e){st={error:"This screen works on the installed appliance."};}
+  const el=document.getElementById("setupd");if(!el)return;
+  const cur=st.current||"—";
+  let h=`<div class="setrow"><div><div class="sl">This controller</div><div class="sd">Cortex <span class="mono">v${ue(cur)}</span>${st.name?" · "+ue(st.name):""}</div></div>`;
+  if(st.checking)h+='<span class="badge-ok">…</span>';
+  else if(st.updateAvailable&&st.latest!==_skipVer)h+='<span class="badge-new">v'+ue(st.latest)+" available</span>";
+  else if(st.updateAvailable&&st.latest===_skipVer)h+='<span class="badge-ok">skipped</span>';
+  else if(st.latest)h+='<span class="badge-ok">up to date</span>';
+  else h+='<span class="badge-ok">—</span>';
+  h+="</div>";
+  if(st.updateAvailable){
+    h+=`<div class="note-box" style="margin-top:10px"><b>v${ue(st.latest)}</b> is available.${st.notes?" "+ue(st.notes):""} Updates verify themselves and roll back automatically if anything goes wrong.</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn primary" id="upd-now">⬇ Download &amp; install now</button>
+        <button class="btn" id="upd-skip">${st.latest===_skipVer?"Un-skip":"Skip this version"}</button></div>`;
+  } else if(st.configured===false){
+    h+='<div class="note-box" style="margin-top:10px">Automatic updates aren\'t turned on for this controller yet.</div>';
+  } else if(st.error){
+    h+='<div class="note-box" style="margin-top:10px">'+ue(st.error)+"</div>";
+  } else {
+    h+='<div class="note-box" style="margin-top:10px">You\'re on the latest version. This controller also checks and updates itself automatically.</div>';
+  }
+  el.innerHTML=h;
+  const now=document.getElementById("upd-now");if(now)now.onclick=async()=>{now.disabled=true;now.textContent="Starting…";
+    try{await fetch('/api/update/apply',{method:"POST"});}catch(e){}
+    el.innerHTML='<div class="note-box">Update started — the controller will download, install, and restart. This page reconnects in a minute or two, and it rolls back on its own if the new version has a problem.</div>';};
+  const skip=document.getElementById("upd-skip");if(skip)skip.onclick=()=>{
+    if(st.latest===_skipVer){try{localStorage.removeItem("airow_skipver");}catch(e){}_skipVer=null;}
+    else{try{localStorage.setItem("airow_skipver",st.latest);}catch(e){}_skipVer=st.latest;}
+    loadSettingsUpdates();};
 }
 function row(label,desc,control){return `<div class="setrow"><div><div class="sl">${label}</div>${desc?`<div class="sd">${desc}</div>`:""}</div>${control}</div>`;}
 function tog(id,on){return `<button class="toggle ${on?'on':''}" data-tog="${id}"></button>`;}

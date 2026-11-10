@@ -28,6 +28,7 @@ jobs:
             [ -f "$f" ] && cp "$f" "$STAGE/" || echo "warning: $f missing"
           done
 
+          chmod +x "$STAGE/cortex-update.sh" 2>/dev/null || true   # keep the updater executable in the tarball
           mkdir -p dist
           tar -czf "dist/cortex-$VER.tgz" -C "$STAGE" .
           SHA="$(sha256sum "dist/cortex-$VER.tgz" | cut -d' ' -f1)"

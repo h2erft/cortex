@@ -123,6 +123,7 @@ else
   mkdir -p "$REL"
   rm -rf "$REL/$NEW.partial" "$REL/$NEW"
   cp -a "$SRC" "$REL/$NEW.partial"
+  chmod +x "$REL/$NEW.partial/cortex-update.sh" 2>/dev/null || true   # ensure the updater stays executable
   # build deps for THIS machine's arch (serialport is native)
   if [ -f "$REL/$NEW.partial/package.json" ]; then
     log "installing dependencies for $NEW"

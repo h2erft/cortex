@@ -175,6 +175,18 @@ function powerAction(kind, res) {
 app.post('/api/power/reboot',   (_req, res) => powerAction('reboot', res));
 app.post('/api/power/shutdown', (_req, res) => powerAction('poweroff', res));
 
+// Trigger an update now — runs the SEPARATE updater unit (its own cgroup) so it survives the
+// service restart it performs. The updater does the usual verify + atomic swap + rollback.
+app.post('/api/update/apply', (_req, res) => {
+  cors(res);
+  res.json({ ok: true, started: true });
+  setTimeout(() => {
+    execFile('sudo', ['-n', 'systemctl', 'start', 'cortex-updater.service'], (err) => {
+      if (err) console.error('update apply failed:', err.message);
+    });
+  }, 300);
+});
+
 // --- first-run redirect -------------------------------------------------------
 // An unconfigured box sends you straight to the setup wizard; once named, '/' is the app.
 app.get('/', (_req, res, next) => {
