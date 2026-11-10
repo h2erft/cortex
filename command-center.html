@@ -116,16 +116,7 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 
 <!-- login -->
 <div class="login" id="login">
-  <div class="login-card">
-    <div class="login-logo"><span class="dot"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex Command</div>
-    <div class="login-sub">Fleet console · AIROW</div>
-    <label class="flabel">Owner login</label>
-    <input class="inp" id="lg-user" placeholder="username" autocomplete="off">
-    <input class="inp" id="lg-pass" type="password" placeholder="password" style="margin-top:8px">
-    <div class="err-text" id="lg-err"></div>
-    <button class="btn primary" id="lg-go" style="width:100%;margin-top:6px">Sign in</button>
-    <div class="note" style="margin-top:16px">Demo login — <b>owner</b> / <b>airow</b>. This master account always has access to every building; techs get only what you assign.</div>
-  </div>
+  <div class="login-card" id="login-card"><!-- filled by JS: setup wizard, sign-in, or recovery --></div>
 </div>
 
 <!-- app -->
@@ -157,7 +148,14 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 
 <script>
 /* ---------- state ---------- */
-const OWNER={user:"owner",pass:"airow",name:"Owner"};
+const OWNER={user:"",name:"Owner"};  // populated from the stored account at sign-in
+const LOGO_SVG='<span class="dot"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>';
+/* local owner account (this console is a single file; account lives in this browser) */
+function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
+function loadAcct(){try{return JSON.parse(localStorage.getItem("cortex_cmd_acct"))||null;}catch(e){return null;}}
+function saveAcct(a){try{localStorage.setItem("cortex_cmd_acct",JSON.stringify(a));}catch(e){}}
+function genRecovery(name){const base=(name||"CMD").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6)||"CMD";const g=()=>Math.random().toString(16).slice(2,6).toUpperCase();return "CORTEX-"+base+"-"+g()+"-"+g();}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 let DB=load()||seed();
 /* per-user preferences (scoped to the signed-in owner account) */
 const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites"};
@@ -432,16 +430,99 @@ function openSettings(){
   document.querySelectorAll("#st-land button").forEach(b=>b.onclick=()=>{PREFS.landing=b.dataset.land;savePrefs();openSettings();});
   document.querySelectorAll("[data-mt]").forEach(b=>b.onclick=()=>{const k=b.dataset.mt;PREFS[k]=!PREFS[k];savePrefs();renderSites();openSettings();});
 }
-$("logout").onclick=()=>{sessionStorage.removeItem("cortex_cmd_in");$("app").classList.add("hide");$("login").style.display="flex";};
+$("logout").onclick=()=>{sessionStorage.removeItem("cortex_cmd_in");$("app").classList.add("hide");$("login").style.display="flex";showSignin();};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 
-/* ---------- login ---------- */
+/* ---------- auth: first-run setup wizard, sign-in, recovery ---------- */
 function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";render();setTab();if(tab==="techs")tickCountdowns();startHealthPolling();pollAllSites();}
-$("lg-go").onclick=()=>{const u=$("lg-user").value.trim(),p=$("lg-pass").value;
-  if(u===OWNER.user&&p===OWNER.pass){sessionStorage.setItem("cortex_cmd_in","1");enter();}
-  else $("lg-err").textContent="Wrong username or password.";};
-$("lg-pass").addEventListener("keydown",e=>{if(e.key==="Enter")$("lg-go").click();});
-if(sessionStorage.getItem("cortex_cmd_in")==="1")enter();
+function signedIn(acct){OWNER.user=acct.user;OWNER.name=acct.name;sessionStorage.setItem("cortex_cmd_in","1");enter();}
+const CARD=()=>$("login-card");
+function head(title,sub){return `<div class="login-logo">${LOGO_SVG}Cortex Command</div><div class="login-sub">${esc(sub||"Fleet console")}</div>${title?`<h2 style="margin:4px 0 14px;font-size:18px">${esc(title)}</h2>`:""}`;}
+
+/* first-run: create the owner account for this console */
+function showSetup(){
+  CARD().innerHTML=head("Set up this console","Fleet console · first-time setup")+`
+    <label class="flabel">Your name</label>
+    <input class="inp" id="su-name" placeholder="e.g. William" autocomplete="off">
+    <label class="flabel" style="margin-top:10px">Owner username</label>
+    <input class="inp" id="su-user" placeholder="username" autocomplete="off">
+    <label class="flabel" style="margin-top:10px">Password</label>
+    <input class="inp" id="su-pass" type="password" placeholder="choose a password" style="margin-top:4px">
+    <input class="inp" id="su-pass2" type="password" placeholder="confirm password" style="margin-top:8px">
+    <div class="err-text" id="su-err"></div>
+    <button class="btn primary" id="su-go" style="width:100%;margin-top:10px">Create console</button>
+    <div class="note" style="margin-top:14px">This owner account always has access to every building. You'll get a recovery code next — keep it somewhere safe.</div>`;
+  $("su-go").onclick=()=>{
+    const name=$("su-name").value.trim(),user=$("su-user").value.trim(),p=$("su-pass").value,p2=$("su-pass2").value;
+    if(!name||!user){$("su-err").textContent="Enter your name and a username.";return;}
+    if(p.length<4){$("su-err").textContent="Password must be at least 4 characters.";return;}
+    if(p!==p2){$("su-err").textContent="Passwords don't match.";return;}
+    const acct={name,user,passhash:hash(p),recovery:genRecovery(name)};
+    saveAcct(acct);showRecoveryCode(acct);
+  };
+  $("su-pass2").addEventListener("keydown",e=>{if(e.key==="Enter")$("su-go").click();});
+}
+/* show the generated recovery code once, then enter */
+function showRecoveryCode(acct){
+  CARD().innerHTML=head("Save your recovery code","Account created")+`
+    <div class="note" style="margin-bottom:10px">If you ever forget your password, this code resets it. Write it down — it won't be shown again.</div>
+    <div style="font-family:ui-monospace,Menlo,monospace;font-size:18px;letter-spacing:2px;text-align:center;background:var(--surface-2,rgba(127,127,127,.1));border:1px dashed var(--border);border-radius:10px;padding:14px;user-select:all">${esc(acct.recovery)}</div>
+    <button class="btn primary" id="rc-done" style="width:100%;margin-top:14px">I've saved it — continue</button>`;
+  $("rc-done").onclick=()=>signedIn(acct);
+}
+/* normal sign-in */
+function showSignin(msg){
+  CARD().innerHTML=head("","Fleet console · AIROW")+`
+    <label class="flabel">Owner login</label>
+    <input class="inp" id="lg-user" placeholder="username" autocomplete="off">
+    <input class="inp" id="lg-pass" type="password" placeholder="password" style="margin-top:8px">
+    <div class="err-text" id="lg-err">${esc(msg||"")}</div>
+    <button class="btn primary" id="lg-go" style="width:100%;margin-top:6px">Sign in</button>
+    <div style="text-align:center;margin-top:14px"><button class="linklike" id="lg-forgot" style="background:none;border:0;color:var(--text-dim);cursor:pointer;font-size:13px;text-decoration:underline">Forgot password?</button></div>`;
+  $("lg-go").onclick=()=>{
+    const acct=loadAcct();if(!acct){showSetup();return;}
+    const u=$("lg-user").value.trim(),p=$("lg-pass").value;
+    if(u===acct.user&&hash(p)===acct.passhash)signedIn(acct);
+    else $("lg-err").textContent="Wrong username or password.";
+  };
+  $("lg-forgot").onclick=showRecovery;
+  $("lg-pass").addEventListener("keydown",e=>{if(e.key==="Enter")$("lg-go").click();});
+}
+/* recovery: enter the code, set a new password */
+function showRecovery(){
+  CARD().innerHTML=head("Account recovery","Reset your password")+`
+    <label class="flabel">Recovery code</label>
+    <input class="inp" id="rec-code" placeholder="CORTEX-XXXX-XXXX-XXXX" autocomplete="off" style="font-family:ui-monospace,Menlo,monospace">
+    <div class="err-text" id="rec-err"></div>
+    <button class="btn primary" id="rec-go" style="width:100%;margin-top:6px">Verify</button>
+    <div style="text-align:center;margin-top:14px"><button class="linklike" id="rec-back" style="background:none;border:0;color:var(--text-dim);cursor:pointer;font-size:13px;text-decoration:underline">Back to sign in</button></div>`;
+  $("rec-back").onclick=()=>showSignin();
+  $("rec-go").onclick=()=>{
+    const acct=loadAcct();
+    if(acct&&$("rec-code").value.trim().toUpperCase()===acct.recovery){
+      CARD().innerHTML=head("Set a new password","Recovery verified")+`
+        <input class="inp" id="np" type="password" placeholder="new password">
+        <input class="inp" id="np2" type="password" placeholder="confirm new password" style="margin-top:8px">
+        <div class="err-text" id="np-err"></div>
+        <button class="btn primary" id="np-go" style="width:100%;margin-top:10px">Save password</button>`;
+      $("np-go").onclick=()=>{
+        const p=$("np").value,p2=$("np2").value;
+        if(p.length<4){$("np-err").textContent="Password must be at least 4 characters.";return;}
+        if(p!==p2){$("np-err").textContent="Passwords don't match.";return;}
+        acct.passhash=hash(p);acct.recovery=genRecovery(acct.name);saveAcct(acct);
+        showRecoveryCode(acct);
+      };
+    } else $("rec-err").textContent="That code doesn't match this console.";
+  };
+}
+
+/* boot */
+(function(){
+  const acct=loadAcct();
+  if(!acct){showSetup();}
+  else if(sessionStorage.getItem("cortex_cmd_in")==="1"){OWNER.user=acct.user;OWNER.name=acct.name;enter();}
+  else {showSignin();}
+})();
 </script>
 </body>
 </html>
