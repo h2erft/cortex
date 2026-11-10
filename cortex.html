@@ -154,6 +154,25 @@
       a classic script tag to switch module-scoped view/elev/busView since page.evaluate cannot
       reach them; .card-main=unit card) + full self-install guide (Ubuntu + bootstrap one-liner).
     * STILL NEED on-wire capture for: exact discovery QUERY bytes, and room-temp table values.
+  - 2026-11-10 COMMUNITY CORRECTIONS (FIELD-VERIFIED by an outside replicator; see LGAP_reference §0):
+    * Their write frame `80 00 A0 31 03 30 07 DE` (on/cool/fan3/22°C) checksum-validates with our
+      lgapCk → independently confirms checksum AND setpoint encoding. Adopted:
+    * SETPOINT IS IN THE BASIC cmd0 FRAME: b6 = °C-15 (22°C→0x07); half-degree = b0 bit2. Supersedes
+      the old "b6 not setpoint / cmd5-only" story. cmdBytesFor() now encodes b6 from setC; SP_CONFIRMED
+      = true; decodeFrame sets d.setC=f[6]+15. txUnit now sends ONLY cmd0 (dropped the auto cmd5 blast).
+    * BYTE0 is a CMD HEADER: bit7=request, bits3-6=cmd#, bit2=+0.5°C. 0x80=cmd0, 0xA0=cmd4, 0xF0=cmd14.
+      byte2 always 0xA0 (not the cmd). byte4 bit1 = EXE write-strobe (clear=read).
+    * REPLY WIRE LAYOUT (differs from our firmware STRUCT offsets — wire is authoritative since Cortex
+      reads the wire): [0]=0x10 len [1]=flags(bit0 on,bit7 +0.5) [4]=addr [5]=ERROR(decimal) [6]=mode
+      (b0-2)+fan(b4-6) [7]=setpt-15(low nib) [8/9/10]=room/pipe-in/pipe-out [11:12]=EEV(LE) [14]=sys grp.
+      parseReply() rewritten to this. Temp formula C=(192-code)/3. Errors decimal (0x68=104; 204/206=HR).
+    * ODU answers for all its IDUs from cache (power off main ODU → system silent). Group by reply[14].
+    * DISCOVERY: no special frame — sweep cmd0 READS, ~1s timeout, silence=absent. MASTER.timeout 200→1000,
+      query default →"80 00 A0 AA 00 00 00", hi default 0xFF→0xFE.
+    * SAFETY (implemented): never send 0xFF (broadcast); isSafeReadQuery() refuses blind-sweeping a write
+      cmd (cmd4/5/9 overwrite settings even with zero payload; cmd4 wipes central's per-unit settings);
+      cmd5 (0xA8) is destructive → never auto-sent, armed-tool only. "Don't be a second master" warning
+      in the master panel. STILL want one real capture to confirm reply[14] grouping + room-temp accuracy.
   - 2026-11-09 v1.4.0 FIXES/FEATURES (pre-publish batch, reported from a live 1.1.2 box):
     * LAYOUT BUG FIXED: off-canvas .drawer was position:absolute + translateX(102%) → created
       horizontal overflow (blank right-scroll area; closed drawer visible when scrolled). Fix:
@@ -828,7 +847,7 @@ function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,
        TWO checksums (14 AND 15); ap_mkchksum == lgapCk (sum XOR 0x55), confirmed in code. */
 const MODELO={cool:0,dry:1,fan:2,auto:3,heat:4};  // ALL CONFIRMED 2026-11-08 from firmware mode→code converter (strcmp chain @0x380c8)
 const FANHI={low:1,med:2,high:3};       // low + med confirmed on wire; high by LG convention
-const SP_CONFIRMED=false;               // kept for UI text; basic frame never carries setpoint
+const SP_CONFIRMED=true;                // cmd0 basic frame b6 = °C-15 (community-confirmed, checksum-verified)
 function spByte(o){const c=Math.round((o.sp-32)*5/9);return Math.max(0,Math.min(31,c-13));} // legacy, unused
 /* setpoint helpers — source of truth is °C (coolC/heatC); display in the user's unit */
 const SP_MINC=16,SP_MAXC=30;
@@ -853,9 +872,20 @@ function cmdBytesFor(addr,o,change){
   const fanN=FANHI[o.fan]!=null?FANHI[o.fan]:(seen5>>4);       // unknown fan (e.g. auto) -> keep what the unit had
   const modeN=MODELO[o.mode]!=null?MODELO[o.mode]:(seen5&0x0f);
   const b5=(fanN<<4)|modeN;
-  const b6=(o.d6!=null?o.d6:0x06);                             // NOT setpoint — preserve last-seen
+  // b6 = setpoint in whole °C minus 15 (cmd0 write — community-confirmed: 22°C -> 0x07, frame
+  // 80 00 A0 31 03 30 07 DE checksum-validates). Half-degree rides b0 bit2 (0x04). When no
+  // setpoint is supplied, preserve the last-seen b6 so a power/mode/fan-only write doesn't move it.
+  let b0=o.b0||0x80, b6;
+  let setC=(o.setC!=null)?o.setC:(o.mode==="heat"?o.heatC:o.coolC);
+  if(setC!=null&&isFinite(setC)){
+    const whole=Math.round(setC*2)/2, intp=Math.floor(whole);
+    b6=Math.max(0,Math.min(45,intp-15));
+    if(whole-intp>=0.5)b0|=0x04;                              // +0.5°C flag in the header byte
+  }else{
+    b6=(o.d6!=null?o.d6:0x06);                                // no setpoint known — preserve last-seen
+  }
   const b4=(o.on?1:0)|(change===false?0:2);
-  const b=[o.b0||0x80,0x00,0xA0,addr,b4,b5,b6,0];b[7]=cksum(b);return b;}
+  const b=[b0,0x00,0xA0,addr,b4,b5,b6,0];b[7]=cksum(b);return b;}
 function cmdFrameFor(addr,o){return toHexBytes(cmdBytesFor(addr,o));}
 function cmdFrame(u){return cmdFrameFor(u.addr,u);}
 /* (B) 16-byte setpoint (cmd5): decode is certain; encode reuses a last-seen template header */
@@ -1098,15 +1128,23 @@ function decodeFrame(f){
   if(t==="cmd"){d.power=(f[4]&0x01)?"on":"off";d.locked=!!(f[4]&0x04);d.writing=!!(f[4]&0x02);
     d.change=!!(f[4]&0x02);d.b0=f[0];d.b5=f[5];d.b6=f[6];
     d.mode=BMODE[f[5]&0x0f]||("m"+(f[5]&0x0f));d.fan=BFAN[f[5]>>4]||("f"+(f[5]>>4));
-    d.setF=SP_CONFIRMED?Math.round((f[6]+13)*9/5+32):null;}
+    d.setC=f[6]+15+((f[0]&0x04)?0.5:0);                       // b6 = °C-15; header bit2 = +0.5°C
+    d.setF=SP_CONFIRMED?Math.round(d.setC*9/5+32):null;}
   return d;}
 function crc16xmodem(buf,n){let c=0;for(let i=0;i<n;i++){c^=(buf[i]&0xff)<<8;for(let k=0;k<8;k++)c=(c&0x8000)?((c<<1)^0x1021)&0xffff:(c<<1)&0xffff;}return c&0xffff;}
 /* ---- MASTER / CC mode (beta) — Cortex drives the bus like the LG ACP ----
-   Cortex becomes the single master: it sends a query addressed to each unit, waits, and reads
-   the 16-byte reply (validated with CRC-16/XMODEM). The exact query bytes + reply field layout
-   still need one on-wire capture to perfect, so the query is editable and every byte is logged. */
+   Cortex becomes the single master: it sends a cmd0 READ (EXE clear, zero payload) addressed to
+   each unit, waits ~1s, and reads the 16-byte reply (validated with the LG sum checksum, lgapCk).
+   Discovery is just a sweep of cmd0 reads — unused addresses stay silent (silence is the only "no").
+   SAFETY (from a community replicator): only cmd0 with EXE clear, and cmd14 with bytes 5-6 zero,
+   are safe to send blind. cmd4 (0xA0), cmd5 (0xA8) and cmd9 (0xC8) OVERWRITE stored settings even
+   with an all-zero payload (cmd4 also wipes the central's per-unit settings), and address 0xFF is a
+   broadcast to every ODU — Cortex never sweeps 0xFF and refuses to blind-sweep a write command. */
 let MASTER={tap:null,running:false,abort:false,rxbuf:[],found:new Map(),log:[],
-  lo:0x00,hi:0xff,turnaround:30,timeout:200,query:"80 00 A0 AA 01 00 00"};
+  lo:0x00,hi:0xfe,turnaround:30,timeout:1000,query:"80 00 A0 AA 00 00 00"};
+// A query is a safe discovery read only if byte0 is cmd0 (bits3-6 = 0, i.e. 0x80/0x84) and the
+// EXE write-strobe (byte4 bit1) is clear. Anything else could overwrite a unit on a blind sweep.
+function isSafeReadQuery(b){return b.length>=5 && (b[0]&0x78)===0 && (b[4]&0x02)===0;}
 function mhex(x){return x.toString(16).padStart(2,"0").toUpperCase();}
 function mlog(s){MASTER.log.unshift(new Date().toLocaleTimeString()+"  "+s);if(MASTER.log.length>400)MASTER.log.pop();bus.dirty=true;}
 function masterWrite(bytes){if(!bus.port||!bus.port.writable)return false;
@@ -1117,6 +1155,7 @@ function buildQuery(addr){
   if(b.length===7&&b[2]===0xA0)b=[...b,lgapCk(b,7)];  // auto-append the sum checksum for the 8-byte LG form
   return b;}
 async function masterPoll(addr){
+  if(addr===0xFF){mlog("⚠ refusing address 0xFF (ODU broadcast)");return null;}
   MASTER.rxbuf=[];MASTER.tap=(bytes)=>{for(const x of bytes)MASTER.rxbuf.push(x);};
   const q=buildQuery(addr);mlog("TX "+hx(addr)+"  "+q.map(mhex).join(" "));
   masterWrite(q);
@@ -1128,17 +1167,32 @@ async function masterPoll(addr){
     if(lgapCk(f,15)===f[15]){const p=parseReply(f);mlog("    "+addr+" → "+p.text);return{addr,raw:f,ok:true,parsed:p};}}
   return rx.length?{addr,raw:rx,ok:false}:null;}
 // Decode a validated 16-byte AC reply (offsets confirmed from firmware ProcessRxDataFromAC).
+// Decode a validated 16-byte reply using the ON-WIRE layout reported by a community replicator
+// who sniffed a live Multi V IV bus:
+//   [0]=0x10 len  [1]=flags(bit0 on, bit7 +0.5°C)  [4]=addr  [5]=error code (plain decimal)
+//   [6]=mode(bits0-2)+fan(bits4-6)  [7]=setpoint-15 (low nibble)  [8]=room [9]=pipe-in [10]=pipe-out
+//   [11:12]=EEV position (LE)  [14]=system/ODU group id
+// NOTE: our ACP firmware disassembly earlier read [5]=settemp/[6]=mode/[7]=fan — those are offsets
+// into the ACP's PARSED struct, not the wire. Cortex reads the wire, so we use the layout above.
+const tC=code=>Math.round((192-code)/3*10)/10;                // community temp table: C = (192-code)/3
 function parseReply(f){
   const modeName=Object.keys(MODELO).find(k=>MODELO[k]===(f[6]&7))||("mode"+(f[6]&7));
-  const fanName=Object.keys(FANHI).find(k=>FANHI[k]===(f[7]&0x0f))||("fan"+(f[7]&0x0f));
-  const set=(f[5]===0xAD)?null:f[5];
-  return {addr:f[4],mode:modeName,fan:fanName,settemp:set,roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
-    text:`${modeName} · fan ${fanName}${set==null?"":" · set "+set+"°C"} · room(raw) ${f[8]}`};}
+  const fanName=Object.keys(FANHI).find(k=>FANHI[k]===((f[6]>>4)&7))||("fan"+((f[6]>>4)&7));
+  const set=15+(f[7]&0x0f)+((f[1]&0x80)?0.5:0);
+  const err=f[5], room=tC(f[8]), pin=tC(f[9]), pout=tC(f[10]), eev=f[11]|(f[12]<<8), group=f[14];
+  return {addr:f[4],mode:modeName,fan:fanName,settemp:set,err,room,pipeIn:pin,pipeOut:pout,eev,group,
+    roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
+    text:`${modeName} · fan ${fanName} · set ${set}°C · room ${room}°C${err?" · ERR "+err:""} · sys ${group}`};}
 async function masterDiscover(){
   if(!bus.port){toast("Connect the adapter first");return;}
-  MASTER.abort=false;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(MASTER.hi)+" —");busUpdate();
-  for(let a=MASTER.lo;a<=MASTER.hi&&!MASTER.abort;a++){const r=await masterPoll(a);
-    if(r){MASTER.found.set(a,r);mlog("  ✓ reply at "+hx(a)+(r.crc?" (CRC ok)":" (unverified)"));busUpdate();}}
+  const probe=buildQuery(MASTER.lo);
+  if(!isSafeReadQuery(probe)){toast("Unsafe query — discovery needs a cmd0 read like 80 00 A0 AA 00 00 00");
+    mlog("✖ discovery blocked: query is not a safe cmd0 read (cmd4/5/9 or EXE set would overwrite units)");
+    if(view==="busscan")renderBusScan();return;}
+  const hi=Math.min(MASTER.hi,0xFE);                            // never sweep 0xFF (broadcast to every ODU)
+  MASTER.abort=false;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(hi)+" (cmd0 reads, "+MASTER.timeout+"ms) —");busUpdate();
+  for(let a=MASTER.lo;a<=hi&&!MASTER.abort;a++){if(a===0xFF)continue;const r=await masterPoll(a);
+    if(r&&r.ok){MASTER.found.set(a,r);mlog("  ✓ reply at "+hx(a)+(r.parsed?" · sys "+r.parsed.group:""));busUpdate();}}
   mlog("— discovery done: "+MASTER.found.size+" responder(s) —");if(view==="busscan")renderBusScan();}
 async function masterLoopRun(){
   if(!bus.port){toast("Connect the adapter first");return;}
@@ -1150,9 +1204,9 @@ async function masterLoopRun(){
       await new Promise(r=>setTimeout(r,MASTER.turnaround));}}
   MASTER.running=false;mlog("— master poll loop stopped —");if(view==="busscan")renderBusScan();}
 function masterStop(){MASTER.abort=true;MASTER.running=false;if(view==="busscan")renderBusScan();}
-function masterImport(){let n=0;for(const [a,r] of MASTER.found){let u=units.find(x=>x.addr===a);
-    if(!u){u=makeDiscoveredUnit(a,"System A","");units.push(u);n++;}
-    if(r&&r.parsed){const p=r.parsed;u.mode=p.mode;u.fan=p.fan;if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}}}
+function masterImport(){let n=0;for(const [a,r] of MASTER.found){const p=r&&r.parsed;let u=units.find(x=>x.addr===a);
+    if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),"");units.push(u);n++;}
+    if(p){u.mode=p.mode;u.fan=p.fan;if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}}}
   if(n){saveUnits();renderAll();}toast(n?("Imported "+n+" unit(s)"):"Units updated");if(view==="busscan")renderBusScan();}
 function masterCaptureText(){return MASTER.log.slice().reverse().join("\n");}
 function downloadMasterLog(){const t=masterCaptureText();const bl=new Blob([t],{type:"text/plain"});const u=URL.createObjectURL(bl);
@@ -1266,15 +1320,15 @@ function liveTx(){return !!bus.port && bus.scanning;}
 async function txUnit(u){
   if(ctrl.running){ctrl.cmds.set(u.addr,{on:u.on,mode:u.mode,fan:u.fan,sp:u.sp,coolC:u.coolC,heatC:u.heatC,d5:u.d5,d6:u.d6,b0:u.b0});toast("Queued into controller loop → "+hx(u.addr));return;}
   if(!bus.port||!bus.port.writable){toast("Bus not connected");return;}
-  const basic=cmdBytesFor(u.addr,u);
-  const sp5=cmd5SetpointBytes(u.addr,u.coolC,u.heatC,{on:u.on});
+  // One cmd0 write frame carries power/mode/fan AND setpoint (b6 = °C-15). We do NOT auto-send
+  // cmd5 (0xA8): the community confirms cmd5 overwrites the unit's stored settings even with a
+  // zero payload, so it stays behind the explicit, armed "cmd5" tool. cmd0 is the safe control path.
+  const basic=cmdBytesFor(u.addr,Object.assign({},u,{setC:(u.mode==="heat"?u.heatC:u.coolC)}));
   try{const w=bus.port.writable.getWriter();
     for(let i=0;i<5;i++){await w.write(Uint8Array.from(basic));await new Promise(r=>setTimeout(r,140));}
-    for(let i=0;i<5;i++){await w.write(Uint8Array.from(sp5));await new Promise(r=>setTimeout(r,140));}
     w.releaseLock();
-    const push=(hexs,lbl)=>{const d={addr:u.addr,type:"tx",hex:hexs,label:lbl};bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+hexs);};
-    push(toHexBytes(basic),`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan}`);
-    push(toHexBytes(sp5),`setpoint cool ${spDisp(u.coolC)}° / heat ${spDisp(u.heatC)}°`);
+    const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°`};
+    bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);
     bus.dirty=true;
     toast("⚡ Sent → "+hx(u.addr)+" (power/mode/fan + setpoint)");
   }catch(e){toast("Send failed: "+e.message);}}
@@ -1284,7 +1338,7 @@ function txUnitBytes(addr){const u=units.find(x=>x.addr===addr);const a=bus.addr
   return {d5:u&&u.d5!=null?u.d5:(l?l.b5:null),d6:u&&u.d6!=null?u.d6:(l?l.b6:null),b0:u&&u.b0?u.b0:(l?l.b0:0x80)};}
 function txBytes(){
   const addr=txState.addr==null?0:txState.addr;
-  return cmdBytesFor(addr,Object.assign(txUnitBytes(addr),{on:txState.on,mode:txState.mode,fan:txState.fan,sp:Math.round(txState.spC*9/5+32)}));}
+  return cmdBytesFor(addr,Object.assign(txUnitBytes(addr),{on:txState.on,mode:txState.mode,fan:txState.fan,setC:txState.spC,sp:Math.round(txState.spC*9/5+32)}));}
 async function busSend(){
   if(!session.tech){toast("Tech mode only");return;}
   if(txState.addr==null){toast("Pick a target address first");return;}
@@ -1302,10 +1356,11 @@ async function busSend(){
     toast("Sent "+reps+"× to "+hx(txState.addr)+" — check the thermostat");
   }catch(e){bus.err="Send failed: "+e.message;}
   renderBusScan();}
-/* ===== Setpoint send (16-byte cmd5) — EXPERIMENTAL.
-   Temperature bytes are firmware-confirmed; header bytes (cmd id / flags) are still being
-   pinned down, so this transmits and you watch the unit's reply to verify. Supports a
-   single setpoint (auto) OR separate cool/heat (2-point stats). ===== */
+/* ===== Setpoint send (16-byte cmd5 / 0xA8) — EXPERIMENTAL & DESTRUCTIVE.
+   cmd5 OVERWRITES a unit's stored settings even with a zero payload (community warning), so it is
+   never used for probing and never auto-sent — only here, behind the armed two-step confirm. For
+   normal control use the cmd0 path (power/mode/fan/setpoint in one 8-byte frame). cmd5 is only for
+   the dual cool/heat (2-point) case + 0.5° precision; watch the reply to verify what the unit took. ===== */
 let tx5={addr:null,dual:false,coolC:24,heatC:20,single:24,cmdId:0x10,flags:0x01,repeat:5,armed:false};
 function tx5Bytes(){
   const addr=tx5.addr==null?0:tx5.addr;
@@ -1524,7 +1579,7 @@ function renderBusScan(){
     <div class="lab" style="margin-bottom:14px">
       <div class="labhead"><span class="dot ${MASTER.running?'':'idle'}"></span><b>Master / CC mode</b> · Cortex as bus master <span style="color:#6fe3c6">beta</span></div>
       <div class="labbody">
-        <div class="labsub">Cortex becomes the controller: it polls each address and reads the 16-byte reply (checksum-verified, decoded to mode/fan/setpoint). <b>Disconnect the real LG central controller first.</b> Query bytes are editable (AA = the address byte) — leave the default to try, or paste the real query from a sniff. Every frame is logged; hit “save capture” and send it over.</div>
+        <div class="labsub">Cortex becomes the controller: it sweeps safe cmd0 reads and decodes the 16-byte reply (checksum-verified → mode/fan/setpoint/room/error, grouped by ODU). <b>Never run this while a real LG central (ACP/AC Smart) is on the bus</b> — two masters collide and you'll fight its polls, so pull the central off this ODU first. Discovery sends read-only frames and never touches 0xFF (the ODU broadcast). Query bytes are editable (AA = the address byte); the default <span class="mono">80 00 A0 AA 00 00 00</span> is a safe cmd0 read. Every frame is logged — hit "save capture" to export.</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0">
           <label style="font-size:11.5px;color:#5f8a84">scan <input id="m-lo" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.lo)}"> .. <input id="m-hi" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.hi)}"></label>
           <label style="font-size:11.5px;color:#5f8a84">turnaround <input id="m-ta" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.turnaround}">ms</label>

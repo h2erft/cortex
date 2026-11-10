@@ -15,6 +15,60 @@ directly instead of being locked to LG's controllers.
 - **CONFIRMED** — read directly from the controller's firmware code, or observed on the wire.
 - **LIKELY** — strongly implied by the code/data but not independently verified.
 - **GUESS** — convention only, not yet proven.
+- **FIELD-VERIFIED** — reported by an outside party who has successfully replicated the bus on
+  live Multi V IV hardware (Nov 2026). Cross-checked against our firmware findings where possible.
+
+---
+
+## 0. Community corrections (FIELD-VERIFIED, Nov 2026)
+A reader who has driven real indoor units from a non-LG master supplied the following. Several
+items **supersede earlier guesses** here; where they do, the old section carries a pointer up to
+this one. One concrete frame they gave — write addr 0x31, on, cool, fan 3, 22 °C:
+`80 00 A0 31 03 30 07 DE` — checksum-validates with our own `(sum mod 256) XOR 0x55`, which
+independently confirms both the checksum and the setpoint encoding below.
+
+**Frame header (request byte 0).** Byte 0 is a *command header*, not a fixed marker:
+`bit7 = request`, `bits3-6 = command number`, `bit2 = +0.5 °C`. So `0x80` = cmd 0
+(status/control), `0xA0` = cmd 4, `0xF0` = cmd 14 (ODU page query). **Byte 2 is always `0xA0`
+and is NOT the command number.**
+
+**Write strobe + setpoint in the basic frame.** Request `byte4 bit1 = EXE` (write strobe):
+clear = read, set = bytes 4–6 are applied. When writing: power = `b4 bit0`, mode = `b5 bits0-2`,
+fan = `b5 bits4-6`, **setpoint = `b6` = °C − 15** (so 22 °C → `0x07`; half-degree rides the
+`bit2` of byte 0). This means the plain 8-byte cmd 0 frame **does** carry the setpoint — it is the
+safe way to set temperature. (Supersedes §4a's "b6 is not the setpoint" and the cmd5-only story.)
+
+**16-byte reply — on-the-wire layout.** `[0]` length `0x10`; `[1]` flags (`bit0` on, `bit7`
++0.5 °C); `[4]` address; `[5]` error code (plain decimal — `0x68` = 104, not BCD); `[6]` mode
+(bits0-2) + fan (bits4-6); `[7]` setpoint − 15 (low nibble); `[8]/[9]/[10]` room / pipe-in /
+pipe-out; `[11:12]` indoor EEV position (little-endian), **not** temps; `[14]` system/ODU group
+id. (Supersedes the §4e offsets, which were read from the ACP's *parsed struct*, not the wire —
+Cortex reads the wire, so it uses this layout.)
+
+**Temperatures:** `°C = (192 − code) / 3`. Matches LG's own readout ~99 % of the time, within
+1 °C otherwise (the real table bends slightly at the extremes).
+
+**Who answers:** you are **not** talking to the indoor unit — the **main ODU answers for every
+IDU on its system from a cached copy**. Power the main ODU off and that whole system goes silent.
+A reply reflects the ODU cache, so a command shows up immediately; re-read ~15 s later to see what
+the unit actually accepted. Group IDUs by reply `[14]`: within one sweep it's the same for every
+IDU on a system.
+
+**Discovery:** there is **no special discovery frame**. Sweep cmd 0 *reads* (EXE clear, bytes
+4–6 zero) across addresses 0–255 with about a 1 s timeout; unused addresses simply don't answer
+(silence is the only "no").
+
+### ⚠ Safety — do not skip this
+- **Don't be a second master.** If an ACP or AC Smart is on the bus, **only listen**. Two masters
+  collide and you corrupt its polling.
+- **Some "polls" are writes.** cmd 4 (`0xA0`), cmd 5 (`0xA8`) and cmd 9 (`0xC8`) **cannot be sent
+  read-only — even an all-zero payload overwrites stored settings.** cmd 4 also wipes the central
+  controller's per-unit settings, and the reply won't show what was there before. For blind
+  discovery stick to **cmd 0 with EXE clear**, or cmd 14 with bytes 5 and 6 zero.
+- **Never use address `0xFF`** — it is a broadcast to every ODU.
+
+Cortex implements all three guards: discovery only emits cmd 0 reads, it refuses to blind-sweep a
+write command, and it never addresses `0xFF`.
 
 ---
 
@@ -78,6 +132,10 @@ the controller). A temperature is split into a whole part and a tenths part:
 Worked example (from cmd5): cool **23.5 °C**, heat **20.0 °C** →
 whole bytes `0x17` (23) and `0x14` (20), tenths nibble byte `0x50` (cool .5, heat .0).
 
+**Sensor readings (room / pipe) use a different encoding** — not the limit/setpoint format above.
+A sensor byte decodes as **`°C = (192 − code) / 3`** (FIELD-VERIFIED, §0), accurate to ~1 °C.
+Setpoints in a cmd 0 frame are the simple **°C − 15** form (§0/§4a).
+
 ## 4. Frame types
 LGAP is a set of numbered commands (cmd4, cmd5, cmd6, cmd7, …). A single indoor unit is
 driven by **more than one** frame type: a lightweight state broadcast plus heavier per-unit
@@ -93,12 +151,14 @@ control frames.
          bit1 = "change" flag (controller sends 03/02 once, then settles to 01/00)
   b5   : HIGH nibble = FAN  (see §5)
          LOW  nibble = MODE (see §5)
-  b6   : NOT the setpoint — a separate field; preserve the last-seen value
+  b6   : setpoint = °C − 15 on a WRITE (EXE set); e.g. 22°C → 0x07. Half-degree = byte0 bit2.
+         On a read, or a power/mode/fan-only write, preserve the last-seen value.
   ck   : checksum(frame, 7)
 ```
-This is the controller's state broadcast. It carries power/mode/fan only — **not** the
-setpoint. Note that in this frame `b4 bit1` is the *change* flag, **not** a lock bit (locks
-live in the cmd4 control frame, §4c) — do not confuse the two.
+This is the controller's state/control frame (cmd 0). **Correction (FIELD-VERIFIED, §0):** earlier
+this doc said b6 was "not the setpoint." It is — a cmd 0 write carries the setpoint in b6 (°C − 15),
+and `b4 bit1` is the **EXE write strobe** (clear = read, set = apply bytes 4–6). In this frame `b4
+bit1` is *not* a lock bit (locks live in the cmd4 control frame, §4c) — do not confuse the two.
 
 ### 4b. Setpoint command "cmd5" — 16 bytes
 *CONFIRMED — read from the firmware builder `CopyControlData_to_sendControlacCmd5`.* This is
@@ -158,8 +218,14 @@ setpoint/mode command; cmd6 appears to carry occupancy / setback / sensor-affect
 which field belongs to cmd5 vs cmd6 is still being pinned down; both are sent the same way.
 
 ### 4e. Unit response / telemetry frame — DECODED FROM FIRMWARE
-The AC reply parser `ProcessRxDataFromAC` (control engine) gives the exact layout of the
-**16-byte** indoor-unit reply. This supersedes earlier guesses.
+> **Correction (FIELD-VERIFIED, §0):** the offsets below were read from the ACP's *parsed
+> struct*, which is **not** the on-wire byte order. For decoding raw bus bytes (what Cortex does)
+> use the **on-wire layout in §0** — `[5]` = error, `[6]` = mode+fan, `[7]` = setpoint−15,
+> `[8/9/10]` = room/pipe-in/pipe-out, `[11:12]` = EEV, `[14]` = system group. The struct view
+> below is kept for reference against the firmware.
+
+The AC reply parser `ProcessRxDataFromAC` (control engine) gives the ACP's internal struct layout
+of the **16-byte** indoor-unit reply.
 
 **Integrity (CONFIRMED):** `ProcessRxDataFromAC` validates the reply with
 `byte[15] == ap_mkchksum(buf, 15)`, i.e. the reply checksum is the **same family as commands**:
@@ -228,6 +294,11 @@ speed code**:
 **Locks** — bits in the cmd4 control frame; see §4c.
 
 ## 6. Error codes (CHxx)
+> **Note (FIELD-VERIFIED, §0):** on the wire the error is **reply byte 5**, a **plain decimal**
+> code (not BCD) — the same number shown on the unit. Examples reported from the field:
+> **104** = main ODU lost its sub-unit, **204 / 206** = HR-box comm error / duplicate HR address.
+> Use the service manual for the specific model; the `CHxx` table below is the common convention.
+
 `err` in a reply is a raw number; LG's standard `CHxx` labels map as follows (the common
 set; not exhaustive):
 
@@ -305,9 +376,12 @@ bytes could be received" symptom); plenty long is fine because the master sets t
   A0/A4 cmd4 frame header needs one real capture before locks can be transmitted safely.
 - **cmd6 vs cmd5 field split** — which fields belong to which command.
 - **cmd7 (AHU)** — the AHU command frame is not decoded.
-- **Obedience** — the one thing static analysis can't answer: whether a real indoor unit
-  actually acts on a cmd5 sent by a third-party controller. Needs one real-site transmit
-  test with the original controller disconnected.
+- **Obedience** — **ANSWERED (FIELD-VERIFIED, §0):** indoor units *do* act on a non-LG master.
+  Every field takes on the first send; read addr 0x31 = `80 00 A0 31 00 00 00 04`, write on/cool/
+  fan3/22 °C = `80 00 A0 31 03 30 07 DE`. Re-read ~15 s later to see what the unit accepted.
+- **Discovery** — **ANSWERED (§0):** no special frame; sweep cmd 0 reads, silence = absent.
+- **Setpoint on the wire** — **ANSWERED (§0):** cmd 0 byte 6 = °C − 15; use it instead of cmd 5
+  for ordinary temperature changes.
 
 ## 9. How to capture real frames yourself
 With root access to an LG ACP controller, raw frame logging is **built in**:
