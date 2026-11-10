@@ -136,6 +136,23 @@
       Old `ctrl` stub object/functions left in place but unused (dead code; ok).
     * NEXT: use the capture to fix the real query bytes + reply field map; then move UNITS to
       shared backend state so all browsers see the same discovered units.
+  - 2026-11-09 v1.4.0 REPLY PARSER DECODED (big) + README w/ real screenshots:
+    * Re-dug engine. DBs are config/schedule/modbus-register maps (JHISTORY=modbus regs, not
+      telemetry); bigdb_x*.sqlite corrupt from carve; schedule `ac.abs` lists commissioned addrs
+      (0..255 spread). No stored raw replies. BUT found the REPLY PARSER: control_ac
+      ProcessRxDataFromAC (0x3e198). CONFIRMED 16-byte AC reply field map (see LGAP_reference §4e):
+      [4]=addr [5]=settemp°C(0xAD=none) [6]=mode(low3) [7]=fan(low nibble)+bit7 flag
+      [8]=roomtemp(raw→InitRoomTemp float table) [9]=pipe-in [A]=pipe-out [B:C]=16bit(cap/EEV)
+      [E]~err [15]=checksum=(sum[0..14])XOR0x55. **Reply checksum is sum-XOR-0x55, NOT CRC16**
+      (CRC16/CheckRecvPacket is a lower 64-byte transport layer). CORRECTED master-mode: now
+      validates replies with lgapCk and parseReply() decodes mode/fan/settemp exactly; import
+      applies decoded state to units. Room/pipe temps still raw (InitRoomTemp table @0x25d68 is
+      static float literals, extractable next, or calibrate from capture).
+    * README.md rewritten with a real screenshot gallery (docs/img/01..06 png) rendered via
+      playwright+google-chrome (/home/claude/work/shots.py: seed localStorage cfg/units, inject
+      a classic script tag to switch module-scoped view/elev/busView since page.evaluate cannot
+      reach them; .card-main=unit card) + full self-install guide (Ubuntu + bootstrap one-liner).
+    * STILL NEED on-wire capture for: exact discovery QUERY bytes, and room-temp table values.
   - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
     (cool+heat) °C, transmits, with editable cmd/flags bytes.
   - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
@@ -1083,9 +1100,17 @@ async function masterPoll(addr){
   await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout));
   MASTER.tap=null;const rx=MASTER.rxbuf.slice();
   if(rx.length)mlog("RX "+hx(addr)+"  "+rx.map(mhex).join(" "));
-  for(let i=0;i+16<=rx.length;i++){const f=rx.slice(i,i+16);const c=crc16xmodem(f,14);
-    if(((c>>8)&0xff)===f[14]&&(c&0xff)===f[15])return{addr,raw:f,crc:true};}
-  return rx.length?{addr,raw:rx,crc:false}:null;}
+  // AC reply = 16 bytes, checksum byte[15] = (sum[0..14]) XOR 0x55  (firmware ProcessRxDataFromAC)
+  for(let i=0;i+16<=rx.length;i++){const f=rx.slice(i,i+16);
+    if(lgapCk(f,15)===f[15]){const p=parseReply(f);mlog("    "+addr+" → "+p.text);return{addr,raw:f,ok:true,parsed:p};}}
+  return rx.length?{addr,raw:rx,ok:false}:null;}
+// Decode a validated 16-byte AC reply (offsets confirmed from firmware ProcessRxDataFromAC).
+function parseReply(f){
+  const modeName=Object.keys(MODELO).find(k=>MODELO[k]===(f[6]&7))||("mode"+(f[6]&7));
+  const fanName=Object.keys(FANHI).find(k=>FANHI[k]===(f[7]&0x0f))||("fan"+(f[7]&0x0f));
+  const set=(f[5]===0xAD)?null:f[5];
+  return {addr:f[4],mode:modeName,fan:fanName,settemp:set,roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
+    text:`${modeName} · fan ${fanName}${set==null?"":" · set "+set+"°C"} · room(raw) ${f[8]}`};}
 async function masterDiscover(){
   if(!bus.port){toast("Connect the adapter first");return;}
   MASTER.abort=false;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(MASTER.hi)+" —");busUpdate();
@@ -1102,8 +1127,10 @@ async function masterLoopRun(){
       await new Promise(r=>setTimeout(r,MASTER.turnaround));}}
   MASTER.running=false;mlog("— master poll loop stopped —");if(view==="busscan")renderBusScan();}
 function masterStop(){MASTER.abort=true;MASTER.running=false;if(view==="busscan")renderBusScan();}
-function masterImport(){let n=0;for(const a of MASTER.found.keys())if(!units.find(u=>u.addr===a)){units.push(makeDiscoveredUnit(a,"System A",""));n++;}
-  if(n){saveUnits();renderAll();}toast(n?("Imported "+n+" unit(s)"):"No new units to import");if(view==="busscan")renderBusScan();}
+function masterImport(){let n=0;for(const [a,r] of MASTER.found){let u=units.find(x=>x.addr===a);
+    if(!u){u=makeDiscoveredUnit(a,"System A","");units.push(u);n++;}
+    if(r&&r.parsed){const p=r.parsed;u.mode=p.mode;u.fan=p.fan;if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}}}
+  if(n){saveUnits();renderAll();}toast(n?("Imported "+n+" unit(s)"):"Units updated");if(view==="busscan")renderBusScan();}
 function masterCaptureText(){return MASTER.log.slice().reverse().join("\n");}
 function downloadMasterLog(){const t=masterCaptureText();const bl=new Blob([t],{type:"text/plain"});const u=URL.createObjectURL(bl);
   const a=document.createElement("a");a.href=u;a.download="cortex-master-capture.txt";a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}
@@ -1468,7 +1495,7 @@ function renderBusScan(){
     <div class="lab" style="margin-bottom:14px">
       <div class="labhead"><span class="dot ${MASTER.running?'':'idle'}"></span><b>Master / CC mode</b> · Cortex as bus master <span style="color:#6fe3c6">beta</span></div>
       <div class="labbody">
-        <div class="labsub">Cortex becomes the controller: it polls each address and reads the 16-byte reply (CRC-16 checked). <b>Disconnect the real LG central controller first.</b> Query bytes are editable (AA = the address byte) — leave the default to try, or paste the real query from a sniff. Every frame is logged; hit “save capture” and send it over.</div>
+        <div class="labsub">Cortex becomes the controller: it polls each address and reads the 16-byte reply (checksum-verified, decoded to mode/fan/setpoint). <b>Disconnect the real LG central controller first.</b> Query bytes are editable (AA = the address byte) — leave the default to try, or paste the real query from a sniff. Every frame is logged; hit “save capture” and send it over.</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0">
           <label style="font-size:11.5px;color:#5f8a84">scan <input id="m-lo" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.lo)}"> .. <input id="m-hi" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.hi)}"></label>
           <label style="font-size:11.5px;color:#5f8a84">turnaround <input id="m-ta" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.turnaround}">ms</label>

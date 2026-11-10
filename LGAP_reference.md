@@ -157,33 +157,39 @@ setpoint/mode command; cmd6 appears to carry occupancy / setback / sensor-affect
 (based on the surrounding fields and `affect='SENSOR'` / occupancy data). The exact split of
 which field belongs to cmd5 vs cmd6 is still being pinned down; both are sent the same way.
 
-### 4e. Unit response / telemetry frame
-When a unit replies, the controller decodes it into these fields (the order the firmware's
-monitor-update writes them):
+### 4e. Unit response / telemetry frame — DECODED FROM FIRMWARE
+The AC reply parser `ProcessRxDataFromAC` (control engine) gives the exact layout of the
+**16-byte** indoor-unit reply. This supersedes earlier guesses.
 
-`mode, fan, swing, lock, settemp, roomtemp, oper, exe, err, affect, louverdirec (swing
-position), modelock, fanlock, settemplock, settemp_llim, settemp_ulim, limit_exe,
-pipe_intemp, pipe_outtemp, lev (EEV step), capa, capa_sum` — plus `oil_alarm` and `filter`
-on some unit types.
+**Integrity (CONFIRMED):** `ProcessRxDataFromAC` validates the reply with
+`byte[15] == ap_mkchksum(buf, 15)`, i.e. the reply checksum is the **same family as commands**:
+**byte[15] = (sum of bytes [0..14]) XOR 0x55**. It is *not* a CRC-16. (A CRC-16/XMODEM does
+exist at a lower packet layer — `CheckRecvPacket` on the 64-byte transport packet — but the
+AC reply itself is sum-XOR-0x55 at [15]. Validate AC replies that way.) A reply that fails the
+checksum triggers an `rs485_tcflush` and is dropped; a short/absent reply = "No Response".
 
-So a reply is **full telemetry**: room temperature, both pipe temperatures, EEV level,
-capacity, error code, filter sign, and current mode/fan/lock state.
-- mode / fan / lock values decode with the **same codes as the command side** (§5).
-- Temperatures almost certainly use the command-side encoding (§3): `roomtemp` to 0.1°,
-  pipe temps as whole °C.
-- `err` is a raw number; the `CHxx` labels (§6) are the standard LG mapping.
+**Field map (CONFIRMED — byte offsets within the 16-byte reply):**
 
-**Reply framing — CONFIRMED from firmware (`CheckRecvPacket`):** a reply is exactly
-**16 bytes**, and its integrity is a **CRC-16/XMODEM** (poly 0x1021, init 0x0000) over bytes
-**[0..13]**, stored big-endian in the last two bytes: **byte[14] = CRC high, byte[15] = CRC
-low**. This is *different* from the command-frame checksum (sum XOR 0x55, §2) — replies are
-**not** sum-checksummed, so validating a reply with the command checksum fails and makes the
-unit look like it's "reporting wrong." Validate replies with CRC-16/XMODEM.
-- A reply shorter than 16 bytes = "No Response" (unit absent / timed out).
-- An all-zero 16-byte reply also = no real unit at that address.
+| Byte | Field | Decode |
+|------|-------|--------|
+| 0 | frame header | reply marker |
+| 1 | flags / locks | bit2 (0x04) tested as a lock bit |
+| 2–3 | header | |
+| **4** | **unit address** | the responding unit's address (reply's address lives at [4], not [3]) |
+| **5** | **set temp** | whole °C; the value **0xAD is a sentinel** meaning "none", normalized to 0 |
+| **6** | **mode** | **low 3 bits**: 0 cool · 1 dry · 2 fan · 3 auto · 4 heat (same codes as §5) |
+| **7** | **fan + flag** | **low nibble = fan** (1 low · 2 med · 3 high, §5); **bit7** is a separate flag (swing / fan-auto) |
+| **8** | **room temp** | raw sensor index → °C via a calibration table built by `InitRoomTemp` (table is static float literals in the control binary; not yet extracted — show raw or calibrate from a capture) |
+| **9** | **pipe inlet temp** | raw → same table family |
+| **A** | **pipe outlet temp** | raw → same table family |
+| **B–C** | 16-bit value | `(byte[C] << 8) | byte[B]` — capacity or EEV step |
+| D | byte field | (capacity / level) |
+| E | byte field | likely `err` (→ CHxx, §6) |
+| **15** | **checksum** | `(sum[0..14]) XOR 0x55` |
 
-The exact byte **offsets** of the telemetry fields within those 16 bytes still want one real
-reply capture (§9) to pin precisely.
+So **mode, fan, and set temp decode exactly today** (bytes 5/6/7). **Room and pipe temps**
+need the `InitRoomTemp` calibration table (next extraction) or a quick on-site calibration
+(note the stat's room reading, compare to byte[8]).
 
 ### 4f. Poll / roll-call frames
 On a bus with **no** indoor units answering, a controller just calls roll. Those sweep
@@ -278,7 +284,7 @@ Per-unit transaction (`SendPacketID(id, addr, cmd, …)`):
    has bytes or hits a per-try limit). The reply is expected to be **exactly 16 bytes**; fewer
    = "No Response! From ID". `SendPacketID` in the slow/probe path even does a full `sleep(1s)`
    between write and read — discovery is deliberately unhurried.
-4. **Validate** the 16-byte reply with `CheckRecvPacket` = CRC-16/XMODEM (see §4e). A valid,
+4. **Validate** the 16-byte reply — AC replies use `byte[15] = (sum[0..14]) XOR 0x55` (see §4e). A valid,
    non-zero reply means the unit exists and carries its telemetry.
 
 Discovery = run that transaction across the address range; every address that returns a valid
