@@ -56,8 +56,9 @@
     cross-host redirect drops it, signed URL self-auths — never --location-trusted).
     bootstrap.sh takes CORTEX_TOKEN, injects into clone URL, then scrubs it from the git remote
     (no token on disk). PERSONAL INFO SCRUBBED from all repo files for public-readiness: real
-    name, location, and demo site IDs genericized; AIROW brand KEPT intentionally (product is
-    "Cortex by AIROW"; operator can request full de-brand). LGAP_reference.md rewritten as a
+    name, location, and demo site IDs genericized. AIROW de-branded from the main UI (header,
+    wizard, recovery-code prefix all "Cortex"); AIROW retained only in Settings>About ("Made by")
+    and the credits easter-egg. LGAP_reference.md rewritten as a
     clean public protocol spec (TOC, worked examples, error table, capture how-to). GitHub NOT
     yet linked to the Claude session (list_repos: no account) - operator must connect GitHub in
     claude.ai settings, then add_repo(push) + push, OR push themselves. Private-token OTA verified.
@@ -331,7 +332,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cortex by AIROW</title>
+<title>Cortex</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -658,7 +659,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 </head>
 <body>
 <header>
-  <div class="brand"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex<span style="font-size:11px;color:var(--text-faint);font-weight:400;margin-left:6px">by AIROW</span></div>
+  <div class="brand"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex</div>
   <div class="site"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg><span id="site-name">Site</span></div>
   <div class="bus"><span class="dot"></span>Bus online · <span class="mono">4800 8N1</span></div>
   <div class="spacer"></div>
@@ -2012,7 +2013,8 @@ function lockedTab(msg,kind){return `<div style="text-align:center;padding:28px 
   <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Enter the ${kind} passcode to unlock for this session.</div>
   <button class="btn primary" onclick="askPin('${kind}')">Unlock</button></div>`;}
 function aboutTab(){const isPriv=session.admin||session.tech;return `
-  ${row("Product","",`<span style="color:var(--text-dim)">AIROW Control</span>`)}
+  ${row("Product","",`<span style="color:var(--text-dim)">Cortex</span>`)}
+  ${row("Made by","Local-first HVAC control",`<span style="color:var(--text-dim)">AIROW</span>`)}
   ${row("Version","",`<span class="mono" id="verline" style="color:var(--text-dim);cursor:default">v0.1.0</span>`)}
   ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${(CFG&&CFG.site&&CFG.site.name)||'Site'}</span>`)}
   ${row("Remote access","",`<span style="color:var(--text-dim)">${(CFG&&CFG.remote&&CFG.remote.enabled)?'Tailscale — on':'Off'}</span>`)}
@@ -2020,7 +2022,7 @@ function aboutTab(){const isPriv=session.admin||session.tech;return `
   ${isPriv?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Owner recovery</div>
      <div class="sd" style="margin-bottom:8px">Per-site code to regain owner access if you're locked out. Keep it somewhere safe.</div>
      <div class="recovery">${(CFG&&CFG.recovery)||RECOVERY}</div>`:
-     `<div style="margin-top:16px;font-size:12px;color:var(--text-faint)">AIROW Control — custom VRF controller. © you.</div>`}`;}
+     `<div style="margin-top:16px;font-size:12px;color:var(--text-faint)">Cortex by AIROW — local-first VRF control.</div>`}`;}
 
 /* ---- protocol reference viewer (the "what we know" doc, served by the appliance) ---- */
 function inlineMd(s){return s.replace(/`([^`]+)`/g,'<code class="md-code">$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');}
@@ -2284,7 +2286,7 @@ function recoverFlow(){showScreen("login");
   document.getElementById("screen-login").innerHTML=`<div class="auth"><div class="auth-card">
    <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Account recovery</div></div>
    <div class="auth-body"><h2>Enter recovery code</h2><div class="auth-sub">The per-site code from commissioning. Resets the owner password.</div>
-    <input id="rc" class="inp mono" placeholder="AIROW-SITE-XXXX-XXXX">
+    <input id="rc" class="inp mono" placeholder="CORTEX-SITE-XXXX-XXXX">
     <div class="err-text" id="rc-err"></div>
     <button class="btn primary" id="rc-go" style="width:100%;justify-content:center;padding:12px">Verify</button>
     <div style="text-align:center;margin-top:14px"><button class="linklike" onclick="showLogin()">Back to sign in</button></div>
@@ -2310,7 +2312,7 @@ let WZ=null, WZi=0;
 function startWizard(){WZ={site:{name:"",location:"",unit:"F"},owner:{name:"",username:"",pass:"",confirm:""},adminPin:"",techPin:"",team:[],remote:{enabled:false},protocols:["lg"]};WZi=0;showScreen("setup");renderWizard();}
 function v(id){const el=document.getElementById(id);return el?el.value:"";}
 const WSTEPS=[
- {title:"Welcome",sub:"Let's commission this AIROW controller for the site.",
+ {title:"Welcome",sub:"Let's commission this Cortex controller for the site.",
   body:()=>`<div class="note-box">This 6-step setup creates the site identity, your owner account, access codes, your team, and remote access. It runs once per controller. You can re-run it later from Settings → Advanced.</div>`,
   save:()=>null},
  {title:"Site",sub:"What are we controlling?",
@@ -2351,7 +2353,7 @@ const WSTEPS=[
   body:()=>`<div class="note-box">Recommended: <b>Tailscale</b> — a private network with no port forwarding, so the controller never sits on the open internet. (WireGuard works too.)</div>
    <div class="setrow"><div><div class="sl">Enable remote access</div><div class="sd">Sets up this controller's end at finish</div></div><button class="toggle ${WZ.remote.enabled?'on':''}" id="rm-tog"></button></div>
    <div id="rm-detail" class="${WZ.remote.enabled?'':'hide'}" style="margin-top:12px">
-     <label class="flabel">This controller will join as</label><div class="recovery" style="color:var(--text)">airow-${(WZ.site.name||'site').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,18)}</div>
+     <label class="flabel">This controller will join as</label><div class="recovery" style="color:var(--text)">cortex-${(WZ.site.name||'site').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,18)}</div>
      <div class="note-box" style="margin-top:12px">At finish you'll get a one-time join link. Install Tailscale on your phone or laptop, approve the device, and reach the dashboard at its private name — no public IP, no open ports.</div></div>`,
   wire:()=>{const t=document.getElementById("rm-tog");if(t)t.onclick=()=>{WZ.remote.enabled=!WZ.remote.enabled;renderWizard();};},
   save:()=>null},
@@ -2415,7 +2417,7 @@ function renderWizard(){const s=WSTEPS[WZi];
     if(err){document.getElementById("wzerr").textContent=err;return;}
     if(WZi===WSTEPS.length-1)provision();else{WZi++;renderWizard();}};}
 function provision(){
-  const rc="AIROW-"+(WZ.site.name||"SITE").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6)+"-"+Math.random().toString(16).slice(2,6).toUpperCase()+"-"+Math.random().toString(16).slice(2,6).toUpperCase();
+  const rc="CORTEX-"+(WZ.site.name||"SITE").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6)+"-"+Math.random().toString(16).slice(2,6).toUpperCase()+"-"+Math.random().toString(16).slice(2,6).toUpperCase();
   CFG={provisioned:true,site:{name:WZ.site.name,location:WZ.site.location,unit:WZ.site.unit},
     protocols:(WZ.protocols&&WZ.protocols.length?WZ.protocols:["lg"]),
     adminPin:WZ.adminPin,techPin:WZ.techPin,recovery:rc,remote:WZ.remote,unitMeta:{},

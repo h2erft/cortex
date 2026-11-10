@@ -64,11 +64,15 @@ CORTEX_NAME=
 ENV
 fi
 if [ ! -f "$DATA/update.conf" ]; then
-  cat > "$DATA/update.conf" <<'CONF'
+  # Auto-fill the repo from the clone this installer ran out of, so OTA works out of the box
+  # for a public repo with zero extra steps (private repos still need a token below).
+  REPO_SLUG="$(git -C "$UIDIR" config --get remote.origin.url 2>/dev/null \
+    | sed -E 's#(git@github.com:|https://[^/]*github.com/)##; s#\.git$##' | grep -E '^[^/]+/[^/]+$' || true)"
+  cat > "$DATA/update.conf" <<CONF
 # OTA via GitHub (recommended — works with public AND private repos). Set your repo:
 #   CORTEX_UPDATE_REPO=YOUR-GH-USER/cortex
-# Leave blank to disable OTA on this appliance.
-CORTEX_UPDATE_REPO=
+# Leave blank to disable OTA on this appliance.  (auto-filled from the install source below)
+CORTEX_UPDATE_REPO=${REPO_SLUG}
 
 # PRIVATE repo only: a fine-grained GitHub token with Contents: Read on that repo.
 # Leave blank for a public repo.
@@ -107,7 +111,7 @@ echo "1) Open Cortex in a browser:   http://$HN.local:8080   (bookmark this)"
 echo "   ...or by IP if .local doesn't resolve:   http://<this-device-ip>:8080"
 echo "   First visit walks you through naming the site and picking the adapter."
 echo "2) (your remote access) Join your tailnet:   tailscale up"
-echo "3) Turn on OTA updates:   nano $DATA/update.conf   (paste your manifest URL)"
+echo "3) OTA updates: auto-configured from your repo. (Private repo? add a token: nano $DATA/update.conf )"
 echo "4) Lock down to Tailscale-only later:  ufw delete allow 8080/tcp"
 echo
 echo "Logs:     journalctl -u cortex-appliance -f"
