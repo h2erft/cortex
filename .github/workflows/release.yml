@@ -22,7 +22,7 @@ jobs:
           printf '%s\n' "$VER" > appliance/VERSION
 
           STAGE="$(mktemp -d)"
-          cp appliance/server.js appliance/package.json appliance/VERSION appliance/cortex-update.sh appliance/cortex.sudoers "$STAGE/"
+          cp appliance/server.js appliance/package.json appliance/VERSION appliance/cortex-update.sh appliance/cortex.sudoers appliance/cortex-appliance.service appliance/cortex-updater.service appliance/cortex-updater.timer "$STAGE/"
           [ -f appliance/package-lock.json ] && cp appliance/package-lock.json "$STAGE/"
           for f in cortex.html command-center.html setup.html LGAP_reference.md; do
             [ -f "$f" ] && cp "$f" "$STAGE/" || echo "warning: $f missing"

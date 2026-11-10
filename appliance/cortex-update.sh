@@ -146,6 +146,15 @@ if [ -f "$REL/$NEW/cortex.sudoers" ] && command -v visudo >/dev/null 2>&1; then
   fi
 fi
 
+# --- reconcile systemd units shipped in the release (service/timer fixes ride OTA) ----
+U_CHANGED=0
+for u in cortex-appliance.service cortex-updater.service cortex-updater.timer; do
+  if [ -f "$REL/$NEW/$u" ] && ! cmp -s "$REL/$NEW/$u" "/etc/systemd/system/$u" 2>/dev/null; then
+    cp -f "$REL/$NEW/$u" "/etc/systemd/system/$u" && U_CHANGED=1 && log "updated unit $u"
+  fi
+done
+[ "$U_CHANGED" = 1 ] && { systemctl daemon-reload 2>/dev/null || true; }
+
 # --- activate: atomic symlink flip + restart ---------------------------------
 PREV="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
 log "activating $NEW (previous: ${PREV:-none})"

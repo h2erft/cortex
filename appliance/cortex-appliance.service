@@ -18,7 +18,9 @@ Restart=always
 RestartSec=3
 
 # --- lockdown ---
-NoNewPrivileges=true
+# NOTE: NoNewPrivileges must stay OFF — the app uses a tightly-scoped sudo rule
+# (/etc/sudoers.d/cortex: only `systemctl reboot|poweroff` and starting the updater) for the
+# in-app power controls and "install now". NoNewPrivileges=true would block sudo entirely.
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
