@@ -1983,8 +1983,8 @@ function drawDrawer(u){
       <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button></div>
       <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Locks stop changes at the wall thermostat.${(p.mode!=="auto"&&!locked)?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>`:''}</div></div>
     <div class="field">
-      <button class="btn ${dirty&&!locked&&liveTx()?'danger':'primary'}" id="sendcmd" style="width:100%;justify-content:center" ${(!dirty||locked)?'disabled style="opacity:.5;width:100%"':''}>${dirty?(liveTx()?`⚡ Send to LIVE unit → ${hx(u.addr)}`:`Send command → ${hx(u.addr)}`):'No changes to send'}</button>
-      ${dirty&&!locked&&liveTx()?`<div style="font-size:11px;color:var(--err);text-align:center;margin-top:5px">Bus connected — Send transmits power/mode/fan + setpoint to the live unit</div>`:''}
+      <button class="btn ${!locked&&liveTx()?'danger':'primary'}" id="sendcmd" style="width:100%;justify-content:center" ${locked?'disabled style="opacity:.5;width:100%"':''}>${liveTx()?`⚡ ${dirty?'Send':'Resend'} to LIVE unit → ${hx(u.addr)}`:`${dirty?'Send':'Resend'} command → ${hx(u.addr)}`}</button>
+      ${!locked&&liveTx()?`<div style="font-size:11px;color:var(--err);text-align:center;margin-top:5px">Bus connected — Send transmits power/mode/fan + setpoint to the live unit${dirty?'':' (re-sends current settings)'}</div>`:''}
       ${dirty&&!locked?`<button class="linklike" id="revert" style="display:block;margin:9px auto 0">Revert changes</button>`:''}</div>
     <div class="field"><div class="lbl">Command preview (what Send puts on the bus)</div><div class="frame-box">
       <div class="k">basic · ${p.on?"on":"off"} · ${p.mode} · ${p.fan} fan${p.swing?" · swing":""}</div>
@@ -2032,7 +2032,7 @@ function drawDrawer(u){
   const poll=document.getElementById("poll");if(poll)poll.onclick=()=>{u.room+=(Math.random()<.5?-1:1);u.zoneLoad=u.on?30+Math.floor(Math.random()*70):0;toast("Polled "+dispName(u));drawDrawer(u);};
   const tb=document.getElementById("trendbtn");if(tb)tb.onclick=()=>openTrends([u.id]);
   const re=document.getElementById("revert");if(re)re.onclick=()=>{pend=snap(u);drawDrawer(u);};
-  const send=document.getElementById("sendcmd");if(send&&dirty&&!locked)send.onclick=async ()=>{
+  const send=document.getElementById("sendcmd");if(send&&!locked)send.onclick=async ()=>{
     u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=p.coolC;u.heatC=p.heatC;u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;
     u.sp=Math.round(activeC(u)*9/5+32);
     if(liveTx()){await txUnit(u);}else{toast("Command staged → "+dispName(u)+" · connect the bus (Bus scan ▸ Connect) to transmit");}
