@@ -765,8 +765,35 @@ const TREESEP=" ▸ ";                                       // separates group 
 function grpOf(u){return (u.grp&&u.grp.trim())||"Ungrouped";}
 function subOf(u){return (u.subgrp&&u.subgrp.trim())||"General";}
 function leafKey(u){return grpOf(u)+TREESEP+subOf(u);}
-const WEATHER={place:"Site",now:41,cond:"Partly cloudy",hi:48,lo:29,
-  hours:[["1 PM",44],["2 PM",46],["3 PM",47],["4 PM",45],["5 PM",40]]};
+let WEATHER={place:"Site",now:null,cond:"Loading…",hi:null,lo:null,hours:[],live:false,ts:0};
+const WMO={0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Freezing fog",51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",56:"Freezing drizzle",57:"Freezing drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",66:"Freezing rain",67:"Freezing rain",71:"Light snow",73:"Snow",75:"Heavy snow",77:"Snow grains",80:"Rain showers",81:"Rain showers",82:"Heavy showers",85:"Snow showers",86:"Snow showers",95:"Thunderstorm",96:"Thunderstorm w/ hail",99:"Thunderstorm w/ hail"};
+async function getCoords(){
+  if(CFG&&CFG.site&&CFG.site.lat!=null&&CFG.site.lon!=null)return {lat:CFG.site.lat,lon:CFG.site.lon};
+  if(navigator.geolocation)return new Promise(res=>{navigator.geolocation.getCurrentPosition(
+    p=>{const c={lat:+p.coords.latitude.toFixed(4),lon:+p.coords.longitude.toFixed(4)};if(CFG&&CFG.site){CFG.site.lat=c.lat;CFG.site.lon=c.lon;saveCfg(CFG);}res(c);},
+    ()=>res(null),{timeout:8000,maximumAge:3600000});});
+  return null;
+}
+async function loadWeather(){
+  try{
+    const c=await getCoords();
+    if(!c){WEATHER.live=false;WEATHER.cond="Set the site location in Settings";if(view==="units")renderAll();return;}
+    const unit=settings.unit==="C"?"celsius":"fahrenheit";
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&current=temperature_2m,weather_code&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min&temperature_unit=${unit}&timezone=auto&forecast_days=1`;
+    const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();
+    WEATHER.now=Math.round(j.current.temperature_2m);WEATHER.cond=WMO[j.current.weather_code]||"—";
+    WEATHER.hi=Math.round(j.daily.temperature_2m_max[0]);WEATHER.lo=Math.round(j.daily.temperature_2m_min[0]);
+    const times=j.hourly.time,temps=j.hourly.temperature_2m,nowh=new Date();
+    let start=times.findIndex(t=>new Date(t)>nowh);if(start<0)start=0;
+    WEATHER.hours=[];for(let i=start;i<start+5&&i<times.length;i++){WEATHER.hours.push([new Date(times[i]).toLocaleTimeString([],{hour:"numeric"}),Math.round(temps[i])]);}
+    WEATHER.live=true;WEATHER.ts=Date.now();
+  }catch(e){WEATHER.live=false;if(WEATHER.now==null)WEATHER.cond="Weather unavailable";}
+  if(view==="units")renderAll();
+}
+function detectLocation(){if(!navigator.geolocation){toast("This browser can't share location");return;}
+  toast("Getting your location…");navigator.geolocation.getCurrentPosition(
+    p=>{if(CFG&&CFG.site){CFG.site.lat=+p.coords.latitude.toFixed(4);CFG.site.lon=+p.coords.longitude.toFixed(4);saveCfg(CFG);}WEATHER.ts=0;loadWeather();toast("Location set — loading weather");if(setTab)drawSettings();},
+    ()=>toast("Couldn't get location — allow location access, or set it manually"),{timeout:9000});}
 let settings=loadSettings();
 let session={admin:false,tech:false};
 const ADMIN_PIN="2468", TECH_PIN="1379";
@@ -1063,9 +1090,10 @@ function applyFilters(l){return l.filter(u=>statusFilter==="all"||statusOf(u)===
   .filter(u=>!query||(dispName(u)+" "+u.name).toLowerCase().includes(query.toLowerCase()));}
 function filtered(){const base=groupFilter==="all"?units.slice():unitsInCat(groupFilter,settings.groupBy);return applyFilters(base);}
 function weatherCard(){const w=WEATHER;const loc=(CFG&&CFG.site&&CFG.site.location)||w.place;
-  return `<div class="weather"><div><div class="wt mono">${w.now}°${settings.unit}</div><div class="wmeta">${w.cond} · ${loc}</div></div>
-    <div class="whr">${w.hours.map(h=>`<div class="wh">${h[0]}<b class="mono">${h[1]}°</b></div>`).join("")}<div class="wh">Hi / Lo<b class="mono">${w.hi} / ${w.lo}°</b></div></div>
-    <span class="wsample">sample</span></div>`;}
+  const t=w.now==null?"—":w.now+"°"+settings.unit;
+  return `<div class="weather"><div><div class="wt mono">${t}</div><div class="wmeta">${ue(w.cond)} · ${ue(loc)}</div></div>
+    <div class="whr">${w.hours.map(h=>`<div class="wh">${h[0]}<b class="mono">${h[1]}°</b></div>`).join("")}${w.hi!=null?`<div class="wh">Hi / Lo<b class="mono">${w.hi} / ${w.lo}°</b></div>`:""}</div>
+    ${w.live?"":`<span class="wsample">${w.now==null?"no data":"offline"}</span>`}</div>`;}
 function renderCards(list){if(!list.length)return '<div style="color:var(--text-faint);padding:8px 2px">None</div>';
   if(settings.view==="list")return `<div class="listv">${list.map(unitRow).join("")}</div>`;
   return `<div class="grid ${settings.density==='compact'?'compact':''}">${list.map(unitCard).join("")}</div>`;}
@@ -1910,16 +1938,17 @@ function renderCycle(){renderGroupNav();
 /* ---- schedules ---- */
 const DAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
 function schedules(){if(CFG&&!CFG.schedules)CFG.schedules=[];return (CFG&&CFG.schedules)||[];}
-function schTarget(s){if(s.target.type==="all")return "All units";if(s.target.type==="group")return "Group "+s.target.val;
-  const u=units.find(x=>x.id===s.target.val);return u?dispName(u):"Unit";}
+function schTarget(s){const t=s.target||{};if(t.type==="all")return "All units";
+  if(t.type==="group")return t.val;if(t.type==="sub")return t.val;
+  const u=units.find(x=>x.id===t.val);return u?dispName(u):"Unit";}
 function schAction(s){const a=s.action,p=[];
   if(a.power)p.push(a.power==="on"?"Turn on":"Turn off");
   if(a.mode)p.push("mode "+(MODES.find(m=>m[0]===a.mode)||["","?"])[1]);
   if(a.sp!=null)p.push("set "+a.sp+"°"+settings.unit);
   if(a.fan)p.push("fan "+a.fan);return p.join(" · ")||"no change";}
-function schDays(s){if(s.days.length===7)return "Every day";
-  if(s.days.length===5&&[1,2,3,4,5].every(d=>s.days.includes(d)))return "Weekdays";
-  if(!s.days.length)return "No days";return s.days.slice().sort().map(d=>DAYS[d]).join(" ");}
+const NTHLBL={"1":"1st","2":"2nd","3":"3rd","4":"4th","5":"5th","last":"last"};
+function schDays(s){const base=s.days.length===7?"Every day":(s.days.length===5&&[1,2,3,4,5].every(d=>s.days.includes(d))?"Weekdays":(!s.days.length?"No days":s.days.slice().sort().map(d=>DAYS[d]).join(" ")));
+  return (s.nth&&s.nth!=="every")?(NTHLBL[s.nth]+" "+base+" of the month"):base;}
 function schCard(s){return `<div class="sch ${s.enabled?'':'soff'}">
   <div><div class="sname">${s.name||"Untitled"} ${s.cond&&s.cond.op?`<span class="tagchip">if outdoor ${s.cond.op} ${s.cond.temp}°</span>`:""}</div>
     <div class="ssum">${schTarget(s)} · ${schAction(s)}</div><div class="ssum mono">${s.time} · ${schDays(s)}</div></div>
@@ -1927,7 +1956,7 @@ function schCard(s){return `<div class="sch ${s.enabled?'':'soff'}">
     <button class="linklike" data-sedit="${s.id}">Edit</button><button class="linklike" style="color:var(--err)" data-sdel="${s.id}">Delete</button></div></div>`;}
 function renderSchedule(){renderGroupNav();const list=schedules();
   main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <div style="font-size:13.5px;color:var(--text-dim)">Schedules run on the controller and fire real bus commands at the set time.</div>
+    <div style="font-size:13.5px;color:var(--text-dim)">Schedules fire real bus commands while Cortex is open and the adapter is connected. Keep the appliance's dashboard open for 24/7 operation.</div>
     <button class="btn primary" id="newsch">+ New schedule</button></div>
     ${list.length?list.map(schCard).join(""):'<div class="cyc-note">No schedules yet. Create one to automate on/off, mode, fan, and temperature by time and day.</div>'}`;
   document.getElementById("newsch").onclick=()=>scheduleEditor(null);
@@ -1935,14 +1964,17 @@ function renderSchedule(){renderGroupNav();const list=schedules();
   document.querySelectorAll("[data-sdel]").forEach(b=>b.onclick=()=>{CFG.schedules=schedules().filter(s=>s.id!==b.dataset.sdel);saveCfg(CFG);renderSchedule();});
   document.querySelectorAll("[data-stog]").forEach(b=>b.onclick=()=>{const s=schedules().find(x=>x.id===b.dataset.stog);s.enabled=!s.enabled;saveCfg(CFG);renderSchedule();});}
 function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().find(x=>x.id===id))):
-  {id:"s"+Date.now(),name:"",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"",fan:"",sp:null},time:"18:00",days:[1,2,3,4,5],cond:{op:"",temp:null}};
+  {id:"s"+Date.now(),name:"",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"",fan:"",sp:null},time:"18:00",days:[1,2,3,4,5],nth:"every",cond:{op:"",temp:null}};
+  const grpNames=[...new Set(units.map(grpOf))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const subNames=[...new Set(units.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   modal(head(id?"Edit schedule":"New schedule")+`<div class="modal-body">
     <label class="flabel">Name</label><input id="s-name" class="inp" value="${s.name}" placeholder="e.g. Weekday setback">
     <label class="flabel">Applies to</label>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      <select id="s-ttype" class="sel-box"><option value="all" ${s.target.type==="all"?"selected":""}>All units</option><option value="group" ${s.target.type==="group"?"selected":""}>A group</option><option value="unit" ${s.target.type==="unit"?"selected":""}>One unit</option></select>
-      <select id="s-tgroup" class="sel-box ${s.target.type==="group"?"":"hide"}">${[1,2,3,4].map(g=>`<option value="${g}" ${s.target.val==g?"selected":""}>Group ${g}</option>`).join("")}</select>
-      <select id="s-tunit" class="sel-box ${s.target.type==="unit"?"":"hide"}">${units.map(u=>`<option value="${u.id}" ${s.target.val==u.id?"selected":""}>${dispName(u)}</option>`).join("")}</select></div>
+      <select id="s-ttype" class="sel-box"><option value="all" ${s.target.type==="all"?"selected":""}>All units</option><option value="group" ${s.target.type==="group"?"selected":""}>A group</option><option value="sub" ${s.target.type==="sub"?"selected":""}>A subgroup</option><option value="unit" ${s.target.type==="unit"?"selected":""}>One unit</option></select>
+      <select id="s-tgroup" class="sel-box ${s.target.type==="group"?"":"hide"}">${grpNames.map(g=>`<option value="${ue(g)}" ${s.target.val===g?"selected":""}>${ue(g)}</option>`).join("")||`<option>—</option>`}</select>
+      <select id="s-tsub" class="sel-box ${s.target.type==="sub"?"":"hide"}">${subNames.map(g=>`<option value="${ue(g)}" ${s.target.val===g?"selected":""}>${ue(g)}</option>`).join("")||`<option>—</option>`}</select>
+      <select id="s-tunit" class="sel-box ${s.target.type==="unit"?"":"hide"}">${units.map(u=>`<option value="${u.id}" ${s.target.val==u.id?"selected":""}>${ue(dispName(u))}</option>`).join("")}</select></div>
     <div class="mini-lbl">Action</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <select id="s-power" class="sel-box"><option value="" ${!s.action.power?"selected":""}>Power: no change</option><option value="on" ${s.action.power==="on"?"selected":""}>Turn on</option><option value="off" ${s.action.power==="off"?"selected":""}>Turn off</option></select>
@@ -1952,19 +1984,25 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
     <div class="mini-lbl">When</div>
     <input id="s-time" class="inp" style="width:140px" type="time" value="${s.time}">
     <div class="dayrow" id="s-days" style="margin-bottom:6px">${DAYS.map((d,i)=>`<button class="day ${s.days.includes(i)?'on':''}" data-day="${i}">${d}</button>`).join("")}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin:2px 0 8px">
+      <span class="mini-lbl" style="margin:0">Repeat</span>
+      <select id="s-nth" class="sel-box"><option value="every" ${(!s.nth||s.nth==="every")?"selected":""}>Every matching day</option>${["1","2","3","4","5","last"].map(n=>`<option value="${n}" ${s.nth===n?"selected":""}>Only the ${NTHLBL[n]} of the month</option>`).join("")}</select></div>
+    <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:10px">Example: pick <b>Thu</b> + "the 4th of the month" to run only on the 4th Thursday.</div>
     <div class="mini-lbl">Advanced condition (optional)</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
       <select id="s-cop" class="sel-box"><option value="" ${!s.cond.op?"selected":""}>Always run</option><option value="above" ${s.cond.op==="above"?"selected":""}>Only if outdoor temp above</option><option value="below" ${s.cond.op==="below"?"selected":""}>Only if outdoor temp below</option></select>
       <input id="s-ctemp" class="inp ${s.cond.op?"":"hide"}" style="width:90px;margin:0" type="number" placeholder="°${settings.unit}" value="${s.cond.temp!=null?s.cond.temp:""}"></div>
-    <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:14px">Conditions activate once outdoor cycle data is decoded.</div>
+    <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:14px">Uses the live outdoor temperature from the weather service${WEATHER.now!=null?` (now ${WEATHER.now}°${settings.unit})`:` — set the site location in Settings`}. Example: "below 30 → switch to heat at 74."</div>
     <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="s-save">Save schedule</button></div>
   </div>`,true);
-  const tt=document.getElementById("s-ttype");tt.onchange=()=>{document.getElementById("s-tgroup").classList.toggle("hide",tt.value!=="group");document.getElementById("s-tunit").classList.toggle("hide",tt.value!=="unit");};
+  const tt=document.getElementById("s-ttype");tt.onchange=()=>{document.getElementById("s-tgroup").classList.toggle("hide",tt.value!=="group");document.getElementById("s-tsub").classList.toggle("hide",tt.value!=="sub");document.getElementById("s-tunit").classList.toggle("hide",tt.value!=="unit");};
   document.getElementById("s-cop").onchange=e=>document.getElementById("s-ctemp").classList.toggle("hide",!e.target.value);
   document.querySelectorAll("#s-days [data-day]").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
   document.getElementById("s-save").onclick=()=>{
     s.name=document.getElementById("s-name").value.trim()||"Untitled";
-    s.target.type=tt.value;s.target.val=tt.value==="group"?+document.getElementById("s-tgroup").value:(tt.value==="unit"?+document.getElementById("s-tunit").value:0);
+    s.target.type=tt.value;
+    s.target.val=tt.value==="group"?document.getElementById("s-tgroup").value:(tt.value==="sub"?document.getElementById("s-tsub").value:(tt.value==="unit"?+document.getElementById("s-tunit").value:0));
+    s.nth=document.getElementById("s-nth").value;
     s.action.power=document.getElementById("s-power").value;s.action.mode=document.getElementById("s-mode").value;s.action.fan=document.getElementById("s-fan").value;
     const sp=document.getElementById("s-sp").value;s.action.sp=sp===""?null:+sp;
     s.time=document.getElementById("s-time").value||"18:00";
@@ -1972,6 +2010,38 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
     s.cond.op=document.getElementById("s-cop").value;const ct=document.getElementById("s-ctemp").value;s.cond.temp=ct===""?null:+ct;
     if(!CFG.schedules)CFG.schedules=[];const idx=CFG.schedules.findIndex(x=>x.id===s.id);
     if(idx>=0)CFG.schedules[idx]=s;else CFG.schedules.push(s);saveCfg(CFG);closeModal();renderSchedule();};}
+/* ---- schedule engine: evaluates schedules each half-minute and fires bus commands ---- */
+function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
+function schNthMatches(s,now){const nth=s.nth||"every";if(nth==="every")return true;
+  const dom=now.getDate();if(nth==="last")return dom+7>daysInMonth(now.getFullYear(),now.getMonth());
+  return Math.floor((dom-1)/7)+1===parseInt(nth,10);}
+function schCondOk(s){if(!s.cond||!s.cond.op)return true;if(WEATHER.now==null)return false;
+  if(s.cond.op==="above")return WEATHER.now>s.cond.temp;if(s.cond.op==="below")return WEATHER.now<s.cond.temp;return true;}
+function schTargetUnits(s){const t=s.target||{};
+  if(t.type==="all")return units.slice();
+  if(t.type==="unit")return units.filter(u=>u.id===t.val);
+  if(t.type==="group")return units.filter(u=>grpOf(u)===t.val);
+  if(t.type==="sub")return units.filter(u=>leafKey(u)===t.val);
+  return [];}
+async function fireSchedule(s){const tgt=schTargetUnits(s);if(!tgt.length)return;const a=s.action;
+  tgt.forEach(u=>{if(a.power)u.on=a.power==="on";if(a.mode)u.mode=a.mode;if(a.fan)u.fan=a.fan;
+    if(a.sp!=null){const c=settings.unit==="C"?a.sp:(a.sp-32)*5/9;u.coolC=Math.round(c*2)/2;u.heatC=Math.round(c*2)/2;}});
+  saveUnits();
+  if(typeof liveTx==="function"&&liveTx()){for(const u of tgt){try{await txUnit(u);}catch(e){}}}
+  if(view==="units"||view==="schedule")renderAll();
+  toast(`⏱ Schedule "${s.name}" ran → ${tgt.length} unit${tgt.length>1?"s":""}`);}
+function schTick(){if(!CFG||!CFG.schedules||!CFG.schedules.length)return;const now=new Date();
+  const hhmm=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+  const dow=now.getDay(),fireKey=now.toDateString()+" "+hhmm;let dirty=false;
+  CFG.schedules.forEach(s=>{
+    if(!s.enabled||s.time!==hhmm)return;
+    if(!(s.days&&s.days.includes(dow)))return;
+    if(!schNthMatches(s,now))return;
+    if(s.lastFired===fireKey)return;
+    if(!schCondOk(s))return;
+    s.lastFired=fireKey;dirty=true;fireSchedule(s);});
+  if(dirty)saveCfg(CFG);}
+setInterval(schTick,30000);                                    // twice a minute; lastFired guards against double-fire
 
 /* ---- updates ---- real OTA check against the appliance backend ---- */
 let updateState=null;  // null = not checked yet; else {current,latest,updateAvailable,configured,error,checkedAt,checking}
@@ -2303,11 +2373,22 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   ${row("Allow customer control","Let customers change setpoints/modes",tog("custctl",true))}
   ${row("Allow customer All-On/Off","",tog("custall",true))}
   ${row("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Enabled via Tailscale":"Not configured",`<button class="linklike" onclick="startWizard()">Re-run setup</button>`)}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Security</div>
+  ${row("Auto sign-out","Sign out after this long with no activity. A refresh within the window stays signed in.",`<select class="sel-box" onchange="setSessionTimeout(this.value)">${[[15,"15 min"],[30,"30 min"],[60,"1 hour"],[120,"2 hours"],[240,"4 hours"],[480,"8 hours"],[0,"Never"]].map(o=>`<option value="${o[0]}" ${((CFG&&CFG.sessionTimeoutMin!=null?CFG.sessionTimeoutMin:60)===o[0])?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Location &amp; weather</div>
+  ${row("Site location",(CFG&&CFG.site&&CFG.site.lat!=null)?`${CFG.site.lat}, ${CFG.site.lon} · weather live`:"Not set — weather won't load until set","<button class=\"linklike\" onclick=\"detectLocation()\">Use my location</button> <button class=\"linklike\" onclick=\"setManualLocation()\" style=\"margin-left:10px\">Enter manually</button>")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
   ${row("Restart controller","Reboot the device — back online in ~1 min",`<button class="linklike" onclick="powerCtl('reboot')">Restart</button>`)}
   ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}
   ${row("Factory reset (demo)","Clear this controller's saved config",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset</button>`)}
   <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Advanced settings affect every user on this controller.</div>`;}
+function setSessionTimeout(v){if(!CFG)return;CFG.sessionTimeoutMin=parseInt(v,10)||0;saveCfg(CFG);touchSession();toast("Auto sign-out: "+(CFG.sessionTimeoutMin?CFG.sessionTimeoutMin+" min":"never"));}
+function setManualLocation(){const cur=(CFG&&CFG.site&&CFG.site.lat!=null)?CFG.site.lat+", "+CFG.site.lon:"";
+  const v=prompt("Enter latitude, longitude (e.g. 40.37, -111.74)",cur);if(v==null)return;
+  const m=(v||"").split(/[ ,]+/).map(Number).filter(n=>!isNaN(n));
+  if(m.length<2){toast("Enter as: lat, lon");return;}
+  if(CFG&&CFG.site){CFG.site.lat=+m[0].toFixed(4);CFG.site.lon=+m[1].toFixed(4);saveCfg(CFG);}
+  WEATHER.ts=0;loadWeather();if(setTab)drawSettings();toast("Location set — loading weather");}
 function usersTab(){return `
   <div style="margin-bottom:6px">${users.map(u=>`<div class="urow">
     <div><div style="font-weight:500">${u.name}</div><div style="font-size:12px;color:var(--text-faint)">${u.protected?'Owner account — cannot be removed':'tap a role to change'}</div></div>
@@ -2378,7 +2459,7 @@ function fillVersion(){const el=document.getElementById('verline');if(!el)return
 function wireSettings(){fillVersion();
   mroot.querySelectorAll("[data-set]").forEach(el=>{
     if(el.tagName==="SELECT")el.onchange=()=>{settings[el.dataset.set]=el.value;if(el.dataset.set==="groupBy")groupFilter="all";saveSettings();applyTheme();drawSettings();refreshBackground();};
-    else el.onclick=()=>{settings[el.dataset.set]=el.dataset.val;saveSettings();applyTheme();drawSettings();refreshBackground();};});
+    else el.onclick=()=>{settings[el.dataset.set]=el.dataset.val;saveSettings();applyTheme();drawSettings();refreshBackground();if(el.dataset.set==="unit"){WEATHER.ts=0;loadWeather();}};});
   mroot.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{
     const k=b.dataset.tog;
     if(["mode","room","addr","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
@@ -2547,11 +2628,23 @@ function saveCfg(c){try{localStorage.setItem("airow_cfg",JSON.stringify(c));}cat
 function roleCaps(r){return{admin:r==="admin"||r==="owner",tech:r==="technician"||r==="owner"};}
 function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};session.admin=b.admin||elev.admin;session.tech=b.tech||elev.tech;}
 function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}
+/* ---- session: persisted in localStorage so a refresh (within the timeout) stays signed in ---- */
+function sessTimeoutMs(){const m=(CFG&&CFG.sessionTimeoutMin!=null)?CFG.sessionTimeoutMin:60;return m>0?m*60000:0;}  // 0 = never
+function saveSession(username){try{localStorage.setItem("airow_session",JSON.stringify({username,loginAt:Date.now(),last:Date.now()}));}catch(e){}}
+function touchSession(){try{const s=JSON.parse(localStorage.getItem("airow_session"));if(s){s.last=Date.now();localStorage.setItem("airow_session",JSON.stringify(s));}}catch(e){}}
+function clearSession(){try{localStorage.removeItem("airow_session");}catch(e){}}
+function sessionValid(){try{const s=JSON.parse(localStorage.getItem("airow_session"));if(!s||!s.username)return null;
+  const to=sessTimeoutMs();if(to&&(Date.now()-(s.last||s.loginAt))>to){clearSession();return null;}return s;}catch(e){return null;}}
+let lastTouch=0;
+function noteActivity(){if(!currentUser)return;const now=Date.now();if(now-lastTouch>15000){lastTouch=now;touchSession();}}
+['click','keydown','mousemove','touchstart','wheel'].forEach(ev=>document.addEventListener(ev,noteActivity,{passive:true}));
+setInterval(()=>{if(!currentUser)return;const to=sessTimeoutMs();if(!to)return;if(!sessionValid())logout("Signed out after inactivity.");},20000);
+setInterval(()=>{if(currentUser&&Date.now()-WEATHER.ts>840000)loadWeather();},300000);   // refresh weather ~every 15 min
 function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};users=CFG.users;
   settingsUser=u.username||u.name;settings=loadSettings();applyTheme();
-  try{sessionStorage.setItem("airow_user",JSON.stringify({username:u.username}));}catch(e){}
-  elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();renderAll();}
-function logout(){try{sessionStorage.removeItem("airow_user");}catch(e){}currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin();}
+  saveSession(u.username);lastTouch=Date.now();
+  elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();renderAll();loadWeather();}
+function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(msg);}
 function factoryReset(){try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_units");}catch(e){}units=makeUnits();closeModal();CFG=null;currentUser=null;startWizard();}
 async function boot(){applyTheme();
   // Shared setup/accounts come from the appliance first, so a NEW browser or computer sees the
@@ -2563,7 +2656,7 @@ async function boot(){applyTheme();
     // this browser is already set up but the appliance isn't yet -> migrate it up once
     if(CFG&&CFG.provisioned&&server!==null){try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(CFG)});}catch(e){}}
   }
-  let su=null;try{su=JSON.parse(sessionStorage.getItem("airow_user"));}catch(e){}
+  const su=sessionValid();                                     // persisted login, if still within the timeout
   if(!CFG||!CFG.provisioned){startWizard();return;}
   if(su&&CFG.users&&CFG.users.some(u=>u.username===su.username)){enterApp(CFG.users.find(u=>u.username===su.username));return;}
   showLogin();}
@@ -2733,9 +2826,7 @@ function provision(){
   CFG={provisioned:true,site:{name:WZ.site.name,location:WZ.site.location,unit:WZ.site.unit},
     protocols:(WZ.protocols&&WZ.protocols.length?WZ.protocols:["lg"]),
     adminPin:WZ.adminPin,techPin:WZ.techPin,recovery:rc,remote:WZ.remote,unitMeta:{},
-    schedules:[
-      {id:"s1",name:"Weekday setback",enabled:true,target:{type:"all",val:0},action:{power:"off",mode:"",fan:"",sp:null},time:"18:00",days:[1,2,3,4,5],cond:{op:"",temp:null}},
-      {id:"s2",name:"Morning warmup",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"heat",fan:"",sp:71},time:"06:30",days:[1,2,3,4,5],cond:{op:"",temp:null}}],
+    schedules:[],                                              // start empty — users build their own
     users:[{id:1,name:WZ.owner.name,username:WZ.owner.username,passhash:hash(WZ.owner.pass),role:"owner",protected:true},
       ...WZ.team.map((t,i)=>({id:2+i,name:t.name,username:t.username,passhash:hash(t.pass),role:t.role}))]};
   settings.unit=WZ.site.unit;saveSettings();saveCfg(CFG);enterApp(CFG.users[0]);
