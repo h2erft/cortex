@@ -21,8 +21,9 @@ everyone gets a login screen.
 
 ![Setup wizard](docs/img/01-setup-wizard.png)
 
-**Dashboard** — every indoor unit at a glance: mode, setpoint, room temp, locks, faults,
-grouped by system. This is the screen a maintenance tech or a customer uses day to day.
+**Dashboard** — every indoor unit at a glance: what it's set to, the room temperature, mode,
+locks and faults, in your own groups. This is the screen a customer uses day to day, so it shows
+names — never bus addresses. (Screenshots below predate the v1.5.0 tile and logo refresh.)
 
 ![Dashboard](docs/img/02-dashboard.png)
 
@@ -52,14 +53,23 @@ built right into the app.
 - **Master / CC mode** — Cortex drives the bus like the LG controller: one-tap guided setup,
   auto-discovery of indoor units, continuous polling, and background re-discovery that offers to
   add units that appear later (e.g. after a remodel).
-- **Your own layout** — organize units into a 2-level group → subgroup tree (e.g. *eBay → 3rd
-  floor*), rename and move units, independent of the physical outdoor-unit wiring.
+- **Your own layout** — organize units into a 2-level group → subgroup tree (e.g. *Main
+  building → 3rd floor*), rename and move units, independent of the physical outdoor-unit wiring.
+- **Built for three audiences** — customers see names, temperatures and a plain **Send** button
+  (and can rename a unit with one tap); bus addresses, channels, raw frames and the command
+  preview appear only for technicians, inside the unit's control panel.
+- **Building map with floor plans** — every unit drawn top-down and animated with its live state;
+  a technician/admin can upload a floor-plan picture per group and drag units onto it (snap to
+  grid, explicit *Edit layout* mode), shared by every browser.
 - **Schedules** — on/off, mode, fan, and setpoint by time and day, with **nth-weekday**
   recurrence (e.g. the 4th Thursday) and **weather conditions** (e.g. *outdoor below 30 → heat
   at 74*).
 - **Live local weather** — real conditions for the site, used by the dashboard and schedules.
 - **Device health** — real CPU, memory, disk, temperature, uptime, and bus activity read from
-  the appliance OS.
+  the appliance OS, one tap from the header (technicians and admins).
+- **Optional HTTPS** — opt-in secure access alongside plain http, with a self-signed certificate
+  out of the box or a trusted one from Tailscale
+  ([how to enable](appliance/README-appliance.md)).
 - **Accounts & sessions** — per-site logins and roles (customer / admin / technician / owner),
   persistent sessions with an admin-set idle auto-logout.
 - **Built-in protocol reference**, backup/restore, setpoint limits, per-site settings, and

@@ -6,8 +6,74 @@ All notable changes to Cortex. Dates are when the work landed on `main`.
 
 _Minor version bump — new building map, animated units, and the beta update channel.
 `v1.5.0-beta.1` added the building map + graphics; `beta.2` adds the top-down LG-style graphics
-on every view, the unit-type refresh fix, and the beta update channel. Publish as a GitHub
+on every view, the unit-type refresh fix, and the beta update channel; `beta.3` is the
+"remember who is looking" round — customer vs technician views, tile polish, easy rename, the
+Cortex brain mark + loader, floor plans on the map, and opt-in HTTPS. Publish as a GitHub
 **pre-release**; drop the suffix for a full `v1.5.0` once it checks out on the box._
+
+### beta.3
+
+**Customer vs technician views**
+- Bus address, channel, bus name and outdoor-system id are **gone from the unit tiles, list rows,
+  section headers and map** for everyone. A technician sees them inside the unit's control panel
+  (header line + Technician section); a customer never does.
+- **Command preview** (the hex frames) is now technician-only, alongside pipe-in / pipe-out temps,
+  raw frames and error history.
+- The Send button reads **Send** / **Send again** for customers; technicians still see the target
+  (`Send command → 0x15`, and the red live-bus version). Customer notices and toasts use plain
+  words ("Connected to the equipment — Send changes the real unit right away").
+- A unit nobody has named shows as **"Unit N"** instead of "Addr 0x17".
+- Customers no longer get: the per-user *Bus address* card toggle (removed), the *System
+  (physical)* group-by, the Settings → *Layout* wiring tab, the protocol reference, the ODU count
+  on the summary tile, or the "new unit found at 0x…" prompt (it waits for a technician/admin).
+  Technicians can search units by address.
+
+**Unit tiles**
+- Redesigned tile: **Set to** and **Room** are the same size and weight, each labelled; mode, fan
+  and lock are matching chips; faults sit in one red note; names wrap to two lines. Consistent in
+  comfortable and compact density, when off, in error, and for dual (cool / heat) setpoints.
+
+**Rename**
+- **Pencil next to the unit name** in the control panel — type, Enter. Any signed-in user can
+  rename (even while a unit is locked for service); tiles, map and panel update immediately. Also
+  in *Organize → Name & tags*.
+
+**Device health**
+- New **header button** (top right, next to Settings) for technicians and admins; the
+  Settings → Advanced "Open" row is gone. The *Start page* option only lists Device health for
+  those roles.
+
+**Cortex brain mark + "Cortex is thinking…" loader**
+- New logo: a geometric top-down brain. Calm in the header, login and setup wizard; fully animated
+  (pulse, halo, sparks travelling in and out along its leads) as the loader.
+- The loader covers the page while the app starts, and appears on Device health, update checks,
+  floor-plan processing, and — prominently, with the progress bar and time left — during bus
+  scans in the wizard and the Bus scan view. `brainLoader(size, label)` drops it in anywhere.
+  Motion is disabled under the OS "reduce motion" setting.
+
+**Building map: floor plans**
+- Technicians/admins get an explicit **Edit layout** mode: add a floor-plan picture to any
+  group ▸ subgroup, then drag units from a tray onto it (mouse or touch, snap to grid). Outside
+  edit mode nothing moves and a tap opens the control panel as before; a group without a picture
+  keeps the tile grid.
+- Pictures are shrunk in the browser, then stored on the appliance (`/api/floorplan/:id`, files
+  under `data/floorplans/`, JPEG/PNG/WebP only); positions live in the shared config so every
+  browser sees the same layout. Opened as a bare file, pictures stay in that browser.
+- Renaming a group or subgroup carries its floor plan along.
+
+**HTTPS (opt-in)**
+- `CORTEX_HTTPS=1` in `data/appliance.env` makes the appliance **also** serve https + wss (default
+  port 8443). Plain http is untouched and there is no redirect, so it cannot lock a box out.
+- The installer creates a self-signed certificate (hostname, hostname.local, localhost) if none
+  exists and never overwrites one; a certificate you drop in (e.g. from `tailscale cert`) is used
+  as is. Device health shows whether https is running, the port and the certificate expiry.
+- "Use my location" works when Cortex is opened over https. See `appliance/README-appliance.md`,
+  Part E.
+
+**Fixes & housekeeping**
+- Shared-config save limit raised from 32 kB to 256 kB (a large site could silently fail to save).
+- Fan-only mode chip now has its colour; names and tags are HTML-escaped wherever they are shown.
+- Settings → Layout lists units under their real outdoor systems (was hard-wired to two demo names).
 
 **Building map & live unit graphics**
 - Redesigned the indoor-unit graphic as a **top-down** SVG that matches real LG unit types
@@ -39,7 +105,12 @@ on every view, the unit-type refresh fix, and the beta update channel. Publish a
 
 **Known / next**
 - Backend (always-on) scheduling — needs testing on the box against the live bus.
-- Floor-plan image upload + drag-to-place units on the building map.
+- Floor plans: pinch-zoom / pan for large drawings, and including the pictures in Backup (today a
+  backup keeps the unit positions but not the image files).
+- New groups still take the outdoor system's name ("System #3") until a technician renames them.
+- HTTPS is opt-in and manual to enable; certificate renewal for the Tailscale route is manual.
+- Unit lists still live in each browser; moving them to the appliance is the next step so names,
+  types and groups match everywhere without a re-import.
 - Real push/email alerting is not yet wired.
 - Verify on the wire: the ODU/system grouping byte and whether ODU faults reach indoor replies.
 
