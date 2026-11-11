@@ -5,9 +5,12 @@ directly over the RS485 bus, so a small mini-PC on-site runs the whole indoor-un
 power, mode, fan, dual setpoints, locks — from a clean web UI you reach on the LAN or
 remotely over Tailscale. No cloud, no per-controller license, no vendor lock-in.
 
-> **Status:** working appliance + UI; the LGAP **master/controller** mode is in beta while we
-> finish decoding the discovery query and the room-temp calibration. Reverse-engineering notes
-> are in **[LGAP_reference.md](LGAP_reference.md)** — contributions welcome.
+> **Status:** working appliance + UI. The LGAP **master/controller** mode has been
+> **field-validated on a live Multi V IV system** — Cortex discovered 14 indoor units, decoded
+> their state, and controls them directly. Still verifying a couple of details (the ODU/system
+> grouping byte and error-code propagation). Reverse-engineering notes are in
+> **[LGAP_reference.md](LGAP_reference.md)**; see **[CHANGELOG.md](CHANGELOG.md)** for release
+> history. Contributions welcome.
 
 ---
 
@@ -44,6 +47,26 @@ built right into the app.
 
 ---
 
+## Features
+- **Direct LGAP control** — power, mode, fan, and setpoint over RS485 (no ACP/AC Smart needed).
+- **Master / CC mode** — Cortex drives the bus like the LG controller: one-tap guided setup,
+  auto-discovery of indoor units, continuous polling, and background re-discovery that offers to
+  add units that appear later (e.g. after a remodel).
+- **Your own layout** — organize units into a 2-level group → subgroup tree (e.g. *eBay → 3rd
+  floor*), rename and move units, independent of the physical outdoor-unit wiring.
+- **Schedules** — on/off, mode, fan, and setpoint by time and day, with **nth-weekday**
+  recurrence (e.g. the 4th Thursday) and **weather conditions** (e.g. *outdoor below 30 → heat
+  at 74*).
+- **Live local weather** — real conditions for the site, used by the dashboard and schedules.
+- **Device health** — real CPU, memory, disk, temperature, uptime, and bus activity read from
+  the appliance OS.
+- **Accounts & sessions** — per-site logins and roles (customer / admin / technician / owner),
+  persistent sessions with an admin-set idle auto-logout.
+- **Built-in protocol reference**, backup/restore, setpoint limits, per-site settings, and
+  over-the-air updates.
+
+---
+
 ## Install it yourself
 
 You need a small always-on PC (a cheap N95/N100 mini-PC is ideal), a **USB-to-RS485 adapter**
@@ -73,7 +96,7 @@ then `sudo netplan apply`.
 
 ### 3. One command installs everything
 ```
-curl -fsSL https://raw.githubusercontent.com/YOUR-GH-USER/cortex/main/appliance/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/h2erft/cortex/main/appliance/bootstrap.sh | sudo bash
 ```
 That pulls this repo and runs the installer — Node, the Cortex service, a firewall, Tailscale,
 `cortex.local` on the network, and automatic over-the-air updates. (~10 minutes.)
@@ -107,7 +130,7 @@ you know about the LGAP reply layout. See [LGAP_reference.md](LGAP_reference.md)
 Tag a version and push it — a GitHub Action builds the release, and every deployed appliance
 pulls it automatically (verified, with auto-rollback):
 ```
-git tag v1.4.0 && git push origin v1.4.0
+git tag v1.4.3 && git push origin v1.4.3
 ```
 
 *Cortex by AIROW. Not affiliated with or endorsed by LG.*

@@ -745,13 +745,29 @@ const ERRORS={
  "CH151":{t:"Pressure difference low",cause:"High-to-low pressure difference too small.",act:"Technician: check compressor operation and valves.",sev:"high",who:"Outdoor"},
  "CH200":{t:"Auto pipe search failed",cause:"Controller could not find an indoor unit during pipe search.",act:"Verify indoor units are powered and addressed.",sev:"medium",who:"System"},
  "CH242":{t:"No reply at this address",cause:"The central controller has an address registered but nothing is answering there (unit offline or removed).",act:"Expected on a bench with no units. In the field, confirm the unit is powered and on the bus.",sev:"info",who:"Central"},
+ "CH23":{t:"DC link voltage",cause:"Low or high DC-link voltage at the outdoor inverter. System shut off because the DC bus failed to charge or saw an abnormal voltage.",act:"Check incoming power and the inverter PCB / DC bus.",sev:"critical",who:"Outdoor"},
+ "CH36":{t:"Low compression ratio",cause:"Compression ratio stayed too low (<1.6 scroll / <1.8 rotary) after a reversing-valve change or compressor start — the unit isn't building a normal high/low pressure difference.",act:"Check for failed/locked-out compressors, low charge, and that the 4-way (reversing) valve is shifting and seating. Often paired with CH151.",sev:"high",who:"Outdoor"},
+ "CH38":{t:"EEV fault",cause:"Electronic expansion valve not operating correctly.",act:"Check the EEV coil and operation; replace if faulty.",sev:"high",who:"Outdoor"},
+ "CH40":{t:"Current (CT) sensor",cause:"Compressor current-transformer sensor fault.",act:"Technician: check the CT sensor and inverter PCB.",sev:"high",who:"Outdoor"},
+ "CH44":{t:"Outdoor air sensor",cause:"Outdoor-air temperature thermistor open or shorted.",act:"Check/replace the outdoor air thermistor.",sev:"medium",who:"Outdoor"},
+ "CH45":{t:"Compressor overload",cause:"Compressor protection trip / overload.",act:"Check amps, voltage, charge, and airflow; look for a restricted system.",sev:"critical",who:"Outdoor"},
+ "CH62":{t:"Heatsink temperature",cause:"Inverter heatsink (IPM) over-temperature.",act:"Check outdoor fan operation and heatsink airflow.",sev:"high",who:"Outdoor"},
+ "CH67":{t:"Outdoor fan motor",cause:"Outdoor fan motor or its PCB driver fault.",act:"Check the fan motor amps and the fan driver PCB.",sev:"high",who:"Outdoor"},
+ "CH104":{t:"Main ODU lost a sub unit",cause:"On a multi-outdoor system the master outdoor unit lost communication with a slave outdoor unit.",act:"Check the outdoor-to-outdoor comm wiring and that all ODUs are powered.",sev:"high",who:"Outdoor"},
+ "CH105":{t:"Outdoor unit comms",cause:"Communication error between outdoor PCBs.",act:"Check the ODU-to-ODU comm bus.",sev:"high",who:"Outdoor"},
+ "CH204":{t:"HR box comm error",cause:"Communication error with a heat-recovery (HR) box.",act:"Check HR box power and comm wiring.",sev:"high",who:"System"},
+ "CH206":{t:"Duplicate HR address",cause:"Two heat-recovery boxes share the same address.",act:"Set unique HR box addresses.",sev:"medium",who:"System"},
+ "CH237":{t:"ODU↔IDU RS-485 comms",cause:"RS-485 communication error between indoor and outdoor units.",act:"Check comm bus wiring, polarity, and addressing.",sev:"high",who:"Both"},
+ "CH238":{t:"ODU PCB comms",cause:"Outdoor PCB communication error with the indoor unit.",act:"Check the outdoor main PCB and comm bus.",sev:"high",who:"Outdoor"},
  "501":{t:"3-phase power error",cause:"Outdoor unit three-phase power not connected properly / phase loss.",act:"Technician: check breaker, phase order, and connections.",sev:"critical",who:"Outdoor"},
  "502":{t:"ODU ↔ IDU comms",cause:"Communication error between outdoor main PCB and indoor unit PCB(s).",act:"Check the indoor-outdoor comm bus wiring.",sev:"high",who:"Outdoor"}
 };
+// Always return something, even for a code we don't have a reference for, so the UI never crashes.
+function errInfo(code){return ERRORS[code]||{t:"Unrecognized code",cause:"No reference for "+code+" yet — check the unit's service manual for this model.",act:"Look up "+code+" in the LG service manual.",sev:"medium",who:"Unit"};}
 const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
 
 /* ---- state ---- */
-const DEF_SETTINGS={view:"grid",density:"comfortable",unit:"F",theme:"auto",accent:"slate",defaultGroup:0,
+const DEF_SETTINGS={view:"grid",density:"comfortable",unit:"F",theme:"auto",accent:"slate",defaultGroup:0,clock24:false,landing:"units",
   groupBy:"location",showTiles:true,showWeather:true,notif:{push:true,email:false},
   show:{mode:true,room:true,addr:true,fan:false,tags:true}};
 const ACCENTS={
@@ -903,7 +919,9 @@ const SP_CONFIRMED=true;                // cmd0 basic frame b6 = °C-15 (communi
 function spByte(o){const c=Math.round((o.sp-32)*5/9);return Math.max(0,Math.min(31,c-13));} // legacy, unused
 /* setpoint helpers — source of truth is °C (coolC/heatC); display in the user's unit */
 const SP_MINC=16,SP_MAXC=30;
-function clampC(c){return Math.max(SP_MINC,Math.min(SP_MAXC,Math.round(c*2)/2));}
+function spMinC(){const f=CFG&&CFG.spMinF;return f!=null?(f-32)*5/9:SP_MINC;}   // site setpoint floor (stored °F)
+function spMaxC(){const f=CFG&&CFG.spMaxF;return f!=null?(f-32)*5/9:SP_MAXC;}   // site setpoint ceiling (stored °F)
+function clampC(c){return Math.max(spMinC(),Math.min(spMaxC(),Math.round(c*2)/2));}
 function spDisp(c){return settings.unit==="C"?(Math.round(c*2)/2):Math.round(c*9/5+32);}  // number only
 function spStep(c,dir){return settings.unit==="C"?clampC(c+dir*0.5):clampC((Math.round(c*9/5+32)+dir-32)*5/9);}
 function activeC(o){return o.mode==="heat"?o.heatC:o.coolC;}            // the setpoint that mode uses
@@ -1073,7 +1091,7 @@ function unitCard(u){
     <div class="card-main"><div class="setpoint mono">${!u.on?"--":(isDual(u)?`<span style="color:var(--cool)">${spDisp(u.coolC)}</span><small style="color:var(--text-faint);font-weight:400"> / </small><span style="color:var(--heat)">${spDisp(u.heatC)}</span><small>°${settings.unit}</small>`:`${spDisp(activeC(u))}<small>°${settings.unit}</small>`)}</div>
       <div class="card-right">${right}</div></div>
     ${tags}
-    ${u.err?`<div class="err-note" data-code="${u.code}">⚠ ${u.code} · ${ERRORS[u.code]?ERRORS[u.code].t:"error"} — tap for details</div>`:""}
+    ${u.err?`<div class="err-note" data-code="${u.code}">⚠ ${u.code} · ${errInfo(u.code).t} — tap for details</div>`:""}
   </div>`;
 }
 function unitRow(u){
@@ -1117,7 +1135,7 @@ function renderUnits(){
     ${settings.showWeather?weatherCard():""}
     ${settings.showTiles?`<div class="tiles">
       ${tile("run",c.run,"var(--ok)","Running")}${tile("stop",c.stop,"var(--stopped)","Off")}
-      ${tile("err",c.err,"var(--err)","Errors")}${tile("all",units.length,"","All units · 2 ODUs")}
+      ${tile("err",c.err,"var(--err)","Errors")}${tile("all",units.length,"",(()=>{const n=new Set(units.map(u=>u.system)).size;return "All units"+(units.length?` · ${n} ODU${n!==1?"s":""}`:"");})())}
     </div>`:""}
     <div class="toolbar">
       <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
@@ -1278,7 +1296,7 @@ function crc16xmodem(buf,n){let c=0;for(let i=0;i<n;i++){c^=(buf[i]&0xff)<<8;for
    are safe to send blind. cmd4 (0xA0), cmd5 (0xA8) and cmd9 (0xC8) OVERWRITE stored settings even
    with an all-zero payload (cmd4 also wipes the central's per-unit settings), and address 0xFF is a
    broadcast to every ODU — Cortex never sweeps 0xFF and refuses to blind-sweep a write command. */
-let MASTER={tap:null,running:false,abort:false,discovering:false,seq:0,rxbuf:[],found:new Map(),log:[],
+let MASTER={tap:null,running:false,abort:false,discovering:false,paused:false,seq:0,rxbuf:[],found:new Map(),log:[],
   scan:null,probe:{idx:0},prompted:new Set(),rediscover:true,
   lo:0x00,hi:0xfe,turnaround:30,timeout:1000,query:"80 00 A0 AA 00 00 00"};
 // A query is a safe discovery read only if byte0 is cmd0 (bits3-6 = 0, i.e. 0x80/0x84) and the
@@ -1360,6 +1378,7 @@ async function masterLoopRun(){
   const myseq=MASTER.seq;MASTER.running=true;mlog("— master poll loop started —");if(view==="busscan")renderBusScan();
   const pause=()=>new Promise(r=>setTimeout(r,MASTER.turnaround));
   while(MASTER.running&&!MASTER.abort&&bus.port&&MASTER.seq===myseq){
+    if(MASTER.paused){await new Promise(r=>setTimeout(r,300));continue;}   // yield the bus (e.g. a schedule is transmitting)
     const addrs=[...MASTER.found.keys()];
     if(!addrs.length){await new Promise(r=>setTimeout(r,500));continue;}
     // 1) poll the units we already know, and write the live readings onto the saved units
@@ -2015,8 +2034,9 @@ function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
 function schNthMatches(s,now){const nth=s.nth||"every";if(nth==="every")return true;
   const dom=now.getDate();if(nth==="last")return dom+7>daysInMonth(now.getFullYear(),now.getMonth());
   return Math.floor((dom-1)/7)+1===parseInt(nth,10);}
-function schCondOk(s){if(!s.cond||!s.cond.op)return true;if(WEATHER.now==null)return false;
-  if(s.cond.op==="above")return WEATHER.now>s.cond.temp;if(s.cond.op==="below")return WEATHER.now<s.cond.temp;return true;}
+function outdoorTemp(){return (CFG&&CFG.wxOverride!=null)?CFG.wxOverride:WEATHER.now;}  // test override wins
+function schCondOk(s){if(!s.cond||!s.cond.op)return true;const t=outdoorTemp();if(t==null)return false;
+  if(s.cond.op==="above")return t>s.cond.temp;if(s.cond.op==="below")return t<s.cond.temp;return true;}
 function schTargetUnits(s){const t=s.target||{};
   if(t.type==="all")return units.slice();
   if(t.type==="unit")return units.filter(u=>u.id===t.val);
@@ -2027,7 +2047,10 @@ async function fireSchedule(s){const tgt=schTargetUnits(s);if(!tgt.length)return
   tgt.forEach(u=>{if(a.power)u.on=a.power==="on";if(a.mode)u.mode=a.mode;if(a.fan)u.fan=a.fan;
     if(a.sp!=null){const c=settings.unit==="C"?a.sp:(a.sp-32)*5/9;u.coolC=Math.round(c*2)/2;u.heatC=Math.round(c*2)/2;}});
   saveUnits();
-  if(typeof liveTx==="function"&&liveTx()){for(const u of tgt){try{await txUnit(u);}catch(e){}}}
+  if(typeof liveTx==="function"&&liveTx()){
+    const resume=MASTER.running&&!MASTER.paused;if(resume){MASTER.paused=true;await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout+60));} // let any in-flight poll finish, then own the bus
+    for(const u of tgt){try{await txUnit(u);}catch(e){}}
+    if(resume)MASTER.paused=false;}
   if(view==="units"||view==="schedule")renderAll();
   toast(`⏱ Schedule "${s.name}" ran → ${tgt.length} unit${tgt.length>1?"s":""}`);}
 function schTick(){if(!CFG||!CFG.schedules||!CFG.schedules.length)return;const now=new Date();
@@ -2160,7 +2183,7 @@ function drawDrawer(u){
     <div class="card-meta mono">${u.name} · ${hx(u.addr)} · ${u.ch} · ${u.system}</div></div>
     <button class="icon-btn" id="dclose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
    <div class="drawer-body">
-    ${u.err?`<div class="err-note" data-code="${u.code}" style="margin-bottom:16px">⚠ ${u.code} · ${ERRORS[u.code].t} — tap for details</div>`:""}
+    ${u.err?`<div class="err-note" data-code="${u.code}" style="margin-bottom:16px">⚠ ${u.code} · ${errInfo(u.code).t} — tap for details</div>`:""}
     ${locked?`<div class="note-box" style="color:var(--warn);margin-bottom:14px">🔧 In service — controls are locked. A technician can clear the In-service lock to re-enable customer control.</div>`:""}
     <div class="field"><div class="lbl">Power ${stg('on')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="pon" class="${p.on?'on-sel':''}" ${dis} style="${p.on&&stg('on')?STG:''}">On</button><button id="poff" class="${p.on?'':'off-sel'}" ${dis} style="${!p.on&&stg('on')?STG:''}">Off</button></div></div>
     <div class="field"><div class="lbl">Mode ${stg('mode')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${MODES.map(m=>`<button class="opt ${MC[m[0]]} ${p.mode===m[0]?'sel':''}" data-mode="${m[0]}" ${dis} style="${p.mode===m[0]&&stg('mode')?STG:''}">${m[2]} ${m[1]}</button>`).join("")}</div></div>
@@ -2260,7 +2283,7 @@ function modal(html,wide){mroot.innerHTML=`<div class="modal-scrim" id="ms"><div
 function closeModal(){mroot.innerHTML="";}
 function head(title){return `<div class="modal-head"><h3>${title}</h3><button class="icon-btn" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;}
 
-function openError(code){const e=ERRORS[code];if(!e){modal(head(code)+`<div class="modal-body">No reference for ${code} yet.</div>`);return;}
+function openError(code){const e=errInfo(code);
   const units_err=units.filter(u=>u.code===code).map(u=>u.label);
   modal(head(`${code} — ${e.t}`)+`<div class="modal-body">
     <span class="sev" style="background:var(--${SEVC[e.sev]}-soft);color:var(--${SEVC[e.sev]})">${e.sev.toUpperCase()}</span>
@@ -2347,6 +2370,8 @@ function displayTab(){return `
   ${row("Theme","",`<select class="sel-box" data-set="theme"><option value="auto" ${settings.theme==='auto'?'selected':''}>Auto</option><option value="light" ${settings.theme==='light'?'selected':''}>Light</option><option value="dark" ${settings.theme==='dark'?'selected':''}>Dark</option></select>`)}
   ${row("Color theme","Accent across the app",`<div class="swatches">${Object.entries(ACCENTS).map(([k,a])=>`<button class="swatch ${settings.accent===k?'sel':''}" data-accent="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div>`)}
   ${row("Group units by","Organize the dashboard",`<select class="sel-box" data-set="groupBy">${DIMS.map(d=>`<option value="${d[0]}" ${settings.groupBy===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select>`)}
+  ${row("Clock format","",`<div class="segmented"><button class="${!settings.clock24?'on':''}" onclick="settings.clock24=false;saveSettings();drawSettings();tick();">12-hour</button><button class="${settings.clock24?'on':''}" onclick="settings.clock24=true;saveSettings();drawSettings();tick();">24-hour</button></div>`)}
+  ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"],["device","Device health"]].map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
   ${row("Summary tiles","Running / off / errors row",tog("showTiles",settings.showTiles))}
   ${row("Weather card","Local weather for the site",tog("showWeather",settings.showWeather))}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Show on each card</div>
@@ -2368,7 +2393,6 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
     return `<div class="setrow"><div><div class="sl">${p.label}</div><div class="sd mono">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits} · ${p.phys} · ${p.decode==='full'?'full decode':'capture'}</div></div>
       <button class="toggle ${on?'on':''}" onclick="toggleSiteProto('${k}')"></button></div>`;}).join("")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
-  ${row("Polling interval","How often units are refreshed",`<select class="sel-box"><option>1 s</option><option selected>2 s</option><option>5 s</option></select>`)}
   ${row("Raw frame monitor","Show live bus frames (debug)",tog("rawmon",false))}
   ${row("Allow customer control","Let customers change setpoints/modes",tog("custctl",true))}
   ${row("Allow customer All-On/Off","",tog("custall",true))}
@@ -2377,6 +2401,12 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   ${row("Auto sign-out","Sign out after this long with no activity. A refresh within the window stays signed in.",`<select class="sel-box" onchange="setSessionTimeout(this.value)">${[[15,"15 min"],[30,"30 min"],[60,"1 hour"],[120,"2 hours"],[240,"4 hours"],[480,"8 hours"],[0,"Never"]].map(o=>`<option value="${o[0]}" ${((CFG&&CFG.sessionTimeoutMin!=null?CFG.sessionTimeoutMin:60)===o[0])?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Location &amp; weather</div>
   ${row("Site location",(CFG&&CFG.site&&CFG.site.lat!=null)?`${CFG.site.lat}, ${CFG.site.lon} · weather live`:"Not set — weather won't load until set","<button class=\"linklike\" onclick=\"detectLocation()\">Use my location</button> <button class=\"linklike\" onclick=\"setManualLocation()\" style=\"margin-left:10px\">Enter manually</button>")}
+  ${row("Outdoor temp override","For testing weather schedules. Forces the outdoor temp; blank = live weather.",`<input class="inp" style="width:84px;margin:0" type="number" placeholder="live" value="${(CFG&&CFG.wxOverride!=null)?CFG.wxOverride:''}" onchange="setWxOverride(this.value)">`)}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Comfort limits</div>
+  ${row("Setpoint range","Lowest/highest temperature customers and schedules can set (°F)",`<span style="display:flex;gap:6px;align-items:center"><input class="inp" style="width:58px;margin:0" type="number" value="${(CFG&&CFG.spMinF!=null)?CFG.spMinF:61}" onchange="setSpLimit('min',this.value)"><span style="color:var(--text-faint)">–</span><input class="inp" style="width:58px;margin:0" type="number" value="${(CFG&&CFG.spMaxF!=null)?CFG.spMaxF:86}" onchange="setSpLimit('max',this.value)"><span style="color:var(--text-faint)">°F</span></span>`)}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Backup</div>
+  ${row("Back up configuration","Download site config, users, groups, and schedules","<button class=\"linklike\" onclick=\"exportBackup()\">Download</button>")}
+  ${row("Restore from backup","Replace the current setup with a backup file","<button class=\"linklike\" onclick=\"importBackup()\">Restore…</button>")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
   ${row("Restart controller","Reboot the device — back online in ~1 min",`<button class="linklike" onclick="powerCtl('reboot')">Restart</button>`)}
   ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}
@@ -2614,7 +2644,7 @@ document.getElementById("settingsbtn").onclick=openSettings;
 document.getElementById("lockbtn").onclick=()=>{elev={admin:false,tech:false};recomputeSession();if(view==="cycle"&&!session.tech)view="units";renderWho();renderAll();};
 document.getElementById("logoutbtn").onclick=logout;
 document.getElementById("theme").onclick=()=>{settings.theme=(document.documentElement.getAttribute("data-theme")==="dark"||(settings.theme==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches))?"light":"dark";saveSettings();applyTheme();};
-function tick(){document.getElementById("clock").textContent=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});}
+function tick(){document.getElementById("clock").textContent=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",hour12:!settings.clock24});}
 tick();setInterval(tick,1000);
 
 /* ============ config + auth + first-run ============ */
@@ -2643,9 +2673,27 @@ setInterval(()=>{if(currentUser&&Date.now()-WEATHER.ts>840000)loadWeather();},30
 function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};users=CFG.users;
   settingsUser=u.username||u.name;settings=loadSettings();applyTheme();
   saveSession(u.username);lastTouch=Date.now();
-  elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();renderAll();loadWeather();}
+  elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();
+  view=(settings.landing&&["units","map","schedule","device"].includes(settings.landing))?settings.landing:"units";
+  renderAll();loadWeather();}
 function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(msg);}
 function factoryReset(){try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_units");}catch(e){}units=makeUnits();closeModal();CFG=null;currentUser=null;startWizard();}
+function setSpLimit(which,v){if(!CFG)return;const n=parseInt(v,10);if(!isFinite(n))return;CFG[which==="min"?"spMinF":"spMaxF"]=n;saveCfg(CFG);toast("Setpoint "+which+" "+n+"°");}
+function setWxOverride(v){if(!CFG)return;const t=v===""?null:parseInt(v,10);CFG.wxOverride=(t!=null&&isFinite(t))?t:null;saveCfg(CFG);toast(CFG.wxOverride!=null?("Outdoor temp forced to "+CFG.wxOverride+"° (testing)"):"Override cleared — using live weather");if(view==="units")renderAll();}
+function exportBackup(){try{const data={_cortex:"backup",v:1,ts:new Date().toISOString(),cfg:CFG,units:units,settings:settings};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="cortex-backup-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  toast("Backup downloaded");}catch(e){toast("Backup failed: "+e.message);}}
+function importBackup(){const inp=document.createElement("input");inp.type="file";inp.accept="application/json,.json";
+  inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||!d.cfg||!Array.isArray(d.units)){toast("Not a Cortex backup file");return;}
+      modal(head("Restore backup?")+`<div class="modal-body"><div class="note-box" style="margin-bottom:12px">This replaces the current configuration, users, units, groups, and schedules with the backup from <b>${ue((d.ts||"").slice(0,10))}</b>. It does not change the controller's software.</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="rb-go">Restore</button></div></div>`);
+      document.getElementById("rb-go").onclick=()=>{CFG=d.cfg;units=normalizeIds(d.units);if(d.settings){settings=Object.assign({},DEF_SETTINGS,d.settings);saveSettings();}
+        saveCfg(CFG);saveUnits();applyTheme();closeModal();renderAll();toast("Backup restored");};
+    }catch(e){toast("Couldn't read that backup file");}};
+    r.readAsText(f);};
+  inp.click();}
 async function boot(){applyTheme();
   // Shared setup/accounts come from the appliance first, so a NEW browser or computer sees the
   // same state (login screen), not the first-run wizard. Falls back to local for the file:// demo.
