@@ -785,7 +785,14 @@ function makeUnits(){
 /* Persist units (incl. imported ones) so they survive reload AND app updates.
    localStorage is keyed to this local file, so a new cortex.html keeps the data. */
 function saveUnits(){try{localStorage.setItem("airow_units",JSON.stringify(units));}catch(e){}}
-function loadUnits(){try{const u=JSON.parse(localStorage.getItem("airow_units"));if(Array.isArray(u))return u;}catch(e){}return [];}
+function loadUnits(){try{const u=JSON.parse(localStorage.getItem("airow_units"));if(Array.isArray(u))return normalizeIds(u);}catch(e){}return [];}
+// Guarantee every unit has a unique numeric id. Repairs units imported by an older build that
+// saved id:"" (which made the control drawer fail to open and broke selection/delete).
+function normalizeIds(arr){const seen=new Set();let next=1;
+  arr.forEach(u=>{let id=(typeof u.id==="number"&&isFinite(u.id))?u.id:null;
+    if(id===null||seen.has(id)){while(seen.has(next))next++;id=next;}
+    u.id=id;seen.add(id);while(seen.has(next))next++;});
+  return arr;}
 let units=loadUnits();
 /* Migrate older saved units up to the current model: dual (cool/heat) setpoints in °C,
    plus mode/fan/temp locks. Runs once on load; new fields default sensibly. */
@@ -1160,6 +1167,7 @@ function crc16xmodem(buf,n){let c=0;for(let i=0;i<n;i++){c^=(buf[i]&0xff)<<8;for
    with an all-zero payload (cmd4 also wipes the central's per-unit settings), and address 0xFF is a
    broadcast to every ODU — Cortex never sweeps 0xFF and refuses to blind-sweep a write command. */
 let MASTER={tap:null,running:false,abort:false,discovering:false,seq:0,rxbuf:[],found:new Map(),log:[],
+  scan:null,probe:{idx:0},prompted:new Set(),rediscover:true,
   lo:0x00,hi:0xfe,turnaround:30,timeout:1000,query:"80 00 A0 AA 00 00 00"};
 // A query is a safe discovery read only if byte0 is cmd0 (bits3-6 = 0, i.e. 0x80/0x84) and the
 // EXE write-strobe (byte4 bit1) is clear. Anything else could overwrite a unit on a blind sweep.
@@ -1226,23 +1234,57 @@ async function masterDiscover(){
     if(view==="busscan")renderBusScan();return;}
   await masterHalt();                                           // make sure nothing else is on the bus
   const myseq=MASTER.seq, hi=Math.min(MASTER.hi,0xFE);          // never sweep 0xFF (broadcast to every ODU)
+  const total=hi-MASTER.lo+1;MASTER.scan={total,done:0,cur:MASTER.lo};
   MASTER.discovering=true;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(hi)+" (cmd0 reads, "+MASTER.timeout+"ms) —");busUpdate();
-  for(let a=MASTER.lo;a<=hi&&!MASTER.abort&&MASTER.seq===myseq;a++){if(a===0xFF)continue;const r=await masterPoll(a);
+  for(let a=MASTER.lo;a<=hi&&!MASTER.abort&&MASTER.seq===myseq;a++){if(a===0xFF)continue;
+    MASTER.scan={total,done:a-MASTER.lo+1,cur:a};busUpdate();const r=await masterPoll(a);
     if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);mlog("  ✓ reply at "+hx(r.addr)+(r.parsed?" · sys "+r.parsed.group:""));busUpdate();}}
-  MASTER.discovering=false;mlog("— discovery done: "+MASTER.found.size+" responder(s) —");if(view==="busscan")renderBusScan();
+  MASTER.scan=null;MASTER.discovering=false;mlog("— discovery done: "+MASTER.found.size+" responder(s) —");if(view==="busscan")renderBusScan();
   return MASTER.found.size;}
 async function masterLoopRun(){
   if(!bus.port){toast("Connect the adapter first");return;}
   if(!MASTER.found.size){toast("Run Discover first — there are no units to poll yet");return;}
   await masterHalt();                                           // stop discovery (or a prior loop) before polling
   const myseq=MASTER.seq;MASTER.running=true;mlog("— master poll loop started —");if(view==="busscan")renderBusScan();
+  const pause=()=>new Promise(r=>setTimeout(r,MASTER.turnaround));
   while(MASTER.running&&!MASTER.abort&&bus.port&&MASTER.seq===myseq){
     const addrs=[...MASTER.found.keys()];
     if(!addrs.length){await new Promise(r=>setTimeout(r,500));continue;}
+    // 1) poll the units we already know, and write the live readings onto the saved units
+    let changed=false;
     for(const a of addrs){if(!MASTER.running||MASTER.abort||MASTER.seq!==myseq)break;const r=await masterPoll(a);
-      if(r&&r.ok&&MASTER.seq===myseq)MASTER.found.set(r.addr,r);busUpdate();
-      await new Promise(r=>setTimeout(r,MASTER.turnaround));}}
+      if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);if(applyReplyToUnit(r.parsed))changed=true;}busUpdate();await pause();}
+    if(changed){saveUnits();                                   // keep live room/mode/setpoint fresh
+      if(openId==null&&["units","map","cycle"].includes(view))renderAll();}  // refresh dashboard if open (not mid-drawer)
+    // 2) background re-discovery: probe a few UNKNOWN addresses each cycle so a unit added later
+    //    (e.g. after a remodel) is found on its own — no full re-scan needed.
+    if(MASTER.rediscover&&MASTER.running&&!MASTER.abort&&MASTER.seq===myseq){
+      const hi=Math.min(MASTER.hi,0xFE);const unknown=[];
+      for(let a=MASTER.lo;a<=hi;a++){if(a!==0xFF&&!MASTER.found.has(a))unknown.push(a);}
+      for(let k=0;k<Math.min(3,unknown.length);k++){
+        if(!MASTER.running||MASTER.abort||MASTER.seq!==myseq)break;
+        const a=unknown[MASTER.probe.idx%unknown.length];MASTER.probe.idx++;
+        const r=await masterPoll(a);
+        if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);masterNewUnit(r.parsed);busUpdate();}
+        await pause();}}}
   MASTER.running=false;mlog("— master poll loop stopped —");if(view==="busscan")renderBusScan();}
+// A unit answered at an address we didn't know about. It's now being polled; ask whether to add it
+// to the saved unit list. Ask once per address per session, and don't stack dialogs.
+function masterNewUnit(p){
+  if(!p||units.find(u=>u.addr===p.addr)||MASTER.prompted.has(p.addr))return;
+  MASTER.prompted.add(p.addr);mlog("  ✚ new unit at "+hx(p.addr)+" — prompting to add");
+  if(document.querySelector(".modal"))return;                 // a dialog is already open; skip (stays in found/Live)
+  modal(head("New indoor unit found")+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px">Cortex just found a unit at <b>${hx(p.addr)}</b> that isn't in your list yet — ${ue(p.mode)} · fan ${ue(p.fan)} · set ${p.settemp}°C · room ${p.room}°C. Someone may have added an indoor unit on this system.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" id="nu-skip">Not now</button>
+      <button class="btn primary" id="nu-add">Add this unit</button>
+    </div></div>`);
+  document.getElementById("nu-skip").onclick=closeModal;
+  document.getElementById("nu-add").onclick=()=>{
+    const nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1;
+    const u=makeDiscoveredUnit(p.addr,"System #"+p.group,nextId);units.push(u);
+    applyReplyToUnit(p);saveUnits();renderAll();closeModal();toast("Added unit "+hx(p.addr));};}
 function masterStop(){MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;if(view==="busscan")renderBusScan();}
 // Guided one-tap flow: confirm the LG central is off the bus, then discover → import → poll, in order.
 function masterGuided(){
@@ -1263,10 +1305,20 @@ function masterGuided(){
     masterLoopRun();
   };
 }
-function masterImport(){let n=0;for(const [a,r] of MASTER.found){const p=r&&r.parsed;let u=units.find(x=>x.addr===a);
-    if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),"");units.push(u);n++;}
-    if(p){u.mode=p.mode;u.fan=p.fan;if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}}}
-  if(n){saveUnits();renderAll();}toast(n?("Imported "+n+" unit(s)"):"Units updated");if(view==="busscan")renderBusScan();}
+// Copy a decoded reply onto the matching saved unit (live state). Room/pipe temps are stored in °F
+// (the display layer assumes °F); the reply decodes them in °C, so convert here.
+function applyReplyToUnit(p){if(!p)return;const u=units.find(x=>x.addr===p.addr);if(!u)return false;
+  u.mode=p.mode;u.fan=p.fan;u.on=!!p.on;
+  if(p.room!=null&&isFinite(p.room))u.room=Math.round(p.room*9/5+32);
+  if(p.pipeIn!=null&&isFinite(p.pipeIn))u.pipeIn=Math.round(p.pipeIn*9/5+32);
+  if(p.pipeOut!=null&&isFinite(p.pipeOut))u.pipeOut=Math.round(p.pipeOut*9/5+32);
+  if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}
+  u.err=!!p.err;u.code=p.err?("CH"+p.err):null;return true;}
+function masterImport(){let n=0,nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1;
+  for(const [a,r] of MASTER.found){const p=r&&r.parsed;let u=units.find(x=>x.addr===a);
+    if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),nextId++);units.push(u);n++;}
+    applyReplyToUnit(p);}
+  saveUnits();renderAll();toast(n?("Imported "+n+" unit(s)"):"Units updated — live readings refreshed");if(view==="busscan")renderBusScan();}
 function masterCaptureText(){return MASTER.log.slice().reverse().join("\n");}
 function downloadMasterLog(){const t=masterCaptureText();const bl=new Blob([t],{type:"text/plain"});const u=URL.createObjectURL(bl);
   const a=document.createElement("a");a.href=u;a.download="cortex-master-capture.txt";a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}
@@ -1557,7 +1609,12 @@ function busUpdate(){
   const cs=document.getElementById("ctrl-status");if(cs&&ctrl.running)cs.textContent="● MASTER — sent: "+ctrl.sent+" · received: "+(bus.bytes-ctrl.rx0)+" bytes"+(ctrl.cmds.size?(" · "+ctrl.cmds.size+" command override(s)"):"");
   const rawm=document.getElementById("bus-rawmon");if(rawm){const hexs=bus.recent.slice(-48).map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");
     rawm.innerHTML=bus.bytes?`<b>${bus.bytes}</b> raw bytes seen · last: <span class="mono" style="color:var(--text-dim)">${hexs||"—"}</span>`:'<span style="color:var(--text-faint)">0 bytes — nothing arriving on the wire yet</span>';}
-  const mlogEl=document.getElementById("m-log");if(mlogEl){const atBottom=mlogEl.scrollTop+mlogEl.clientHeight>=mlogEl.scrollHeight-20;mlogEl.textContent=MASTER.log.slice(0,140).join("\n");if(atBottom)mlogEl.scrollTop=0;}}
+  const mlogEl=document.getElementById("m-log");if(mlogEl){const atBottom=mlogEl.scrollTop+mlogEl.clientHeight>=mlogEl.scrollHeight-20;mlogEl.textContent=MASTER.log.slice(0,140).join("\n");if(atBottom)mlogEl.scrollTop=0;}
+  const mst=document.getElementById("m-status");if(mst){
+    if(MASTER.discovering&&MASTER.scan){const s=MASTER.scan,left=Math.max(0,s.total-s.done),secs=Math.ceil(left*(MASTER.turnaround+MASTER.timeout)/1000);
+      mst.textContent=`🔍 scanning ${hx(s.cur)} · ${s.done}/${s.total} addresses · ~${secs}s left · ${MASTER.found.size} found`;}
+    else if(MASTER.running)mst.textContent="● polling "+MASTER.found.size+" unit(s) · watching for new ones";
+    else mst.textContent=MASTER.found.size+" responder(s) found";}}
 function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.serial||{};
   return {baud:s.baud||p.baud,dataBits:s.dataBits||p.dataBits,parity:s.parity||p.parity,stopBits:s.stopBits||p.stopBits};}
 function renderBusScan(){
@@ -1657,7 +1714,7 @@ function renderBusScan(){
           ${MASTER.running?``:`<button class="btn" id="m-start" ${bus.scanning?"":"disabled"} title="Step 3 · Keep re-reading the imported units over and over for live status (temp, mode, setpoint). Run Discover + Import first.">③ start poll loop</button>`}
           <button class="btn" id="m-dl" title="Save every frame sent and received to a text file you can share for debugging.">⬇ save capture</button>
         </div>
-        <div class="mono" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(MASTER.found.size+" responder(s) found")}</div>
+        <div class="mono" id="m-status" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(MASTER.found.size+" responder(s) found")}</div>
         <pre id="m-log" class="mono" style="max-height:220px;overflow:auto;border:1px solid #123a40;border-radius:8px;padding:9px;background:#05080b;font-size:11.5px;white-space:pre-wrap;margin:9px 0 0;color:#7fe8cf">${MASTER.log.slice(0,140).join("\n")}</pre>
       </div>
     </div>
@@ -2488,17 +2545,21 @@ const WSTEPS=[
     if(i>=0){if(WZ.protocols.length>1)WZ.protocols.splice(i,1);}else WZ.protocols.push(k);renderWizard();});},
   save:()=>WZ.protocols.length?null:"Pick at least one manufacturer."},
  {title:"Find indoor units",sub:"Scan the bus for connected units — like the ACP's auto-search.",
-  body:()=>{ if(!WZ.scan) return `<div class="note-box">This polls every address on the central bus (0x00–0xFF) and lists the indoor units that answer, with their address and channel — the same discovery the LG ACP runs at commissioning. It only listens and asks; nothing on the units is changed.</div>
+  body:()=>{ if(!WZ.scan) return `<div class="note-box">This polls every address on the bus (0x00–0xFE) and lists the indoor units that answer — the same discovery the LG ACP runs at commissioning. It sends only safe read frames; nothing on the units is changed. <b>Disconnect the real LG central (ACP/AC Smart) from this bus first</b> so Cortex can be the master. No adapter yet? You can skip this and scan later from Tech → Bus scan.</div>
      <button class="btn primary" id="wz-scan" style="width:100%;justify-content:center">▶ Start bus scan</button>`;
     const s=WZ.scan;
-    return `<div style="height:9px;background:var(--surface-2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${Math.round(s.prog*100)}%;background:var(--accent);transition:width .1s"></div></div>
+    if(s.error) return `<div class="note-box" style="color:var(--warn)">${s.error}</div>
+     <button class="btn primary" id="wz-scan" style="width:100%;justify-content:center;margin-top:8px">▶ Try again</button>
+     <div style="font-size:12px;color:var(--text-faint);margin-top:8px">Or press Continue to skip — you can scan anytime later from Tech → Bus scan.</div>`;
+    const secs=s.scanning?Math.ceil((0xFE-s.cur)*(MASTER.turnaround+MASTER.timeout)/1000):0;
+    return `<div style="height:9px;background:var(--surface-2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${Math.round(s.prog*100)}%;background:var(--accent);transition:width .3s"></div></div>
      <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);margin:8px 0">
-       <span>${s.done?'✓ Scan complete':'Scanning '+hx(s.cur)+' …'}</span><span class="mono">${s.found.length} found</span></div>
+       <span>${s.done?'✓ Scan complete':'Scanning '+hx(s.cur)+' … ~'+secs+'s left'}</span><span class="mono">${s.found.length} found</span></div>
      <div class="mono" style="max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;background:var(--surface-2)">
-       ${s.found.map(f=>`<div>✓ ${hx(f.addr)} · ${f.ch} · AC_UNIT_${String(f.i).padStart(2,'0')}</div>`).join("")||'<div style="color:var(--text-faint)">listening…</div>'}</div>
-     ${s.done?`<div class="note-box" style="margin-top:10px">Found <b>${s.found.length}</b> indoor units across CH1–CH2. You can rescan anytime from the technician view.</div>`:''}`;},
+       ${s.found.map(f=>`<div>✓ ${hx(f.addr)} · system #${f.group}</div>`).join("")||'<div style="color:var(--text-faint)">listening…</div>'}</div>
+     ${s.done?`<div class="note-box" style="margin-top:10px">Found <b>${s.found.length}</b> indoor unit${s.found.length!==1?"s":""}. They'll be added when you finish. You can rescan anytime from Tech → Bus scan.</div>`:''}`;},
   wire:()=>{const b=document.getElementById("wz-scan");if(b)b.onclick=runScan;},
-  save:()=>{if(!WZ.scan||!WZ.scan.done)return "Run the bus scan to find your units before continuing.";return null;}},
+  save:()=>null},
  {title:"Review & finish",sub:"",
   body:()=>`<div class="note-box">✓ Scanned the bus — found <b>${(WZ.scan&&WZ.scan.found.length)||units.length} indoor units</b> across CH1–CH2, 1 outdoor system.</div>
    <div class="sumrow"><span class="k">Site</span><span>${WZ.site.name||'—'}</span></div>
@@ -2509,18 +2570,20 @@ const WSTEPS=[
    <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Finishing creates your account and signs you in.</div>`,
   save:()=>null}
 ];
-function runScan(){
-  if(WZ.scan&&WZ.scan.t)clearInterval(WZ.scan.t);
-  WZ.scan={prog:0,cur:0,found:[],done:false,t:null};
-  const targets=units.map((u,i)=>({addr:u.addr,ch:u.ch,i})).sort((a,b)=>a.addr-b.addr);
-  let k=0,addr=-1;renderWizard();
-  WZ.scan.t=setInterval(()=>{
-    addr+=Math.floor(5+Math.random()*9);if(addr>255)addr=255;
-    WZ.scan.cur=addr;WZ.scan.prog=addr/255;
-    while(k<targets.length&&targets[k].addr<=addr){WZ.scan.found.push(targets[k]);k++;}
-    if(addr>=255){clearInterval(WZ.scan.t);WZ.scan.t=null;WZ.scan.done=true;WZ.scan.prog=1;}
-    renderWizard();
-  },110);
+// Real bus discovery during setup. Connects the adapter (the button click is the user gesture that
+// Web Serial needs), runs the cmd0 sweep, and stashes results in MASTER.found. Units are actually
+// created at provision() time (after CFG exists), so this can't touch the not-yet-provisioned app.
+async function runScan(){
+  WZ.scan={prog:0,cur:0,found:[],done:false,scanning:true,error:""};renderWizard();
+  try{ if(!bus.port) await busConnect(); }catch(e){}
+  if(!bus.port){WZ.scan={prog:0,cur:0,found:[],done:false,scanning:false,
+    error:"Couldn't open the adapter. Plug in your USB-RS485 adapter and try again — or skip this and scan later from Tech → Bus scan."};renderWizard();return;}
+  const tick=setInterval(()=>{if(WZ.scan&&MASTER.scan){WZ.scan.cur=MASTER.scan.cur;WZ.scan.prog=MASTER.scan.done/MASTER.scan.total;renderWizard();}},300);
+  let n=0;try{n=await masterDiscover();}catch(e){}
+  clearInterval(tick);
+  WZ.scan={prog:1,cur:0xFE,done:true,scanning:false,error:"",
+    found:[...MASTER.found.entries()].map(([a,r])=>({addr:a,ch:"CH1",group:r&&r.parsed?r.parsed.group:0}))};
+  renderWizard();
 }
 function renderWizard(){const s=WSTEPS[WZi];
   document.getElementById("screen-setup").innerHTML=`<div class="auth"><div class="auth-card wiz">
@@ -2547,7 +2610,9 @@ function provision(){
       {id:"s2",name:"Morning warmup",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"heat",fan:"",sp:71},time:"06:30",days:[1,2,3,4,5],cond:{op:"",temp:null}}],
     users:[{id:1,name:WZ.owner.name,username:WZ.owner.username,passhash:hash(WZ.owner.pass),role:"owner",protected:true},
       ...WZ.team.map((t,i)=>({id:2+i,name:t.name,username:t.username,passhash:hash(t.pass),role:t.role}))]};
-  settings.unit=WZ.site.unit;saveSettings();saveCfg(CFG);enterApp(CFG.users[0]);}
+  settings.unit=WZ.site.unit;saveSettings();saveCfg(CFG);enterApp(CFG.users[0]);
+  if(MASTER.found&&MASTER.found.size)masterImport();            // add units found by the wizard's bus scan
+}
 
 boot();
 </script>
