@@ -417,8 +417,14 @@ nav{flex:0 0 212px;background:var(--surface);border-right:1px solid var(--border
 .nav-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;color:var(--text-dim);font-size:14px;border:none;background:none;width:100%;text-align:left}
 .nav-item:hover{background:var(--surface-2);color:var(--text)}
 .nav-item.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:500}
-.nav-item .count{font-size:12px;color:var(--text-faint)}
+.nav-item .count{font-size:12px;color:var(--text-faint);flex:0 0 auto}
 .nav-item .tech-tag{font-size:10px;font-weight:600;color:var(--warn)}
+.nav-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
+.nav-item.sub{padding-left:28px;font-size:13px}
+.nav-item.row{cursor:pointer}
+.nav-arrow{flex:0 0 14px;text-align:center;color:var(--text-faint);cursor:pointer;font-size:10px;user-select:none}
+.nav-pen{flex:0 0 auto;color:var(--text-faint);cursor:pointer;font-size:12px;opacity:0;padding:0 2px}
+.nav-item:hover .nav-pen{opacity:.75}
 main{flex:1;min-width:0;overflow:auto;padding:18px 22px}
 
 .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
@@ -746,7 +752,7 @@ const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
 
 /* ---- state ---- */
 const DEF_SETTINGS={view:"grid",density:"comfortable",unit:"F",theme:"auto",accent:"slate",defaultGroup:0,
-  groupBy:"group",showTiles:true,showWeather:true,notif:{push:true,email:false},
+  groupBy:"location",showTiles:true,showWeather:true,notif:{push:true,email:false},
   show:{mode:true,room:true,addr:true,fan:false,tags:true}};
 const ACCENTS={
   slate:{n:"Slate",c:"#0e7c66",l:["#0e7c66","#0b5f4e","#d9efe9"],d:["#2fb79a","#8fe6d4","#143029"]},
@@ -754,7 +760,11 @@ const ACCENTS={
   ember:{n:"Ember",c:"#d2652a",l:["#d2652a","#9a4718","#faeadf"],d:["#e8955a","#f4c7a6","#33251a"]},
   forest:{n:"Forest",c:"#2f9e44",l:["#2f9e44","#1f6e30","#e4f3e6"],d:["#51c866","#b7e8c0","#15301b"]},
   grape:{n:"Grape",c:"#7a4fd0",l:["#7a4fd0","#55369a","#ece4fb"],d:["#a98cf0","#d7c8f7","#241a3a"]}};
-const DIMS=[["system","System (physical)"],["group","Group"],["floor","Floor"],["suite","Suite"],["tag","Tag"]];
+const DIMS=[["location","Groups (your layout)"],["system","System (physical)"],["floor","Floor"],["suite","Suite"],["tag","Tag"]];
+const TREESEP=" ▸ ";                                       // separates group ▸ subgroup in a leaf key
+function grpOf(u){return (u.grp&&u.grp.trim())||"Ungrouped";}
+function subOf(u){return (u.subgrp&&u.subgrp.trim())||"General";}
+function leafKey(u){return grpOf(u)+TREESEP+subOf(u);}
 const WEATHER={place:"Site",now:41,cond:"Partly cloudy",hi:48,lo:29,
   hours:[["1 PM",44],["2 PM",46],["3 PM",47],["4 PM",45],["5 PM",40]]};
 let settings=loadSettings();
@@ -808,6 +818,8 @@ function migrateUnits(){let changed=false;units.forEach(u=>{
   if(u.modeLock==null){u.modeLock=false;changed=true;}
   if(u.fanLock==null){u.fanLock=false;changed=true;}
   if(u.tempLock==null){u.tempLock=false;changed=true;}
+  if(u.grp==null){u.grp=u.system||("Group "+(u.group!=null?u.group:""))||"Ungrouped";changed=true;}  // logical top-level group
+  if(u.subgrp==null){u.subgrp="";changed=true;}                                                       // logical sub-group (floor/room)
 });if(changed)saveUnits();}
 migrateUnits();
 
@@ -818,6 +830,7 @@ function dispName(u){return getMeta(u).alias||u.label;}
 function setMeta(u,patch){if(!CFG)return;CFG.unitMeta=CFG.unitMeta||{};
   CFG.unitMeta[u.name]=Object.assign({},CFG.unitMeta[u.name],patch);saveCfg(CFG);}
 function catVals(u,dim){const m=getMeta(u);
+  if(dim==="location")return[grpOf(u),leafKey(u)];            // both the top group and the group▸sub leaf
   if(dim==="system")return[u.system];
   if(dim==="group")return["Group "+u.group];
   if(dim==="floor")return["Floor "+m.floor];
@@ -965,15 +978,53 @@ function renderWho(){
 }
 
 /* ---- nav ---- */
+let treeExpanded=null;                                         // Set of expanded top groups (null = expand all first paint)
 function renderGroupNav(){
-  const nav=document.getElementById("group-nav");const dim=settings.groupBy;
+  const nav=document.getElementById("group-nav");if(!nav)return;const dim=settings.groupBy;
+  if(dim==="location")return renderLocationTree(nav);
   const cats=catList(dim);const label=(DIMS.find(d=>d[0]===dim)||["","Group"])[1];
-  const item=(val,txt,n,active)=>`<button class="nav-item ${active?'active':''}" data-cat="${val}"><span>${txt}</span><span class="count">${n}</span></button>`;
-  nav.innerHTML=`<div class="nav-label">${label}</div>`+
+  const item=(val,txt,n,active)=>`<button class="nav-item ${active?'active':''}" data-cat="${encodeURIComponent(val)}"><span class="nm">${ue(txt)}</span><span class="count">${n}</span></button>`;
+  nav.innerHTML=`<div class="nav-label">${ue(label)}</div>`+
     item("all","All units",units.length,groupFilter==="all"&&view==="units")+
     cats.map(c=>item(c,c,unitsInCat(c,dim).length,groupFilter===c&&view==="units")).join("");
-  nav.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{view="units";groupFilter=b.dataset.cat;renderAll();});
+  nav.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{view="units";groupFilter=decodeURIComponent(b.dataset.cat);renderAll();});
 }
+function renderLocationTree(nav){
+  const canEdit=session.tech||session.admin;
+  const groups=new Map();units.forEach(u=>{const g=grpOf(u),s=subOf(u);if(!groups.has(g))groups.set(g,new Set());groups.get(g).add(s);});
+  const gnames=[...groups.keys()].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  if(treeExpanded===null)treeExpanded=new Set(gnames);
+  const act=k=>groupFilter===k&&view==="units";
+  let html=`<div class="nav-label">Groups</div>`+
+    `<button class="nav-item ${groupFilter==="all"&&view==="units"?'active':''}" data-cat="${encodeURIComponent("all")}"><span class="nm">All units</span><span class="count">${units.length}</span></button>`;
+  for(const g of gnames){
+    const subs=[...groups.get(g)].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    const realSubs=subs.filter(s=>s!=="General"), hasGeneral=subs.includes("General");
+    const open=treeExpanded.has(g), canToggle=realSubs.length>0;
+    html+=`<div class="nav-item row ${act(g)?'active':''}" data-grp="${encodeURIComponent(g)}" title="${ue(g)}">
+      <span class="nav-arrow" ${canToggle?`data-tgl="${encodeURIComponent(g)}"`:''}>${canToggle?(open?'▾':'▸'):'·'}</span>
+      <span class="nm">${ue(g)}</span>
+      ${canEdit?`<span class="nav-pen" data-reng="${encodeURIComponent(g)}" title="Rename group">✎</span>`:''}
+      <span class="count">${unitsInCat(g,"location").length}</span></div>`;
+    if(open&&canToggle){
+      const show=realSubs.concat(hasGeneral?["General"]:[]);
+      for(const s of show){const leaf=g+TREESEP+s;
+        html+=`<div class="nav-item sub row ${act(leaf)?'active':''}" data-cat="${encodeURIComponent(leaf)}" title="${ue(s)}">
+          <span class="nm">${ue(s)}</span>
+          ${canEdit&&s!=="General"?`<span class="nav-pen" data-rens="${encodeURIComponent(g+TREESEP+s)}" title="Rename subgroup">✎</span>`:''}
+          <span class="count">${unitsInCat(leaf,"location").length}</span></div>`;}}
+  }
+  nav.innerHTML=html;
+  nav.querySelectorAll("[data-tgl]").forEach(el=>el.onclick=e=>{e.stopPropagation();const g=decodeURIComponent(el.dataset.tgl);if(treeExpanded.has(g))treeExpanded.delete(g);else treeExpanded.add(g);renderGroupNav();});
+  nav.querySelectorAll("[data-reng]").forEach(el=>el.onclick=e=>{e.stopPropagation();renameGroup(decodeURIComponent(el.dataset.reng));});
+  nav.querySelectorAll("[data-rens]").forEach(el=>el.onclick=e=>{e.stopPropagation();const parts=decodeURIComponent(el.dataset.rens).split(TREESEP);renameSub(parts[0],parts[1]);});
+  nav.querySelectorAll("[data-grp]").forEach(el=>el.onclick=e=>{if(e.target.closest("[data-tgl],[data-reng]"))return;view="units";groupFilter=decodeURIComponent(el.dataset.grp);renderAll();});
+  nav.querySelectorAll("[data-cat]").forEach(el=>el.onclick=e=>{if(e.target.closest("[data-rens]"))return;view="units";groupFilter=decodeURIComponent(el.dataset.cat);renderAll();});
+}
+function renameGroup(g){const nn=prompt("Rename group",g);if(nn==null)return;const name=nn.trim();if(!name||name===g)return;
+  units.forEach(u=>{if(grpOf(u)===g)u.grp=name;});saveUnits();if(groupFilter===g)groupFilter=name;renderAll();renderGroupNav();toast("Renamed group");}
+function renameSub(g,s){const nn=prompt("Rename subgroup",s);if(nn==null)return;const name=nn.trim();if(!name||name===s)return;
+  units.forEach(u=>{if(grpOf(u)===g&&subOf(u)===s)u.subgrp=name;});saveUnits();if(groupFilter===g+TREESEP+s)groupFilter=g+TREESEP+name;renderAll();renderGroupNav();toast("Renamed subgroup");}
 
 /* ---- unit rendering ---- */
 function modeIcon(m){return MODES.find(x=>x[0]===m)[2];}
@@ -1022,9 +1073,9 @@ function sectionSelBtn(c){return selMode?`<button class="linklike" data-selgroup
 function renderBody(){const w=document.getElementById("listwrap");if(!w)return;const dim=settings.groupBy;
   if(groupFilter!=="all"){const l=applyFilters(unitsInCat(groupFilter,dim));
     w.innerHTML=l.length?renderCards(l):'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();return;}
-  const cats=catList(dim);let html="",any=false;
+  const cats=(dim==="location"?[...new Set(units.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})):catList(dim));let html="",any=false;
   cats.forEach(c=>{const l=applyFilters(unitsInCat(c,dim));if(!l.length)return;any=true;
-    html+=`<div class="section-h"><span class="st">${c}</span><span class="sc">${l.length}</span><span class="ln"></span>${sectionSelBtn(c)}</div>`+renderCards(l);});
+    html+=`<div class="section-h"><span class="st">${ue(c)}</span><span class="sc">${l.length}</span><span class="ln"></span>${sectionSelBtn(c)}</div>`+renderCards(l);});
   w.innerHTML=any?html:'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();}
 function bindGroupSel(){document.querySelectorAll("[data-selgroup]").forEach(b=>b.onclick=e=>{e.stopPropagation();
   const c=decodeURIComponent(b.dataset.selgroup);const l=applyFilters(unitsInCat(c,settings.groupBy));
@@ -1075,6 +1126,7 @@ function renderBatchBar(){const bar=document.getElementById("batchbar");if(!bar)
     <button class="linklike" id="bsel-all">Select all shown</button>
     <button class="linklike" id="bsel-clear">Clear</button>
     <div style="flex:1"></div>
+    <button class="btn" id="bmove" ${n?'':'disabled style="opacity:.5"'}>📁 Move ${n}…</button>
     <button class="btn" id="bdel" ${n?'':'disabled style="opacity:.5"'} style="${n?'border-color:var(--err,#e5484d);color:var(--err,#e5484d)':''}">🗑 Delete ${n}</button>
     <button class="btn" id="btrend" ${n?'':'disabled style="opacity:.5"'}>📈 Trend ${n}</button>
     <button class="btn primary" id="bsend" ${n?'':'disabled style="opacity:.5"'}>Set &amp; send to ${n}…</button></div>`;
@@ -1083,6 +1135,33 @@ function renderBatchBar(){const bar=document.getElementById("batchbar");if(!bar)
   const bs=document.getElementById("bsend");if(bs&&n)bs.onclick=batchModal;
   const bt=document.getElementById("btrend");if(bt&&n)bt.onclick=()=>openTrends([...selSet]);
   const bd=document.getElementById("bdel");if(bd&&n)bd.onclick=delSelected;
+  const bm=document.getElementById("bmove");if(bm&&n)bm.onclick=batchMove;
+}
+function batchMove(){
+  const ids=[...selSet];if(!ids.length)return;
+  const groups=[...new Set(units.map(grpOf))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const subsByGrp={};units.forEach(u=>{const g=grpOf(u),s=subOf(u);if(s!=="General"){(subsByGrp[g]=subsByGrp[g]||new Set()).add(s);}});
+  const allSubs=[...new Set([].concat(...Object.values(subsByGrp).map(s=>[...s])))].sort();
+  modal(head(`Move ${ids.length} unit${ids.length>1?"s":""} to a group`)+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px">Pick (or type) a group, and optionally a subgroup like a floor or room. Leave the subgroup blank to put them straight under the group.</div>
+    <label class="flabel">Group</label>
+    <input class="inp" id="mv-grp" list="mv-grps" placeholder="e.g. eBay" autocomplete="off">
+    <datalist id="mv-grps">${groups.map(g=>`<option value="${ue(g)}">`).join("")}</datalist>
+    <label class="flabel" style="margin-top:10px">Subgroup (optional)</label>
+    <input class="inp" id="mv-sub" list="mv-subs" placeholder="e.g. 3rd floor" autocomplete="off">
+    <datalist id="mv-subs">${allSubs.map(s=>`<option value="${ue(s)}">`).join("")}</datalist>
+    <div class="err-text" id="mv-err"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+      <button class="btn" id="mv-cancel">Cancel</button>
+      <button class="btn primary" id="mv-go">Move ${ids.length}</button></div></div>`);
+  document.getElementById("mv-cancel").onclick=closeModal;
+  document.getElementById("mv-go").onclick=()=>{
+    const g=document.getElementById("mv-grp").value.trim(),s=document.getElementById("mv-sub").value.trim();
+    if(!g){document.getElementById("mv-err").textContent="Enter a group name.";return;}
+    units.forEach(u=>{if(ids.includes(u.id)){u.grp=g;u.subgrp=s;}});saveUnits();
+    if(treeExpanded&&treeExpanded.add)treeExpanded.add(g);
+    selSet.clear();selMode=false;closeModal();renderUnits();renderGroupNav();toast(`Moved ${ids.length} unit${ids.length>1?"s":""} → ${g}${s?" ▸ "+s:""}`);
+  };
 }
 function delSelected(){
   const ids=[...selSet];if(!ids.length)return;
@@ -1580,7 +1659,7 @@ function busClear(){busReset();renderBusScan();}
 /* Build a unit record for a freshly-discovered bus address (full current model). */
 function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&&a.last&&a.last.type==="cmd")?a.last:null;const modeOk=s&&["auto","cool","heat"].includes(s.mode);
   return {id,addr,name:"AC_UNIT_"+addr.toString(16).padStart(2,"0").toUpperCase(),label:"Addr 0x"+addr.toString(16).padStart(2,"0").toUpperCase(),
-    ch:"CH1",system:odu,floor:odu,suite:"",group:odu,
+    ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",
     on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,
     room:72,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:50,pipeOut:60,zoneLoad:0,runtimeHrs:0,kwh:0,filterPct:100,discovered:true};}
 function busImport(){
