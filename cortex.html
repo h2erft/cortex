@@ -1063,12 +1063,31 @@ function renderBatchBar(){const bar=document.getElementById("batchbar");if(!bar)
     <button class="linklike" id="bsel-all">Select all shown</button>
     <button class="linklike" id="bsel-clear">Clear</button>
     <div style="flex:1"></div>
+    <button class="btn" id="bdel" ${n?'':'disabled style="opacity:.5"'} style="${n?'border-color:var(--err,#e5484d);color:var(--err,#e5484d)':''}">🗑 Delete ${n}</button>
     <button class="btn" id="btrend" ${n?'':'disabled style="opacity:.5"'}>📈 Trend ${n}</button>
     <button class="btn primary" id="bsend" ${n?'':'disabled style="opacity:.5"'}>Set &amp; send to ${n}…</button></div>`;
   document.getElementById("bsel-all").onclick=()=>{filtered().forEach(u=>selSet.add(u.id));renderUnits();};
   document.getElementById("bsel-clear").onclick=()=>{selSet.clear();renderUnits();};
   const bs=document.getElementById("bsend");if(bs&&n)bs.onclick=batchModal;
   const bt=document.getElementById("btrend");if(bt&&n)bt.onclick=()=>openTrends([...selSet]);
+  const bd=document.getElementById("bdel");if(bd&&n)bd.onclick=delSelected;
+}
+function delSelected(){
+  const ids=[...selSet];if(!ids.length)return;
+  const names=units.filter(u=>ids.includes(u.id)).map(u=>dispName(u));
+  const preview=names.slice(0,6).join(", ")+(names.length>6?` +${names.length-6} more`:"");
+  modal(head(`Delete ${ids.length} unit${ids.length>1?"s":""}?`)+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px">This removes ${ids.length} unit${ids.length>1?"s":""} from Cortex’s list. It does <b>not</b> touch the equipment — it only clears them here. You can re-add real units any time with Discover → Import.</div>
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px">${ue(preview)}</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" id="del-cancel">Cancel</button>
+      <button class="btn" id="del-go" style="border-color:var(--err,#e5484d);color:var(--err,#e5484d)">Delete ${ids.length}</button>
+    </div></div>`);
+  document.getElementById("del-cancel").onclick=closeModal;
+  document.getElementById("del-go").onclick=()=>{
+    units=units.filter(u=>!ids.includes(u.id));saveUnits();selSet.clear();selMode=false;
+    closeModal();renderUnits();toast(`Deleted ${ids.length} unit${ids.length>1?"s":""}`);
+  };
 }
 function batchModal(){
   const ids=[...selSet];const targets=units.filter(u=>ids.includes(u.id));
@@ -1140,7 +1159,7 @@ function crc16xmodem(buf,n){let c=0;for(let i=0;i<n;i++){c^=(buf[i]&0xff)<<8;for
    are safe to send blind. cmd4 (0xA0), cmd5 (0xA8) and cmd9 (0xC8) OVERWRITE stored settings even
    with an all-zero payload (cmd4 also wipes the central's per-unit settings), and address 0xFF is a
    broadcast to every ODU — Cortex never sweeps 0xFF and refuses to blind-sweep a write command. */
-let MASTER={tap:null,running:false,abort:false,rxbuf:[],found:new Map(),log:[],
+let MASTER={tap:null,running:false,abort:false,discovering:false,seq:0,rxbuf:[],found:new Map(),log:[],
   lo:0x00,hi:0xfe,turnaround:30,timeout:1000,query:"80 00 A0 AA 00 00 00"};
 // A query is a safe discovery read only if byte0 is cmd0 (bits3-6 = 0, i.e. 0x80/0x84) and the
 // EXE write-strobe (byte4 bit1) is clear. Anything else could overwrite a unit on a blind sweep.
@@ -1162,10 +1181,19 @@ async function masterPoll(addr){
   await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout));
   MASTER.tap=null;const rx=MASTER.rxbuf.slice();
   if(rx.length)mlog("RX "+hx(addr)+"  "+rx.map(mhex).join(" "));
-  // AC reply = 16 bytes, checksum byte[15] = (sum[0..14]) XOR 0x55  (firmware ProcessRxDataFromAC)
+  // AC reply = 16 bytes, checksum byte[15] = (sum[0..14]) XOR 0x55. We ALSO require the reply's own
+  // address byte [4] to equal the address we polled: that rejects a frame that drifted in from a
+  // different poll (the cause of the "phantom units" bug when two loops ran at once).
   for(let i=0;i+16<=rx.length;i++){const f=rx.slice(i,i+16);
-    if(lgapCk(f,15)===f[15]){const p=parseReply(f);mlog("    "+addr+" → "+p.text);return{addr,raw:f,ok:true,parsed:p};}}
+    if(lgapCk(f,15)===f[15]&&f[4]===addr){const p=parseReply(f);masterRecordAddr(p);mlog("    "+addr+" → "+p.text);return{addr,raw:f,ok:true,parsed:p};}}
   return rx.length?{addr,raw:rx,ok:false}:null;}
+// Surface a master-poll reply in the Live view table (so Live works in master mode too, not just
+// when passively sniffing a real LG controller).
+function masterRecordAddr(p){
+  const a=bus.addrs.get(p.addr)||{addr:p.addr,count:0,cmd:0,types:new Set()};
+  a.count++;a.cmd++;a.types.add("master");
+  a.last={type:"cmd",addr:p.addr,power:p.on?"on":"off",mode:p.mode,fan:p.fan,setF:Math.round(p.settemp*9/5+32)};
+  a.seen=Date.now();bus.addrs.set(p.addr,a);bus.dirty=true;}
 // Decode a validated 16-byte AC reply (offsets confirmed from firmware ProcessRxDataFromAC).
 // Decode a validated 16-byte reply using the ON-WIRE layout reported by a community replicator
 // who sniffed a live Multi V IV bus:
@@ -1179,31 +1207,62 @@ function parseReply(f){
   const modeName=Object.keys(MODELO).find(k=>MODELO[k]===(f[6]&7))||("mode"+(f[6]&7));
   const fanName=Object.keys(FANHI).find(k=>FANHI[k]===((f[6]>>4)&7))||("fan"+((f[6]>>4)&7));
   const set=15+(f[7]&0x0f)+((f[1]&0x80)?0.5:0);
-  const err=f[5], room=tC(f[8]), pin=tC(f[9]), pout=tC(f[10]), eev=f[11]|(f[12]<<8), group=f[14];
-  return {addr:f[4],mode:modeName,fan:fanName,settemp:set,err,room,pipeIn:pin,pipeOut:pout,eev,group,
+  const err=f[5], room=tC(f[8]), pin=tC(f[9]), pout=tC(f[10]), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1;
+  return {addr:f[4],mode:modeName,fan:fanName,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,
     roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
     text:`${modeName} · fan ${fanName} · set ${set}°C · room ${room}°C${err?" · ERR "+err:""} · sys ${group}`};}
+// Stop whatever is currently driving the bus (a sweep or the poll loop) and wait for the in-flight
+// poll to drain, so the next action starts clean. The bumped seq makes any still-running old loop
+// exit and refuse to write results. There is only ever ONE master on the wire.
+async function masterHalt(){
+  MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;
+  await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout+60));
+  MASTER.abort=false;}
 async function masterDiscover(){
   if(!bus.port){toast("Connect the adapter first");return;}
   const probe=buildQuery(MASTER.lo);
   if(!isSafeReadQuery(probe)){toast("Unsafe query — discovery needs a cmd0 read like 80 00 A0 AA 00 00 00");
     mlog("✖ discovery blocked: query is not a safe cmd0 read (cmd4/5/9 or EXE set would overwrite units)");
     if(view==="busscan")renderBusScan();return;}
-  const hi=Math.min(MASTER.hi,0xFE);                            // never sweep 0xFF (broadcast to every ODU)
-  MASTER.abort=false;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(hi)+" (cmd0 reads, "+MASTER.timeout+"ms) —");busUpdate();
-  for(let a=MASTER.lo;a<=hi&&!MASTER.abort;a++){if(a===0xFF)continue;const r=await masterPoll(a);
-    if(r&&r.ok){MASTER.found.set(a,r);mlog("  ✓ reply at "+hx(a)+(r.parsed?" · sys "+r.parsed.group:""));busUpdate();}}
-  mlog("— discovery done: "+MASTER.found.size+" responder(s) —");if(view==="busscan")renderBusScan();}
+  await masterHalt();                                           // make sure nothing else is on the bus
+  const myseq=MASTER.seq, hi=Math.min(MASTER.hi,0xFE);          // never sweep 0xFF (broadcast to every ODU)
+  MASTER.discovering=true;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(hi)+" (cmd0 reads, "+MASTER.timeout+"ms) —");busUpdate();
+  for(let a=MASTER.lo;a<=hi&&!MASTER.abort&&MASTER.seq===myseq;a++){if(a===0xFF)continue;const r=await masterPoll(a);
+    if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);mlog("  ✓ reply at "+hx(r.addr)+(r.parsed?" · sys "+r.parsed.group:""));busUpdate();}}
+  MASTER.discovering=false;mlog("— discovery done: "+MASTER.found.size+" responder(s) —");if(view==="busscan")renderBusScan();
+  return MASTER.found.size;}
 async function masterLoopRun(){
   if(!bus.port){toast("Connect the adapter first");return;}
-  MASTER.running=true;MASTER.abort=false;mlog("— master poll loop started —");if(view==="busscan")renderBusScan();
-  while(MASTER.running&&!MASTER.abort&&bus.port){
+  if(!MASTER.found.size){toast("Run Discover first — there are no units to poll yet");return;}
+  await masterHalt();                                           // stop discovery (or a prior loop) before polling
+  const myseq=MASTER.seq;MASTER.running=true;mlog("— master poll loop started —");if(view==="busscan")renderBusScan();
+  while(MASTER.running&&!MASTER.abort&&bus.port&&MASTER.seq===myseq){
     const addrs=[...MASTER.found.keys()];
     if(!addrs.length){await new Promise(r=>setTimeout(r,500));continue;}
-    for(const a of addrs){if(!MASTER.running||MASTER.abort)break;const r=await masterPoll(a);if(r)MASTER.found.set(a,r);busUpdate();
+    for(const a of addrs){if(!MASTER.running||MASTER.abort||MASTER.seq!==myseq)break;const r=await masterPoll(a);
+      if(r&&r.ok&&MASTER.seq===myseq)MASTER.found.set(r.addr,r);busUpdate();
       await new Promise(r=>setTimeout(r,MASTER.turnaround));}}
   MASTER.running=false;mlog("— master poll loop stopped —");if(view==="busscan")renderBusScan();}
-function masterStop(){MASTER.abort=true;MASTER.running=false;if(view==="busscan")renderBusScan();}
+function masterStop(){MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;if(view==="busscan")renderBusScan();}
+// Guided one-tap flow: confirm the LG central is off the bus, then discover → import → poll, in order.
+function masterGuided(){
+  if(!bus.port){toast("Connect the adapter first");return;}
+  modal(head("Guided master setup")+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px"><b>First, disconnect the real LG central controller (ACP / AC Smart) from this ODU.</b> Cortex is about to become the bus master. If the LG central is still on the bus, the two masters collide and you'll fight its polling.</div>
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px">When you continue, Cortex will, in order: ① find every unit on the bus, ② import them, ③ start live polling. You can stop any time.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" id="g-cancel">Cancel</button>
+      <button class="btn primary" id="g-go">The central is disconnected — continue</button>
+    </div></div>`);
+  document.getElementById("g-cancel").onclick=closeModal;
+  document.getElementById("g-go").onclick=async()=>{
+    closeModal();toast("① Discovering units…");
+    const n=await masterDiscover();
+    if(!n){toast("No units answered — check A/B polarity and that you're on the ODU terminals.");return;}
+    masterImport();toast(`② Imported ${n} unit${n>1?"s":""} · ③ starting live polling…`);
+    masterLoopRun();
+  };
+}
 function masterImport(){let n=0;for(const [a,r] of MASTER.found){const p=r&&r.parsed;let u=units.find(x=>x.addr===a);
     if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),"");units.push(u);n++;}
     if(p){u.mode=p.mode;u.fan=p.fan;if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}}}
@@ -1490,7 +1549,7 @@ function busUpdate(){
         <td class="mono" style="padding:6px 8px">${a.count}</td>
         <td style="padding:6px 8px;color:var(--text-dim)">${[...a.types].join(", ")}</td>
         <td style="padding:6px 8px">${s&&s.type==="cmd"?`${s.power} · ${s.mode} · fan ${s.fan} · ${spTxt(s)}`:"—"}</td></tr>`;}).join(""):
-      `<tr><td colspan="6" style="padding:16px;color:var(--text-faint)">No frames yet. Connect the adapter, or paste a capture below.</td></tr>`;
+      `<tr><td colspan="6" style="padding:16px;color:var(--text-faint)">No units yet. Live view fills two ways: passively, when a real LG controller is on the bus; or when you run <b>Debug → Master/CC → discover</b> (Cortex polls the units itself). If you disconnected the LG central to use Master mode, that's expected — run discovery.</td></tr>`;
   }
   const log=document.getElementById("bus-log");if(log)log.innerHTML=bus.log.map(busLogRow).join("")||'<div style="color:var(--text-faint);padding:8px">Waiting for frames…</div>';
   const dump=document.getElementById("bus-dump");if(dump){const d=bus.hexdump.slice(-768);let out="";for(let i=0;i<d.length;i+=16)out+=d.slice(i,i+16).join(" ")+"\n";dump.textContent=out||"Waiting for bytes…";}
@@ -1586,11 +1645,17 @@ function renderBusScan(){
           <label style="font-size:11.5px;color:#5f8a84">reply wait <input id="m-to" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.timeout}">ms</label>
         </div>
         <label style="font-size:11.5px;color:#5f8a84;display:block">query bytes <input id="m-q" class="inp mono" style="width:100%;padding:4px 6px;font-size:12px" value="${MASTER.query}"></label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
-          <button class="btn" id="m-disc" ${bus.scanning?"":"disabled"}>① discover</button>
-          ${MASTER.running?`<button class="btn go" id="m-stop">■ stop loop</button>`:`<button class="btn primary" id="m-start" ${bus.scanning?"":"disabled"}>② start poll loop</button>`}
-          <button class="btn" id="m-import" ${MASTER.found.size?"":"disabled"}>③ import ${MASTER.found.size} found</button>
-          <button class="btn" id="m-dl">⬇ save capture</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 6px">
+          ${MASTER.running
+            ?`<button class="btn go" id="m-stop" title="Stop live polling. Cortex stops transmitting on the bus.">■ stop polling</button>`
+            :`<button class="btn primary" id="m-guide" ${bus.scanning?"":"disabled"} title="One-tap setup: reminds you to disconnect the LG central, then finds all units, imports them, and starts live polling — in order, automatically. Best choice for most techs.">▶ guided setup (recommended)</button>`}
+        </div>
+        <div style="font-size:11px;color:#5f8a84;margin:2px 0 6px">Manual steps (advanced) — run them in order 1 → 2 → 3:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px">
+          <button class="btn" id="m-disc" ${bus.scanning?"":"disabled"} title="Step 1 · Roll call. Sweeps every address once and lists the units that answer. Do this FIRST, with the LG central disconnected. Read-only, safe.">① discover</button>
+          <button class="btn" id="m-import" ${MASTER.found.size?"":"disabled"} title="Step 2 · Adds the units found by Discover into Cortex's unit list. Run Discover first.">② import ${MASTER.found.size} found</button>
+          ${MASTER.running?``:`<button class="btn" id="m-start" ${bus.scanning?"":"disabled"} title="Step 3 · Keep re-reading the imported units over and over for live status (temp, mode, setpoint). Run Discover + Import first.">③ start poll loop</button>`}
+          <button class="btn" id="m-dl" title="Save every frame sent and received to a text file you can share for debugging.">⬇ save capture</button>
         </div>
         <div class="mono" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(MASTER.found.size+" responder(s) found")}</div>
         <pre id="m-log" class="mono" style="max-height:220px;overflow:auto;border:1px solid #123a40;border-radius:8px;padding:9px;background:#05080b;font-size:11.5px;white-space:pre-wrap;margin:9px 0 0;color:#7fe8cf">${MASTER.log.slice(0,140).join("\n")}</pre>
@@ -1656,6 +1721,7 @@ function renderBusScan(){
   const mta=document.getElementById("m-ta");if(mta)mta.onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isFinite(v))MASTER.turnaround=Math.max(0,Math.min(2000,v));};
   const mto=document.getElementById("m-to");if(mto)mto.onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isFinite(v))MASTER.timeout=Math.max(20,Math.min(5000,v));};
   const mq=document.getElementById("m-q");if(mq)mq.onchange=e=>{MASTER.query=e.target.value;};
+  const mg=document.getElementById("m-guide");if(mg)mg.onclick=masterGuided;
   const md=document.getElementById("m-disc");if(md)md.onclick=masterDiscover;
   const ms=document.getElementById("m-start");if(ms)ms.onclick=masterLoopRun;
   const msp=document.getElementById("m-stop");if(msp)msp.onclick=masterStop;
