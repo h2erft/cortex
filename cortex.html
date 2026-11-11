@@ -1289,7 +1289,7 @@ function masterNewUnit(p){
   document.getElementById("nu-add").onclick=()=>{
     const nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1;
     const u=makeDiscoveredUnit(p.addr,"System #"+p.group,nextId);units.push(u);
-    applyReplyToUnit(p);saveUnits();renderAll();closeModal();toast("Added unit "+hx(p.addr));};}
+    applyReplyToUnit(p);saveUnits();renderAll();renderGroupNav();closeModal();toast("Added unit "+hx(p.addr));};}
 function masterStop(){MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;if(view==="busscan")renderBusScan();}
 // Guided one-tap flow: confirm the LG central is off the bus, then discover → import → poll, in order.
 function masterGuided(){
@@ -1323,7 +1323,7 @@ function masterImport(){let n=0,nextId=Math.max(0,...units.map(u=>typeof u.id===
   for(const [a,r] of MASTER.found){const p=r&&r.parsed;let u=units.find(x=>x.addr===a);
     if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),nextId++);units.push(u);n++;}
     applyReplyToUnit(p);}
-  saveUnits();renderAll();toast(n?("Imported "+n+" unit(s)"):"Units updated — live readings refreshed");if(view==="busscan")renderBusScan();}
+  saveUnits();renderAll();renderGroupNav();toast(n?("Imported "+n+" unit(s)"):"Units updated — live readings refreshed");if(view==="busscan")renderBusScan();}
 function masterCaptureText(){return MASTER.log.slice().reverse().join("\n");}
 function downloadMasterLog(){const t=masterCaptureText();const bl=new Blob([t],{type:"text/plain"});const u=URL.createObjectURL(bl);
   const a=document.createElement("a");a.href=u;a.download="cortex-master-capture.txt";a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}
