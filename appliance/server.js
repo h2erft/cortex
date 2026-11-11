@@ -9,18 +9,25 @@
  *   CORTEX_DIR     folder of static files           (default this file's folder)
  *   CORTEX_DATA    persistent data dir              (default <CORTEX_DIR>/../data)
  *
+ * Optional HTTPS (opt-in, additive — plain http above keeps working exactly as before):
+ *   CORTEX_HTTPS       1 to ALSO serve https + wss  (default off)
+ *   CORTEX_HTTPS_PORT  https port                   (default 8443)
+ *   CORTEX_TLS_CERT / CORTEX_TLS_KEY  PEM files     (default <CORTEX_DATA>/tls/cert.pem, key.pem)
+ *
  * Site-specific settings (name, serial device) live in <CORTEX_DATA>/config.json and are
  * edited from the browser setup wizard — no SSH needed. The env values above are just the
  * defaults used until the wizard writes that file.
  */
 const express = require('express');
 const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { SerialPort } = require('serialport');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 
 // Live bus-activity counters, updated by the serial bridge below, reported by /api/device.
 const busRx = { bytes: 0, last: 0, active: false };
@@ -58,8 +65,19 @@ function writeConfig(next) {
   return out;
 }
 
+// HTTPS status, filled in by startHttps() at the bottom of this file and reported by /api/device.
+const httpsState = {
+  enabled: /^(1|true|yes|on)$/i.test(String(process.env.CORTEX_HTTPS || '').trim()),
+  active: false,
+  port: parseInt(process.env.CORTEX_HTTPS_PORT || '8443', 10) || 8443,
+  error: null,
+  cert: null,
+};
+
 const app = express();
-app.use(express.json({ limit: '32kb' }));
+// The shared app config (users, schedules, unit names, floor-plan positions) is one JSON document;
+// 32kb was tight once a site has many units, and an over-limit save failed silently in the browser.
+app.use(express.json({ limit: '256kb' }));
 const cors = (res) => res.set('Access-Control-Allow-Origin', '*');
 
 // Health / version — read fresh each call so the fleet console sees live values.
@@ -125,6 +143,8 @@ app.get('/api/device', async (_req, res) => {
     busBytes: busRx.bytes,
     busLastMs: busRx.last ? (Date.now() - busRx.last) : null,
     version: readVersion(),
+    port: PORT,
+    https: httpsState,              // { enabled, active, port, error, cert:{ subject, validTo, selfSigned } }
   });
 });
 
@@ -240,6 +260,61 @@ app.post('/api/appconfig', (req, res) => {
   catch (e) { res.status(500).json({ err: e.message }); }
 });
 
+// --- floor-plan images (building map) -------------------------------------------
+// The picture for a map group is far too big for appconfig.json, so each one is a file under
+// <DATA>/floorplans/<id>.<ext>. Positions of the units stay in the shared app config. The browser
+// downscales before uploading; we still cap the size, accept raster image types only (no SVG —
+// it can carry script), check the file's magic bytes, and only ever use a sanitized id as the name.
+const FPDIR = path.join(DATA, 'floorplans');
+const FP_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const FP_MIME  = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+const fpId = (s) => (typeof s === 'string' && /^[A-Za-z0-9_-]{1,48}$/.test(s)) ? s : null;
+function fpFind(id) {
+  for (const ext of Object.keys(FP_MIME)) { const p = path.join(FPDIR, id + '.' + ext); if (fs.existsSync(p)) return { p, ext }; }
+  return null;
+}
+function fpSniff(buf) {
+  if (buf.length > 3 && buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return 'jpg';
+  if (buf.length > 8 && buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) return 'png';
+  if (buf.length > 12 && buf.slice(0, 4).toString('latin1') === 'RIFF' && buf.slice(8, 12).toString('latin1') === 'WEBP') return 'webp';
+  return null;
+}
+app.put('/api/floorplan/:id', express.raw({ type: Object.keys(FP_TYPES), limit: '6mb' }), (req, res) => {
+  cors(res);
+  const id = fpId(req.params.id);
+  if (!id) return res.status(400).json({ err: 'bad id' });
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(415).json({ err: 'send a JPEG, PNG or WebP image' });
+  const ext = fpSniff(req.body);
+  if (!ext) return res.status(415).json({ err: 'not a JPEG, PNG or WebP image' });
+  try {
+    fs.mkdirSync(FPDIR, { recursive: true });
+    const old = fpFind(id);
+    const dest = path.join(FPDIR, id + '.' + ext);
+    fs.writeFileSync(dest + '.tmp', req.body);
+    fs.renameSync(dest + '.tmp', dest);
+    if (old && old.p !== dest) { try { fs.unlinkSync(old.p); } catch (_) {} }
+    res.json({ ok: true, id, bytes: req.body.length, type: FP_MIME[ext] });
+  } catch (e) { res.status(500).json({ err: e.message }); }
+});
+app.get('/api/floorplan/:id', (req, res) => {
+  cors(res);
+  const id = fpId(req.params.id);
+  const f = id && fpFind(id);
+  if (!f) return res.status(404).json({ err: 'not found' });
+  res.set('Content-Type', FP_MIME[f.ext]);
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Cache-Control', 'private, max-age=31536000, immutable');   // the browser adds ?v=<stamp> when it changes
+  fs.createReadStream(f.p).on('error', () => res.status(500).end()).pipe(res);
+});
+app.delete('/api/floorplan/:id', (req, res) => {
+  cors(res);
+  const id = fpId(req.params.id);
+  if (!id) return res.status(400).json({ err: 'bad id' });
+  const f = fpFind(id);
+  if (f) { try { fs.unlinkSync(f.p); } catch (e) { return res.status(500).json({ err: e.message }); } }
+  res.json({ ok: true, removed: !!f });
+});
+
 // --- power control ------------------------------------------------------------
 // Reboot / shut down the appliance from the UI (owner/admin only — the UI gates this).
 // Needs root, so it shells out via sudo; install.sh + the updater drop a scoped sudoers
@@ -282,12 +357,14 @@ app.get('/', (_req, res, next) => {
 app.use(express.static(DIR, { index: 'cortex.html', extensions: ['html'] }));
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/bus' });
 
-// One serial consumer at a time — the bus is a single physical port.
+// One serial consumer at a time — the bus is a single physical port (shared by http AND https).
 let busy = false;
 
-wss.on('connection', (ws, req) => {
+// The same bridge is attached to the plain-http server and, when enabled, the https one (wss://).
+function attachBus(srv) {
+ const wss = new WebSocketServer({ server: srv, path: '/bus' });
+ wss.on('connection', (ws, req) => {
   if (busy) { try { ws.send(JSON.stringify({ err: 'serial already in use by another session' })); } catch (_) {} ws.close(); return; }
   const u = new URL(req.url, 'http://x');
   const serial = readConfig().serial;                         // read fresh: wizard changes apply here
@@ -312,6 +389,49 @@ wss.on('connection', (ws, req) => {
   const cleanup = () => { busy = false; busRx.active = false; try { if (port.isOpen) port.close(() => {}); } catch (_) {} };
   ws.on('close', cleanup);
   ws.on('error', cleanup);
-});
+ });
+ return wss;
+}
+attachBus(server);
 
 server.listen(PORT, () => console.log(`Cortex appliance listening on :${PORT}  (serial ${readConfig().serial})`));
+
+// --- optional HTTPS -------------------------------------------------------------
+// OPT-IN and ADDITIVE. Nothing here can take the plain-http listener above down: it is already
+// started, there is no redirect, and every failure below is caught, logged and reported in
+// /api/device (-> Device health) instead of thrown. Turn it on with CORTEX_HTTPS=1 in
+// <DATA>/appliance.env. The certificate is whatever sits at <DATA>/tls/cert.pem + key.pem:
+// install.sh makes a self-signed one, or drop a real one there (e.g. from `tailscale cert`).
+// If HTTPS is enabled and NO certificate exists yet (a box that only ever updated over the air),
+// we try once to make the same self-signed one; an existing cert or key is never overwritten.
+function startHttps() {
+  if (!httpsState.enabled) return;
+  const certP = process.env.CORTEX_TLS_CERT || path.join(DATA, 'tls', 'cert.pem');
+  const keyP  = process.env.CORTEX_TLS_KEY  || path.join(DATA, 'tls', 'key.pem');
+  try {
+    if (!fs.existsSync(certP) && !fs.existsSync(keyP)) {
+      const hn = (os.hostname() || 'cortex').replace(/[^A-Za-z0-9.-]/g, '') || 'cortex';
+      fs.mkdirSync(path.dirname(certP), { recursive: true });
+      execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '825',
+        '-keyout', keyP, '-out', certP, '-subj', '/CN=' + hn,
+        '-addext', `subjectAltName=DNS:${hn},DNS:${hn}.local,DNS:localhost,IP:127.0.0.1`], { stdio: 'ignore', timeout: 60000 });
+      try { fs.chmodSync(keyP, 0o600); } catch (_) {}
+      console.log('HTTPS: generated a self-signed certificate at ' + certP);
+    }
+    const cert = fs.readFileSync(certP), key = fs.readFileSync(keyP);
+    try {
+      const x = new crypto.X509Certificate(cert);
+      httpsState.cert = { subject: String(x.subject || '').replace(/\n/g, ', '), validTo: new Date(x.validTo).toISOString(), selfSigned: x.issuer === x.subject };
+    } catch (_) {}
+    const tls = https.createServer({ cert, key }, app);
+    attachBus(tls);
+    tls.on('error', (e) => { httpsState.active = false; httpsState.error = e.message; console.error('HTTPS disabled (http still serving):', e.message); });
+    tls.listen(httpsState.port, () => { httpsState.active = true; httpsState.error = null; console.log(`Cortex appliance also listening on https :${httpsState.port}`); });
+  } catch (e) {
+    httpsState.active = false;
+    httpsState.error = (e.code === 'ENOENT' && /openssl/.test(String(e.path || e.message))) ? 'no certificate, and openssl is not installed to make one'
+      : (e.code === 'ENOENT' ? 'certificate or key file missing' : e.message);
+    console.error('HTTPS not started (http still serving):', httpsState.error);
+  }
+}
+startHttps();

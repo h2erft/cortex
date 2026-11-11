@@ -79,10 +79,11 @@ picker — the backend owns the port and the frames just start flowing. Bus is *
 2. Give it internet — the site's LAN (DHCP is fine) or a cheap LTE hotspot. It only needs
    outbound internet; nothing is exposed inbound except over Tailscale.
 3. Power it. It auto-starts Cortex on boot. Confirm from your phone over Tailscale.
-4. **Lock it down** once Tailscale works — close the LAN port so only your tailnet can
+4. **Lock it down** once Tailscale works — close the LAN ports so only your tailnet can
    reach it:
    ```
    sudo ufw delete allow 8080/tcp
+   sudo ufw delete allow 8443/tcp     # the optional https port (Part E)
    ```
 5. Add the site to the **Command Center** (fleet console): its Tailscale URL,
    e.g. `http://100.x.y.z:8080`.
@@ -144,8 +145,107 @@ journalctl -u cortex-updater -f               # live updater log
 
 ---
 
+## Part E — Secure access over HTTPS (optional)
+
+**You do not need this for Cortex to work.** Out of the box the appliance serves plain `http` on
+port 8080, and that never changes. HTTPS is an *extra* door you can open next to it:
+
+- it is **off** until you turn it on,
+- turning it on does **not** turn http off, and nothing redirects — if https ever misbehaves, the
+  normal `http://cortex.local:8080` address still works, so you cannot lock yourself out,
+- if the certificate is missing or broken, Cortex logs the reason, shows it in **Device health**,
+  and carries on serving http.
+
+Why bother: browsers only allow a few features on secure pages. The one that matters here is
+**"Use my location"** (Settings → Advanced → Site location) — it works once you open Cortex over
+`https://`. Over plain http you type the coordinates in by hand instead.
+
+### Turn it on (two steps)
+1. Edit the settings file and remove the `#` in front of `CORTEX_HTTPS=1`
+   (add the line if your file is older and doesn't have it):
+   ```
+   sudo nano /opt/cortex/data/appliance.env
+   ```
+   ```
+   CORTEX_HTTPS=1
+   CORTEX_HTTPS_PORT=8443      <- optional; 8443 is the default
+   ```
+2. Restart Cortex:
+   ```
+   sudo systemctl restart cortex-appliance
+   ```
+Now open `https://cortex.local:8443`. In Cortex, the **Device health** button (top right, next to
+Settings — technicians and admins) shows *Secure access (HTTPS): On*, the port, and when the
+certificate expires.
+
+To turn it back off, put the `#` back (or set `CORTEX_HTTPS=0`) and restart.
+
+**Firewall:** `install.sh` opens the https port for you (it manages `ufw`). If this box has only
+ever been updated over the air since before v1.5.0-beta.3, open it once by hand:
+```
+sudo ufw allow 8443/tcp
+```
+(and when you lock a site down to Tailscale-only, close it again with `sudo ufw delete allow 8443/tcp`,
+the same way as port 8080.)
+
+### The browser warning (self-signed certificate)
+The installer creates a **self-signed** certificate in `/opt/cortex/data/tls/` (`cert.pem` +
+`key.pem`), valid for the box's name, `<name>.local` and `localhost`. "Self-signed" means the box
+vouches for itself — the connection is encrypted, but your browser has no outside authority to
+check it against, so the first visit shows a warning like *"Your connection is not private"*.
+That is expected. Click **Advanced → Proceed** (wording varies by browser); you do it once per
+browser. If you would rather have no warning at all, use the Tailscale route below.
+
+If the box has no certificate yet (it was installed before this feature and only updated over the
+air), Cortex makes the same self-signed one by itself the first time it starts with
+`CORTEX_HTTPS=1`. An existing `cert.pem` / `key.pem` is **never** overwritten — not by the
+installer, not by Cortex, not by an update.
+
+### A trusted certificate with Tailscale (no browser warning)
+If the box is on your tailnet, Tailscale can issue a real, browser-trusted certificate for its
+tailnet name (something like `cortex.your-tailnet.ts.net`).
+
+1. In the Tailscale admin console, under **DNS**, turn on **MagicDNS** and **HTTPS Certificates**
+   (one-time, for the whole tailnet).
+2. On the box, find its full name and ask for the certificate, writing it straight to where
+   Cortex looks:
+   ```
+   tailscale status --json | jq -r '.Self.DNSName'    # the box's full tailnet name (ignore the trailing dot)
+   sudo tailscale cert \
+     --cert-file /opt/cortex/data/tls/cert.pem \
+     --key-file  /opt/cortex/data/tls/key.pem \
+     cortex.your-tailnet.ts.net
+   sudo chown cortex:cortex /opt/cortex/data/tls/cert.pem /opt/cortex/data/tls/key.pem
+   sudo chmod 600 /opt/cortex/data/tls/key.pem
+   sudo systemctl restart cortex-appliance
+   ```
+   (This replaces the self-signed pair — that is fine, you are the one doing it. Move the old two
+   files aside first if you want to keep them.)
+3. Open `https://cortex.your-tailnet.ts.net:8443` from any device on your tailnet — no warning.
+
+These certificates expire after about 90 days. Re-run the `tailscale cert` command and restart
+Cortex to renew; Device health shows the expiry date so it doesn't sneak up on you. The
+certificate only matches the tailnet name, so `https://cortex.local:8443` on the LAN will warn
+again — use the tailnet name, or plain http, there.
+
+Any other certificate works the same way: put the certificate (with its chain) at
+`/opt/cortex/data/tls/cert.pem` and the private key at `/opt/cortex/data/tls/key.pem`, make both
+readable by the `cortex` user, and restart. (`CORTEX_TLS_CERT` / `CORTEX_TLS_KEY` in
+`appliance.env` point Cortex at different paths if you need that; they must be under
+`/opt/cortex/data` or another place the service may read.)
+
+### If https doesn't come up
+```
+journalctl -u cortex-appliance -n 30      # look for a line starting "HTTPS"
+```
+Device health shows the same reason. The usual causes: the key isn't readable by the `cortex`
+user (see the `chown` above), the port is already in use, or the firewall port is closed. Plain
+http keeps working while you sort it out.
+
+---
+
 ## What's in this folder
-- `server.js` — the backend: serves the Cortex UI, bridges the RS485 adapter to the browser, reports `/health` and `/version`.
+- `server.js` — the backend: serves the Cortex UI, bridges the RS485 adapter to the browser, reports `/health` and `/version`; optionally also serves https (Part E) and stores building-map floor plans.
 - `VERSION` — the running version (source of truth; OTA bumps this).
 - `package.json` / `package-lock.json` — dependencies (express, ws, serialport).
 - `cortex-appliance.service` — systemd unit: auto-start, auto-restart, sandboxed, runs the `current` release.
@@ -161,9 +261,12 @@ journalctl -u cortex-updater -f               # live updater log
   releases/
     1.0.0/                      # each version in its own folder (old ones kept for rollback)
   data/                         # survives updates
-    appliance.env               # port, serial device, site name
+    appliance.env               # port, serial device, site name, optional CORTEX_HTTPS=1
     update.conf                 # OTA manifest URL
     update.log                  # OTA history
+    appconfig.json              # shared setup: users, schedules, unit names, floor-plan positions
+    floorplans/                 # building-map pictures uploaded from the UI (one file per group)
+    tls/cert.pem, tls/key.pem   # https certificate (self-signed by default; never overwritten)
 ```
 
 ## Handy commands

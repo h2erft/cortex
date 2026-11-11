@@ -15,7 +15,7 @@ echo "== Cortex appliance install (version $VER) =="
 
 # 1) base packages + Node 20 (NodeSource) + tools (jq for OTA, build tools for serialport native module)
 apt-get update
-apt-get install -y curl ca-certificates ufw unattended-upgrades build-essential jq git avahi-daemon
+apt-get install -y curl ca-certificates ufw unattended-upgrades build-essential jq git avahi-daemon openssl
 if ! command -v node >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
   apt-get install -y nodejs
@@ -63,6 +63,38 @@ CORTEX_SERIAL=/dev/ttyUSB0
 CORTEX_NAME=
 ENV
 fi
+
+# 5b) optional HTTPS — OFF by default, and plain http on CORTEX_PORT keeps working either way.
+# Add the (commented-out) switch to appliance.env once, so turning it on later is a one-line edit.
+if ! grep -q 'CORTEX_HTTPS' "$DATA/appliance.env" 2>/dev/null; then
+  cat >> "$DATA/appliance.env" <<'ENV'
+
+# Optional secure (https) access, IN ADDITION to plain http above. Remove the leading '#' from
+# the next line, then: sudo systemctl restart cortex-appliance   (see README-appliance.md, Part E)
+#CORTEX_HTTPS=1
+#CORTEX_HTTPS_PORT=8443
+ENV
+fi
+# A self-signed certificate so https can be switched on without any extra steps. Created ONLY when
+# neither file exists — an existing cert/key (yours, or one from `tailscale cert`) is never touched.
+TLS="$DATA/tls"
+mkdir -p "$TLS"
+if [ ! -e "$TLS/cert.pem" ] && [ ! -e "$TLS/key.pem" ]; then
+  if openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+       -keyout "$TLS/key.pem" -out "$TLS/cert.pem" -subj "/CN=$HN" \
+       -addext "subjectAltName=DNS:$HN,DNS:$HN.local,DNS:localhost,IP:127.0.0.1" >/dev/null 2>&1; then
+    echo "   created a self-signed https certificate in $TLS (used only if you turn https on)"
+  else
+    rm -f "$TLS/key.pem" "$TLS/cert.pem"
+    echo "   ! could not create a self-signed https certificate (https stays off; http is unaffected)" >&2
+  fi
+else
+  echo "   https certificate already present in $TLS — left as is"
+fi
+chmod 700 "$TLS" 2>/dev/null || true
+[ -f "$TLS/key.pem" ] && chmod 600 "$TLS/key.pem" || true
+HTTPS_PORT="$(sed -n 's/^[[:space:]]*CORTEX_HTTPS_PORT=\([0-9][0-9]*\).*/\1/p' "$DATA/appliance.env" 2>/dev/null | tail -n1)"
+HTTPS_PORT="${HTTPS_PORT:-8443}"
 if [ ! -f "$DATA/update.conf" ]; then
   # Auto-fill the repo from the clone this installer ran out of, so OTA works out of the box
   # for a public repo with zero extra steps (private repos still need a token below).
@@ -105,6 +137,9 @@ ufw default allow outgoing
 ufw allow 22/tcp                 # SSH on the LAN (tighten/remove once Tailscale SSH is set up)
 ufw allow in on tailscale0 to any port 8080 proto tcp 2>/dev/null || true  # Cortex over Tailscale
 ufw allow 8080/tcp               # Cortex on the LAN during setup; see step 4 below to lock down
+# optional https port (nothing listens on it unless CORTEX_HTTPS=1 is set in appliance.env)
+ufw allow in on tailscale0 to any port "$HTTPS_PORT" proto tcp 2>/dev/null || true
+ufw allow "$HTTPS_PORT"/tcp
 ufw --force enable
 dpkg-reconfigure -f noninteractive unattended-upgrades || true
 
@@ -115,7 +150,8 @@ echo "   ...or by IP if .local doesn't resolve:   http://<this-device-ip>:8080"
 echo "   First visit walks you through naming the site and picking the adapter."
 echo "2) (your remote access) Join your tailnet:   tailscale up"
 echo "3) OTA updates: auto-configured from your repo. (Private repo? add a token: nano $DATA/update.conf )"
-echo "4) Lock down to Tailscale-only later:  ufw delete allow 8080/tcp"
+echo "4) Lock down to Tailscale-only later:  ufw delete allow 8080/tcp ; ufw delete allow $HTTPS_PORT/tcp"
+echo "5) (optional) Secure https access: see README-appliance.md, Part E.  Off by default."
 echo
 echo "Logs:     journalctl -u cortex-appliance -f"
 echo "Updates:  journalctl -u cortex-updater -f     (or:  cat $DATA/update.log )"
