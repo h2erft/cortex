@@ -1944,11 +1944,17 @@ let pend=null; // staged (not-yet-sent) command for the open unit
 function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,d5:u.d5,d6:u.d6,b0:u.b0};}
 function openDrawer(id){openId=id;const u=units.find(x=>x.id===id);pend=snap(u);drawDrawer(u);drawer.classList.add("show");scrim.classList.add("show");}
 function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock);}
-function closeDrawer(){openId=null;drawer.classList.remove("show");scrim.classList.remove("show");
+function closeDrawer(){openId=null;drawerRenderedId=null;drawer.classList.remove("show");scrim.classList.remove("show");
   const fx=document.getElementById("fxlayer");if(fx)fx.innerHTML="";}
 scrim.onclick=closeDrawer;
 const STG='box-shadow:0 0 0 2px var(--warn) inset';
+let drawerSy=0,drawerRenderedId=null;
 function drawDrawer(u){
+  // Preserve scroll position across the full re-render that every control click triggers.
+  const _db=drawer.querySelector('.drawer-body');
+  drawerSy=(_db&&drawerRenderedId===u.id)?_db.scrollTop:0;     // same unit → keep scroll; new unit → top
+  drawerRenderedId=u.id;
+  requestAnimationFrame(()=>{const b=drawer.querySelector('.drawer-body');if(b)b.scrollTop=drawerSy;});
   const svc=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service)||{inService:false,note:"",history:[]};
   if(!pend)pend=snap(u);const p=pend;
   const role=currentUser?currentUser.role:"customer";
