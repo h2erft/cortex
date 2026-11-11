@@ -676,32 +676,18 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .bus.bad .dot{background:var(--err);animation:pulsebad .5s infinite}
 .bus.off .dot{background:var(--text-faint);animation:none}
 /* ---- animated indoor-unit graphic (building map) ---- */
-.ummap{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.ummap{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
 .umtile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px;cursor:pointer;transition:border-color .15s,transform .05s}
 .umtile:hover{border-color:var(--accent)}.umtile:active{transform:scale(.99)}
 .umtile .umhead{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:8px}
 .umtile .umname{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .umtile .umstate{font-size:11px;color:var(--text-dim);white-space:nowrap}
 .umtile .umkind{font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;margin-top:7px;display:flex;justify-content:space-between}
-.umviz{position:relative;height:84px;border-radius:10px;background:linear-gradient(180deg,var(--surface-2,rgba(127,127,127,.12)),transparent);overflow:hidden}
-.umviz .ubody{position:absolute;background:var(--text);opacity:.8;border-radius:4px;left:50%;transform:translateX(-50%)}
-.k-wall .ubody{width:64%;height:12px;top:10px}
-.k-cassette4 .ubody,.k-cassette1 .ubody{width:44px;height:15px;top:8px;border-radius:0 0 7px 7px}
-.k-ducted .ubody{width:52%;height:8px;top:8px;border-radius:2px}
-.k-floor .ubody{width:18px;height:46px;top:auto;bottom:8px;border-radius:4px}
-.k-ceiling .ubody{width:54%;height:11px;top:8px}
-.ua{position:absolute;border-radius:3px;background:var(--mc,#2f8ff5);opacity:0;width:6px;height:16px}
-.ua.p2{animation-delay:calc(var(--sp,1.5s)/3)}.ua.p3{animation-delay:calc(var(--sp,1.5s)*2/3)}
-.flow-down .ua{top:26px}.flow-down .ua.p1{left:30%}.flow-down .ua.p2{left:50%;margin-left:-3px}.flow-down .ua.p3{left:70%}
-.flow-down .ua{animation:fdown var(--sp,1.5s) linear infinite}
-@keyframes fdown{0%{opacity:0;transform:translateY(-4px) scaleY(.6)}20%{opacity:.85}100%{opacity:0;transform:translateY(44px) scaleY(1.1)}}
-.flow-up .ua{bottom:56px}.flow-up .ua.p1{left:44%}.flow-up .ua.p2{left:52%}.flow-up .ua.p3{left:60%}
-.flow-up .ua{animation:fup var(--sp,1.5s) linear infinite}
-@keyframes fup{0%{opacity:0;transform:translateY(6px)}20%{opacity:.85}100%{opacity:0;transform:translateY(-44px)}}
-.uf-1{--sp:2.4s}.uf-2{--sp:1.5s}.uf-3{--sp:.85s}
-.umviz.ustop .ua{display:none}.umviz.ustop .ubody{opacity:.4}
-.uerrdot{position:absolute;top:7px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--err);box-shadow:0 0 6px var(--err);animation:uerrflash .7s steps(1,end) infinite}
-@keyframes uerrflash{0%,50%{opacity:1}51%,100%{opacity:0}}
+/* top-down unit graphic (SVG) — one renderer, used on the map, cards and drawer */
+.umviz{position:relative;width:100%;aspect-ratio:1/1;max-height:140px;border-radius:10px;background:radial-gradient(circle at 50% 46%,var(--surface-2,rgba(127,127,127,.12)),transparent 72%);overflow:hidden}
+svg.ug{width:100%;height:100%;display:block}
+.ugmini{width:40px;height:40px;flex:none;border-radius:8px;background:radial-gradient(circle at 50% 50%,var(--surface-2,rgba(127,127,127,.14)),transparent 75%)}
+.ugmini svg.ug{border-radius:8px}
 /* protocol reference (markdown) viewer */
 .md{font-size:13.5px;line-height:1.55;color:var(--text);max-height:65vh;overflow:auto;padding-right:6px}
 .md .md-h{font-weight:700;margin:16px 0 6px;color:var(--text)}
@@ -1116,7 +1102,7 @@ function unitCard(u){
   const tags=chips.length?`<div class="tagrow">${chips.join("")}</div>`:"";
   const sel=selMode&&selSet.has(u.id);
   return `<div class="card ${u.on?'':'off'}" style="--stripe:${stripe};${sel?'box-shadow:0 0 0 2px var(--accent) inset':''}" data-id="${u.id}">
-    <div class="card-top"><div style="display:flex;align-items:center;gap:8px">${selMode?`<span style="width:18px;height:18px;border-radius:5px;border:2px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'var(--accent)':'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none">${sel?'✓':''}</span>`:''}<div><div class="card-name">${dispName(u)}</div><div class="card-meta mono">${meta}</div></div></div>${pill}</div>
+    <div class="card-top"><div style="display:flex;align-items:center;gap:8px">${selMode?`<span style="width:18px;height:18px;border-radius:5px;border:2px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'var(--accent)':'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none">${sel?'✓':''}</span>`:''}<div class="ugmini" title="${KINDS[u.kind||'wall']}">${unitGraphic(u,'',true)}</div><div><div class="card-name">${dispName(u)}</div><div class="card-meta mono">${meta}</div></div></div>${pill}</div>
     <div class="card-main"><div class="setpoint mono">${!u.on?"--":(isDual(u)?`<span style="color:var(--cool)">${spDisp(u.coolC)}</span><small style="color:var(--text-faint);font-weight:400"> / </small><span style="color:var(--heat)">${spDisp(u.heatC)}</span><small>°${settings.unit}</small>`:`${spDisp(activeC(u))}<small>°${settings.unit}</small>`)}</div>
       <div class="card-right">${right}</div></div>
     ${tags}
@@ -2215,7 +2201,7 @@ function drawDrawer(u){
    <div class="drawer-body">
     ${u.err?`<div class="err-note" data-code="${u.code}" style="margin-bottom:16px">⚠ ${u.code} · ${errInfo(u.code).t} — tap for details</div>`:""}
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
-      <div style="width:120px;flex:0 0 120px">${unitGraphic(u)}</div>
+      <div class="umviz" style="width:120px;flex:0 0 120px">${unitGraphic(u)}</div>
       <div style="flex:1;min-width:0"><div class="lbl" style="margin-bottom:4px">Unit type</div>
         ${(session.tech||session.admin)?`<select class="sel-box" style="width:100%" onchange="setKind(${u.id},this.value)">${Object.entries(KINDS).map(([k,n])=>`<option value="${k}" ${(u.kind||'wall')===k?'selected':''}>${n}</option>`).join("")}</select>`:`<div style="font-size:13px;color:var(--text-dim)">${KINDS[u.kind||'wall']}</div>`}
       </div>
@@ -2621,13 +2607,65 @@ function openAlerts(){const a=buildAlerts(),sc={info:"info",low:"ok",medium:"war
     if(b.dataset.tog==="notifpush")settings.notif.push=!settings.notif.push;else settings.notif.email=!settings.notif.email;saveSettings();b.classList.toggle("on");});}
 
 const KINDS={wall:"Wall mount",cassette4:"4-way cassette",cassette1:"1-way cassette",ducted:"Ducted",floor:"Floor standing",ceiling:"Ceiling suspended"};
-const KIND_FLOW={wall:"down",cassette4:"down",cassette1:"down",ducted:"down",ceiling:"down",floor:"up"};
+/* top-down airflow directions per indoor-unit type (N/E/S/W, viewed from the ceiling) */
+const KIND_DIRS={wall:["S"],cassette4:["N","E","S","W"],cassette1:["S"],ducted:["S"],ceiling:["E","W"],floor:["N"]};
+/* top-down body box [x,y,w,h] in the 96x96 viewBox */
+const KIND_BOX={wall:[16,11,64,15],cassette4:[27,27,42,42],cassette1:[21,30,54,30],ducted:[19,24,58,20],ceiling:[12,40,72,16],floor:[34,54,28,30]};
 function modeColor(u){if(!u.on)return "var(--stopped,#8a94a6)";return ({heat:"#f5713b",cool:"#2f8ff5",dry:"#13b6c8",fan:"#9aa3b2"})[u.mode]||"#2fbf71";}
-function fanClass(u){return "uf-"+(({low:1,med:2,high:3})[u.fan]||2);}
-function unitGraphic(u){const kind=u.kind||"wall",flow=KIND_FLOW[kind]||"down";
-  const air=u.on?`<span class="ua p1"></span><span class="ua p2"></span><span class="ua p3"></span>`:"";
-  return `<div class="umviz k-${kind} flow-${flow} ${fanClass(u)} ${u.on?'':'ustop'}" style="--mc:${modeColor(u)}"><div class="ubody"></div>${air}${u.err?'<span class="uerrdot" title="'+ue(u.code||'error')+'"></span>':''}</div>`;}
-function setKind(id,kind){const u=units.find(x=>x.id===id);if(!u)return;u.kind=kind;saveUnits();if(openId===id)drawDrawer(u);}
+/* one animated airflow "puff" leaving a body edge in direction d */
+function ugPuff(d,bx,by,bw,bh,off,reach,dur,begin,col){
+  const cx=bx+bw/2,cy=by+bh/2;let x,y,w,h,tx=0,ty=0;
+  if(d==="S"){x=cx+off;y=by+bh+2;w=11;h=3.4;ty=reach;}
+  else if(d==="N"){x=cx+off;y=by-2;w=11;h=3.4;ty=-reach;}
+  else if(d==="E"){x=bx+bw+2;y=cy+off;w=3.4;h=11;tx=reach;}
+  else {x=bx-2;y=cy+off;w=3.4;h=11;tx=-reach;}
+  const r=Math.min(w,h)/2;
+  return `<g opacity="0"><rect x="${(x-w/2).toFixed(1)}" y="${(y-h/2).toFixed(1)}" width="${w}" height="${h}" rx="${r}" fill="${col}"/>`
+    +`<animateTransform attributeName="transform" type="translate" values="0 0;${tx} ${ty}" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/>`
+    +`<animate attributeName="opacity" values="0;.9;0" keyTimes="0;.25;1" dur="${dur}s" begin="${begin}s" repeatCount="indefinite"/></g>`;
+}
+/* top-down SVG of an indoor unit that animates its live state. lite = fewer streams (cards) */
+function unitGraphic(u,cls,lite){
+  const kind=KINDS[u.kind]?u.kind:"wall";const on=!!u.on;const col=on?modeColor(u):"#8a94a6";
+  const [bx,by,bw,bh]=KIND_BOX[kind];const cx=bx+bw/2,cy=by+bh/2;
+  const dur=({low:2.4,med:1.5,high:.85})[u.fan]||1.5;
+  const panel='fill="rgba(130,138,150,.16)" stroke="rgba(130,138,150,.55)" stroke-width="1.4"';
+  const grille='fill="none" stroke="rgba(130,138,150,.5)" stroke-width="1.2"';
+  const led=`<circle cx="C" cy="Y" r="R" fill="${col}" opacity="${on?.95:.6}"/>`;
+  let body="";
+  if(kind==="cassette4"){
+    body=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="6" ${panel}/>`
+      +`<rect x="${bx+6}" y="${by+6}" width="${bw-12}" height="${bh-12}" rx="3" ${grille}/>`
+      +`<line x1="${bx+9}" y1="${by+6}" x2="${bx+bw-9}" y2="${by+6}" ${grille}/>`
+      +`<line x1="${bx+9}" y1="${by+bh-6}" x2="${bx+bw-9}" y2="${by+bh-6}" ${grille}/>`
+      +`<line x1="${bx+6}" y1="${by+9}" x2="${bx+6}" y2="${by+bh-9}" ${grille}/>`
+      +`<line x1="${bx+bw-6}" y1="${by+9}" x2="${bx+bw-6}" y2="${by+bh-9}" ${grille}/>`
+      +led.replace("C",cx).replace("Y",cy).replace("R",5.6);
+  }else if(kind==="floor"){
+    body=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="5" ${panel}/>`
+      +`<rect x="${bx+5}" y="${by+6}" width="${bw-10}" height="6" rx="3" ${grille}/>`
+      +led.replace("C",cx).replace("Y",by+bh-8).replace("R",3.4);
+  }else if(kind==="ceiling"){
+    body=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="7" ${panel}/>`
+      +`<line x1="${bx+9}" y1="${cy}" x2="${bx+bw-9}" y2="${cy}" ${grille}/>`
+      +led.replace("C",cx).replace("Y",cy).replace("R",4.6);
+  }else if(kind==="ducted"){
+    body=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="5" fill="rgba(130,138,150,.10)" stroke="rgba(130,138,150,.5)" stroke-width="1.3" stroke-dasharray="4 3"/>`
+      +`<rect x="${cx-17}" y="${by+bh-8}" width="34" height="5.5" rx="2.5" ${grille}/>`
+      +led.replace("C",bx+bw-7).replace("Y",by+7).replace("R",2.6);
+  }else{ // wall / cassette1 — louvered bar
+    body=`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="5" ${panel}/>`;
+    for(let i=1;i<=2;i++){const yy=by+bh*i/3;body+=`<line x1="${bx+6}" y1="${yy}" x2="${bx+bw-6}" y2="${yy}" ${grille}/>`;}
+    body+=led.replace("C",bx+bw-7).replace("Y",by+7).replace("R",2.6);
+  }
+  let air="";
+  if(on){const dirs=KIND_DIRS[kind];const spread=kind!=="cassette4";const reach=22;
+    dirs.forEach(d=>{const lanes=(spread&&!lite)?[-13,0,13]:[0];
+      lanes.forEach((off,li)=>{for(let p=0;p<3;p++){const begin=(p*dur/3+li*dur/6).toFixed(2);air+=ugPuff(d,bx,by,bw,bh,off,reach,dur,begin,col);}});});}
+  const err=u.err?`<circle cx="86" cy="10" r="5.5" fill="#ff4d4f"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.5;.51;1" dur=".9s" repeatCount="indefinite"/></circle>`:"";
+  return `<svg class="ug ${cls||''}" viewBox="0 0 96 96" preserveAspectRatio="xMidYMid meet">${body}${air}${err}</svg>`;
+}
+function setKind(id,kind){const u=units.find(x=>x.id===id);if(!u)return;u.kind=kind;saveUnits();renderAll();if(openId===id)drawDrawer(u);}
 function renderMap(){renderGroupNav();
   if(!units.length){main.innerHTML=`<div class="cyc-note">No units yet — add them from Tech → Bus scan (discover → import).</div>`;return;}
   const sel=(groupFilter==="all")?units.slice():units.filter(u=>catVals(u,"location").includes(groupFilter));
@@ -2638,7 +2676,7 @@ function renderMap(){renderGroupNav();
         <div class="ummap">${us.map(u=>{const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:(u.on?`${ue(u.mode)} · ${temp(u.sp)}`:'off');
           return `<div class="umtile" data-id="${u.id}">
             <div class="umhead"><span class="umname">${ue(dispName(u))}</span><span class="umstate">${stateTxt}</span></div>
-            ${unitGraphic(u)}
+            <div class="umviz">${unitGraphic(u)}</div>
             <div class="umkind"><span>${KINDS[u.kind||'wall']}</span><span>${u.on?('fan '+ue(u.fan)+' · '+temp(u.room)):'&nbsp;'}</span></div>
           </div>`;}).join("")}</div></div>`;}).join("")+
     `<div class="cyc-note" style="margin-top:4px">Set each unit's type (wall, cassette, ducted…) from its control panel so its graphic matches. Uploading a real floor-plan image to drag units onto is the next step.</div>`;
