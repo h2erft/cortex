@@ -1935,20 +1935,43 @@ function renderUpdates(){renderGroupNav();
 const DEV={host:"Raspberry Pi 5",os:"Cortex OS 0.1 · Debian 12",uptime:"12d 4h",cpu:14,temp:48,mem:38,disk:22,frames:41,errs:0};
 function healthBadge(ok){return ok?'<span class="badge-ok">Healthy</span>':'<span class="badge-new" style="background:var(--warn-soft);color:var(--warn)">Attention</span>';}
 function devStat(label,val,sub){return `<div class="gauge"><div class="gv mono">${val}</div><div class="gl">${label}${sub?` · ${sub}`:""}</div></div>`;}
-function renderDevice(){renderGroupNav();const ok=DEV.temp<65&&DEV.disk<85&&DEV.errs<5;
+let DEVLIVE=null,DEVERR=null,DEVLOADING=false;
+async function loadDevice(){
+  DEVLIVE=null;DEVERR=null;DEVLOADING=true;
+  if(location.protocol==='file:'){DEVERR="Cortex is running from a local file on this computer, so there's no appliance to read. Hardware vitals are reported by the Cortex service running on the mini-PC — install it there to see live device health.";DEVLOADING=false;if(view==='device')renderDevice();return;}
+  try{const r=await fetch('/api/device',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);DEVLIVE=await r.json();}
+  catch(e){DEVERR="Couldn't reach the appliance's device service (/api/device). The Cortex backend may be stopped or an older build — check the cortex service on the mini-PC (sudo systemctl status cortex-appliance).";}
+  DEVLOADING=false;if(view==='device')renderDevice();
+}
+function renderDevice(){renderGroupNav();
+  if(DEVLIVE===null&&DEVERR===null){if(!DEVLOADING)loadDevice();
+    main.innerHTML=`<div style="color:var(--text-dim);padding:20px">Reading device vitals…</div>`;return;}
+  const refBtn=`<button class="btn" id="devref">Refresh</button>`;
+  if(DEVERR){
+    const bad=(l)=>devStat(l,"—","unavailable");
+    main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
+      <div><div style="font-weight:600;font-size:15px">Device health ${healthBadge(false)}</div>
+        <div style="font-size:12.5px;color:var(--text-dim)">Not reading the appliance</div></div>${refBtn}</div>
+     <div class="note-box" style="color:var(--warn);margin-bottom:14px">${DEVERR}</div>
+     <div class="gauges">${bad("CPU load")}${bad("CPU temp")}${bad("Memory")}${bad("Disk")}${bad("Network")}${bad("Bus adapter")}</div>`;
+    document.getElementById("devref").onclick=loadDevice;return;}
+  const d=DEVLIVE;
+  const tempOk=d.temp==null||d.temp<75, diskOk=d.disk==null||d.disk<85;
+  const ok=tempOk&&diskOk&&d.serialPresent!==false;
+  const v=(x,suf)=>x==null?"n/a":x+(suf||"");
+  const busTxt=d.serialPresent===false?"adapter not found":(d.busActive?"streaming":(d.busBytes>0?"idle":"no traffic yet"));
+  const busSub=d.serial?d.serial+(d.serialPresent===false?" · missing":""):"";
   main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
-    <div><div style="font-weight:600;font-size:15px">${DEV.host} ${healthBadge(ok)}</div>
-      <div style="font-size:12.5px;color:var(--text-dim)">${DEV.os} · up ${DEV.uptime}</div></div>
-    <button class="btn" id="devref">Refresh</button></div>
+    <div><div style="font-weight:600;font-size:15px">${ue(d.host||"appliance")} ${healthBadge(ok)}</div>
+      <div style="font-size:12.5px;color:var(--text-dim)">${ue(d.os||"")} · up ${ue(d.uptime||"?")} · v${ue(d.version||"?")}</div></div>${refBtn}</div>
    <div class="gauges">
-     ${devStat("CPU load",DEV.cpu+"%")}${devStat("CPU temp",DEV.temp+"°C")}
-     ${devStat("Memory",DEV.mem+"%")}${devStat("Disk",DEV.disk+"%")}
-     ${devStat("Network","Online")}${devStat("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Tailscale · up":"Local only")}
-     ${devStat("Bus traffic",DEV.frames+"/s","errors "+DEV.errs)}${devStat("Site energy today",units.reduce((s,u)=>s+u.kwh,0).toFixed(1)+" kWh")}
-     ${devStat("Last backup","2h ago")}
+     ${devStat("CPU load",v(d.cpu,"%"),d.cores?d.cores+" cores":"")}${devStat("CPU temp",d.temp==null?"no sensor":d.temp+"°C")}
+     ${devStat("Memory",v(d.mem,"%"))}${devStat("Disk",v(d.disk,"%"))}
+     ${devStat("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Tailscale · up":"Local only")}
+     ${devStat("Bus adapter",busTxt,busSub)}
    </div>
-   <div class="cyc-note" style="margin-top:16px">⚙ Vitals of the controller hardware — read live from the OS in the real device. Cortex raises an alert if CPU temp, disk, or bus errors cross a threshold, and can notify you from the command center.</div>`;
-  document.getElementById("devref").onclick=()=>{DEV.cpu=10+Math.floor(Math.random()*22);DEV.temp=44+Math.floor(Math.random()*12);DEV.mem=33+Math.floor(Math.random()*14);DEV.frames=37+Math.floor(Math.random()*9);renderDevice();};}
+   <div class="cyc-note" style="margin-top:16px">⚙ Live vitals read from the appliance OS. Values marked "no sensor" / "n/a" just mean this hardware doesn't expose that reading. Cortex can alert from the command center if CPU temp or disk cross a threshold.</div>`;
+  document.getElementById("devref").onclick=loadDevice;}
 
 function renderAll(){
   document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));

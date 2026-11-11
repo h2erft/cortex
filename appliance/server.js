@@ -19,7 +19,11 @@ const { WebSocketServer } = require('ws');
 const { SerialPort } = require('serialport');
 const path = require('path');
 const fs   = require('fs');
+const os   = require('os');
 const { execFile } = require('child_process');
+
+// Live bus-activity counters, updated by the serial bridge below, reported by /api/device.
+const busRx = { bytes: 0, last: 0, active: false };
 
 const PORT   = parseInt(process.env.CORTEX_PORT || '8080', 10);
 const SERIAL = process.env.CORTEX_SERIAL || '/dev/ttyUSB0';
@@ -67,6 +71,61 @@ app.get('/health', (_req, res) => {
 app.get('/version', (_req, res) => {
   cors(res);
   res.json({ version: readVersion(), name: readConfig().name });
+});
+
+// Live hardware vitals, read from the OS. The browser shows these on the Device health page;
+// when Cortex runs as a bare file (no backend) this endpoint isn't reachable, so the page shows
+// "unavailable" instead of inventing numbers.
+function readCpuTempC() {
+  // x86 mini-PCs expose temp under /sys/class/hwmon/*/temp*_input or thermal_zone*/temp (milli°C).
+  const tries = [];
+  try { for (const z of fs.readdirSync('/sys/class/thermal')) if (z.startsWith('thermal_zone')) tries.push('/sys/class/thermal/' + z + '/temp'); } catch (_) {}
+  try { for (const h of fs.readdirSync('/sys/class/hwmon')) { const d = '/sys/class/hwmon/' + h; for (const f of fs.readdirSync(d)) if (/^temp\d+_input$/.test(f)) tries.push(d + '/' + f); } } catch (_) {}
+  for (const p of tries) { try { const v = parseInt(fs.readFileSync(p, 'utf8').trim(), 10); if (isFinite(v) && v > 0) return Math.round(v / 1000); } catch (_) {} }
+  return null;
+}
+function osPretty() {
+  try { const m = fs.readFileSync('/etc/os-release', 'utf8').match(/PRETTY_NAME="?([^"\n]+)/); if (m) return m[1]; } catch (_) {}
+  return os.type() + ' ' + os.release();
+}
+function diskPct() {
+  return new Promise((resolve) => {
+    execFile('df', ['-kP', DIR], { timeout: 2500 }, (err, out) => {
+      if (err) return resolve(null);
+      try { const l = out.trim().split('\n'); const c = l[l.length - 1].split(/\s+/); const pct = parseInt(c[4], 10); resolve(isFinite(pct) ? pct : null); }
+      catch (_) { resolve(null); }
+    });
+  });
+}
+app.get('/api/device', async (_req, res) => {
+  cors(res);
+  const cpus = os.cpus() || [];
+  const load1 = os.loadavg()[0];
+  const cpuPct = cpus.length ? Math.min(100, Math.round((load1 / cpus.length) * 100)) : null;
+  const memPct = Math.round((1 - os.freemem() / os.totalmem()) * 100);
+  const up = os.uptime();
+  const upStr = up >= 86400 ? Math.floor(up / 86400) + 'd ' + Math.floor((up % 86400) / 3600) + 'h'
+              : up >= 3600  ? Math.floor(up / 3600) + 'h ' + Math.floor((up % 3600) / 60) + 'm'
+              : Math.floor(up / 60) + 'm';
+  let disk = null; try { disk = await diskPct(); } catch (_) {}
+  const serialPresent = (() => { try { return fs.existsSync(readConfig().serial); } catch (_) { return false; } })();
+  res.json({
+    live: true,
+    host: os.hostname(),
+    os: osPretty(),
+    uptime: upStr,
+    cpu: cpuPct,
+    temp: readCpuTempC(),           // null when the platform exposes no sensor
+    mem: memPct,
+    disk: disk,                     // null if df failed
+    cores: cpus.length,
+    serial: readConfig().serial,
+    serialPresent,                  // does the configured adapter device exist?
+    busActive: busRx.active,
+    busBytes: busRx.bytes,
+    busLastMs: busRx.last ? (Date.now() - busRx.last) : null,
+    version: readVersion(),
+  });
 });
 
 // --- setup wizard API ---------------------------------------------------------
@@ -221,12 +280,12 @@ wss.on('connection', (ws, req) => {
     ws.close(); return;
   }
   busy = true;
-  port.on('open',  () => { try { ws.send(JSON.stringify({ ok: true, port: serial, baud })); } catch (_) {} });
+  port.on('open',  () => { busRx.active = true; try { ws.send(JSON.stringify({ ok: true, port: serial, baud })); } catch (_) {} });
   port.on('error', (e) => { try { ws.send(JSON.stringify({ err: e.message })); } catch (_) {} });
-  port.on('data',  (buf) => { if (ws.readyState === 1) ws.send(buf); });        // bytes -> browser (binary)
+  port.on('data',  (buf) => { busRx.bytes += buf.length; busRx.last = Date.now(); if (ws.readyState === 1) ws.send(buf); }); // bytes -> browser (binary)
   ws.on('message', (msg, isBinary) => { if (isBinary && port.writable) port.write(Buffer.from(msg)); }); // browser -> bytes
 
-  const cleanup = () => { busy = false; try { if (port.isOpen) port.close(() => {}); } catch (_) {} };
+  const cleanup = () => { busy = false; busRx.active = false; try { if (port.isOpen) port.close(() => {}); } catch (_) {} };
   ws.on('close', cleanup);
   ws.on('error', cleanup);
 });
