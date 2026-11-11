@@ -1354,11 +1354,9 @@ setInterval(()=>{if(bus.dirty&&view==="busscan"){bus.dirty=false;busUpdate();}},
 // Header bus-health light: reads real state. Green slow pulse = connected & healthy; fast red =
 // a problem (error, or we're polling/scanning but the bus has gone silent); grey = not connected.
 function busHealth(){
-  if(!bus.port||!bus.scanning)return "off";
-  if(bus.err)return "bad";
-  const since=Date.now()-(bus.lastRx||0);
-  if(MASTER&&(MASTER.running||MASTER.discovering))return (bus.lastRx&&since<6000)?"ok":"bad"; // asking but silent = problem
-  return "ok";                                               // connected, no error
+  if(!bus.port||!bus.scanning)return "off";                  // adapter not connected
+  if(bus.err)return "bad";                                   // a real adapter/bus error (RX glitch, backend serial, reopen failed)
+  return "ok";                                               // connected & no error — silence during a scan/poll is normal, not a fault
 }
 function updateBusHealth(){
   const el=document.getElementById("bus-health");if(!el)return;
