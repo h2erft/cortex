@@ -2,7 +2,9 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.4.3 — pending (controller validation + big feature round)
+## v1.4.3 — release candidate (controller validation + big feature round)
+
+_On `main` now for on-server testing. Publish as a GitHub **pre-release** tagged `v1.4.3-rc.1`; promote to a full `v1.4.3` release once it checks out on the box._
 
 **Protocol & master mode (field-validated on a live Multi V IV, 14 indoor units)**
 - Setpoint is sent in the basic cmd0 frame (byte 6 = °C − 15); Cortex no longer auto-sends the
@@ -33,6 +35,27 @@ All notable changes to Cortex. Dates are when the work landed on `main`.
 - Device health reads **real OS vitals** (CPU, memory, disk, temperature, uptime, bus activity)
   via a new `/api/device` endpoint; shows "unavailable" off the appliance instead of fake data.
 
+**Building map & live unit graphics**
+- Redesigned the indoor-unit graphic as a **top-down** SVG that matches real LG unit types
+  (wall mount, 4-way / 1-way cassette, ducted, floor standing, ceiling suspended) so it lines up
+  with a top-down floor plan.
+- Each unit **animates its live state**: airflow leaves the body in the directions that type
+  actually blows (4-way = all sides, wall/1-way/ducted = one side, ceiling = both ends,
+  floor = upward), colored by mode, speed set by fan, with a flashing fault dot + error code.
+- The animated graphic now appears **everywhere a unit shows** — building map, group/unit grid
+  cards, and the control drawer.
+- Set a unit's **type** from its control panel (tech/admin); the graphic updates immediately.
+- Next step: upload a real floor-plan image and drag units onto their actual positions.
+
+**Setup, manufacturer & controller**
+- Manufacturer locked to **LG**; other brands show "Coming soon" (no way to select them yet).
+- New wizard step for **LG system generation** — Gen 4 (4800 baud) or Gen 5 (9600 baud) — feeding
+  the bus baud rate; a tech can still set baud manually.
+- **Device health** moved out of the sidebar into Settings → Advanced.
+- Admins can **rename the site** from the UI.
+- "Use my location" now detects a non-secure (plain-http appliance) context and guides to manual
+  latitude/longitude entry instead of failing silently.
+
 **Accounts, sessions & settings**
 - Sessions persist across refresh with an admin-set **idle auto-logout** (15 min–8 h or never).
 - Command-center first-run setup wizard + recovery code (replaced the hardcoded demo login).
@@ -41,7 +64,9 @@ All notable changes to Cortex. Dates are when the work landed on `main`.
 - Real header **bus-health light** (green healthy / red problem / grey offline).
 
 **Known / still to do**
-- Schedules run while a dashboard is open; backend (always-on) scheduling is the next step.
+- Schedules run while a dashboard is open; backend (always-on) scheduling is the next step and
+  needs testing on the box against the live bus.
+- Floor-plan image upload + drag-to-place units on the building map.
 - Real push/email alerting is not yet wired.
 - Verify on the wire: the ODU/system grouping byte and whether ODU faults reach indoor replies.
 
