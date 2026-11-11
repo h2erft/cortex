@@ -664,6 +664,11 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .connbar .pulse{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 1.6s infinite}
 .connbar .pulse.off{background:var(--stopped);animation:none}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(67,192,114,.5)}70%{box-shadow:0 0 0 7px rgba(67,192,114,0)}100%{box-shadow:0 0 0 0 rgba(67,192,114,0)}}
+@keyframes pulsebad{0%{box-shadow:0 0 0 0 rgba(229,72,77,.65)}60%{box-shadow:0 0 0 6px rgba(229,72,77,0)}100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}}
+.bus .dot{width:9px;height:9px;border-radius:50%;background:var(--text-faint);display:inline-block;transition:background .2s}
+.bus.ok .dot{background:var(--ok);animation:pulse 1.8s infinite}
+.bus.bad .dot{background:var(--err);animation:pulsebad .5s infinite}
+.bus.off .dot{background:var(--text-faint);animation:none}
 /* protocol reference (markdown) viewer */
 .md{font-size:13.5px;line-height:1.55;color:var(--text);max-height:65vh;overflow:auto;padding-right:6px}
 .md .md-h{font-weight:700;margin:16px 0 6px;color:var(--text)}
@@ -680,7 +685,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 <header>
   <div class="brand"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex</div>
   <div class="site"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg><span id="site-name">Site</span></div>
-  <div class="bus"><span class="dot"></span>Bus online · <span class="mono">4800 8N1</span></div>
+  <div class="bus off" id="bus-health"><span class="dot"></span><span id="bus-label">Bus offline</span></div>
   <div class="spacer"></div>
   <div class="clock mono" id="clock">--:--</div>
   <div class="who" id="who"></div>
@@ -1324,7 +1329,7 @@ function downloadMasterLog(){const t=masterCaptureText();const bl=new Blob([t],{
   const a=document.createElement("a");a.href=u;a.download="cortex-master-capture.txt";a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);}
 function ingestBytes(bytes){
   if(typeof MASTER!=="undefined"&&MASTER.tap){try{MASTER.tap(bytes);}catch(e){}}  // master-mode reply capture
-  bus.bytes+=bytes.length;bus.dirty=true;
+  bus.bytes+=bytes.length;bus.lastRx=Date.now();bus.dirty=true;
   for(const x of bytes)bus.recent.push(x);if(bus.recent.length>96)bus.recent=bus.recent.slice(-96);
   if(bus.proto==="lg"){
     // keep the raw byte stream too, so Download capture works even when nothing decodes yet
@@ -1346,6 +1351,23 @@ function handleDecoded(d){
   bus.raw.push(d.hex);if(bus.raw.length>8000)bus.raw.shift();
   bus.dirty=true;}
 setInterval(()=>{if(bus.dirty&&view==="busscan"){bus.dirty=false;busUpdate();}},400);
+// Header bus-health light: reads real state. Green slow pulse = connected & healthy; fast red =
+// a problem (error, or we're polling/scanning but the bus has gone silent); grey = not connected.
+function busHealth(){
+  if(!bus.port||!bus.scanning)return "off";
+  if(bus.err)return "bad";
+  const since=Date.now()-(bus.lastRx||0);
+  if(MASTER&&(MASTER.running||MASTER.discovering))return (bus.lastRx&&since<6000)?"ok":"bad"; // asking but silent = problem
+  return "ok";                                               // connected, no error
+}
+function updateBusHealth(){
+  const el=document.getElementById("bus-health");if(!el)return;
+  const h=busHealth();el.classList.remove("ok","bad","off");el.classList.add(h);
+  const es=effSerial&&bus.scanning?effSerial():null;const ser=es?` · ${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"";
+  const lbl=document.getElementById("bus-label");
+  if(lbl)lbl.innerHTML=(h==="off"?"Bus offline":h==="bad"?"Bus problem":"Bus online")+(h!=="off"?`<span class="mono" style="color:var(--text-faint)">${ser}</span>`:"");
+}
+setInterval(updateBusHealth,1000);
 async function busConnect(){
   // Appliance mode: when Cortex is SERVED over http(s) by the local backend, the backend
   // owns the real serial port and we bridge over a WebSocket. On a bare file:// page we
