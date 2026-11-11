@@ -675,6 +675,33 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .bus.ok .dot{background:var(--ok);animation:pulse 1.8s infinite}
 .bus.bad .dot{background:var(--err);animation:pulsebad .5s infinite}
 .bus.off .dot{background:var(--text-faint);animation:none}
+/* ---- animated indoor-unit graphic (building map) ---- */
+.ummap{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.umtile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px;cursor:pointer;transition:border-color .15s,transform .05s}
+.umtile:hover{border-color:var(--accent)}.umtile:active{transform:scale(.99)}
+.umtile .umhead{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:8px}
+.umtile .umname{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.umtile .umstate{font-size:11px;color:var(--text-dim);white-space:nowrap}
+.umtile .umkind{font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.4px;margin-top:7px;display:flex;justify-content:space-between}
+.umviz{position:relative;height:84px;border-radius:10px;background:linear-gradient(180deg,var(--surface-2,rgba(127,127,127,.12)),transparent);overflow:hidden}
+.umviz .ubody{position:absolute;background:var(--text);opacity:.8;border-radius:4px;left:50%;transform:translateX(-50%)}
+.k-wall .ubody{width:64%;height:12px;top:10px}
+.k-cassette4 .ubody,.k-cassette1 .ubody{width:44px;height:15px;top:8px;border-radius:0 0 7px 7px}
+.k-ducted .ubody{width:52%;height:8px;top:8px;border-radius:2px}
+.k-floor .ubody{width:18px;height:46px;top:auto;bottom:8px;border-radius:4px}
+.k-ceiling .ubody{width:54%;height:11px;top:8px}
+.ua{position:absolute;border-radius:3px;background:var(--mc,#2f8ff5);opacity:0;width:6px;height:16px}
+.ua.p2{animation-delay:calc(var(--sp,1.5s)/3)}.ua.p3{animation-delay:calc(var(--sp,1.5s)*2/3)}
+.flow-down .ua{top:26px}.flow-down .ua.p1{left:30%}.flow-down .ua.p2{left:50%;margin-left:-3px}.flow-down .ua.p3{left:70%}
+.flow-down .ua{animation:fdown var(--sp,1.5s) linear infinite}
+@keyframes fdown{0%{opacity:0;transform:translateY(-4px) scaleY(.6)}20%{opacity:.85}100%{opacity:0;transform:translateY(44px) scaleY(1.1)}}
+.flow-up .ua{bottom:56px}.flow-up .ua.p1{left:44%}.flow-up .ua.p2{left:52%}.flow-up .ua.p3{left:60%}
+.flow-up .ua{animation:fup var(--sp,1.5s) linear infinite}
+@keyframes fup{0%{opacity:0;transform:translateY(6px)}20%{opacity:.85}100%{opacity:0;transform:translateY(-44px)}}
+.uf-1{--sp:2.4s}.uf-2{--sp:1.5s}.uf-3{--sp:.85s}
+.umviz.ustop .ua{display:none}.umviz.ustop .ubody{opacity:.4}
+.uerrdot{position:absolute;top:7px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--err);box-shadow:0 0 6px var(--err);animation:uerrflash .7s steps(1,end) infinite}
+@keyframes uerrflash{0%,50%{opacity:1}51%,100%{opacity:0}}
 /* protocol reference (markdown) viewer */
 .md{font-size:13.5px;line-height:1.55;color:var(--text);max-height:65vh;overflow:auto;padding-right:6px}
 .md .md-h{font-weight:700;margin:16px 0 6px;color:var(--text)}
@@ -707,7 +734,6 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
       <button class="nav-item active" data-view="units"><span>❄ Indoor units</span></button>
       <button class="nav-item" data-view="map"><span>🗺 Building map</span></button>
       <button class="nav-item" data-view="schedule"><span>🗓 Schedule</span></button>
-      <button class="nav-item" id="nav-device" data-view="device"><span>🩺 Device health</span></button>
       <button class="nav-item hide" id="nav-busscan" data-view="busscan"><span>📡 Bus scan</span><span class="tech-tag">TECH</span></button>
       <button class="nav-item hide" id="nav-cycle" data-view="cycle"><span>⚙ Outdoor / cycle</span><span class="tech-tag">TECH</span></button>
     </div>
@@ -806,7 +832,9 @@ async function loadWeather(){
   }catch(e){WEATHER.live=false;if(WEATHER.now==null)WEATHER.cond="Weather unavailable";}
   if(view==="units")renderAll();
 }
-function detectLocation(){if(!navigator.geolocation){toast("This browser can't share location");return;}
+function detectLocation(){
+  if(!window.isSecureContext){toast("Browsers only share location on secure (https) pages. The appliance runs on plain http on your LAN, so tap “Enter manually” and type the site’s coordinates — you only do it once.");return;}
+  if(!navigator.geolocation){toast("This browser can't share location — use “Enter manually”");return;}
   toast("Getting your location…");navigator.geolocation.getCurrentPosition(
     p=>{if(CFG&&CFG.site){CFG.site.lat=+p.coords.latitude.toFixed(4);CFG.site.lon=+p.coords.longitude.toFixed(4);saveCfg(CFG);}WEATHER.ts=0;loadWeather();toast("Location set — loading weather");if(setTab)drawSettings();},
     ()=>toast("Couldn't get location — allow location access, or set it manually"),{timeout:9000});}
@@ -863,6 +891,7 @@ function migrateUnits(){let changed=false;units.forEach(u=>{
   if(u.tempLock==null){u.tempLock=false;changed=true;}
   if(u.grp==null){u.grp=u.system||("Group "+(u.group!=null?u.group:""))||"Ungrouped";changed=true;}  // logical top-level group
   if(u.subgrp==null){u.subgrp="";changed=true;}                                                       // logical sub-group (floor/room)
+  if(u.kind==null){u.kind="wall";changed=true;}                                                        // indoor-unit body type (tech sets it)
 });if(changed)saveUnits();}
 migrateUnits();
 
@@ -1706,7 +1735,7 @@ function busClear(){busReset();renderBusScan();}
 /* Build a unit record for a freshly-discovered bus address (full current model). */
 function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&&a.last&&a.last.type==="cmd")?a.last:null;const modeOk=s&&["auto","cool","heat"].includes(s.mode);
   return {id,addr,name:"AC_UNIT_"+addr.toString(16).padStart(2,"0").toUpperCase(),label:"Addr 0x"+addr.toString(16).padStart(2,"0").toUpperCase(),
-    ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",
+    ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",kind:"wall",
     on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,
     room:72,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:50,pipeOut:60,zoneLoad:0,runtimeHrs:0,kwh:0,filterPct:100,discovered:true};}
 function busImport(){
@@ -1762,7 +1791,8 @@ function busUpdate(){
     else if(MASTER.running)mst.textContent="● polling "+MASTER.found.size+" unit(s) · watching for new ones";
     else mst.textContent=MASTER.found.size+" responder(s) found";}}
 function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.serial||{};
-  return {baud:s.baud||p.baud,dataBits:s.dataBits||p.dataBits,parity:s.parity||p.parity,stopBits:s.stopBits||p.stopBits};}
+  const siteBaud=(bus.proto==="lg"&&CFG&&CFG.baud)?CFG.baud:null;   // LG generation sets the site baud (4800 gen4 / 9600 gen5)
+  return {baud:s.baud||siteBaud||p.baud,dataBits:s.dataBits||p.dataBits,parity:s.parity||p.parity,stopBits:s.stopBits||p.stopBits};}
 function renderBusScan(){
   const supported="serial" in navigator;const conn=bus.scanning;
   const opts=siteProtocols();if(!opts.includes(bus.proto))bus.proto=opts[0]||"lg";
@@ -2184,6 +2214,12 @@ function drawDrawer(u){
     <button class="icon-btn" id="dclose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
    <div class="drawer-body">
     ${u.err?`<div class="err-note" data-code="${u.code}" style="margin-bottom:16px">⚠ ${u.code} · ${errInfo(u.code).t} — tap for details</div>`:""}
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+      <div style="width:120px;flex:0 0 120px">${unitGraphic(u)}</div>
+      <div style="flex:1;min-width:0"><div class="lbl" style="margin-bottom:4px">Unit type</div>
+        ${(session.tech||session.admin)?`<select class="sel-box" style="width:100%" onchange="setKind(${u.id},this.value)">${Object.entries(KINDS).map(([k,n])=>`<option value="${k}" ${(u.kind||'wall')===k?'selected':''}>${n}</option>`).join("")}</select>`:`<div style="font-size:13px;color:var(--text-dim)">${KINDS[u.kind||'wall']}</div>`}
+      </div>
+    </div>
     ${locked?`<div class="note-box" style="color:var(--warn);margin-bottom:14px">🔧 In service — controls are locked. A technician can clear the In-service lock to re-enable customer control.</div>`:""}
     <div class="field"><div class="lbl">Power ${stg('on')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="pon" class="${p.on?'on-sel':''}" ${dis} style="${p.on&&stg('on')?STG:''}">On</button><button id="poff" class="${p.on?'':'off-sel'}" ${dis} style="${!p.on&&stg('on')?STG:''}">Off</button></div></div>
     <div class="field"><div class="lbl">Mode ${stg('mode')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${MODES.map(m=>`<button class="opt ${MC[m[0]]} ${p.mode===m[0]?'sel':''}" data-mode="${m[0]}" ${dis} style="${p.mode===m[0]&&stg('mode')?STG:''}">${m[2]} ${m[1]}</button>`).join("")}</div></div>
@@ -2387,12 +2423,14 @@ function layoutTab(){const a=units.filter(u=>u.system==="System A"),b=units.filt
 function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];const i=CFG.protocols.indexOf(k);
   if(i>=0){if(CFG.protocols.length>1)CFG.protocols.splice(i,1);}else CFG.protocols.push(k);saveCfg(CFG);drawSettings();}
 function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
-  <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Manufacturers on this site</div>
-  <div class="sd" style="margin-bottom:8px">A site can run mixed equipment. Enabled systems appear in the technician Bus scan.</div>
-  ${Object.keys(PROTOCOLS).map(k=>{const p=PROTOCOLS[k];const on=sp.includes(k);
-    return `<div class="setrow"><div><div class="sl">${p.label}</div><div class="sd mono">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits} · ${p.phys} · ${p.decode==='full'?'full decode':'capture'}</div></div>
-      <button class="toggle ${on?'on':''}" onclick="toggleSiteProto('${k}')"></button></div>`;}).join("")}
+  <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Site</div>
+  ${row("Site name",(CFG&&CFG.site&&CFG.site.name)||"—",canAdmin()?"<button class=\"linklike\" onclick=\"setSiteName()\">Rename</button>":"<span style=\"color:var(--text-faint);font-size:12px\">admins only</span>")}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Manufacturer</div>
+  <div class="sd" style="margin-bottom:8px">Cortex controls <b>LG (LGAP)</b> today. Other brands are in development.</div>
+  <div class="setrow"><div><div class="sl">LG (LGAP)</div><div class="sd mono">RS485 · full control</div></div><button class="toggle on" disabled style="opacity:.8"></button></div>
+  ${["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"].map(k=>`<div class="setrow" style="opacity:.55"><div><div class="sl">${PROTOCOLS[k].label}</div><div class="sd" style="color:var(--accent)">Coming soon</div></div></div>`).join("")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
+  ${row("Device health","Live CPU, memory, disk, temperature, and bus activity of the appliance","<button class=\"linklike\" onclick=\"closeModal();view='device';renderAll();\">Open</button>")}
   ${row("Raw frame monitor","Show live bus frames (debug)",tog("rawmon",false))}
   ${row("Allow customer control","Let customers change setpoints/modes",tog("custctl",true))}
   ${row("Allow customer All-On/Off","",tog("custall",true))}
@@ -2413,6 +2451,10 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   ${row("Factory reset (demo)","Clear this controller's saved config",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset</button>`)}
   <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Advanced settings affect every user on this controller.</div>`;}
 function setSessionTimeout(v){if(!CFG)return;CFG.sessionTimeoutMin=parseInt(v,10)||0;saveCfg(CFG);touchSession();toast("Auto sign-out: "+(CFG.sessionTimeoutMin?CFG.sessionTimeoutMin+" min":"never"));}
+function canAdmin(){return !!(session.admin||(currentUser&&currentUser.role==="owner"));}
+function setSiteName(){if(!canAdmin()){toast("Admins only");return;}const cur=(CFG&&CFG.site&&CFG.site.name)||"";
+  const v=prompt("Site name",cur);if(v==null)return;const n=v.trim();if(!n)return;
+  if(CFG&&CFG.site){CFG.site.name=n;saveCfg(CFG);}renderWho();drawSettings();toast("Site renamed");}
 function setManualLocation(){const cur=(CFG&&CFG.site&&CFG.site.lat!=null)?CFG.site.lat+", "+CFG.site.lon:"";
   const v=prompt("Enter latitude, longitude (e.g. 40.37, -111.74)",cur);if(v==null)return;
   const m=(v||"").split(/[ ,]+/).map(Number).filter(n=>!isNaN(n));
@@ -2578,14 +2620,29 @@ function openAlerts(){const a=buildAlerts(),sc={info:"info",low:"ok",medium:"war
   mroot.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{settings.notif=settings.notif||{};
     if(b.dataset.tog==="notifpush")settings.notif.push=!settings.notif.push;else settings.notif.email=!settings.notif.email;saveSettings();b.classList.toggle("on");});}
 
-function renderMap(){renderGroupNav();const floors=[...new Set(units.map(u=>getMeta(u).floor))].sort((a,b)=>a-b);
-  main.innerHTML=`<div style="font-size:13.5px;color:var(--text-dim);margin-bottom:12px">Live building view — units by floor, colored by status. Tap one to control it.</div>`+
-    floors.map(f=>{const us=units.filter(u=>getMeta(u).floor===f);
-      return `<div class="floor-wrap"><div style="font-weight:600">Floor ${f} · ${us.length} units</div>
-        <div class="pucks">${us.map(u=>{const st=statusOf(u),pk=st==="err"?"var(--err)":(u.on?"var(--accent)":"var(--stopped)");
-          return `<div class="puck" style="--pk:${pk}" data-id="${u.id}"><div class="pn">${dispName(u)}</div><div class="ps mono">${u.on?temp(u.sp).replace(/°[FC]/,'')+'<small>°'+settings.unit+'</small>':(u.err?'<small style="color:var(--err)">'+u.code+'</small>':'<small>off</small>')}</div></div>`;}).join("")}</div></div>`;}).join("")+
-    `<div class="cyc-note">Drag-to-place positions on a real floor plan image are coming — for now units group onto their floor automatically.</div>`;
-  document.querySelectorAll(".puck[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));}
+const KINDS={wall:"Wall mount",cassette4:"4-way cassette",cassette1:"1-way cassette",ducted:"Ducted",floor:"Floor standing",ceiling:"Ceiling suspended"};
+const KIND_FLOW={wall:"down",cassette4:"down",cassette1:"down",ducted:"down",ceiling:"down",floor:"up"};
+function modeColor(u){if(!u.on)return "var(--stopped,#8a94a6)";return ({heat:"#f5713b",cool:"#2f8ff5",dry:"#13b6c8",fan:"#9aa3b2"})[u.mode]||"#2fbf71";}
+function fanClass(u){return "uf-"+(({low:1,med:2,high:3})[u.fan]||2);}
+function unitGraphic(u){const kind=u.kind||"wall",flow=KIND_FLOW[kind]||"down";
+  const air=u.on?`<span class="ua p1"></span><span class="ua p2"></span><span class="ua p3"></span>`:"";
+  return `<div class="umviz k-${kind} flow-${flow} ${fanClass(u)} ${u.on?'':'ustop'}" style="--mc:${modeColor(u)}"><div class="ubody"></div>${air}${u.err?'<span class="uerrdot" title="'+ue(u.code||'error')+'"></span>':''}</div>`;}
+function setKind(id,kind){const u=units.find(x=>x.id===id);if(!u)return;u.kind=kind;saveUnits();if(openId===id)drawDrawer(u);}
+function renderMap(){renderGroupNav();
+  if(!units.length){main.innerHTML=`<div class="cyc-note">No units yet — add them from Tech → Bus scan (discover → import).</div>`;return;}
+  const sel=(groupFilter==="all")?units.slice():units.filter(u=>catVals(u,"location").includes(groupFilter));
+  const leaves=[...new Set(sel.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  main.innerHTML=`<div style="font-size:13.5px;color:var(--text-dim);margin-bottom:12px">Live building view — each unit animates its real state: color by mode, airflow speed by fan, a flashing dot on a fault. Tap one to control it.</div>`+
+    leaves.map(leaf=>{const us=sel.filter(u=>leafKey(u)===leaf);
+      return `<div class="floor-wrap" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:8px">${ue(leaf)} · ${us.length}</div>
+        <div class="ummap">${us.map(u=>{const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:(u.on?`${ue(u.mode)} · ${temp(u.sp)}`:'off');
+          return `<div class="umtile" data-id="${u.id}">
+            <div class="umhead"><span class="umname">${ue(dispName(u))}</span><span class="umstate">${stateTxt}</span></div>
+            ${unitGraphic(u)}
+            <div class="umkind"><span>${KINDS[u.kind||'wall']}</span><span>${u.on?('fan '+ue(u.fan)+' · '+temp(u.room)):'&nbsp;'}</span></div>
+          </div>`;}).join("")}</div></div>`;}).join("")+
+    `<div class="cyc-note" style="margin-top:4px">Set each unit's type (wall, cassette, ducted…) from its control panel so its graphic matches. Uploading a real floor-plan image to drag units onto is the next step.</div>`;
+  document.querySelectorAll(".umtile[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));}
 
 /* ---- 30-day timestamped data log + trends ---- */
 const DAY=86400000, TPAL=["#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6","#ec4899","#14b8a6","#f97316","#6366f1","#84cc16"];
@@ -2805,14 +2862,19 @@ const WSTEPS=[
   wire:()=>{const t=document.getElementById("rm-tog");if(t)t.onclick=()=>{WZ.remote.enabled=!WZ.remote.enabled;renderWizard();};},
   save:()=>null},
  {title:"Equipment manufacturer",sub:"Which system are you installing on? This sets how Cortex listens to the bus.",
-  body:()=>`<div class="note-box" style="margin-bottom:12px">Pick the primary system here. You can add more manufacturers to this site later in Settings → Advanced (a site can run mixed equipment).</div>
-    <div class="opts" style="flex-direction:column;gap:8px">${Object.keys(PROTOCOLS).map(k=>{const p=PROTOCOLS[k];const on=WZ.protocols.includes(k);
-      return `<button class="opt ${on?'sel':''}" data-proto="${k}" style="justify-content:space-between;text-align:left;width:100%">
-        <span>${on?'✓ ':''}${p.label}</span><span style="font-size:11px;color:var(--text-faint)">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits} · ${p.phys} · ${p.decode==='full'?'full decode':'capture'}</span></button>`;}).join("")}</div>
-    <div style="font-size:11.5px;color:var(--text-faint);margin-top:10px">Tap to toggle. LG has full decoding today; the others capture raw at the right settings for now. Non-RS485 systems need their own adapter.</div>`,
-  wire:()=>{document.querySelectorAll("[data-proto]").forEach(b=>b.onclick=()=>{const k=b.dataset.proto;const i=WZ.protocols.indexOf(k);
-    if(i>=0){if(WZ.protocols.length>1)WZ.protocols.splice(i,1);}else WZ.protocols.push(k);renderWizard();});},
-  save:()=>WZ.protocols.length?null:"Pick at least one manufacturer."},
+  body:()=>{WZ.protocols=["lg"];const soon=["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"];
+    return `<div class="note-box" style="margin-bottom:12px">Cortex supports <b>LG (LGAP)</b> today. Other manufacturers are in development.</div>
+    <div class="opts" style="flex-direction:column;gap:8px">
+      <button class="opt sel" style="justify-content:space-between;text-align:left;width:100%"><span>✓ LG (LGAP)</span><span style="font-size:11px;color:var(--text-faint)">RS485 · full control</span></button>
+      ${soon.map(k=>`<button class="opt" disabled style="justify-content:space-between;text-align:left;width:100%;opacity:.5;cursor:not-allowed"><span>${PROTOCOLS[k].label}</span><span style="font-size:11px;color:var(--accent)">Coming soon</span></button>`).join("")}</div>`;},
+  wire:()=>{},
+  save:()=>{WZ.protocols=["lg"];return null;}},
+ {title:"LG system generation",sub:"This sets the bus speed. Multi V IV runs at 4800 baud; Multi V 5 can run at 9600.",
+  body:()=>{const g=WZ.gen||"4";return `<div class="opts" style="flex-direction:column;gap:8px">
+    ${[["4","Multi V IV","4800 baud"],["5","Multi V 5","9600 baud"]].map(o=>`<button class="opt ${g===o[0]?'sel':''}" data-gen="${o[0]}" style="justify-content:space-between;text-align:left;width:100%"><span>${g===o[0]?'✓ ':''}${o[1]}</span><span style="font-size:11px;color:var(--text-faint)">${o[2]}</span></button>`).join("")}</div>
+    <div style="font-size:11.5px;color:var(--text-faint);margin-top:10px">Not sure? Pick Multi V IV (4800) — you can change the baud rate anytime in Tech → Bus scan.</div>`;},
+  wire:()=>{document.querySelectorAll("[data-gen]").forEach(b=>b.onclick=()=>{WZ.gen=b.dataset.gen;renderWizard();});},
+  save:()=>{WZ.gen=WZ.gen||"4";return null;}},
  {title:"Find indoor units",sub:"Scan the bus for connected units — like the ACP's auto-search.",
   body:()=>{ if(!WZ.scan) return `<div class="note-box">This polls every address on the bus (0x00–0xFE) and lists the indoor units that answer — the same discovery the LG ACP runs at commissioning. It sends only safe read frames; nothing on the units is changed. <b>Disconnect the real LG central (ACP/AC Smart) from this bus first</b> so Cortex can be the master. No adapter yet? You can skip this and scan later from Tech → Bus scan.</div>
      <button class="btn primary" id="wz-scan" style="width:100%;justify-content:center">▶ Start bus scan</button>`;
@@ -2877,7 +2939,8 @@ function provision(){
     schedules:[],                                              // start empty — users build their own
     users:[{id:1,name:WZ.owner.name,username:WZ.owner.username,passhash:hash(WZ.owner.pass),role:"owner",protected:true},
       ...WZ.team.map((t,i)=>({id:2+i,name:t.name,username:t.username,passhash:hash(t.pass),role:t.role}))]};
-  settings.unit=WZ.site.unit;saveSettings();saveCfg(CFG);enterApp(CFG.users[0]);
+  settings.unit=WZ.site.unit;CFG.gen=WZ.gen||"4";CFG.baud=(WZ.gen==="5")?9600:4800;
+  saveSettings();saveCfg(CFG);enterApp(CFG.users[0]);
   if(MASTER.found&&MASTER.found.size)masterImport();            // add units found by the wizard's bus scan
 }
 
