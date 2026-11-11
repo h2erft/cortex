@@ -26,6 +26,14 @@ _On `main` now for on-server testing. Publish as a GitHub **pre-release** tagged
 - "Use my location" now detects a non-secure (plain-http appliance) context and guides to manual
   latitude/longitude entry instead of failing silently.
 
+**Updates / OTA**
+- New **update channel** — Settings → Updates → *Beta testing* (admin only). Off by default:
+  appliances only auto-update to **stable** releases (GitHub "latest" already skips pre-releases,
+  so existing customer boxes never pull a beta). Turn it on for a test box to also receive
+  alpha / beta / rc builds.
+- Updater and the in-app check now compare full semver including the pre-release suffix, so a beta
+  box correctly promotes to the final stable (`1.4.4` supersedes `1.4.4-beta.1`).
+
 **Known / next**
 - Backend (always-on) scheduling — needs testing on the box against the live bus.
 - Floor-plan image upload + drag-to-place units on the building map.

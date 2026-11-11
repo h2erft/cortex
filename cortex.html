@@ -570,6 +570,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .wiz-foot{display:flex;justify-content:space-between;gap:10px;padding:16px 24px;border-top:1px solid var(--border)}
 .pinpair{display:flex;gap:12px}.pinpair>div{flex:1}
 .note-box{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text-dim);margin-bottom:12px}
+.note-box.warn{border-color:var(--warn,#d9820a);background:color-mix(in srgb,var(--warn,#d9820a) 10%,transparent);color:var(--text)}
 .step-num{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
 .team-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
 .sumrow{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
@@ -2349,6 +2350,12 @@ function drawSettings(){
   if(setTab==="updates")loadSettingsUpdates();
 }
 function updatesTab(){return `<div id="setupd"><div class="note-box">Checking for updates…</div></div>`;}
+async function setUpdateChannel(beta){
+  if(!canAdmin()){toast("Admins only");return;}
+  try{await fetch('/api/update-channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:beta?'beta':'stable'})});}
+  catch(e){toast("Couldn't reach the appliance");return;}
+  toast(beta?"Beta testing on — pre-release updates enabled":"Beta testing off — stable updates only");
+  loadSettingsUpdates();}
 let _skipVer=null;try{_skipVer=localStorage.getItem("airow_skipver");}catch(e){}
 async function loadSettingsUpdates(){
   let st;try{const r=await fetch('/api/update/check',{cache:'no-store'});st=await r.json();}catch(e){st={error:"This screen works on the installed appliance."};}
@@ -2373,7 +2380,15 @@ async function loadSettingsUpdates(){
   } else {
     h+='<div class="note-box" style="margin-top:10px">You\'re on the latest version. This controller also checks and updates itself automatically.</div>';
   }
+  const chan=st.channel||'stable';
+  h+=`<div style="margin:18px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Update channel</div>`;
+  h+=`<div class="setrow"><div><div class="sl">Beta testing</div><div class="sd">Also install <b>pre-release</b> (alpha / beta / rc) builds on this controller. Off = stable releases only, which is what you want on a customer site.</div></div>`;
+  h+= canAdmin() ? `<button class="toggle ${chan==='beta'?'on':''}" id="chan-tog"></button>`
+                 : `<span style="color:var(--text-faint);font-size:12px">${chan==='beta'?'on':'off'} · admins only</span>`;
+  h+=`</div>`;
+  if(chan==='beta') h+=`<div class="note-box warn" style="margin-top:8px">⚠ This controller is on the <b>beta channel</b> and will install pre-release builds. Use on test sites, not production.</div>`;
   el.innerHTML=h;
+  const ct=document.getElementById("chan-tog");if(ct)ct.onclick=()=>setUpdateChannel(chan!=='beta');
   const now=document.getElementById("upd-now");if(now)now.onclick=async()=>{now.disabled=true;now.textContent="Starting…";
     try{await fetch('/api/update/apply',{method:"POST"});}catch(e){}
     el.innerHTML='<div class="note-box">Update started — the controller will download, install, and restart. This page reconnects in a minute or two, and it rolls back on its own if the new version has a problem.</div>';};

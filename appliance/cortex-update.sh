@@ -27,6 +27,10 @@ log(){ printf '%s %s\n' "$(date -Is)" "$*" | tee -a "$LOG" >&2; }
 need(){ command -v "$1" >/dev/null 2>&1 || { log "missing dependency: $1"; exit 1; }; }
 need curl; need jq; need sha256sum; need tar; need node; need systemctl
 
+# semver compare that matches server.js: a plain x.y.z (stable) outranks the same x.y.z with a
+# pre-release suffix (1.4.4 > 1.4.4-beta.1). sort -V gets this backwards, so we use node. Prints newer|older|same.
+vercmp(){ node -e 'const f=v=>{const m=String(v).trim().replace(/^v/,"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);return m?[+m[1],+m[2],+m[3],m[4]||"~"]:[0,0,0,"~"];};const a=f(process.argv[1]),b=f(process.argv[2]);let c=0;for(let i=0;i<3;i++){if(a[i]!==b[i]){c=a[i]-b[i];break;}}if(!c)c=a[3]===b[3]?0:(a[3]==="~"?1:(b[3]==="~"?-1:(a[3]<b[3]?-1:1)));process.stdout.write(c>0?"newer":c<0?"older":"same");' "$1" "$2"; }
+
 # --- config -------------------------------------------------------------------
 # update.conf is a shell fragment. Point at updates one of two ways:
 #   GitHub (recommended — works with PRIVATE repos + fine-grained tokens):
@@ -45,14 +49,34 @@ AUTH=()
 CUR="$(cat "$ROOT/current/VERSION" 2>/dev/null || echo 0.0.0)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
+# Update channel: 'stable' (default) ignores pre-releases; 'beta' also accepts alpha/beta/rc.
+# Written by the UI toggle (server.js -> $DATA/update-channel). Default stable if the file is absent.
+CHAN="$(tr -d '[:space:]' < "$DATA/update-channel" 2>/dev/null | tr 'A-Z' 'a-z')"; CHAN="${CHAN:-stable}"
+
 # ACCEPT_OCTET makes the GitHub asset API return the file bytes (not JSON metadata).
 ACCEPT_OCTET=()
 if [ -n "${CORTEX_UPDATE_REPO:-}" ]; then
   # --- GitHub API mode -------------------------------------------------------
   ACCEPT_OCTET=(-H "Accept: application/octet-stream")
   API="${CORTEX_UPDATE_API_BASE:-https://api.github.com}/repos/${CORTEX_UPDATE_REPO}"
-  if ! curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" --max-time 60 "$API/releases/latest" -o "$TMP/rel.json"; then
-    log "GitHub release lookup failed for $CORTEX_UPDATE_REPO — leaving $CUR running"; exit 0
+  if [ "$CHAN" = "beta" ]; then
+    # beta channel: look at ALL non-draft releases and pick the newest tag (pre-releases included).
+    log "update channel: beta (pre-releases accepted)"
+    if ! curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" --max-time 60 "$API/releases?per_page=30" -o "$TMP/rels.json"; then
+      log "GitHub release list failed for $CORTEX_UPDATE_REPO — leaving $CUR running"; exit 0
+    fi
+    WANT=""
+    while read -r tag; do
+      [ -n "$tag" ] || continue
+      if [ -z "$WANT" ] || [ "$(vercmp "$tag" "$WANT")" = "newer" ]; then WANT="$tag"; fi
+    done < <(jq -r '.[]|select(.draft==false)|.tag_name' "$TMP/rels.json" | sed 's/^v//')
+    if [ -z "$WANT" ]; then log "beta channel: no releases found — leaving $CUR running"; exit 0; fi
+    jq --arg t "$WANT" 'map(select(.draft==false))|map(select((.tag_name|ltrimstr("v"))==$t))[0]' "$TMP/rels.json" > "$TMP/rel.json"
+  else
+    # stable channel: GitHub's "latest" endpoint already excludes pre-releases.
+    if ! curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" --max-time 60 "$API/releases/latest" -o "$TMP/rel.json"; then
+      log "GitHub release lookup failed for $CORTEX_UPDATE_REPO — leaving $CUR running"; exit 0
+    fi
   fi
   NEW="$(jq -r '.tag_name // empty' "$TMP/rel.json" | sed 's/^v//')"
   MANURL="$(jq -r '.assets[]? | select(.name=="manifest.json") | .url' "$TMP/rel.json" | head -1)"
@@ -79,14 +103,14 @@ if [ -z "$NEW" ] || [ -z "$TGZURL" ] || [ -z "$SHA" ]; then
   log "update info incomplete (version/url/sha256) — ignoring"; exit 0
 fi
 
-# --- is it actually newer? (semver-ish, via sort -V) --------------------------
-if [ "$NEW" = "$CUR" ]; then
+# --- is it actually newer? (full semver incl. pre-release suffix) -------------
+REL_CMP="$(vercmp "$NEW" "$CUR")"
+if [ "$REL_CMP" = "same" ]; then
   log "already on $CUR — up to date"
   exit 0
 fi
-top="$(printf '%s\n%s\n' "$CUR" "$NEW" | sort -V | tail -1)"
-if [ "$top" != "$NEW" ]; then
-  log "running $CUR is newer than manifest $NEW — not downgrading"
+if [ "$REL_CMP" = "older" ]; then
+  log "running $CUR is newer than available $NEW — not downgrading"
   exit 0
 fi
 if [ -d "$REL/$NEW" ]; then

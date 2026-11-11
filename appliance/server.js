@@ -166,38 +166,62 @@ function readUpdateConf() {
   } catch (_) {}
   return out;
 }
-function isNewer(cur, next) {               // true if next > cur (semver-ish, 3 parts)
-  const a = String(cur).split('.').map(n => parseInt(n, 10) || 0);
-  const b = String(next).split('.').map(n => parseInt(n, 10) || 0);
-  for (let i = 0; i < 3; i++) { if ((b[i]||0) > (a[i]||0)) return true; if ((b[i]||0) < (a[i]||0)) return false; }
-  return false;
-}
+// Full semver-ish compare incl. pre-release suffix. Returns + if a>b, - if a<b, 0 if equal.
+// A version with NO suffix (stable) outranks the same x.y.z WITH a suffix (1.4.4 > 1.4.4-beta.1).
+function verParts(v){ const m=String(v).trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/); return m?[+m[1],+m[2],+m[3],m[4]||'~']:[0,0,0,'~']; }
+function cmpVer(a,b){ const x=verParts(a),y=verParts(b);
+  for(let i=0;i<3;i++){ if(x[i]!==y[i]) return x[i]-y[i]; }
+  if(x[3]===y[3]) return 0; if(x[3]==='~') return 1; if(y[3]==='~') return -1; return x[3]<y[3]?-1:1; }
+function isNewer(cur, next){ return cmpVer(next, cur) > 0; }
+
+// --- update channel: 'stable' (default) or 'beta' (also accepts pre-releases) --
+// A plain file the root updater also reads, so the browser toggle and the OTA script agree.
+const CHANFILE = path.join(DATA, 'update-channel');
+function readChannel(){ try { return (fs.readFileSync(CHANFILE,'utf8').trim().toLowerCase()==='beta') ? 'beta' : 'stable'; } catch(_){ return 'stable'; } }
+app.get('/api/update-channel', (_req, res) => { cors(res); res.json({ channel: readChannel() }); });
+app.post('/api/update-channel', (req, res) => { cors(res);
+  const ch = (req.body && String(req.body.channel||'').toLowerCase() === 'beta') ? 'beta' : 'stable';
+  try { fs.writeFileSync(CHANFILE, ch + '\n'); res.json({ ok: true, channel: ch }); }
+  catch (e) { res.status(500).json({ err: e.message }); }
+});
 app.get('/api/update/check', async (_req, res) => {
   cors(res);
   const current = readVersion();
   const conf = readUpdateConf();
   const headers = { 'User-Agent': 'cortex-appliance' };
   if (conf.CORTEX_UPDATE_TOKEN) headers.Authorization = 'Bearer ' + conf.CORTEX_UPDATE_TOKEN;
+  const channel = readChannel();
   try {
-    let latest = '', notes = '';
+    let latest = '', notes = '', prerelease = false;
     if (conf.CORTEX_UPDATE_REPO) {
       // GitHub API mode — same path the updater uses (works with private repos + fine-grained tokens)
-      const r = await fetch(`https://api.github.com/repos/${conf.CORTEX_UPDATE_REPO}/releases/latest`,
-        { headers: { ...headers, Accept: 'application/vnd.github+json' } });
-      if (!r.ok) throw new Error('GitHub API HTTP ' + r.status);
-      latest = ((await r.json()).tag_name || '').replace(/^v/, '');
+      const base = `https://api.github.com/repos/${conf.CORTEX_UPDATE_REPO}`;
+      if (channel === 'beta') {
+        // beta channel: consider ALL non-draft releases (pre-releases included), newest wins
+        const r = await fetch(`${base}/releases?per_page=30`, { headers: { ...headers, Accept: 'application/vnd.github+json' } });
+        if (!r.ok) throw new Error('GitHub API HTTP ' + r.status);
+        const list = (await r.json()).filter(x => x && !x.draft)
+          .sort((a, b) => cmpVer((b.tag_name||'').replace(/^v/,''), (a.tag_name||'').replace(/^v/,'')));
+        const top = list[0];
+        latest = ((top && top.tag_name) || '').replace(/^v/, ''); notes = (top && top.name) || ''; prerelease = !!(top && top.prerelease);
+      } else {
+        // stable channel: GitHub's "latest" excludes pre-releases automatically
+        const r = await fetch(`${base}/releases/latest`, { headers: { ...headers, Accept: 'application/vnd.github+json' } });
+        if (!r.ok) throw new Error('GitHub API HTTP ' + r.status);
+        latest = ((await r.json()).tag_name || '').replace(/^v/, '');
+      }
     } else if (conf.CORTEX_UPDATE_MANIFEST) {
       const r = await fetch(conf.CORTEX_UPDATE_MANIFEST, { headers, redirect: 'follow' });
       if (!r.ok) throw new Error('manifest HTTP ' + r.status);
       const m = await r.json();
       latest = m.version || ''; notes = m.notes || '';
     } else {
-      return res.json({ current, configured: false, updateAvailable: false });
+      return res.json({ current, channel, configured: false, updateAvailable: false });
     }
-    res.json({ current, latest, configured: true, updateAvailable: isNewer(current, latest),
+    res.json({ current, latest, channel, prerelease, configured: true, updateAvailable: isNewer(current, latest),
                notes, checkedAt: new Date().toISOString() });
   } catch (e) {
-    res.json({ current, configured: true, updateAvailable: false, error: e.message });
+    res.json({ current, channel, configured: true, updateAvailable: false, error: e.message });
   }
 });
 
