@@ -87,7 +87,10 @@ chown -R cortex:cortex "$ROOT"
 # 6) systemd: the appliance service + the OTA updater timer
 cp -f "$HERE/cortex-appliance.service" "$HERE/cortex-updater.service" "$HERE/cortex-updater.timer" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now cortex-appliance
+# enable at boot, and RESTART so a re-install over a running box picks up the new server.js
+# (enable --now only starts a stopped unit; it won't reload code into an already-running one).
+systemctl enable cortex-appliance
+systemctl restart cortex-appliance
 systemctl enable --now cortex-updater.timer
 
 # 6b) sudoers: let the service reboot/power off the box from the UI (scoped, validated)
