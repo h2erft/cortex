@@ -130,7 +130,10 @@ you know about the LGAP reply layout. See [LGAP_reference.md](LGAP_reference.md)
 Tag a version and push it — a GitHub Action builds the release, and every deployed appliance
 pulls it automatically (verified, with auto-rollback):
 ```
-git tag v1.4.3 && git push origin v1.4.3
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
+Pre-releases follow `vX.Y.Z-beta.N` (early field testing) → `vX.Y.Z-rc.N` (feature-frozen,
+final shakeout) → `vX.Y.Z` (stable). Mark the GitHub release as a **pre-release** for the
+beta/rc tags.
 
 *Cortex by AIROW. Not affiliated with or endorsed by LG.*
