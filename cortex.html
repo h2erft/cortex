@@ -2349,15 +2349,39 @@ function drawSettings(){
   wireSettings();
   if(setTab==="updates")loadSettingsUpdates();
 }
-function updatesTab(){return `<div id="setupd"><div class="note-box">Checking for updates…</div></div>`;}
+function updatesTab(){return `<div id="setupd"><div class="note-box">Checking for updates…</div></div><div id="setchan"></div>`;}
+// The channel toggle reads the FAST local endpoint and renders independently of the (possibly slow,
+// GitHub-dependent) update check, so it never appears frozen.
+function renderChannelRow(el,chan){
+  let h=`<div style="margin:18px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Update channel</div>`;
+  h+=`<div class="setrow"><div><div class="sl">Beta testing</div><div class="sd">Also install <b>pre-release</b> (alpha / beta / rc) builds on this controller. Off = stable releases only, which is what you want on a customer site.</div></div>`;
+  h+= canAdmin() ? `<button class="toggle ${chan==='beta'?'on':''}" id="chan-tog"></button>`
+                 : `<span style="color:var(--text-faint);font-size:12px">${chan==='beta'?'on':'off'} · admins only</span>`;
+  h+=`</div>`;
+  if(chan==='beta') h+=`<div class="note-box warn" style="margin-top:8px">⚠ This controller is on the <b>beta channel</b> and will install pre-release builds. Use on test sites, not production.</div>`;
+  el.innerHTML=h;
+  const ct=document.getElementById("chan-tog");if(ct)ct.onclick=()=>setUpdateChannel(chan!=='beta');
+}
+async function loadChannelRow(){
+  const el=document.getElementById("setchan");if(!el)return;
+  let chan='stable';
+  try{const r=await fetch('/api/update-channel',{cache:'no-store'});if(r.ok)chan=(await r.json()).channel||'stable';}catch(e){}
+  renderChannelRow(el,chan);
+}
 async function setUpdateChannel(beta){
   if(!canAdmin()){toast("Admins only");return;}
-  try{await fetch('/api/update-channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:beta?'beta':'stable'})});}
-  catch(e){toast("Couldn't reach the appliance");return;}
-  toast(beta?"Beta testing on — pre-release updates enabled":"Beta testing off — stable updates only");
-  loadSettingsUpdates();}
+  const el=document.getElementById("setchan");
+  if(el)renderChannelRow(el,beta?'beta':'stable');      // flip instantly — don't wait on the network
+  let ok=false;
+  try{const r=await fetch('/api/update-channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:beta?'beta':'stable'})});ok=r.ok;}catch(e){}
+  if(ok){toast(beta?"Beta testing on — pre-release updates enabled":"Beta testing off — stable updates only");
+    loadChannelRow();        // reconcile with the server (fast, local)
+    loadSettingsUpdates();}   // refresh the available-version area for the new channel (may be slow)
+  else{toast("Couldn't save the channel — check the appliance");loadChannelRow();}   // revert to server truth
+}
 let _skipVer=null;try{_skipVer=localStorage.getItem("airow_skipver");}catch(e){}
 async function loadSettingsUpdates(){
+  loadChannelRow();   // paint the channel toggle immediately, independent of the (slow) update check
   let st;try{const r=await fetch('/api/update/check',{cache:'no-store'});st=await r.json();}catch(e){st={error:"This screen works on the installed appliance."};}
   const el=document.getElementById("setupd");if(!el)return;
   const cur=st.current||"—";
@@ -2380,15 +2404,7 @@ async function loadSettingsUpdates(){
   } else {
     h+='<div class="note-box" style="margin-top:10px">You\'re on the latest version. This controller also checks and updates itself automatically.</div>';
   }
-  const chan=st.channel||'stable';
-  h+=`<div style="margin:18px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Update channel</div>`;
-  h+=`<div class="setrow"><div><div class="sl">Beta testing</div><div class="sd">Also install <b>pre-release</b> (alpha / beta / rc) builds on this controller. Off = stable releases only, which is what you want on a customer site.</div></div>`;
-  h+= canAdmin() ? `<button class="toggle ${chan==='beta'?'on':''}" id="chan-tog"></button>`
-                 : `<span style="color:var(--text-faint);font-size:12px">${chan==='beta'?'on':'off'} · admins only</span>`;
-  h+=`</div>`;
-  if(chan==='beta') h+=`<div class="note-box warn" style="margin-top:8px">⚠ This controller is on the <b>beta channel</b> and will install pre-release builds. Use on test sites, not production.</div>`;
   el.innerHTML=h;
-  const ct=document.getElementById("chan-tog");if(ct)ct.onclick=()=>setUpdateChannel(chan!=='beta');
   const now=document.getElementById("upd-now");if(now)now.onclick=async()=>{now.disabled=true;now.textContent="Starting…";
     try{await fetch('/api/update/apply',{method:"POST"});}catch(e){}
     el.innerHTML='<div class="note-box">Update started — the controller will download, install, and restart. This page reconnects in a minute or two, and it rolls back on its own if the new version has a problem.</div>';};
