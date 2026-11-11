@@ -2,9 +2,12 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.4.4 — beta (building map + animated units)
+## v1.5.0 — beta (building map + animated units)
 
-_On `main` now for on-server testing. Publish as a GitHub **pre-release** tagged `v1.4.4-beta.1`; drop the suffix for a full `v1.4.4` release once it checks out on the box._
+_Minor version bump — new building map, animated units, and the beta update channel.
+`v1.5.0-beta.1` added the building map + graphics; `beta.2` adds the top-down LG-style graphics
+on every view, the unit-type refresh fix, and the beta update channel. Publish as a GitHub
+**pre-release**; drop the suffix for a full `v1.5.0` once it checks out on the box._
 
 **Building map & live unit graphics**
 - Redesigned the indoor-unit graphic as a **top-down** SVG that matches real LG unit types
