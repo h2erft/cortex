@@ -399,7 +399,7 @@ button{font-family:inherit;cursor:pointer}
 
 header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--surface);border-bottom:1px solid var(--border);flex:0 0 auto}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600}
-.brand .logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff}
+.brand .logo{width:30px;height:30px;display:grid;place-items:center;color:var(--accent)}
 .site{display:flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:13px}
 .bus{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
@@ -446,29 +446,51 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:12px}
 .grid.compact{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px}
-.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .12s,transform .12s;overflow:hidden}
+.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 14px 14px 16px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .12s,transform .12s;overflow:hidden;display:flex;flex-direction:column;gap:11px;min-width:0}
 .card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--stripe,var(--stopped))}
 .card.off{opacity:.72}
-.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px}
-.card-name{font-weight:600;font-size:14.5px}
-.card-meta{font-size:11.5px;color:var(--text-faint);margin-top:2px}
-.pill{font-size:11px;padding:3px 8px;border-radius:999px;font-weight:500;white-space:nowrap}
+.card-top{display:flex;align-items:center;gap:10px;min-width:0}
+.card-id{flex:1 1 auto;min-width:0}
+.card-name{font-weight:600;font-size:14.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:break-word}
+.dname .card-name{display:block;white-space:nowrap}
+.lname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-meta{font-size:11.5px;color:var(--text-faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:11px;padding:3px 8px;border-radius:999px;font-weight:500;white-space:nowrap;flex:none}
 .pill.run{background:var(--accent-soft);color:var(--accent-ink)}
 .pill.stop{background:var(--surface-2);color:var(--text-dim)}
 .pill.err{background:var(--err-soft);color:var(--err);cursor:pointer}
-.card-main{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
-.setpoint{font-size:30px;font-weight:600;line-height:1}
-.setpoint small{font-size:14px;color:var(--text-dim);font-weight:400}
-.card-right{text-align:right;font-size:12.5px;color:var(--text-dim);display:flex;flex-direction:column;gap:5px;align-items:flex-end}
-.modechip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:3px 9px;border-radius:999px}
-.room{color:var(--text-faint);font-size:12px}
-.err-note{margin-top:10px;font-size:11.5px;color:var(--err);display:flex;align-items:center;gap:6px;cursor:pointer}
+/* the two readings (what it is set to / what the room is) carry equal weight, each labelled */
+.card-read{display:grid;grid-template-columns:1fr 1fr;background:var(--surface-2);border-radius:10px;padding:9px 12px}
+.card-read.one{grid-template-columns:1fr}
+.card-read.dual{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+.rd{min-width:0;overflow:hidden}
+.rd + .rd{border-left:1px solid var(--border);padding-left:12px}
+.rd-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);margin-bottom:4px;white-space:nowrap}
+.rd-v{font-size:26px;font-weight:600;line-height:1;white-space:nowrap}
+.rd-v small{font-size:13px;color:var(--text-dim);font-weight:400;margin-left:1px}
+.rd-v i{font-style:normal;color:var(--text-faint);font-weight:400;font-size:17px;margin:0 2px}
+.rd-v.idle{color:var(--text-faint)}
+.card-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip,.modechip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;line-height:1.4;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.chip{background:var(--surface-2);color:var(--text-dim)}
+.err-note{font-size:11.5px;line-height:1.4;color:var(--err);background:var(--err-soft);border-radius:8px;padding:7px 9px;display:flex;align-items:flex-start;gap:6px;cursor:pointer}
 .err-note:hover{text-decoration:underline}
+.grid.compact .card{padding:11px 11px 11px 13px;gap:9px}
+.grid.compact .card-meta{display:none}
+.grid.compact .card-top{gap:8px}
+.grid.compact .card-name{font-size:13.5px}
+.grid.compact .pill{font-size:10px;padding:2px 6px}
+.grid.compact .ugmini{width:30px;height:30px}
+.grid.compact .card-read{padding:7px 9px}
+.grid.compact .rd + .rd{padding-left:9px}
+.grid.compact .rd-v{font-size:21px}
+.grid.compact .rd-v small{font-size:11.5px}
+.grid.compact .rd-v i{font-size:14px;margin:0 1px}
 
 /* list view */
 .listv{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
-.lrow{display:grid;grid-template-columns:18px 1.4fr .8fr .7fr .7fr .9fr;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13.5px}
+.lrow{display:grid;grid-template-columns:18px 1.6fr .9fr .7fr .7fr;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13.5px}
 .lrow:last-child{border-bottom:none}
 .lrow:hover{background:var(--surface-2)}
 .lrow .st{width:9px;height:9px;border-radius:50%}
@@ -557,7 +579,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .auth-card.wiz{width:580px}
 .auth-head{padding:20px 24px;border-bottom:1px solid var(--border)}
 .auth-logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
-.auth-logo .logo{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;color:#fff}
+.auth-logo .logo{width:34px;height:34px;display:grid;place-items:center;color:var(--accent)}
 .auth-body{padding:24px}
 .auth-body h2{margin:0 0 4px;font-size:19px;font-weight:600}
 .auth-sub{color:var(--text-dim);font-size:13.5px;margin-bottom:18px}
@@ -590,7 +612,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .weather .wh b{display:block;font-size:14px;color:var(--text)}
 .weather .wsample{font-size:11px;color:var(--text-faint);border:1px solid var(--border);border-radius:999px;padding:1px 7px}
 .tagchip{font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--text-dim);margin-right:4px}
-.tagrow{margin-top:8px;display:flex;flex-wrap:wrap;gap:3px}
+.tagrow{display:flex;flex-wrap:wrap;gap:3px}
 .sch{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 .sch .sname{font-weight:600;font-size:15px}
 .sch .ssum{font-size:12.5px;color:var(--text-dim);margin-top:3px}
@@ -689,6 +711,78 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 svg.ug{width:100%;height:100%;display:block}
 .ugmini{width:40px;height:40px;flex:none;border-radius:8px;background:radial-gradient(circle at 50% 50%,var(--surface-2,rgba(127,127,127,.14)),transparent 75%)}
 .ugmini svg.ug{border-radius:8px}
+/* ---- Cortex brain mark + "thinking" loader ----
+   One inline SVG (brainMark). 'calm' = header/login (nodes breathe slowly); 'live' = loader (pulse,
+   halo, and sparks travelling in/out along the leads). All motion is CSS, so it is simply absent
+   under prefers-reduced-motion (the mark stays as a static picture). */
+.cx-brain{display:block;overflow:visible;flex:none}
+.cx-brain .bh{fill:currentColor;fill-opacity:.13;stroke:currentColor;stroke-linejoin:round;stroke-linecap:round}
+.cx-brain .bt{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+.cx-brain .bn{fill:currentColor}
+.cx-brain .bl{fill:none;stroke:currentColor;stroke-opacity:.3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:.1 3.4}
+.cx-brain .bp{fill:currentColor;opacity:0}
+.cx-brain .bhalo{fill:none;stroke:currentColor;opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  .cx-brain.calm .bn{animation:cxtw 5s ease-in-out infinite}
+  .cx-brain.live .bcore{transform-box:fill-box;transform-origin:center;animation:cxpulse 2.4s ease-in-out infinite}
+  .cx-brain.live .bh{animation:cxfill 2.4s ease-in-out infinite}
+  .cx-brain.live .bhalo{transform-box:fill-box;transform-origin:center;animation:cxhalo 2.4s ease-out infinite}
+  .cx-brain.live .bn{animation:cxtw 1.6s ease-in-out infinite}
+  @supports (offset-path:path("M0 0")){
+    .cx-brain.live .bp{animation:cxin 2.2s linear infinite}
+    .cx-brain.live .bp.out{animation-name:cxout}
+  }
+}
+@keyframes cxtw{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes cxpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+@keyframes cxfill{0%,100%{fill-opacity:.1}50%{fill-opacity:.26}}
+@keyframes cxhalo{0%{transform:scale(.8);opacity:.45}100%{transform:scale(1.32);opacity:0}}
+@keyframes cxin{0%{offset-distance:0%;opacity:0}12%{opacity:1}86%{opacity:1}100%{offset-distance:100%;opacity:0}}
+@keyframes cxout{0%{offset-distance:100%;opacity:0}12%{opacity:1}86%{opacity:1}100%{offset-distance:0%;opacity:0}}
+.brainload{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:28px 16px;color:var(--accent);text-align:center}
+.brainload .bl-t{font-weight:600;font-size:15px;color:var(--text);margin-top:10px}
+.brainload .bl-s{font-size:13px;color:var(--text-dim);max-width:340px}
+.brainload.row{flex-direction:row;gap:14px;padding:12px 4px;text-align:left;justify-content:flex-start}
+.brainload.row .bl-t{margin-top:0}
+.brainload.page{min-height:52vh}
+#thinking{position:fixed;inset:0;z-index:300;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .3s}
+#thinking.gone{opacity:0;pointer-events:none}
+.scanbanner{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:6px 16px 14px;margin-bottom:14px}
+.scanbar{height:9px;background:var(--surface-2);border-radius:999px;overflow:hidden}
+.scanbar>div{height:100%;background:var(--accent);transition:width .3s}
+/* ---- rename in the control drawer ---- */
+.dname{display:flex;align-items:center;gap:6px;min-width:0}
+.dname .card-name{font-size:16px}
+.penbtn{flex:none;width:28px;height:28px;border-radius:7px;border:1px solid transparent;background:none;color:var(--text-faint);display:grid;place-items:center}
+.penbtn:hover{border-color:var(--border);color:var(--accent);background:var(--surface-2)}
+.dname-edit{display:flex;gap:6px;align-items:center}
+.dname-edit .inp{margin:0;padding:7px 10px;font-size:15px;font-weight:600}
+/* ---- building map: floor plan with placed units ---- */
+.fphead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.fphead .ft{font-weight:600}
+.fphead .fc{font-size:12px;color:var(--text-faint)}
+.fpstage{position:relative;width:100%;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;user-select:none;-webkit-user-select:none}
+.fpstage img.fpimg{display:block;width:100%;height:auto;pointer-events:none;-webkit-user-drag:none}
+.fpstage.edit{outline:2px dashed var(--accent);outline-offset:2px}
+.fpstage.noimg{min-height:240px;background:#f3f4f6}
+.fpgrid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right,rgba(60,90,120,.16) 1px,transparent 1px),linear-gradient(to bottom,rgba(60,90,120,.16) 1px,transparent 1px)}
+.fpmark{position:absolute;transform:translate(-50%,-34px);width:96px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;z-index:1}
+.fpmark .fpviz{width:60px;height:60px;border-radius:50%;background:color-mix(in srgb,var(--surface) 82%,transparent);border:2px solid var(--mk,var(--stopped));box-shadow:0 2px 8px rgba(16,24,40,.22);overflow:hidden}
+.fpmark .fpname{max-width:96px;font-size:11.5px;font-weight:600;line-height:1.3;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:1px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(16,24,40,.14)}
+.fpmark:hover .fpviz{border-color:var(--accent)}
+.fpstage.edit .fpmark,.fptray .fpchip{cursor:grab;touch-action:none}
+.fpmark.drag{cursor:grabbing;z-index:5;opacity:.92}
+.fpmark.drag .fpviz{box-shadow:0 8px 22px rgba(16,24,40,.35);border-color:var(--accent)}
+.fptray{margin-top:10px;border:1px dashed var(--border-strong);border-radius:10px;padding:10px 12px;background:var(--surface-2)}
+.fptray .tl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);margin-bottom:8px}
+.fptray .chips{display:flex;flex-wrap:wrap;gap:8px}
+.fpchip{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:3px 12px 3px 4px;font-size:12.5px;font-weight:500;user-select:none;-webkit-user-select:none}
+.fpchip .ugmini{width:30px;height:30px;border-radius:50%}
+.fpchip.gone{opacity:.35}
+.editband{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--accent-soft);color:var(--accent-ink);border:1px solid var(--accent);border-radius:10px;padding:9px 13px;font-size:13px;margin-bottom:12px}
+.btn.sm{padding:5px 10px;font-size:12.5px}
+.btn.danger{border-color:var(--err);color:var(--err)}
+.btn.primary.danger,.btn.danger.live{background:var(--err);border-color:var(--err);color:#fff}
 /* protocol reference (markdown) viewer */
 .md{font-size:13.5px;line-height:1.55;color:var(--text);max-height:65vh;overflow:auto;padding-right:6px}
 .md .md-h{font-weight:700;margin:16px 0 6px;color:var(--text)}
@@ -703,7 +797,7 @@ svg.ug{width:100%;height:100%;display:block}
 </head>
 <body>
 <header>
-  <div class="brand"><span class="logo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex</div>
+  <div class="brand"><span class="logo" id="brandlogo"></span>Cortex</div>
   <div class="site"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg><span id="site-name">Site</span></div>
   <div class="bus off" id="bus-health"><span class="dot"></span><span id="bus-label">Bus offline</span></div>
   <div class="spacer"></div>
@@ -712,6 +806,7 @@ svg.ug{width:100%;height:100%;display:block}
   <button class="icon-btn bellbtn" id="bell" title="Alerts"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="bellbadge hide" id="bellbadge">0</span></button>
   <button class="icon-btn hide" id="lockbtn" title="Lock advanced/technician access"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
   <button class="icon-btn" id="logoutbtn" title="Sign out"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button>
+  <button class="icon-btn hide" id="devbtn" title="Device health" aria-label="Device health"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 4 12 2.5-6h5"/></svg></button>
   <button class="icon-btn" id="settingsbtn" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5H9.4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h3.2l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
   <button class="icon-btn" id="theme" title="Toggle theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
 </header>
@@ -733,6 +828,7 @@ svg.ug{width:100%;height:100%;display:block}
 <div id="modal-root"></div>
 <div id="screen-setup"></div>
 <div id="screen-login"></div>
+<div id="thinking"></div>
 
 <script>
 const MODES=[["cool","Cool","❄"],["heat","Heat","☀"],["auto","Auto","⇅"],["dry","Dry","💧"],["fan","Fan","✦"]];
@@ -782,7 +878,7 @@ const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
 /* ---- state ---- */
 const DEF_SETTINGS={view:"grid",density:"comfortable",unit:"F",theme:"auto",accent:"slate",defaultGroup:0,clock24:false,landing:"units",
   groupBy:"location",showTiles:true,showWeather:true,notif:{push:true,email:false},
-  show:{mode:true,room:true,addr:true,fan:false,tags:true}};
+  show:{mode:true,room:true,fan:false,tags:true}};
 const ACCENTS={
   slate:{n:"Slate",c:"#0e7c66",l:["#0e7c66","#0b5f4e","#d9efe9"],d:["#2fb79a","#8fe6d4","#143029"]},
   arctic:{n:"Arctic",c:"#1f74c4",l:["#1f74c4","#15568f","#e2eefb"],d:["#5aa6e8","#bcd8f5","#13263a"]},
@@ -820,7 +916,7 @@ async function loadWeather(){
   if(view==="units")renderAll();
 }
 function detectLocation(){
-  if(!window.isSecureContext){toast("Browsers only share location on secure (https) pages. The appliance runs on plain http on your LAN, so tap “Enter manually” and type the site’s coordinates — you only do it once.");return;}
+  if(!window.isSecureContext){toast("Browsers only share location on secure (https) pages. This page was opened over plain http, so either open Cortex at its https:// address (Device health shows it once secure access is turned on) or tap “Enter manually” and type the site’s coordinates — you only do it once.");return;}
   if(!navigator.geolocation){toast("This browser can't share location — use “Enter manually”");return;}
   toast("Getting your location…");navigator.geolocation.getCurrentPosition(
     p=>{if(CFG&&CFG.site){CFG.site.lat=+p.coords.latitude.toFixed(4);CFG.site.lon=+p.coords.longitude.toFixed(4);saveCfg(CFG);}WEATHER.ts=0;loadWeather();toast("Location set — loading weather");if(setTab)drawSettings();},
@@ -885,15 +981,26 @@ migrateUnits();
 /* ---- organization helpers ---- */
 function getMeta(u){const m=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name])||{};
   return {alias:m.alias||"",tags:m.tags||[],floor:m.floor!=null?m.floor:u.floor,suite:m.suite||u.suite};}
-function dispName(u){return getMeta(u).alias||u.label;}
+// The name people see. A nickname wins; a unit nobody has named yet shows as "Unit N" — never its
+// bus address (older imports stored "Addr 0x17" as the label). Technicians read the address in the drawer.
+function defaultName(u){const l=(u.label||"").trim();return (!l||/^Addr 0x[0-9a-f]{1,2}$/i.test(l))?("Unit "+u.id):l;}
+function dispName(u){return getMeta(u).alias||defaultName(u);}
+// Who is looking: customers never see addresses, channels, outdoor-system ids, frames or hex.
+function isTechView(){return !!session.tech;}
+function isStaff(){return !!(session.tech||session.admin);}
+function userDims(){return DIMS.filter(d=>d[0]!=="system"||isTechView());}       // "System (physical)" is a technician grouping
+function gdim(){return (settings.groupBy==="system"&&!isTechView())?"location":settings.groupBy;}
+function tnum(f){return settings.unit==="C"?Math.round((f-32)*5/9):f;}             // stored °F -> number in the user's unit
+function inService(u){return !!(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service&&CFG.unitMeta[u.name].service.inService);}
 function setMeta(u,patch){if(!CFG)return;CFG.unitMeta=CFG.unitMeta||{};
   CFG.unitMeta[u.name]=Object.assign({},CFG.unitMeta[u.name],patch);saveCfg(CFG);}
 function catVals(u,dim){const m=getMeta(u);
   if(dim==="location")return[grpOf(u),leafKey(u)];            // both the top group and the group▸sub leaf
   if(dim==="system")return[u.system];
   if(dim==="group")return["Group "+u.group];
-  if(dim==="floor")return["Floor "+m.floor];
-  if(dim==="suite")return[m.suite];
+  // a freshly discovered unit carries its outdoor-system name in "floor" until someone sets a real one
+  if(dim==="floor")return[(m.floor==null||m.floor===""||String(m.floor)===String(u.system))?"No floor set":"Floor "+m.floor];
+  if(dim==="suite")return[m.suite||"No suite set"];
   if(dim==="tag")return m.tags.length?m.tags.slice():["Untagged"];
   return["All"];}
 function catList(dim){const s=new Set();units.forEach(u=>catVals(u,dim).forEach(c=>s.add(c)));
@@ -1036,12 +1143,14 @@ function renderWho(){
   document.getElementById("nav-cycle").classList.toggle("hide",!session.tech);
   document.getElementById("nav-busscan").classList.toggle("hide",!session.tech);
   if(!session.tech&&view==="busscan")view="units";
+  const db=document.getElementById("devbtn");if(db){db.classList.toggle("hide",!isStaff());db.classList.toggle("lit",view==="device");}
+  if(!isStaff()&&view==="device")view="units";                 // appliance vitals are for technicians/admins
 }
 
 /* ---- nav ---- */
 let treeExpanded=null;                                         // Set of expanded top groups (null = expand all first paint)
 function renderGroupNav(){
-  const nav=document.getElementById("group-nav");if(!nav)return;const dim=settings.groupBy;
+  const nav=document.getElementById("group-nav");if(!nav)return;const dim=gdim();
   if(dim==="location")return renderLocationTree(nav);
   const cats=catList(dim);const label=(DIMS.find(d=>d[0]===dim)||["","Group"])[1];
   const item=(val,txt,n,active)=>`<button class="nav-item ${active?'active':''}" data-cat="${encodeURIComponent(val)}"><span class="nm">${ue(txt)}</span><span class="count">${n}</span></button>`;
@@ -1083,46 +1192,56 @@ function renderLocationTree(nav){
   nav.querySelectorAll("[data-cat]").forEach(el=>el.onclick=e=>{if(e.target.closest("[data-rens]"))return;view="units";groupFilter=decodeURIComponent(el.dataset.cat);renderAll();});
 }
 function renameGroup(g){const nn=prompt("Rename group",g);if(nn==null)return;const name=nn.trim();if(!name||name===g)return;
-  units.forEach(u=>{if(grpOf(u)===g)u.grp=name;});saveUnits();if(groupFilter===g)groupFilter=name;renderAll();renderGroupNav();toast("Renamed group");}
+  const before=units.map(leafKey);
+  units.forEach(u=>{if(grpOf(u)===g)u.grp=name;});saveUnits();fpRekey(before);if(groupFilter===g)groupFilter=name;renderAll();renderGroupNav();toast("Renamed group");}
 function renameSub(g,s){const nn=prompt("Rename subgroup",s);if(nn==null)return;const name=nn.trim();if(!name||name===s)return;
-  units.forEach(u=>{if(grpOf(u)===g&&subOf(u)===s)u.subgrp=name;});saveUnits();if(groupFilter===g+TREESEP+s)groupFilter=g+TREESEP+name;renderAll();renderGroupNav();toast("Renamed subgroup");}
+  const before=units.map(leafKey);
+  units.forEach(u=>{if(grpOf(u)===g&&subOf(u)===s)u.subgrp=name;});saveUnits();fpRekey(before);if(groupFilter===g+TREESEP+s)groupFilter=g+TREESEP+name;renderAll();renderGroupNav();toast("Renamed subgroup");}
 
 /* ---- unit rendering ---- */
 function modeIcon(m){return MODES.find(x=>x[0]===m)[2];}
 function unitCard(u){
   const st=statusOf(u);const stripe=st==="err"?"var(--err)":(u.on?"var(--accent)":"var(--stopped)");
   const pill=st==="err"?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?'<span class="pill run">Running</span>':'<span class="pill stop">Off</span>');
-  const ml=MODES.find(m=>m[0]===u.mode);
-  const modechip=settings.show.mode&&u.on?`<span class="modechip" style="background:var(--${MC[u.mode]}-soft);color:var(--${MC[u.mode]})">${ml[2]} ${ml[1]}</span>`:"";
-  const meta=[u.name,settings.show.addr?hx(u.addr):null,u.ch].filter(Boolean).join(" · ");
+  const ml=MODES.find(m=>m[0]===u.mode)||MODES[0];
+  // Tiles are what a customer looks at all day: a name, what it is set to, what the room is. No bus
+  // address, channel or system id here — a technician reads those in the control drawer.
+  const mv=u.mode==="fan"?"fanm":MC[u.mode];             // the fan-only palette is --fanm / --fanm-soft
+  const modechip=settings.show.mode&&u.on?`<span class="modechip" style="background:var(--${mv}-soft);color:var(--${u.mode==="fan"?"text-dim":mv})">${ml[2]} ${ml[1]}</span>`:"";
+  const fanchip=settings.show.fan&&u.on?`<span class="chip">Fan ${ue((FANS.find(f=>f[0]===u.fan)||["",u.fan])[1])}</span>`:"";
   const lockOn=[u.modeLock?'Mode':'',u.fanLock?'Fan':'',u.tempLock?'Temp':''].filter(Boolean);
-  const lockChip=lockOn.length?`<span class="room" title="Locked: ${lockOn.join(', ')}">🔒 ${lockOn.map(x=>x[0]).join('')}</span>`:"";
-  const right=[modechip,settings.show.fan&&u.on?`<span class="room">fan ${u.fan}</span>`:"",lockChip,settings.show.room?`<span class="room mono">room ${temp(u.room)}</span>`:""].filter(Boolean).join("");
-  const meta2=getMeta(u);const svcOn=!!(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service&&CFG.unitMeta[u.name].service.inService);
-  const chips=[svcOn?`<span class="svcbadge">In service</span>`:""].concat(settings.show.tags?meta2.tags.map(t=>`<span class="tagchip">${t}</span>`):[]).filter(Boolean);
+  const lockChip=lockOn.length?`<span class="chip" title="Locked at the wall thermostat: ${lockOn.join(', ')}">🔒 ${lockOn.length===3?'Locked':lockOn.join(' · ')}</span>`:"";
+  const chipRow=[modechip,fanchip,lockChip].filter(Boolean).join("");
+  const meta2=getMeta(u);
+  const chips=[inService(u)?`<span class="svcbadge">In service</span>`:""].concat(settings.show.tags?meta2.tags.map(t=>`<span class="tagchip">${ue(t)}</span>`):[]).filter(Boolean);
   const tags=chips.length?`<div class="tagrow">${chips.join("")}</div>`:"";
-  const sel=selMode&&selSet.has(u.id);
+  const sel=selMode&&selSet.has(u.id);const deg=`<small>°${settings.unit}</small>`;
+  const dual=isDual(u);
+  const setV=!u.on?`<div class="rd-v mono idle">--</div>`
+    :(dual?`<div class="rd-v mono"><span style="color:var(--cool)">${spDisp(u.coolC)}</span><i>/</i><span style="color:var(--heat)">${spDisp(u.heatC)}</span>${deg}</div>`
+          :`<div class="rd-v mono">${spDisp(activeC(u))}${deg}</div>`);
+  const roomV=(u.room!=null&&isFinite(u.room))?`<div class="rd-v mono">${tnum(u.room)}${deg}</div>`:`<div class="rd-v mono idle">--</div>`;
+  const nm=ue(dispName(u));
   return `<div class="card ${u.on?'':'off'}" style="--stripe:${stripe};${sel?'box-shadow:0 0 0 2px var(--accent) inset':''}" data-id="${u.id}">
-    <div class="card-top"><div style="display:flex;align-items:center;gap:8px">${selMode?`<span style="width:18px;height:18px;border-radius:5px;border:2px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'var(--accent)':'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none">${sel?'✓':''}</span>`:''}<div class="ugmini" title="${KINDS[u.kind||'wall']}">${unitGraphic(u,'',true)}</div><div><div class="card-name">${dispName(u)}</div><div class="card-meta mono">${meta}</div></div></div>${pill}</div>
-    <div class="card-main"><div class="setpoint mono">${!u.on?"--":(isDual(u)?`<span style="color:var(--cool)">${spDisp(u.coolC)}</span><small style="color:var(--text-faint);font-weight:400"> / </small><span style="color:var(--heat)">${spDisp(u.heatC)}</span><small>°${settings.unit}</small>`:`${spDisp(activeC(u))}<small>°${settings.unit}</small>`)}</div>
-      <div class="card-right">${right}</div></div>
+    <div class="card-top">${selMode?`<span style="width:18px;height:18px;border-radius:5px;border:2px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'var(--accent)':'transparent'};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none">${sel?'✓':''}</span>`:''}<div class="ugmini">${unitGraphic(u,'',true)}</div><div class="card-id"><div class="card-name" title="${nm}">${nm}</div><div class="card-meta">${KINDS[u.kind||'wall']||KINDS.wall}</div></div>${pill}</div>
+    <div class="card-read ${settings.show.room?(dual&&u.on?'dual':''):'one'}"><div class="rd"><div class="rd-l">${dual&&u.on?'Cool / Heat':'Set to'}</div>${setV}</div>${settings.show.room?`<div class="rd"><div class="rd-l">Room</div>${roomV}</div>`:''}</div>
+    ${chipRow?`<div class="card-chips">${chipRow}</div>`:''}
     ${tags}
-    ${u.err?`<div class="err-note" data-code="${u.code}">⚠ ${u.code} · ${errInfo(u.code).t} — tap for details</div>`:""}
+    ${u.err?`<div class="err-note" data-code="${u.code}"><span>⚠</span><span>${ue(u.code)} · ${ue(errInfo(u.code).t)} — tap for details</span></div>`:""}
   </div>`;
 }
 function unitRow(u){
   const st=statusOf(u);const c=st==="err"?"var(--err)":(u.on?"var(--ok)":"var(--stopped)");
-  const ml=MODES.find(m=>m[0]===u.mode);
+  const ml=MODES.find(m=>m[0]===u.mode)||MODES[0];
   return `<div class="lrow" data-id="${u.id}"><span class="st" style="background:${c}"></span>
-    <div><div class="lname">${dispName(u)}</div><div class="lsub mono">${u.name} · ${hx(u.addr)}</div></div>
+    <div style="min-width:0"><div class="lname">${ue(dispName(u))}</div><div class="lsub">${KINDS[u.kind||'wall']||KINDS.wall}${inService(u)?' · in service':''}</div></div>
     <div class="lc-hide">${u.err?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?ml[2]+' '+ml[1]:'<span style="color:var(--text-faint)">off</span>')}</div>
     <div class="mono">${u.on?(isDual(u)?spDisp(u.coolC)+'/'+spDisp(u.heatC):spDisp(activeC(u)))+'°'+settings.unit:"--"}${(u.modeLock||u.fanLock||u.tempLock)?' 🔒':''}</div>
-    <div class="mono lc-hide" style="color:var(--text-dim)">room ${temp(u.room)}</div>
-    <div class="lc-hide" style="color:var(--text-faint)">${u.ch} · G${u.group}</div></div>`;
+    <div class="mono lc-hide" style="color:var(--text-dim)">room ${temp(u.room)}</div></div>`;
 }
 function applyFilters(l){return l.filter(u=>statusFilter==="all"||statusOf(u)===statusFilter)
-  .filter(u=>!query||(dispName(u)+" "+u.name).toLowerCase().includes(query.toLowerCase()));}
-function filtered(){const base=groupFilter==="all"?units.slice():unitsInCat(groupFilter,settings.groupBy);return applyFilters(base);}
+  .filter(u=>!query||(dispName(u)+" "+getMeta(u).tags.join(" ")+(isTechView()?" "+u.name+" "+hx(u.addr):"")).toLowerCase().includes(query.toLowerCase()));}
+function filtered(){const base=groupFilter==="all"?units.slice():unitsInCat(groupFilter,gdim());return applyFilters(base);}
 function weatherCard(){const w=WEATHER;const loc=(CFG&&CFG.site&&CFG.site.location)||w.place;
   const t=w.now==null?"—":w.now+"°"+settings.unit;
   return `<div class="weather"><div><div class="wt mono">${t}</div><div class="wmeta">${ue(w.cond)} · ${ue(loc)}</div></div>
@@ -1132,7 +1251,7 @@ function renderCards(list){if(!list.length)return '<div style="color:var(--text-
   if(settings.view==="list")return `<div class="listv">${list.map(unitRow).join("")}</div>`;
   return `<div class="grid ${settings.density==='compact'?'compact':''}">${list.map(unitCard).join("")}</div>`;}
 function sectionSelBtn(c){return selMode?`<button class="linklike" data-selgroup="${encodeURIComponent(c)}" style="font-size:12px">Select all</button>`:"";}
-function renderBody(){const w=document.getElementById("listwrap");if(!w)return;const dim=settings.groupBy;
+function renderBody(){const w=document.getElementById("listwrap");if(!w)return;const dim=gdim();
   if(groupFilter!=="all"){const l=applyFilters(unitsInCat(groupFilter,dim));
     w.innerHTML=l.length?renderCards(l):'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();return;}
   const cats=(dim==="location"?[...new Set(units.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})):catList(dim));let html="",any=false;
@@ -1140,7 +1259,7 @@ function renderBody(){const w=document.getElementById("listwrap");if(!w)return;c
     html+=`<div class="section-h"><span class="st">${ue(c)}</span><span class="sc">${l.length}</span><span class="ln"></span>${sectionSelBtn(c)}</div>`+renderCards(l);});
   w.innerHTML=any?html:'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();}
 function bindGroupSel(){document.querySelectorAll("[data-selgroup]").forEach(b=>b.onclick=e=>{e.stopPropagation();
-  const c=decodeURIComponent(b.dataset.selgroup);const l=applyFilters(unitsInCat(c,settings.groupBy));
+  const c=decodeURIComponent(b.dataset.selgroup);const l=applyFilters(unitsInCat(c,gdim()));
   const allSel=l.every(u=>selSet.has(u.id));l.forEach(u=>{if(allSel)selSet.delete(u.id);else selSet.add(u.id);});
   renderBody();renderBatchBar();});}
 function renderUnits(){
@@ -1151,12 +1270,12 @@ function renderUnits(){
     ${settings.showWeather?weatherCard():""}
     ${settings.showTiles?`<div class="tiles">
       ${tile("run",c.run,"var(--ok)","Running")}${tile("stop",c.stop,"var(--stopped)","Off")}
-      ${tile("err",c.err,"var(--err)","Errors")}${tile("all",units.length,"",(()=>{const n=new Set(units.map(u=>u.system)).size;return "All units"+(units.length?` · ${n} ODU${n!==1?"s":""}`:"");})())}
+      ${tile("err",c.err,"var(--err)","Errors")}${tile("all",units.length,"",(()=>{const n=new Set(units.map(u=>u.system)).size;return "All units"+(units.length&&isTechView()?` · ${n} ODU${n!==1?"s":""}`:"");})())}
     </div>`:""}
     <div class="toolbar">
       <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-        <input id="q" placeholder="Search units…" value="${query}"></div>
-      <select class="sel-box" id="groupby">${DIMS.map(d=>`<option value="${d[0]}" ${settings.groupBy===d[0]?'selected':''}>Group by: ${d[1]}</option>`).join("")}</select>
+        <input id="q" placeholder="Search units…" value="${ue(query)}"></div>
+      <select class="sel-box" id="groupby">${userDims().map(d=>`<option value="${d[0]}" ${gdim()===d[0]?'selected':''}>Group by: ${d[1]}</option>`).join("")}</select>
       <div class="segmented" id="viewseg"><button data-v="grid" class="${settings.view==='grid'?'on':''}">Grid</button><button data-v="list" class="${settings.view==='list'?'on':''}">List</button></div>
       <button class="btn ${selMode?'primary':''}" id="selbtn">${selMode?'Done selecting':'Select'}</button>
       <button class="btn" id="alloff">All off</button><button class="btn primary" id="allon">All on</button>
@@ -1207,7 +1326,7 @@ function batchMove(){
   modal(head(`Move ${ids.length} unit${ids.length>1?"s":""} to a group`)+`<div class="modal-body">
     <div class="note-box" style="margin-bottom:12px">Pick (or type) a group, and optionally a subgroup like a floor or room. Leave the subgroup blank to put them straight under the group.</div>
     <label class="flabel">Group</label>
-    <input class="inp" id="mv-grp" list="mv-grps" placeholder="e.g. eBay" autocomplete="off">
+    <input class="inp" id="mv-grp" list="mv-grps" placeholder="e.g. Main building" autocomplete="off">
     <datalist id="mv-grps">${groups.map(g=>`<option value="${ue(g)}">`).join("")}</datalist>
     <label class="flabel" style="margin-top:10px">Subgroup (optional)</label>
     <input class="inp" id="mv-sub" list="mv-subs" placeholder="e.g. 3rd floor" autocomplete="off">
@@ -1246,13 +1365,13 @@ function batchModal(){
   const ids=[...selSet];const targets=units.filter(u=>ids.includes(u.id));
   const b={power:"",mode:"",fan:"",swing:"",sp:""}; // "" = no change
   modal(head(`Batch command · ${targets.length} units`)+`<div class="modal-body">
-    <div class="note-box" style="margin-bottom:12px">Pick only the settings you want to change. Anything left on “no change” is untouched. One frame is sent per unit.</div>
+    <div class="note-box" style="margin-bottom:12px">Pick only the settings you want to change. Anything left on “no change” is untouched. Each unit gets its own command.</div>
     <label class="flabel">Power</label><select class="sel-box" id="b-power"><option value="">No change</option><option value="on">Turn on</option><option value="off">Turn off</option></select>
     <label class="flabel">Mode</label><select class="sel-box" id="b-mode"><option value="">No change</option>${MODES.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join("")}</select>
     <label class="flabel">Fan</label><select class="sel-box" id="b-fan"><option value="">No change</option>${FANS.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join("")}</select>
     <label class="flabel">Swing</label><select class="sel-box" id="b-swing"><option value="">No change</option><option value="on">On</option><option value="off">Off</option></select>
     <label class="flabel">Setpoint</label><select class="sel-box" id="b-sp"><option value="">No change</option>${Array.from({length:27},(_,i)=>60+i).map(t=>`<option value="${t}">${temp(t)}</option>`).join("")}</select>
-    <div style="max-height:120px;overflow:auto;margin-top:12px;font-size:12px;color:var(--text-dim)">${targets.map(u=>dispName(u)).join(" · ")}</div>
+    <div style="max-height:120px;overflow:auto;margin-top:12px;font-size:12px;color:var(--text-dim)">${targets.map(u=>ue(dispName(u))).join(" · ")}</div>
     <div class="mf" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="b-send">Send to ${targets.length} units</button></div></div>`,true);
   document.getElementById("b-send").onclick=()=>{
     const gv=id=>document.getElementById(id).value;
@@ -1419,6 +1538,7 @@ async function masterLoopRun(){
 // to the saved unit list. Ask once per address per session, and don't stack dialogs.
 function masterNewUnit(p){
   if(!p||units.find(u=>u.addr===p.addr)||MASTER.prompted.has(p.addr))return;
+  if(!isStaff())return;                                        // ask later, when a technician/admin is signed in
   MASTER.prompted.add(p.addr);mlog("  ✚ new unit at "+hx(p.addr)+" — prompting to add");
   if(document.querySelector(".modal"))return;                 // a dialog is already open; skip (stays in found/Live)
   modal(head("New indoor unit found")+`<div class="modal-body">
@@ -1591,8 +1711,8 @@ function liveTx(){return !!bus.port && bus.scanning;}
 /* Transmit a unit's full state: the 8-byte basic frame (power/mode/fan) AND the 16-byte
    cmd5 setpoint frame (cool/heat), each repeated a few times, like the ACP does. */
 async function txUnit(u){
-  if(ctrl.running){ctrl.cmds.set(u.addr,{on:u.on,mode:u.mode,fan:u.fan,sp:u.sp,coolC:u.coolC,heatC:u.heatC,d5:u.d5,d6:u.d6,b0:u.b0});toast("Queued into controller loop → "+hx(u.addr));return;}
-  if(!bus.port||!bus.port.writable){toast("Bus not connected");return;}
+  if(ctrl.running){ctrl.cmds.set(u.addr,{on:u.on,mode:u.mode,fan:u.fan,sp:u.sp,coolC:u.coolC,heatC:u.heatC,d5:u.d5,d6:u.d6,b0:u.b0});toast(isTechView()?("Queued into controller loop → "+hx(u.addr)):("Sending to "+dispName(u)+"…"));return;}
+  if(!bus.port||!bus.port.writable){toast(isTechView()?"Bus not connected":"Not connected to the equipment — nothing was sent");return;}
   // One cmd0 write frame carries power/mode/fan AND setpoint (b6 = °C-15). We do NOT auto-send
   // cmd5 (0xA8): the community confirms cmd5 overwrites the unit's stored settings even with a
   // zero payload, so it stays behind the explicit, armed "cmd5" tool. cmd0 is the safe control path.
@@ -1603,7 +1723,7 @@ async function txUnit(u){
     const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°`};
     bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);
     bus.dirty=true;
-    toast("⚡ Sent → "+hx(u.addr)+" (power/mode/fan + setpoint)");
+    toast(isTechView()?("⚡ Sent → "+hx(u.addr)+" (power/mode/fan + setpoint)"):("Sent to "+dispName(u)));
   }catch(e){toast("Send failed: "+e.message);}}
 /* ===== Transmit (write to the live bus) — tech only, two-step confirm ===== */
 let txState={addr:null,on:true,mode:"cool",fan:"low",spC:24,repeat:5,armed:false};
@@ -1772,6 +1892,18 @@ function busUpdate(){
   const rawm=document.getElementById("bus-rawmon");if(rawm){const hexs=bus.recent.slice(-48).map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");
     rawm.innerHTML=bus.bytes?`<b>${bus.bytes}</b> raw bytes seen · last: <span class="mono" style="color:var(--text-dim)">${hexs||"—"}</span>`:'<span style="color:var(--text-faint)">0 bytes — nothing arriving on the wire yet</span>';}
   const mlogEl=document.getElementById("m-log");if(mlogEl){const atBottom=mlogEl.scrollTop+mlogEl.clientHeight>=mlogEl.scrollHeight-20;mlogEl.textContent=MASTER.log.slice(0,140).join("\n");if(atBottom)mlogEl.scrollTop=0;}
+  // Discovery progress: the animated loader is built ONCE and then only its numbers are updated, so
+  // the animation is not restarted by every address the sweep ticks through.
+  const sb=document.getElementById("scanbanner");if(sb){
+    if(MASTER.discovering&&MASTER.scan){const s=MASTER.scan,left=Math.max(0,s.total-s.done),secs=Math.ceil(left*(MASTER.turnaround+MASTER.timeout)/1000);
+      if(!sb.dataset.on){sb.dataset.on="1";sb.className="scanbanner";
+        sb.innerHTML=brainLoader(84,"Looking for indoor units on the bus. This only reads — nothing on the units is changed.")+
+          `<div class="scanbar"><div id="sb-bar" style="width:0%"></div></div>
+           <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--text-dim);margin-top:8px"><span id="sb-stat"></span><span class="mono" id="sb-cnt"></span></div>`;}
+      const bar=document.getElementById("sb-bar");if(bar)bar.style.width=Math.round(s.done/s.total*100)+"%";
+      const st=document.getElementById("sb-stat");if(st)st.textContent=`Checking address ${hx(s.cur)} · ${s.done} of ${s.total} · about ${fmtEta(secs)} left`;
+      const ct=document.getElementById("sb-cnt");if(ct)ct.textContent=MASTER.found.size+" found";}
+    else if(sb.dataset.on){sb.dataset.on="";sb.className="";sb.innerHTML="";}}
   const mst=document.getElementById("m-status");if(mst){
     if(MASTER.discovering&&MASTER.scan){const s=MASTER.scan,left=Math.max(0,s.total-s.done),secs=Math.ceil(left*(MASTER.turnaround+MASTER.timeout)/1000);
       mst.textContent=`🔍 scanning ${hx(s.cur)} · ${s.done}/${s.total} addresses · ~${secs}s left · ${MASTER.found.size} found`;}
@@ -1799,7 +1931,8 @@ function renderBusScan(){
     </div>
     ${p.phys!=="RS485"?`<div class="note-box" style="margin-bottom:12px;font-size:12.5px">${p.note} <b>Note:</b> not plain RS485 — needs the adapter noted above.</div>`:''}
     ${bus.err?`<div class="note-box" style="color:var(--warn);margin-bottom:12px">${bus.err}</div>`:""}
-    ${!supported?`<div class="note-box" style="margin-bottom:12px">This hosted copy can't open the serial port. Open your <b>local</b> Cortex in Chrome to Connect — or paste a capture in Debug.</div>`:""}`;
+    ${!supported?`<div class="note-box" style="margin-bottom:12px">This hosted copy can't open the serial port. Open your <b>local</b> Cortex in Chrome to Connect — or paste a capture in Debug.</div>`:""}
+    <div id="scanbanner"></div>`;
   /* ---- LIVE view: clean monitoring anyone can read ---- */
   const liveHTML=`
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
@@ -1950,7 +2083,7 @@ function renderBusScan(){
   busUpdate();}
 function renderCycle(){renderGroupNav();
   const oduLoad=Math.max(...units.map(u=>u.zoneLoad),0);
-  const us=units.filter(u=>groupFilter==="all"||catVals(u,settings.groupBy).includes(groupFilter));
+  const us=units.filter(u=>groupFilter==="all"||catVals(u,gdim()).includes(groupFilter));
   const row=u=>`<tr style="border-top:1px solid var(--border)">
     <td style="padding:7px 8px">${dispName(u)}</td>
     <td class="mono" style="padding:7px 8px;color:var(--text-dim)">${hx(u.addr)}</td>
@@ -2100,7 +2233,7 @@ function renderUpdates(){renderGroupNav();
   if(updateState===null){ doUpdateCheck(); return; }   // auto-check the first time the page opens
   const s=updateState, cur=s.current||'—';
   let badge='', body='';
-  if(s.checking){ badge='<span class="badge-ok">Checking…</span>'; }
+  if(s.checking){ badge='<span class="badge-ok">Checking…</span>'; body=brainLoader(64,"Checking for updates…","row"); }
   else if(s.updateAvailable){ badge='<span class="badge-new">Update available</span>';
     body=`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
       <div style="font-weight:600">v${ue(s.latest)} is available</div>
@@ -2134,8 +2267,13 @@ async function loadDevice(){
 }
 function renderDevice(){renderGroupNav();
   if(DEVLIVE===null&&DEVERR===null){if(!DEVLOADING)loadDevice();
-    main.innerHTML=`<div style="color:var(--text-dim);padding:20px">Reading device vitals…</div>`;return;}
+    main.innerHTML=brainLoader(104,"Reading this controller's vitals…","page");return;}
   const refBtn=`<button class="btn" id="devref">Refresh</button>`;
+  const hs=(DEVLIVE&&DEVLIVE.https)||null;                       // secure (https) access, reported by the appliance
+  const httpsStat=!hs?devStat("Secure access (HTTPS)","n/a","older appliance build")
+    :hs.active?devStat("Secure access (HTTPS)","On","port "+ue(hs.port)+(hs.cert?(" · "+(hs.cert.selfSigned?"self-signed":"trusted")+" certificate"+(hs.cert.validTo?" · valid until "+ue(String(hs.cert.validTo).slice(0,10)):"")):""))
+    :hs.enabled?devStat("Secure access (HTTPS)",`<span style="color:var(--warn)">Error</span>`,"turned on but not running — "+ue(hs.error||"see the appliance log"))
+    :devStat("Secure access (HTTPS)","Off","opt-in · see the appliance README");
   if(DEVERR){
     const bad=(l)=>devStat(l,"—","unavailable");
     main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
@@ -2158,13 +2296,17 @@ function renderDevice(){renderGroupNav();
      ${devStat("Memory",v(d.mem,"%"))}${devStat("Disk",v(d.disk,"%"))}
      ${devStat("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Tailscale · up":"Local only")}
      ${devStat("Bus adapter",busTxt,busSub)}
+     ${httpsStat}
    </div>
+   ${hs&&hs.active&&location.protocol==="http:"?`<div class="note-box" style="margin-top:14px">Secure access is on. Open <a href="https://${ue(location.hostname)}:${ue(hs.port)}/" style="color:var(--accent)">https://${ue(location.hostname)}:${ue(hs.port)}</a> to use it${hs.cert&&hs.cert.selfSigned?" — with the built-in self-signed certificate your browser shows a one-time warning you accept":""}. This plain http address keeps working too.</div>`:""}
    <div class="cyc-note" style="margin-top:16px">⚙ Live vitals read from the appliance OS. Values marked "no sensor" / "n/a" just mean this hardware doesn't expose that reading. Cortex can alert from the command center if CPU temp or disk cross a threshold.</div>`;
   document.getElementById("devref").onclick=loadDevice;}
 
 function renderAll(){
   document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   if(view==="trends")view="units";
+  if(view==="device"&&!isStaff())view="units";
+  const _db=document.getElementById("devbtn");if(_db)_db.classList.toggle("lit",view==="device");
   if(view==="units")renderUnits();else if(view==="cycle")renderCycle();else if(view==="updates")renderUpdates();
   else if(view==="device")renderDevice();else if(view==="map")renderMap();else if(view==="busscan")renderBusScan();else renderSchedule();
   updateBell();}
@@ -2196,11 +2338,16 @@ function drawDrawer(u){
   const stg=f=>p[f]!==u[f];
   const dis=locked?'disabled':'';
   const hist=isTech?errorHistory(u):[];
-  drawer.innerHTML=`<div class="drawer-head"><div><div class="card-name" style="font-size:16px">${dispName(u)}</div>
-    <div class="card-meta mono">${u.name} · ${hx(u.addr)} · ${u.ch} · ${u.system}</div></div>
+  const live=!locked&&liveTx();
+  const where=grpOf(u)+(subOf(u)!=="General"?TREESEP+subOf(u):"");
+  const sendTxt=isTech?(live?`⚡ ${dirty?'Send':'Resend'} to LIVE unit → ${hx(u.addr)}`:`${dirty?'Send':'Resend'} command → ${hx(u.addr)}`):(dirty?'Send':'Send again');
+  drawer.innerHTML=`<div class="drawer-head"><div style="min-width:0;flex:1">
+    <div class="dname" id="dname"><div class="card-name" title="${ue(dispName(u))}">${ue(dispName(u))}</div><button class="penbtn" id="renbtn" title="Rename this unit" aria-label="Rename this unit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button></div>
+    <div class="card-meta">${ue(where)} · ${KINDS[u.kind||'wall']||KINDS.wall}</div>
+    ${isTech?`<div class="card-meta mono" title="Bus address · channel · outdoor system · bus name (technician only)">${hx(u.addr)} · ${ue(u.ch)} · ${ue(u.system)} · ${ue(u.name)}</div>`:''}</div>
     <button class="icon-btn" id="dclose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
    <div class="drawer-body">
-    ${u.err?`<div class="err-note" data-code="${u.code}" style="margin-bottom:16px">⚠ ${u.code} · ${errInfo(u.code).t} — tap for details</div>`:""}
+    ${u.err?`<div class="err-note" data-code="${u.code}" style="margin-bottom:16px"><span>⚠</span><span>${ue(u.code)} · ${ue(errInfo(u.code).t)} — tap for details</span></div>`:""}
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
       <div class="umviz" style="width:120px;flex:0 0 120px">${unitGraphic(u)}</div>
       <div style="flex:1;min-width:0"><div class="lbl" style="margin-bottom:4px">Unit type</div>
@@ -2221,21 +2368,26 @@ function drawDrawer(u){
       <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button></div>
       <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Locks stop changes at the wall thermostat.${(p.mode!=="auto"&&!locked)?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>`:''}</div></div>
     <div class="field">
-      <button class="btn ${!locked&&liveTx()?'danger':'primary'}" id="sendcmd" style="width:100%;justify-content:center" ${locked?'disabled style="opacity:.5;width:100%"':''}>${liveTx()?`⚡ ${dirty?'Send':'Resend'} to LIVE unit → ${hx(u.addr)}`:`${dirty?'Send':'Resend'} command → ${hx(u.addr)}`}</button>
-      ${!locked&&liveTx()?`<div style="font-size:11px;color:var(--err);text-align:center;margin-top:5px">Bus connected — Send transmits power/mode/fan + setpoint to the live unit${dirty?'':' (re-sends current settings)'}</div>`:''}
+      <button class="btn ${live&&isTech?'danger live':'primary'}" id="sendcmd" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${locked?';opacity:.5':''}" ${locked?'disabled':''}>${sendTxt}</button>
+      ${live?(isTech
+        ?`<div style="font-size:11px;color:var(--err);text-align:center;margin-top:5px">Bus connected — Send transmits power/mode/fan + setpoint to the live unit${dirty?'':' (re-sends current settings)'}</div>`
+        :`<div style="font-size:11.5px;color:var(--text-dim);text-align:center;margin-top:6px">Connected to the equipment — Send changes the real unit right away${dirty?'':' (it sends the current settings again)'}.</div>`)
+       :(!locked&&!isTech?`<div style="font-size:11.5px;color:var(--warn);text-align:center;margin-top:6px">Not connected to the equipment right now — changes are saved here but won’t reach the unit until it reconnects.</div>`:'')}
       ${dirty&&!locked?`<button class="linklike" id="revert" style="display:block;margin:9px auto 0">Revert changes</button>`:''}</div>
-    <div class="field"><div class="lbl">Command preview (what Send puts on the bus)</div><div class="frame-box">
-      <div class="k">basic · ${p.on?"on":"off"} · ${p.mode} · ${p.fan} fan${p.swing?" · swing":""}</div>
-      <div class="hex mono">${cmdFrameFor(u.addr,p)}</div>
-      <div class="k" style="margin-top:7px">cmd5 setpoint · cool ${spDisp(p.coolC)}° / heat ${spDisp(p.heatC)}°</div>
-      <div class="hex mono">${toHexBytes(cmd5SetpointBytes(u.addr,p.coolC,p.heatC,{on:p.on}))}</div></div></div>
     <div class="field"><div class="lbl">Runtime &amp; energy</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-dim)">
         <div><b style="color:var(--text)">${u.runtimeHrs}h</b> runtime</div><div><b style="color:var(--text)">${u.kwh} kWh</b> today</div>
         <div>filter <b style="color:${u.filterPct<20?'var(--warn)':'var(--text)'}">${u.filterPct}%</b></div></div></div>
     <div class="field"><button class="btn" id="trendbtn" style="width:100%;justify-content:center">📈 View 30-day trends</button></div>
     ${isTech?`
-    <div class="field" style="border-top:2px solid var(--border);padding-top:14px"><div class="lbl" style="color:var(--accent)">⚙ Technician</div></div>
+    <div class="field" style="border-top:2px solid var(--border);padding-top:14px"><div class="lbl" style="color:var(--accent)">⚙ Technician</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-dim)">
+        <div>address <b class="mono" style="color:var(--text)">${hx(u.addr)}</b></div><div>channel <b class="mono" style="color:var(--text)">${ue(u.ch)}</b></div><div>system <b style="color:var(--text)">${ue(u.system)}</b></div></div></div>
+    <div class="field"><div class="lbl">Command preview (what Send puts on the bus)</div><div class="frame-box">
+      <div class="k">basic · ${p.on?"on":"off"} · ${p.mode} · ${p.fan} fan${p.swing?" · swing":""}</div>
+      <div class="hex mono">${cmdFrameFor(u.addr,p)}</div>
+      <div class="k" style="margin-top:7px">cmd5 setpoint · cool ${spDisp(p.coolC)}° / heat ${spDisp(p.heatC)}°</div>
+      <div class="hex mono">${toHexBytes(cmd5SetpointBytes(u.addr,p.coolC,p.heatC,{on:p.on}))}</div></div></div>
     <div class="field"><div class="lbl">Live sensors · 16-byte response</div><div class="frame-box" style="line-height:1.9">
       room <b class="mono">${u.room}°</b> · target <b class="mono">${temp(u.sp).replace(/°[FC]/,'')}°</b> · pipe-in <b class="mono">${u.pipeIn}°</b> · pipe-out <b class="mono">${u.pipeOut}°</b><br>
       zone load <b class="mono">${u.zoneLoad}</b> · error <b class="mono" style="color:${u.err?'var(--err)':'var(--ok)'}">${u.err?u.code:'0'}</b>
@@ -2256,15 +2408,16 @@ function drawDrawer(u){
     `:''}
     <div class="field"><div class="lbl">Service${canService?'':' <span style="color:var(--text-faint);font-size:11px">(technician)</span>'}</div>
       ${canService?`<div class="setrow" style="padding-top:0;border:none"><div><div class="sl">In-service lock</div><div class="sd">Locks out customer control while you work</div></div>${tog("svc",svc.inService)}</div>
-      <input id="svc-note" class="inp" style="margin:6px 0" value="${svc.note||''}" placeholder="Work order / note">
+      <input id="svc-note" class="inp" style="margin:6px 0" value="${ue(svc.note||'')}" placeholder="Work order / note">
       <button class="btn" id="svc-log" style="width:100%;justify-content:center">Log service entry</button>
-      ${svc.history&&svc.history.length?`<div style="margin-top:8px">${svc.history.slice(-4).reverse().map(h=>`<div style="font-size:12px;color:var(--text-dim);border-top:1px solid var(--border);padding:6px 0">${h.when} — ${h.note}</div>`).join("")}</div>`:""}`
+      ${svc.history&&svc.history.length?`<div style="margin-top:8px">${svc.history.slice(-4).reverse().map(h=>`<div style="font-size:12px;color:var(--text-dim);border-top:1px solid var(--border);padding:6px 0">${ue(h.when)} — ${ue(h.note)}</div>`).join("")}</div>`:""}`
       :`<div style="font-size:13px;color:var(--text-dim)">${svc.inService?'🔧 This unit is flagged in service.':'Not in service.'} Service controls require technician access.</div>`}</div>
-    <div class="field"><div class="lbl">Organize</div><button class="btn" id="organize" style="width:100%;justify-content:center">Nickname &amp; tags</button></div>
+    <div class="field"><div class="lbl">Organize</div><button class="btn" id="organize" style="width:100%;justify-content:center">Name &amp; tags</button></div>
    </div>`;
   document.getElementById("dclose").onclick=closeDrawer;
   drawer.querySelectorAll("[data-code]").forEach(d=>d.onclick=()=>openError(d.dataset.code));
   const org=document.getElementById("organize");if(org)org.onclick=()=>organizeUnit(u);
+  const rb=document.getElementById("renbtn");if(rb)rb.onclick=()=>startRename(u);   // renaming stays allowed even when controls are locked
   const svcT=drawer.querySelector('[data-tog="svc"]');if(svcT)svcT.onclick=()=>{svc.inService=!svc.inService;setMeta(u,{service:svc});drawDrawer(u);renderBody();};
   const svcL=document.getElementById("svc-log");if(svcL)svcL.onclick=()=>{svc.note=document.getElementById("svc-note").value.trim();svc.history=svc.history||[];svc.history.push({when:new Date().toLocaleDateString(),note:svc.note||"(no note)"});setMeta(u,{service:svc});drawDrawer(u);};
   const poll=document.getElementById("poll");if(poll)poll.onclick=()=>{u.room+=(Math.random()<.5?-1:1);u.zoneLoad=u.on?30+Math.floor(Math.random()*70):0;toast("Polled "+dispName(u));drawDrawer(u);};
@@ -2273,7 +2426,8 @@ function drawDrawer(u){
   const send=document.getElementById("sendcmd");if(send&&!locked)send.onclick=async ()=>{
     u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=p.coolC;u.heatC=p.heatC;u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;
     u.sp=Math.round(activeC(u)*9/5+32);
-    if(liveTx()){await txUnit(u);}else{toast("Command staged → "+dispName(u)+" · connect the bus (Bus scan ▸ Connect) to transmit");}
+    if(liveTx()){await txUnit(u);}
+    else{toast(isTech?("Command staged → "+dispName(u)+" · connect the bus (Bus scan ▸ Connect) to transmit"):("Saved for "+dispName(u)+" — not connected to the equipment, so nothing was sent"));}
     pend=snap(u);syncCard(u);saveUnits();drawDrawer(u);};
   const del=document.getElementById("delunit");if(del)del.onclick=()=>{
     if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent="Tap again to remove "+dispName(u);del.classList.add("danger");return;}
@@ -2298,6 +2452,23 @@ function drawDrawer(u){
   }
 }
 function syncCard(u){if(view!=="units")return;renderBody();}
+/* whatever is showing behind the drawer (tiles / map / tables) picks up a rename straight away */
+function refreshUnderDrawer(){if(view==="units"){renderBody();}else if(view==="map"||view==="cycle"||view==="schedule")renderAll();updateBell();}
+/* Rename a unit right in the drawer header: pencil -> inline box -> Enter/Save. Anyone signed in can
+   do it (a name is not a control), and it is stored as the unit's alias in the shared config. */
+function saveUnitName(u,name){const v=String(name||"").replace(/\s+/g," ").trim().slice(0,40);
+  if(v===getMeta(u).alias)return false;
+  if(!v&&!getMeta(u).alias)return false;
+  setMeta(u,{alias:v});return true;}
+function startRename(u){const box=document.getElementById("dname");if(!box)return;const cur=dispName(u);
+  box.outerHTML=`<div class="dname-edit" id="dname"><input class="inp" id="ren-inp" maxlength="40" value="${ue(cur)}" aria-label="Unit name" placeholder="e.g. Front Office"><button class="btn primary sm" id="ren-ok">Save</button><button class="btn sm" id="ren-x">Cancel</button></div>`;
+  const inp=document.getElementById("ren-inp");inp.focus();inp.select();
+  const done=save=>{if(save){const v=inp.value.trim();
+      if(v!==cur&&saveUnitName(u,v)){toast(v?("Renamed to "+v.slice(0,40)):"Name cleared");refreshUnderDrawer();}}
+    if(openId===u.id)drawDrawer(u);};
+  inp.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();done(true);}else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();done(false);}};
+  document.getElementById("ren-ok").onclick=()=>done(true);
+  document.getElementById("ren-x").onclick=()=>done(false);}
 
 /* ---- modal system ---- */
 const mroot=document.getElementById("modal-root");
@@ -2307,7 +2478,7 @@ function closeModal(){mroot.innerHTML="";}
 function head(title){return `<div class="modal-head"><h3>${title}</h3><button class="icon-btn" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;}
 
 function openError(code){const e=errInfo(code);
-  const units_err=units.filter(u=>u.code===code).map(u=>u.label);
+  const units_err=units.filter(u=>u.code===code).map(u=>ue(dispName(u)));
   modal(head(`${code} — ${e.t}`)+`<div class="modal-body">
     <span class="sev" style="background:var(--${SEVC[e.sev]}-soft);color:var(--${SEVC[e.sev]})">${e.sev.toUpperCase()}</span>
     <span class="rchip" style="margin-left:6px">${e.who}</span>
@@ -2319,24 +2490,25 @@ function openError(code){const e=errInfo(code);
   </div>`);}
 
 function organizeUnit(u){const m=getMeta(u);
-  modal(head("Organize "+u.name)+`<div class="modal-body">
-   <label class="flabel">Display name (nickname)</label><input id="o-alias" class="inp" value="${m.alias}" placeholder="${u.label}">
-   <label class="flabel">Tags (comma separated)</label><input id="o-tags" class="inp" value="${m.tags.join(", ")}" placeholder="e.g. CEO's Office, VIP">
-   <div style="display:flex;gap:8px"><div class="grow"><label class="flabel">Floor</label><input id="o-floor" class="inp" type="number" value="${m.floor}"></div>
-     <div class="grow"><label class="flabel">Suite</label><input id="o-suite" class="inp" value="${m.suite}"></div></div>
+  modal(head("Organize "+ue(dispName(u)))+`<div class="modal-body">
+   <label class="flabel">Name</label><input id="o-alias" class="inp" maxlength="40" value="${ue(m.alias)}" placeholder="${ue(defaultName(u))}">
+   <label class="flabel">Tags (comma separated)</label><input id="o-tags" class="inp" value="${ue(m.tags.join(", "))}" placeholder="e.g. CEO's Office, VIP">
+   <div style="display:flex;gap:8px"><div style="flex:1"><label class="flabel">Floor</label><input id="o-floor" class="inp" value="${ue(m.floor)}"></div>
+     <div style="flex:1"><label class="flabel">Suite</label><input id="o-suite" class="inp" value="${ue(m.suite)}"></div></div>
    <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="o-save">Save</button></div></div>`);
   document.getElementById("o-save").onclick=()=>{
-    setMeta(u,{alias:document.getElementById("o-alias").value.trim(),
+    setMeta(u,{alias:document.getElementById("o-alias").value.replace(/\s+/g," ").trim().slice(0,40),
       tags:document.getElementById("o-tags").value.split(",").map(t=>t.trim()).filter(Boolean),
-      floor:+document.getElementById("o-floor").value||m.floor,
+      floor:document.getElementById("o-floor").value.trim()||m.floor,
       suite:document.getElementById("o-suite").value.trim()||m.suite});
-    closeModal();if(openId!=null)drawDrawer(units.find(x=>x.id===openId));renderBody();};}
+    closeModal();if(openId!=null)drawDrawer(units.find(x=>x.id===openId));refreshUnderDrawer();};}
 
 /* ---- settings ---- */
 let setTab="display";
 function openSettings(){setTab="display";drawSettings();}
 function drawSettings(){
-  const tabs=[["display","🎨 Display",false],["layout","🔌 Layout",false],["updates","⬇ Updates",false],["advanced","⚙ Advanced",!session.admin],["users","👥 Users",!session.admin],["about","ℹ About",false]];
+  if(setTab==="layout"&&!isStaff())setTab="display";            // physical wiring (addresses) is not a customer page
+  const tabs=[["display","🎨 Display",false]].concat(isStaff()?[["layout","🔌 Layout",false]]:[],[["updates","⬇ Updates",false],["advanced","⚙ Advanced",!session.admin],["users","👥 Users",!session.admin],["about","ℹ About",false]]);
   let body="";
   if(setTab==="display")body=displayTab();
   else if(setTab==="layout")body=layoutTab();
@@ -2349,7 +2521,7 @@ function drawSettings(){
   wireSettings();
   if(setTab==="updates")loadSettingsUpdates();
 }
-function updatesTab(){return `<div id="setupd"><div class="note-box">Checking for updates…</div></div><div id="setchan"></div>`;}
+function updatesTab(){return `<div id="setupd">${brainLoader(56,"Checking for updates…","row")}</div><div id="setchan"></div>`;}
 // The channel toggle reads the FAST local endpoint and renders independently of the (possibly slow,
 // GitHub-dependent) update check, so it never appears frozen.
 function renderChannelRow(el,chan){
@@ -2422,21 +2594,21 @@ function displayTab(){return `
   ${row("Temperature unit","",`<div class="segmented"><button data-set="unit" data-val="F" class="${settings.unit==='F'?'on':''}">°F</button><button data-set="unit" data-val="C" class="${settings.unit==='C'?'on':''}">°C</button></div>`)}
   ${row("Theme","",`<select class="sel-box" data-set="theme"><option value="auto" ${settings.theme==='auto'?'selected':''}>Auto</option><option value="light" ${settings.theme==='light'?'selected':''}>Light</option><option value="dark" ${settings.theme==='dark'?'selected':''}>Dark</option></select>`)}
   ${row("Color theme","Accent across the app",`<div class="swatches">${Object.entries(ACCENTS).map(([k,a])=>`<button class="swatch ${settings.accent===k?'sel':''}" data-accent="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div>`)}
-  ${row("Group units by","Organize the dashboard",`<select class="sel-box" data-set="groupBy">${DIMS.map(d=>`<option value="${d[0]}" ${settings.groupBy===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select>`)}
+  ${row("Group units by","Organize the dashboard",`<select class="sel-box" data-set="groupBy">${userDims().map(d=>`<option value="${d[0]}" ${gdim()===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select>`)}
   ${row("Clock format","",`<div class="segmented"><button class="${!settings.clock24?'on':''}" onclick="settings.clock24=false;saveSettings();drawSettings();tick();">12-hour</button><button class="${settings.clock24?'on':''}" onclick="settings.clock24=true;saveSettings();drawSettings();tick();">24-hour</button></div>`)}
-  ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"],["device","Device health"]].map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
+  ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"]].concat(isStaff()?[["device","Device health"]]:[]).map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
   ${row("Summary tiles","Running / off / errors row",tog("showTiles",settings.showTiles))}
   ${row("Weather card","Local weather for the site",tog("showWeather",settings.showWeather))}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Show on each card</div>
   ${row("Mode","",tog("mode",settings.show.mode))}
   ${row("Room temperature","",tog("room",settings.show.room))}
-  ${row("Bus address","",tog("addr",settings.show.addr))}
   ${row("Fan speed","",tog("fan",settings.show.fan))}
   ${row("Tags","",tog("tags",settings.show.tags))}`;}
-function layoutTab(){const a=units.filter(u=>u.system==="System A"),b=units.filter(u=>u.system==="System B");
-  const block=(name,arr)=>`<div class="mini-lbl">${name} · ${arr.length} units</div>${arr.map(u=>`<div class="sys-row"><span>${dispName(u)}</span><span class="mono" style="color:var(--text-faint)">${u.name} · ${hx(u.addr)}</span></div>`).join("")}`;
-  return `<div class="note-box">Physical wiring — which indoor units hang off which outdoor unit. Set by the equipment and shown read-only. Customers reorganize the dashboard with Group-by and tags under Display.</div>
-    ${block("System A · CH1",a)}${block("System B · CH2",b)}`;}
+function layoutTab(){
+  const systems=[...new Set(units.map(u=>String(u.system)))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const block=(name,arr)=>`<div class="mini-lbl">${ue(name)} · ${arr.length} unit${arr.length!==1?"s":""}</div>${arr.slice().sort((a,b)=>a.addr-b.addr).map(u=>`<div class="sys-row"><span>${ue(dispName(u))}</span><span class="mono" style="color:var(--text-faint)">${hx(u.addr)} · ${ue(u.ch)}</span></div>`).join("")}`;
+  return `<div class="note-box">Physical wiring — which indoor units hang off which outdoor unit, with each unit's bus address and channel. Set by the equipment and shown read-only (technicians and admins only). Everyone else organizes the dashboard with groups, names and tags.</div>
+    ${systems.length?systems.map(s=>block(s,units.filter(u=>String(u.system)===s))).join(""):'<div style="color:var(--text-faint);font-size:13px">No units yet.</div>'}`;}
 function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];const i=CFG.protocols.indexOf(k);
   if(i>=0){if(CFG.protocols.length>1)CFG.protocols.splice(i,1);}else CFG.protocols.push(k);saveCfg(CFG);drawSettings();}
 function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
@@ -2447,7 +2619,6 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   <div class="setrow"><div><div class="sl">LG (LGAP)</div><div class="sd mono">RS485 · full control</div></div><button class="toggle on" disabled style="opacity:.8"></button></div>
   ${["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"].map(k=>`<div class="setrow" style="opacity:.55"><div><div class="sl">${PROTOCOLS[k].label}</div><div class="sd" style="color:var(--accent)">Coming soon</div></div></div>`).join("")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
-  ${row("Device health","Live CPU, memory, disk, temperature, and bus activity of the appliance","<button class=\"linklike\" onclick=\"closeModal();view='device';renderAll();\">Open</button>")}
   ${row("Raw frame monitor","Show live bus frames (debug)",tog("rawmon",false))}
   ${row("Allow customer control","Let customers change setpoints/modes",tog("custctl",true))}
   ${row("Allow customer All-On/Off","",tog("custall",true))}
@@ -2494,7 +2665,7 @@ function aboutTab(){const isPriv=session.admin||session.tech;return `
   ${row("Version","",`<span class="mono" id="verline" style="color:var(--text-dim);cursor:default">v0.1.0</span>`)}
   ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${(CFG&&CFG.site&&CFG.site.name)||'Site'}</span>`)}
   ${row("Remote access","",`<span style="color:var(--text-dim)">${(CFG&&CFG.remote&&CFG.remote.enabled)?'Tailscale — on':'Off'}</span>`)}
-  ${row("Protocol reference","The LGAP protocol — everything we've decoded",`<button class="linklike" onclick="viewProtocolDoc()">Open</button>`)}
+  ${isPriv?row("Protocol reference","The LGAP protocol — everything we've decoded",`<button class="linklike" onclick="viewProtocolDoc()">Open</button>`):""}
   ${isPriv?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Owner recovery</div>
      <div class="sd" style="margin-bottom:8px">Per-site code to regain owner access if you're locked out. Keep it somewhere safe.</div>
      <div class="recovery">${(CFG&&CFG.recovery)||RECOVERY}</div>`:
@@ -2551,7 +2722,7 @@ function wireSettings(){fillVersion();
     else el.onclick=()=>{settings[el.dataset.set]=el.dataset.val;saveSettings();applyTheme();drawSettings();refreshBackground();if(el.dataset.set==="unit"){WEATHER.ts=0;loadWeather();}};});
   mroot.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{
     const k=b.dataset.tog;
-    if(["mode","room","addr","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
+    if(["mode","room","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
     else if(["showTiles","showWeather"].includes(k))settings[k]=!settings[k];
     saveSettings();b.classList.toggle("on");refreshBackground();});
   mroot.querySelectorAll("[data-accent]").forEach(b=>b.onclick=()=>{settings.accent=b.dataset.accent;saveSettings();applyTheme();drawSettings();refreshBackground();});
@@ -2697,21 +2868,137 @@ function unitGraphic(u,cls,lite){
   return `<svg class="ug ${cls||''}" viewBox="0 0 96 96" preserveAspectRatio="xMidYMid meet">${body}${air}${err}</svg>`;
 }
 function setKind(id,kind){const u=units.find(x=>x.id===id);if(!u)return;u.kind=kind;saveUnits();renderAll();if(openId===id)drawDrawer(u);}
+/* ---- building map: floor plans ----
+   Model: ONE optional floor-plan picture per group ▸ subgroup (the same "leaf" the map already draws a
+   section for). CFG.floorplans[leaf] = {id, v, w, h, pos:{<unit bus name>:[x,y]}} with x/y normalised
+   0–1 across the picture, so every browser and screen size shows the same layout. The picture itself is
+   too big for the shared config, so the appliance keeps it as a file (PUT/GET/DELETE /api/floorplan/:id);
+   opened as a bare file (no appliance) it lives in this browser's localStorage instead. A leaf with no
+   picture keeps the plain tile grid. Units only move in the explicit "Edit layout" mode (tech/admin). */
+let mapEdit=false, fpDrag=null;
+const FP_GRID=40;                                              // snap grid: square cells, this many across the picture
+function fpGet(leaf){const f=CFG&&CFG.floorplans&&CFG.floorplans[leaf];return (f&&f.id)?f:null;}
+function fpLocalKey(id){return "airow_fp_"+id;}
+function fpSrc(f){try{const d=localStorage.getItem(fpLocalKey(f.id));if(d)return d;}catch(e){}
+  return "/api/floorplan/"+encodeURIComponent(f.id)+"?v="+(f.v||0);}
+function fpSnap(f,x,y){const cw=1/FP_GRID,chh=cw*((f.w||1)/(f.h||1));const cl=v=>Math.max(0,Math.min(1,v));
+  return [+cl(Math.round(x/cw)*cw).toFixed(4),+cl(Math.round(y/chh)*chh).toFixed(4)];}
+// group / subgroup renamed: before[i] is the old leaf of units[i] — carry the plan to the new name
+function fpRekey(before){if(!CFG||!CFG.floorplans)return;let ch=false;
+  units.forEach((u,i)=>{const o=before[i],n=leafKey(u);
+    if(o!==n&&CFG.floorplans[o]&&!CFG.floorplans[n]){CFG.floorplans[n]=CFG.floorplans[o];delete CFG.floorplans[o];ch=true;}});
+  if(ch)saveCfg(CFG);}
+// Shrink a picked image in the browser (canvas) before it is stored anywhere — phone photos and scans
+// are far bigger than a screen needs.
+function fpReadImage(file,maxSide,quality){return new Promise((res,rej)=>{
+  if(!file||!/^image\//.test(file.type||"")){rej(new Error("Pick an image file (PNG or JPG)"));return;}
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{try{const k=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight,1));
+      const w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));
+      const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");
+      x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);
+      c.toBlob(b=>b?res({blob:b,w,h,canvas:c}):rej(new Error("Couldn't process that image")),"image/jpeg",quality);
+    }catch(e){rej(new Error("Couldn't process that image"));}};
+  img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("Couldn't read that image — try a PNG or JPG"));};
+  img.src=url;});}
+function fpDeleteImage(id){try{localStorage.removeItem(fpLocalKey(id));}catch(e){}
+  if(location.protocol!=="file:"){try{fetch("/api/floorplan/"+encodeURIComponent(id),{method:"DELETE"}).catch(()=>{});}catch(e){}}}
+async function fpUpload(leaf,file){
+  if(!isStaff()||!CFG)return;const local=location.protocol==="file:";
+  const wrap=[...document.querySelectorAll(".floor-wrap")].find(w=>w.dataset.leaf===encodeURIComponent(leaf));
+  const slot=wrap&&wrap.querySelector(".fpslot");if(slot)slot.innerHTML=brainLoader(72,"Preparing the floor plan…");
+  try{
+    const r=await fpReadImage(file,local?1400:2000,local?0.8:0.86);
+    const old=fpGet(leaf),id="fp"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    if(local){                                                 // no appliance: keep it in this browser
+      try{localStorage.setItem(fpLocalKey(id),r.canvas.toDataURL("image/jpeg",0.8));}
+      catch(e){throw new Error("That picture is too big to keep in this browser — try a smaller one");}
+    }else{
+      let resp=null;try{resp=await fetch("/api/floorplan/"+id,{method:"PUT",headers:{"Content-Type":"image/jpeg"},body:r.blob});}catch(e){}
+      if(!resp||!resp.ok)throw new Error(resp&&resp.status===413?"That picture is too large for the controller":"The controller didn't accept the picture"+(resp?" (HTTP "+resp.status+")":"")+" — is it up to date?");
+    }
+    CFG.floorplans=CFG.floorplans||{};
+    CFG.floorplans[leaf]={id,v:Date.now(),w:r.w,h:r.h,pos:(old&&old.pos)||{}};
+    saveCfg(CFG);if(old)fpDeleteImage(old.id);
+    toast(local?"Floor plan saved in this browser":"Floor plan saved");
+  }catch(e){toast(e.message||"Couldn't add the floor plan");}
+  renderMap();}
+function fpPick(leaf){const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp,image/*";
+  inp.onchange=()=>{const f=inp.files&&inp.files[0];if(f)fpUpload(leaf,f);};inp.click();}
+function fpRemove(leaf){const f=fpGet(leaf);if(!f||!isStaff())return;
+  modal(head("Remove this floor plan?")+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px">This removes the picture for <b>${ue(leaf)}</b> and forgets where its units were placed. The units themselves are not touched — they go back to the plain tile view.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" id="fprm-go">Remove picture</button></div></div>`);
+  document.getElementById("fprm-go").onclick=()=>{fpDeleteImage(f.id);delete CFG.floorplans[leaf];saveCfg(CFG);closeModal();renderMap();toast("Floor plan removed");};}
+function fpImgFail(img){const st=img.closest(".fpstage");if(!st||st.classList.contains("noimg"))return;st.classList.add("noimg");img.remove();
+  st.insertAdjacentHTML("afterbegin",`<div style="padding:14px;font-size:13px;color:#5a6372">The floor-plan picture for this group couldn't be loaded on this device${isStaff()?" — use Edit layout ▸ Replace picture to add it again":""}.</div>`);}
+function mapStateTxt(u){return u.err?(u.code||"error"):(u.on?((MODES.find(m=>m[0]===u.mode)||["",u.mode])[1]+" · "+spDisp(activeC(u))+"°"+settings.unit):"Off");}
+function mapTile(u){const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:ue(mapStateTxt(u));
+  return `<div class="umtile" data-id="${u.id}">
+    <div class="umhead"><span class="umname" title="${ue(dispName(u))}">${ue(dispName(u))}</span><span class="umstate">${stateTxt}</span></div>
+    <div class="umviz">${unitGraphic(u)}</div>
+    <div class="umkind"><span>${KINDS[u.kind||'wall']||KINDS.wall}</span><span>${u.on?('fan '+ue(u.fan)+' · room '+temp(u.room)):'&nbsp;'}</span></div>
+  </div>`;}
+function fpMarker(u,x,y){const c=u.err?"var(--err)":(u.on?modeColor(u):"var(--stopped)");
+  return `<div class="fpmark" data-id="${u.id}" style="left:${(x*100).toFixed(2)}%;top:${(y*100).toFixed(2)}%;--mk:${c}" title="${ue(dispName(u)+" — "+mapStateTxt(u))}"><div class="fpviz">${unitGraphic(u,'',true)}</div><div class="fpname">${ue(dispName(u))}</div></div>`;}
 function renderMap(){renderGroupNav();
-  if(!units.length){main.innerHTML=`<div class="cyc-note">No units yet — add them from Tech → Bus scan (discover → import).</div>`;return;}
+  if(fpDrag)return;                                            // never rebuild the map under a finger mid-drag
+  if(!isStaff())mapEdit=false;
+  if(!units.length){main.innerHTML=`<div class="cyc-note">No units yet${isTechView()?" — add them from Bus scan (discover → import)":" — your installer adds them when the system is set up"}.</div>`;return;}
   const sel=(groupFilter==="all")?units.slice():units.filter(u=>catVals(u,"location").includes(groupFilter));
   const leaves=[...new Set(sel.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
-  main.innerHTML=`<div style="font-size:13.5px;color:var(--text-dim);margin-bottom:12px">Live building view — each unit animates its real state: color by mode, airflow speed by fan, a flashing dot on a fault. Tap one to control it.</div>`+
-    leaves.map(leaf=>{const us=sel.filter(u=>leafKey(u)===leaf);
-      return `<div class="floor-wrap" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:8px">${ue(leaf)} · ${us.length}</div>
-        <div class="ummap">${us.map(u=>{const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:(u.on?`${ue(u.mode)} · ${temp(u.sp)}`:'off');
-          return `<div class="umtile" data-id="${u.id}">
-            <div class="umhead"><span class="umname">${ue(dispName(u))}</span><span class="umstate">${stateTxt}</span></div>
-            <div class="umviz">${unitGraphic(u)}</div>
-            <div class="umkind"><span>${KINDS[u.kind||'wall']}</span><span>${u.on?('fan '+ue(u.fan)+' · '+temp(u.room)):'&nbsp;'}</span></div>
-          </div>`;}).join("")}</div></div>`;}).join("")+
-    `<div class="cyc-note" style="margin-top:4px">Set each unit's type (wall, cassette, ducted…) from its control panel so its graphic matches. Uploading a real floor-plan image to drag units onto is the next step.</div>`;
-  document.querySelectorAll(".umtile[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));}
+  const enc=encodeURIComponent;
+  main.innerHTML=`<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:13.5px;color:var(--text-dim);flex:1;min-width:240px">Live building view — each unit shows what it is doing right now: color by mode, airflow speed by fan, a flashing dot on a fault. Tap one to control it.</div>
+      ${isStaff()?`<button class="btn ${mapEdit?'primary':''}" id="mapedit">${mapEdit?'✓ Done editing':'✎ Edit layout'}</button>`:''}</div>
+    ${mapEdit?`<div class="editband"><span>✎ <b>Editing the layout.</b> Add a floor-plan picture to a group, then drag its units onto the picture — they snap to a grid. Drag a unit off the picture to take it off again. Nothing here is sent to the equipment.</span></div>`:''}`+
+    leaves.map(leaf=>{const us=sel.filter(u=>leafKey(u)===leaf),fp=fpGet(leaf);
+      const placed=fp?us.filter(u=>fp.pos&&fp.pos[u.name]):[],loose=fp?us.filter(u=>!(fp.pos&&fp.pos[u.name])):us;
+      const tools=mapEdit?`<div style="flex:1"></div><button class="btn sm" data-fpup="${enc(leaf)}">${fp?'Replace picture':'＋ Add floor plan'}</button>${fp?`<button class="btn sm danger" data-fprm="${enc(leaf)}">Remove picture</button>`:''}`:'';
+      let inner;
+      if(fp){
+        inner=`<div class="fpstage ${mapEdit?'edit':''}" data-leaf="${enc(leaf)}"><img class="fpimg" src="${fpSrc(fp)}" alt="Floor plan — ${ue(leaf)}" draggable="false" onerror="fpImgFail(this)">${mapEdit?`<div class="fpgrid" style="background-size:${(100/FP_GRID).toFixed(4)}% ${(100/FP_GRID*((fp.w||1)/(fp.h||1))).toFixed(4)}%"></div>`:''}${placed.map(u=>fpMarker(u,fp.pos[u.name][0],fp.pos[u.name][1])).join("")}</div>`;
+        if(mapEdit)inner+=`<div class="fptray"><div class="tl">${loose.length?`Not on the plan yet · drag onto the picture (${loose.length})`:'Every unit in this group is on the plan'}</div><div class="chips">${loose.map(u=>`<span class="fpchip" data-id="${u.id}"><span class="ugmini">${unitGraphic(u,'',true)}</span>${ue(dispName(u))}</span>`).join("")}</div></div>`;
+        else if(loose.length)inner+=`<div class="mini-lbl">Not on the plan yet</div><div class="ummap">${loose.map(mapTile).join("")}</div>`;
+      }else inner=`<div class="ummap">${us.map(mapTile).join("")}</div>`;
+      return `<div class="floor-wrap" style="margin-bottom:16px" data-leaf="${enc(leaf)}"><div class="fphead"><span class="ft">${ue(leaf)}</span><span class="fc">${us.length} unit${us.length!==1?"s":""}</span>${tools}</div><div class="fpslot">${inner}</div></div>`;}).join("")+
+    `<div class="cyc-note" style="margin-top:4px">${isStaff()
+      ?`Set each unit's type (wall, cassette, ducted…) from its control panel so its picture matches. ${mapEdit?"Tap <b>Done editing</b> when the layout looks right.":"Tap <b>Edit layout</b> to add a floor-plan picture for a group and place its units on it."}`
+      :`Each picture matches the kind of unit in that room. Tap a unit to change its settings.`}</div>`;
+  const me=document.getElementById("mapedit");if(me)me.onclick=()=>{mapEdit=!mapEdit;renderMap();};
+  document.querySelectorAll("[data-fpup]").forEach(b=>b.onclick=()=>fpPick(decodeURIComponent(b.dataset.fpup)));
+  document.querySelectorAll("[data-fprm]").forEach(b=>b.onclick=()=>fpRemove(decodeURIComponent(b.dataset.fprm)));
+  document.querySelectorAll(".umtile[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));
+  if(mapEdit)fpBindDrag();
+  else document.querySelectorAll(".fpmark[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));}
+/* Drag units in Edit-layout mode. Pointer events cover mouse, touch and pen with one code path; the
+   marker follows the pointer snapped to the grid, and the position is saved on release. A drag that
+   ends off the picture takes the unit off the plan (back to the tray). A plain tap moves nothing. */
+function fpBindDrag(){
+  document.querySelectorAll(".fpstage.edit .fpmark,.fptray .fpchip").forEach(el=>{
+    el.onpointerdown=e=>{
+      if(!mapEdit||!isStaff()||(e.pointerType==="mouse"&&e.button!==0))return;
+      const u=units.find(x=>x.id===+el.dataset.id),wrap=el.closest(".floor-wrap"),stage=wrap&&wrap.querySelector(".fpstage");
+      if(!u||!stage)return;const leaf=decodeURIComponent(stage.dataset.leaf),f=fpGet(leaf);if(!f)return;
+      e.preventDefault();
+      const fromTray=el.classList.contains("fpchip");let mk=fromTray?null:el,moved=false;
+      const r0=stage.getBoundingClientRect(),cur=(f.pos&&f.pos[u.name])||null;
+      const offX=cur&&!fromTray?e.clientX-(r0.left+cur[0]*r0.width):0,offY=cur&&!fromTray?e.clientY-(r0.top+cur[1]*r0.height):0;
+      const x0=e.clientX,y0=e.clientY;
+      fpDrag={id:u.id};try{el.setPointerCapture(e.pointerId);}catch(_){}
+      const at=ev=>{const r=stage.getBoundingClientRect(),x=(ev.clientX-offX-r.left)/r.width,y=(ev.clientY-offY-r.top)/r.height;
+        const s=fpSnap(f,x,y);return {inside:x>=-0.03&&x<=1.03&&y>=-0.03&&y<=1.03,x:s[0],y:s[1]};};
+      const end=()=>{el.onpointermove=el.onpointerup=el.onpointercancel=null;fpDrag=null;};
+      el.onpointermove=ev=>{if(!moved&&Math.hypot(ev.clientX-x0,ev.clientY-y0)<4)return;moved=true;const p=at(ev);
+        if(!mk){stage.insertAdjacentHTML("beforeend",fpMarker(u,p.x,p.y));mk=stage.lastElementChild;el.classList.add("gone");}
+        mk.classList.add("drag");mk.style.left=(p.x*100).toFixed(2)+"%";mk.style.top=(p.y*100).toFixed(2)+"%";mk.style.opacity=p.inside?"":".4";};
+      el.onpointerup=ev=>{end();
+        if(moved){const p=at(ev);f.pos=f.pos||{};
+          if(p.inside)f.pos[u.name]=[p.x,p.y];else delete f.pos[u.name];
+          saveCfg(CFG);}
+        renderMap();};
+      el.onpointercancel=()=>{end();renderMap();};
+    };});}
 
 /* ---- 30-day timestamped data log + trends ---- */
 const DAY=86400000, TPAL=["#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6","#ec4899","#14b8a6","#f97316","#6366f1","#84cc16"];
@@ -2767,6 +3054,7 @@ document.getElementById("bell").onclick=openAlerts;
 let brandTaps=0;document.querySelector(".brand").onclick=()=>{brandTaps++;if(brandTaps>=5){brandTaps=0;showCredits();}};
 document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;renderAll();});
 document.getElementById("settingsbtn").onclick=openSettings;
+document.getElementById("devbtn").onclick=()=>{if(!isStaff())return;closeDrawer();view="device";DEVLIVE=null;DEVERR=null;renderAll();};
 document.getElementById("lockbtn").onclick=()=>{elev={admin:false,tech:false};recomputeSession();if(view==="cycle"&&!session.tech)view="units";renderWho();renderAll();};
 document.getElementById("logoutbtn").onclick=logout;
 document.getElementById("theme").onclick=()=>{settings.theme=(document.documentElement.getAttribute("data-theme")==="dark"||(settings.theme==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches))?"light":"dark";saveSettings();applyTheme();};
@@ -2775,12 +3063,45 @@ tick();setInterval(tick,1000);
 
 /* ============ config + auth + first-run ============ */
 let CFG=null, currentUser=null, elev={admin:false,tech:false};
-const LOGO='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg>';
+/* ---- the Cortex mark: a top-down brain whose "wiring" carries signals ----
+   Geometry lives in a 48×48 box: one hemisphere outline (mirrored for the other side), circuit-like
+   traces from the centre line out to small nodes, and — in the 'live' version — leads that run in from
+   outside, with sparks travelling in and out along them.
+     brainMark(size,'calm')   header / login / wizard: nodes breathe slowly, nothing else moves
+     brainMark(size,'live')   loading: gentle pulse + halo + sparks
+     brainLoader(size,label)  the reusable "Cortex is thinking…" block (add 'row' or 'page' as 3rd arg)
+     showThinking(label) / hideThinking()   full-screen version of the same thing */
+const BRAIN_HEMI="M23 8C19 5.5 14.5 7 13.5 11C9.5 11.5 7 15 8.5 19C5.5 21.5 5.5 26.5 8.5 29C7.5 33 10.5 36.5 14.5 36C16 39.5 20.5 41 23 39Z";
+const BRAIN_T={                                                // [trace path, node x, node y]
+  big:[["M23 15H18L15.5 12.5",15.5,12.5],["M23 22H16L13 19",13,19],["M23 29H17L13.5 32.5",13.5,32.5],["M23 35H19.5",19.5,35],
+       ["M25 12H28.5",28.5,12],["M25 18H30L33 15",33,15],["M25 25H32L35 28",35,28],["M25 32H29L31.5 34.5",31.5,34.5]],
+  small:[["M23 18H17.5L14.5 21",14.5,21],["M23 29.5H18",18,29.5],["M25 16H30",30,16],["M25 26.5H30.5L33.5 29.5",33.5,29.5]]};
+const BRAIN_LEADS=[                                            // [visible lead (outside → node), full spark path (outside → node → centre)]
+  ["M-13 3H3L15.5 12.5","M-13 3H3L15.5 12.5L18 15H23"],["M-13 21H5L13 19","M-13 21H5L13 19L16 22H23"],
+  ["M-13 41H5L13.5 32.5","M-13 41H5L13.5 32.5L17 29H23"],["M61 6H44L33 15","M61 6H44L33 15L30 18H25"],
+  ["M61 25H43L35 28","M61 25H43L35 28L32 25H25"],["M61 43H41L31.5 34.5","M61 43H41L31.5 34.5L29 32H25"]];
+function brainMark(size,mode){mode=mode||"calm";const live=mode==="live",small=!live&&size<40;
+  const sw=small?2.5:1.7,tw=small?2:1.4,nr=small?2.3:1.75,T=small?BRAIN_T.small:BRAIN_T.big;
+  const traces=T.map((t,i)=>`<path class="bt" d="${t[0]}" stroke-width="${tw}"/><circle class="bn" cx="${t[1]}" cy="${t[2]}" r="${nr}" style="animation-delay:${(-i*(live?0.37:1.3)).toFixed(2)}s"/>`).join("");
+  const core=`<g class="bcore"><path class="bh" d="${BRAIN_HEMI}" stroke-width="${sw}"/><path class="bh" d="${BRAIN_HEMI}" stroke-width="${sw}" transform="translate(48 0) scale(-1 1)"/>${traces}</g>`;
+  if(!live)return `<svg class="cx-brain ${mode==="static"?"":"calm"}" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">${core}</svg>`;
+  const leads=BRAIN_LEADS.map(l=>`<path class="bl" d="${l[0]}" stroke-width="1.5"/>`).join("");
+  const sparks=BRAIN_LEADS.map((l,i)=>{const dur=(1.9+((i*37)%7)/10).toFixed(1);
+    return `<circle class="bp ${i%2?'out':''}" r="2" style="offset-path:path('${l[1]}');animation-duration:${dur}s;animation-delay:${(-i*0.55).toFixed(2)}s"/>`+
+           `<circle class="bp ${i%2?'':'out'}" r="1.5" style="offset-path:path('${l[1]}');animation-duration:${(+dur+0.9).toFixed(1)}s;animation-delay:${(-i*0.55-1.3).toFixed(2)}s"/>`;}).join("");
+  return `<svg class="cx-brain live" width="${Math.round(size*76/56)}" height="${size}" viewBox="-14 -4 76 56" aria-hidden="true"><circle class="bhalo" cx="24" cy="23.5" r="21" stroke-width="1.4"/>${leads}${core}${sparks}</svg>`;}
+function brainLoader(size,label,variant){
+  return `<div class="brainload ${variant||''}" role="status" aria-live="polite">${brainMark(size||96,"live")}<div><div class="bl-t">Cortex is thinking…</div>${label?`<div class="bl-s">${ue(label)}</div>`:''}</div></div>`;}
+function showThinking(label){const t=document.getElementById("thinking");if(!t)return;t.innerHTML=brainLoader(120,label||"");t.classList.remove("gone");}
+function hideThinking(){const t=document.getElementById("thinking");if(!t)return;t.classList.add("gone");setTimeout(()=>{if(t.classList.contains("gone"))t.innerHTML="";},450);}
+function fmtEta(secs){return secs>=90?Math.round(secs/60)+" min":Math.max(0,secs)+" s";}
+const LOGO=brainMark(30,"calm");
+(function(){const bl=document.getElementById("brandlogo");if(bl)bl.innerHTML=LOGO;})();
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
 function loadCfg(){try{const c=JSON.parse(localStorage.getItem("airow_cfg"));if(c&&!c.protocols)c.protocols=["lg"];return c;}catch(e){return null;}}
 function saveCfg(c){try{localStorage.setItem("airow_cfg",JSON.stringify(c));}catch(e){}
   // also push to the appliance so every browser/computer shares the same setup + accounts
-  try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)});}catch(e){}}
+  try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)}).catch(()=>{});}catch(e){}}
 function roleCaps(r){return{admin:r==="admin"||r==="owner",tech:r==="technician"||r==="owner"};}
 function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};session.admin=b.admin||elev.admin;session.tech=b.tech||elev.tech;}
 function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}
@@ -2801,6 +3122,7 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   saveSession(u.username);lastTouch=Date.now();
   elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();
   view=(settings.landing&&["units","map","schedule","device"].includes(settings.landing))?settings.landing:"units";
+  if(view==="device"&&!isStaff())view="units";
   renderAll();loadWeather();}
 function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(msg);}
 function factoryReset(){try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_units");}catch(e){}units=makeUnits();closeModal();CFG=null;currentUser=null;startWizard();}
@@ -2820,7 +3142,9 @@ function importBackup(){const inp=document.createElement("input");inp.type="file
     }catch(e){toast("Couldn't read that backup file");}};
     r.readAsText(f);};
   inp.click();}
-async function boot(){applyTheme();
+async function boot(){applyTheme();showThinking("Loading your site…");
+  try{await bootMain();}finally{hideThinking();}}
+async function bootMain(){
   // Shared setup/accounts come from the appliance first, so a NEW browser or computer sees the
   // same state (login screen), not the first-run wizard. Falls back to local for the file:// demo.
   let server=null;
@@ -2828,7 +3152,7 @@ async function boot(){applyTheme();
   if(server&&server.provisioned){CFG=server;try{localStorage.setItem("airow_cfg",JSON.stringify(server));}catch(e){}}
   else{CFG=loadCfg();
     // this browser is already set up but the appliance isn't yet -> migrate it up once
-    if(CFG&&CFG.provisioned&&server!==null){try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(CFG)});}catch(e){}}
+    if(CFG&&CFG.provisioned&&server!==null){try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(CFG)}).catch(()=>{});}catch(e){}}
   }
   const su=sessionValid();                                     // persisted login, if still within the timeout
   if(!CFG||!CFG.provisioned){startWizard();return;}
@@ -2951,12 +3275,11 @@ const WSTEPS=[
     if(s.error) return `<div class="note-box" style="color:var(--warn)">${s.error}</div>
      <button class="btn primary" id="wz-scan" style="width:100%;justify-content:center;margin-top:8px">▶ Try again</button>
      <div style="font-size:12px;color:var(--text-faint);margin-top:8px">Or press Continue to skip — you can scan anytime later from Tech → Bus scan.</div>`;
-    const secs=s.scanning?Math.ceil((0xFE-s.cur)*(MASTER.turnaround+MASTER.timeout)/1000):0;
-    return `<div style="height:9px;background:var(--surface-2);border-radius:999px;overflow:hidden"><div style="height:100%;width:${Math.round(s.prog*100)}%;background:var(--accent);transition:width .3s"></div></div>
+    return `${s.done?'':brainLoader(84,"Looking for indoor units on the bus — this takes a few minutes. It only reads; nothing on the units is changed.")}
+     <div class="scanbar"><div id="wz-bar" style="width:${Math.round(s.prog*100)}%"></div></div>
      <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);margin:8px 0">
-       <span>${s.done?'✓ Scan complete':'Scanning '+hx(s.cur)+' … ~'+secs+'s left'}</span><span class="mono">${s.found.length} found</span></div>
-     <div class="mono" style="max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;background:var(--surface-2)">
-       ${s.found.map(f=>`<div>✓ ${hx(f.addr)} · system #${f.group}</div>`).join("")||'<div style="color:var(--text-faint)">listening…</div>'}</div>
+       <span id="wz-stat">${wzScanStat(s)}</span><span class="mono" id="wz-cnt">${s.found.length} found</span></div>
+     <div class="mono" id="wz-found" style="max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;background:var(--surface-2)">${wzScanFound(s)}</div>
      ${s.done?`<div class="note-box" style="margin-top:10px">Found <b>${s.found.length}</b> indoor unit${s.found.length!==1?"s":""}. They'll be added when you finish. You can rescan anytime from Tech → Bus scan.</div>`:''}`;},
   wire:()=>{const b=document.getElementById("wz-scan");if(b)b.onclick=runScan;},
   save:()=>null},
@@ -2978,13 +3301,25 @@ async function runScan(){
   try{ if(!bus.port) await busConnect(); }catch(e){}
   if(!bus.port){WZ.scan={prog:0,cur:0,found:[],done:false,scanning:false,
     error:"Couldn't open the adapter. Plug in your USB-RS485 adapter and try again — or skip this and scan later from Tech → Bus scan."};renderWizard();return;}
-  const tick=setInterval(()=>{if(WZ.scan&&MASTER.scan){WZ.scan.cur=MASTER.scan.cur;WZ.scan.prog=MASTER.scan.done/MASTER.scan.total;renderWizard();}},300);
+  const tick=setInterval(()=>{if(WZ.scan&&MASTER.scan){WZ.scan.cur=MASTER.scan.cur;WZ.scan.prog=MASTER.scan.done/MASTER.scan.total;
+    WZ.scan.found=[...MASTER.found.entries()].map(([a,r])=>({addr:a,ch:"CH1",group:r&&r.parsed?r.parsed.group:0}));wzScanTick();}},300);
   let n=0;try{n=await masterDiscover();}catch(e){}
   clearInterval(tick);
   WZ.scan={prog:1,cur:0xFE,done:true,scanning:false,error:"",
     found:[...MASTER.found.entries()].map(([a,r])=>({addr:a,ch:"CH1",group:r&&r.parsed?r.parsed.group:0}))};
   renderWizard();
 }
+function wzScanStat(s){if(s.done)return "✓ Scan complete";
+  const secs=Math.ceil((0xFE-s.cur)*(MASTER.turnaround+MASTER.timeout)/1000);return "Checking address "+hx(s.cur)+" · about "+fmtEta(secs)+" left";}
+function wzScanFound(s){return s.found.map(f=>`<div>✓ ${hx(f.addr)} · system #${ue(f.group)}</div>`).join("")||'<div style="color:var(--text-faint)">listening…</div>';}
+// While the scan runs only the numbers change — updating them in place keeps the loader animation smooth
+// (a full re-render every 300 ms would restart it each time).
+function wzScanTick(){const s=WZ&&WZ.scan,bar=document.getElementById("wz-bar");
+  if(!s||!bar){renderWizard();return;}
+  bar.style.width=Math.round(s.prog*100)+"%";
+  const st=document.getElementById("wz-stat");if(st)st.textContent=wzScanStat(s);
+  const ct=document.getElementById("wz-cnt");if(ct)ct.textContent=s.found.length+" found";
+  const fl=document.getElementById("wz-found");if(fl)fl.innerHTML=wzScanFound(s);}
 function renderWizard(){const s=WSTEPS[WZi];
   document.getElementById("screen-setup").innerHTML=`<div class="auth"><div class="auth-card wiz">
     <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Cortex · Setup</div></div>
