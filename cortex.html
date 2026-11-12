@@ -77,8 +77,8 @@ nav{flex:0 0 212px;background:var(--surface);border-right:1px solid var(--border
 .nav-item.sub{padding-left:28px;font-size:13px}
 .nav-item.row{cursor:pointer}
 .nav-arrow{flex:0 0 14px;text-align:center;color:var(--text-faint);cursor:pointer;font-size:10px;user-select:none}
-.nav-pen{flex:0 0 auto;color:var(--text-faint);cursor:pointer;font-size:12px;opacity:0;padding:0 2px}
-.nav-item:hover .nav-pen{opacity:.75}
+.nav-pen{flex:0 0 auto;color:var(--text-dim);cursor:pointer;font-size:14px;opacity:.55;padding:0 4px}
+.nav-item:hover .nav-pen,.nav-pen:hover{opacity:1;color:var(--accent)}
 main{flex:1;min-width:0;overflow:auto;padding:18px 22px}
 
 .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
@@ -175,6 +175,12 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .stepper button{width:44px;height:44px;border-radius:11px;border:1px solid var(--border);background:var(--surface-2);font-size:22px;color:var(--text);line-height:1}
 .stepper .val{font-size:40px;font-weight:600}
 .stepper .val small{font-size:17px;color:var(--text-dim);font-weight:400}
+.dualset{display:flex;flex-direction:column;gap:8px}
+.dualset .dsrow{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface-2);border-radius:11px;padding:6px 12px}
+.dualset .dslbl{font-size:12px;font-weight:600;flex:0 0 auto}
+.dualset .stepper{gap:10px}
+.dualset .stepper .val{font-size:30px}
+.dualset .stepper button{width:38px;height:38px;font-size:20px}
 .frame-box{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;font-size:12.5px}
 .frame-box .k{color:var(--text-faint);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
 .frame-box .hex{color:var(--accent-ink);font-weight:500}
@@ -428,6 +434,9 @@ svg.ug{width:100%;height:100%;display:block}
 .fpstage.edit .fpmark,.fptray .fpchip{cursor:grab;touch-action:none}
 .fpmark.drag{cursor:grabbing;z-index:5;opacity:.92}
 .fpmark.drag .fpviz{box-shadow:0 8px 22px rgba(16,24,40,.35);border-color:var(--accent)}
+.fpmark .fpviz{transition:transform .12s}
+.fprot{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;line-height:1;cursor:pointer;z-index:3;box-shadow:0 1px 4px rgba(16,24,40,.2);display:grid;place-items:center;padding:0;touch-action:none}
+.fprot:hover{border-color:var(--accent);color:var(--accent)}
 .fptray{margin-top:10px;border:1px dashed var(--border-strong);border-radius:10px;padding:10px 12px;background:var(--surface-2)}
 .fptray .tl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);margin-bottom:8px}
 .fptray .chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -735,7 +744,7 @@ function spDisp(c){return settings.unit==="C"?(Math.round(c*2)/2):Math.round(c*9
 function spStep(c,dir){return settings.unit==="C"?clampC(c+dir*0.5):clampC((Math.round(c*9/5+32)+dir-32)*5/9);}
 function activeC(o){return o.mode==="heat"?o.heatC:o.coolC;}            // the setpoint that mode uses
 function setActiveC(o,c){if(o.mode==="heat")o.heatC=clampC(c);else o.coolC=clampC(c);}
-function isDual(o){return o.mode==="auto"||o.twoset;}                   // show cool+heat
+function isDual(o){return !!o.twoset;}   // show cool+heat only when the user asked for it (auto defaults to one setpoint — Multi V units take a single target in auto)
 function toHexBytes(b){return b.map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");}
 /* hex line with header bytes + checksum bytes highlighted (for the Debug "lab" panels) */
 function fmtHexLine(b){const n=b.length;return b.map((x,i)=>{const hdr=i<3,ck=i>=n-2;return `<span class="${hdr||ck?"hi":""}">${x.toString(16).padStart(2,"0").toUpperCase()}</span>`;}).join(" ");}
@@ -1121,8 +1130,9 @@ const PROTOCOLS={
 };
 function siteProtocols(){const p=(CFG&&CFG.protocols&&CFG.protocols.length)?CFG.protocols:["lg"];return p.filter(k=>PROTOCOLS[k]);}
 /* ===== Live bus scanner (Web Serial) ===== */
-let bus={port:null,reader:null,scanning:false,proto:"lg",addrs:new Map(),log:[],raw:[],buf:new Uint8Array(0),dirty:false,err:"",bytes:0,hexdump:[],recent:[]};
-let busView="live";  // 'live' = clean monitoring (anyone) · 'debug' = cyber byte-level tools (tech)
+let bus={port:null,reader:null,scanning:false,proto:"lg",addrs:new Map(),log:[],raw:[],buf:new Uint8Array(0),dirty:false,err:"",bytes:0,hexdump:[],recent:[],focus:new Set()};
+// bus.focus: when non-empty, the activity feed and saved capture are narrowed to just these
+// addresses — handy for watching one or two units' traffic on a busy bus.
 /* byte5 LOW nibble = mode, HIGH nibble = fan — from controlled changes at the real CC
    on 2026-11-07 (A7 cool/low = 0x10, A6 heat/med = 0x24). The older "mode in high nibble"
    read was wrong: that nibble is fan. dry/fan mode codes are LG-convention guesses. */
@@ -1735,9 +1745,19 @@ async function ctrlStart(){
   finally{try{w.releaseLock();}catch(_){}}
   ctrl.running=false;renderBusScan();}
 function ctrlStop(){ctrl.running=false;}
-function busDownload(){const raw=bus.hexdump.length?bus.hexdump.join(" "):bus.raw.join(" ");
+function busDownload(){
+  const foc=bus.focus&&bus.focus.size?bus.focus:null;
+  let raw,tag="";
+  if(bus.proto==="lg"&&bus.raw.length){                         // frame-aligned: one 8-byte frame per line, filterable by address
+    let frames=bus.raw;
+    if(foc){frames=frames.filter(h=>{const p=h.split(" ");return p.length>3&&foc.has(parseInt(p[3],16));});
+      if(!frames.length){toast("No frames from the watched unit(s) yet — let the bus run first");return;}
+      tag="_"+[...foc].sort((a,b)=>a-b).map(a=>a.toString(16).padStart(2,"0")).join("-");}
+    raw=frames.join("\n");
+  }else raw=bus.hexdump.length?bus.hexdump.join(" "):bus.raw.join(" ");
   const blob=new Blob([raw],{type:"text/plain"});const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);a.download="bus_capture_"+Date.now()+".txt";a.click();}
+  a.href=URL.createObjectURL(blob);a.download="bus_capture"+tag+"_"+Date.now()+".txt";a.click();
+  if(foc)toast("Saved capture for "+[...foc].map(hx).join(", "));}
 function busReset(){bus.addrs.clear();bus.log=[];bus.raw=[];bus.buf=new Uint8Array(0);bus.hexdump=[];bus.bytes=0;}
 function busPaste(){const t=document.getElementById("bus-paste").value.trim();if(!t){toast("Paste hex first");return;}
   const nums=t.split(/[^0-9a-fA-F]+/).filter(Boolean).map(x=>parseInt(x,16)).filter(x=>!isNaN(x)&&x<256);
@@ -1751,7 +1771,7 @@ function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&
     on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,
     room:null,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:null,pipeOut:null,discovered:true};}
 function busImport(){
-  const picked=[...document.querySelectorAll(".busrow input:checked")].map(c=>+c.value);
+  const picked=[...document.querySelectorAll(".busrow input.busimp:checked")].map(c=>+c.value);
   if(!picked.length){toast("Tick the addresses you want to import");return;}
   const oduEl=document.getElementById("bus-odu");const odu=(oduEl&&oduEl.value.trim())||"Outdoor unit 1";
   let n=0,nextId=Math.max(0,...units.map(u=>u.id))+1;
@@ -1780,17 +1800,22 @@ function busLogRow(d){
 function busUpdate(){
   const tbody=document.getElementById("bus-table");if(tbody){
     const rows=[...bus.addrs.values()].sort((a,b)=>a.addr-b.addr);
-    tbody.innerHTML=rows.length?rows.map(a=>{const live=a.cmd>0;const s=a.last;
-      return `<tr class="busrow" style="border-top:1px solid var(--border)">
-        <td style="padding:6px 8px"><input type="checkbox" value="${a.addr}" ${live?"checked":""}></td>
+    tbody.innerHTML=rows.length?rows.map(a=>{const live=a.cmd>0;const s=a.last;const watched=bus.focus&&bus.focus.has(a.addr);
+      return `<tr class="busrow" style="border-top:1px solid var(--border)${watched?';background:var(--accent-soft)':''}">
+        <td style="padding:6px 8px"><input type="checkbox" class="busimp" value="${a.addr}" ${live?"checked":""}></td>
         <td class="mono" style="padding:6px 8px">${hx(a.addr)}</td>
         <td style="padding:6px 8px"><span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${live?"var(--ok)":"var(--text-faint)"}"></span> ${live?"active":"polled only"}</td>
         <td class="mono" style="padding:6px 8px">${a.count}</td>
         <td style="padding:6px 8px;color:var(--text-dim)">${[...a.types].join(", ")}</td>
-        <td style="padding:6px 8px">${s&&s.type==="cmd"?`${s.power} · ${s.mode} · fan ${s.fan} · ${spTxt(s)}`:"—"}</td></tr>`;}).join(""):
-      `<tr><td colspan="6" style="padding:16px;color:var(--text-faint)">No units yet. Live view fills two ways: passively, when a real LG controller is on the bus; or when you run <b>Debug → Master/CC → discover</b> (Cortex polls the units itself). If you disconnected the LG central to use Master mode, that's expected — run discovery.</td></tr>`;
+        <td style="padding:6px 8px">${s&&s.type==="cmd"?`${s.power} · ${s.mode} · fan ${s.fan} · ${spTxt(s)}`:"—"}</td>
+        <td style="padding:6px 8px;text-align:center"><input type="checkbox" class="busfocus" value="${a.addr}" ${watched?"checked":""} title="Watch only this unit in the feed and capture"></td></tr>`;}).join(""):
+      `<tr><td colspan="7" style="padding:16px;color:var(--text-faint)">No units yet. This fills two ways: passively, when a real LG controller is on the bus; or when you run <b>Master / CC → discover</b> below (Cortex polls the units itself). If you disconnected the LG central to use Master mode, that's expected — run discovery.</td></tr>`;
+    // Watch checkboxes live here (the table is rebuilt on every tick), so bind them here, not in renderBusScan.
+    tbody.querySelectorAll("input.busfocus").forEach(c=>c.onchange=()=>{const a=+c.value;if(c.checked)bus.focus.add(a);else bus.focus.delete(a);renderBusScan();});
+    const ball=document.getElementById("bus-all");if(ball)ball.onclick=()=>tbody.querySelectorAll("input.busimp").forEach(c=>c.checked=ball.checked);
   }
-  const log=document.getElementById("bus-log");if(log)log.innerHTML=bus.log.map(busLogRow).join("")||'<div style="color:var(--text-faint);padding:8px">Waiting for frames…</div>';
+  const log=document.getElementById("bus-log");if(log){const lg=(bus.focus&&bus.focus.size)?bus.log.filter(d=>bus.focus.has(d.addr)):bus.log;
+    log.innerHTML=lg.map(busLogRow).join("")||`<div style="color:var(--text-faint);padding:8px">${bus.focus&&bus.focus.size?"No frames from the watched unit(s) yet…":"Waiting for frames…"}</div>`;}
   const dump=document.getElementById("bus-dump");if(dump){const d=bus.hexdump.slice(-768);let out="";for(let i=0;i<d.length;i+=16)out+=d.slice(i,i+16).join(" ")+"\n";dump.textContent=out||"Waiting for bytes…";}
   const cnt=document.getElementById("bus-count");if(cnt)cnt.textContent=bus.proto==="lg"?(bus.addrs.size+" addresses · "+bus.raw.length+" frames"):(bus.bytes+" bytes captured");
   const cs=document.getElementById("ctrl-status");if(cs&&ctrl.running)cs.textContent="● MASTER — sent: "+ctrl.sent+" · received: "+(bus.bytes-ctrl.rx0)+" bytes"+(ctrl.cmds.size?(" · "+ctrl.cmds.size+" command override(s)"):"");
@@ -1832,71 +1857,36 @@ function renderBusScan(){
         <select class="sel-box" id="ser-stop" ${conn?"disabled":""} style="padding:3px 5px">${[1,2].map(s=>`<option ${e.stopBits===s?"selected":""}>${s}</option>`).join("")}</select></span>`;})():`<span class="mono" style="font-size:12px;color:var(--text-dim)">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits}</span>`}
       ${conn?`<button class="btn danger" id="bus-dis">■ Disconnect</button>`:`<button class="btn primary" id="bus-con">▶ Connect adapter</button>`}
       <div class="stat"><span class="pulse ${conn?'':'off'}"></span><span id="bus-count">${conn?'reading…':'idle'}</span></div>
-      ${session.tech&&isLG?`<div style="flex:1"></div><div class="segmented"><button id="bv-live" class="${busView==='live'?'on':''}">Live</button><button id="bv-debug" class="${busView==='debug'?'on':''}">⚡ Debug</button></div>`:''}
     </div>
     ${p.phys!=="RS485"?`<div class="note-box" style="margin-bottom:12px;font-size:12.5px">${p.note} <b>Note:</b> not plain RS485 — needs the adapter noted above.</div>`:''}
     ${bus.err?`<div class="note-box" style="color:var(--warn);margin-bottom:12px">${bus.err}</div>`:""}
     ${!supported?`<div class="note-box" style="margin-bottom:12px">This hosted copy can't open the serial port. Open your <b>local</b> Cortex in Chrome to Connect — or paste a capture in Debug.</div>`:""}
     <div id="scanbanner"></div>`;
-  /* ---- LIVE view: clean monitoring anyone can read ---- */
-  const liveHTML=`
+  /* ---- LG view: one place — discover/import, live monitoring, Master/CC, and capture ---- */
+  const foc=bus.focus&&bus.focus.size?[...bus.focus].sort((a,b)=>a-b):[];
+  const focBanner=foc.length?`<div class="editband" style="background:var(--surface-2);color:var(--text);border-color:var(--border-strong)">
+      <span>👁 <b>Watching ${foc.length} unit${foc.length>1?"s":""}:</b> ${foc.map(a=>hx(a)+(units.find(u=>u.addr===a)?" · "+ue(dispName(units.find(u=>u.addr===a))):"")).join(" · ")} — the activity feed and saved capture show only these.</span>
+      <div style="flex:1"></div><button class="btn sm" id="foc-clear">Show all units</button></div>`:'';
+  const lgHTML=`
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
       <input class="inp" id="bus-odu" placeholder="Outdoor unit name" value="Outdoor unit 1" style="width:170px;margin:0">
       <button class="btn primary" id="bus-scan">🔍 Scan for new units</button>
       <button class="btn" id="bus-import">⬇ Import ticked</button>
-      <div style="flex:1"></div>
-      <button class="btn" id="bus-dl">Download</button>
-      <button class="btn" id="bus-clear">Clear</button>
     </div>
-    <div style="font-size:11.5px;color:var(--text-faint);margin:0 2px 12px">Scan adds only <b>new</b> addresses — units already in Cortex stay put, even one that's offline or in a comm error. To drop a dead/ghost unit, open it and use <b>Remove unit</b> (one at a time).</div>
+    <div style="font-size:11.5px;color:var(--text-faint);margin:0 2px 12px">Scan adds only <b>new</b> addresses — units already in Cortex stay put, even one that's offline or in a comm error. To drop a dead/ghost unit, open it and use <b>Remove unit</b> (one at a time). Tick <b>Import</b> to add a unit; tick <b>Watch</b> to monitor just that unit's traffic below.</div>
+    ${focBanner}
     <div class="lbl" style="margin-bottom:6px">Units on the bus</div>
     <div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-bottom:16px">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:var(--surface-2);text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
-        <th style="padding:8px"><input type="checkbox" id="bus-all"></th><th style="padding:8px">Addr</th><th style="padding:8px">Status</th><th style="padding:8px">Frames</th><th style="padding:8px">Types</th><th style="padding:8px">Last seen</th></tr></thead>
+        <th style="padding:8px" title="Tick to import this address as a unit"><input type="checkbox" id="bus-all"> Import</th><th style="padding:8px">Addr</th><th style="padding:8px">Status</th><th style="padding:8px">Frames</th><th style="padding:8px">Types</th><th style="padding:8px">Last seen</th><th style="padding:8px" title="Tick to watch only this unit in the feed and capture">👁 Watch</th></tr></thead>
       <tbody id="bus-table"></tbody></table></div>
-    <div class="lbl" style="margin-bottom:6px">Live activity</div>
-    <div id="bus-log" class="feed"></div>`;
-  /* ---- DEBUG view: cyber byte-level tools (tech) ---- */
-  const debugHTML=`
-    <div class="warnband">⚠ These tools transmit on the live bus — disconnect the LG central from this unit first.</div>
-    <div class="lab" style="margin-bottom:14px">
-      <div class="labhead"><span class="dot ${conn?'':'idle'}"></span><b>RX monitor</b> · raw bus bytes</div>
-      <div class="labbody"><div id="bus-rawmon" class="labsub" style="margin:0"></div></div>
-    </div>
-    <div class="lab" style="margin-bottom:14px">
-      <div class="labhead"><span class="dot idle"></span><b>TX · basic command</b> · power / mode / fan (8-byte)</div>
-      <div class="labbody">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
-          <select class="sel-box" id="tx-addr">${addrSel(txState.addr)}</select>
-          <select class="sel-box" id="tx-power"><option value="1" ${txState.on?"selected":""}>On</option><option value="0" ${!txState.on?"selected":""}>Off</option></select>
-          <select class="sel-box" id="tx-mode">${[["auto","Auto"],["cool","Cool"],["heat","Heat"]].map(m=>`<option value="${m[0]}" ${txState.mode===m[0]?"selected":""}>${m[1]}</option>`).join("")}</select>
-          <select class="sel-box" id="tx-fan">${[["low","Fan low"],["med","Fan med"],["high","Fan high"]].map(m=>`<option value="${m[0]}" ${txState.fan===m[0]?"selected":""}>${m[1]}</option>`).join("")}</select>
-          <label style="font-size:12px;color:#5f8a84">rpt <input id="tx-rep" type="number" min="1" max="20" value="${txState.repeat}" style="width:50px" class="inp"></label>
-        </div>
-        <div class="hexline" style="margin-bottom:9px">${txState.addr!=null?fmtHexLine(txBytes()):'<span class="mut">// select a target address</span>'}</div>
-        ${txState.armed?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn go" id="tx-go">⚠ confirm &amp; send ${Math.max(1,Math.min(20,txState.repeat|0))}×</button><button class="btn" id="tx-cancel">cancel</button><span style="font-size:11.5px;color:#ff9e9e">live @ ${hx(txState.addr)}</span></div>`:`<button class="btn" id="tx-arm" ${bus.scanning?"":"disabled"}>prepare send…</button>`}
-      </div>
-    </div>
-    <div class="lab" style="margin-bottom:14px">
-      <div class="labhead"><span class="dot idle"></span><b>TX · setpoint cmd5</b> · cool / heat (16-byte) · <span style="color:#6fe3c6">firmware-confirmed</span></div>
-      <div class="labbody">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
-          <select class="sel-box" id="t5-addr">${addrSel(tx5.addr)}</select>
-          <div class="seg"><button id="t5-single" class="${tx5.dual?'':'on'}">Single</button><button id="t5-dual" class="${tx5.dual?'on':''}">Cool+Heat</button></div>
-          ${tx5.dual?`<label style="font-size:12px;color:var(--cool)">Cool <input id="t5-cool" type="number" min="16" max="30" step="0.5" value="${tx5.coolC}" style="width:60px" class="inp"></label><label style="font-size:12px;color:var(--heat)">Heat <input id="t5-heat" type="number" min="16" max="30" step="0.5" value="${tx5.heatC}" style="width:60px" class="inp"></label>`:`<label style="font-size:12px;color:#8ff3dd">Set <input id="t5-sv" type="number" min="16" max="30" step="0.5" value="${tx5.single}" style="width:60px" class="inp"> °C</label>`}
-          <label style="font-size:11px;color:#5f8a84">cmd <input id="t5-cmd" value="${tx5.cmdId.toString(16).padStart(2,"0").toUpperCase()}" style="width:44px" class="inp mono"></label>
-          <label style="font-size:11px;color:#5f8a84">flags <input id="t5-flags" value="${tx5.flags.toString(16).padStart(2,"0").toUpperCase()}" style="width:44px" class="inp mono"></label>
-          <label style="font-size:11px;color:#5f8a84">rpt <input id="t5-rep" type="number" min="1" max="20" value="${tx5.repeat}" style="width:46px" class="inp"></label>
-        </div>
-        <div class="hexline" style="margin-bottom:9px">${tx5.addr!=null?fmtHexLine(tx5Bytes()):'<span class="mut">// select a target address</span>'}</div>
-        ${tx5.armed?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn go" id="t5-go">⚠ confirm &amp; send ${Math.max(1,Math.min(20,tx5.repeat|0))}×</button><button class="btn" id="t5-cancel">cancel</button><span style="font-size:11.5px;color:#ff9e9e">watch reply @ ${hx(tx5.addr)}</span></div>`:`<button class="btn" id="t5-arm" ${bus.scanning?"":"disabled"}>prepare send…</button>`}
-      </div>
-    </div>
+    <div class="lbl" style="margin-bottom:6px">Live activity${foc.length?` · watching ${foc.map(hx).join(", ")}`:''}</div>
+    <div id="bus-log" class="feed" style="margin-bottom:16px"></div>
     <div class="lab" style="margin-bottom:14px">
       <div class="labhead"><span class="dot ${MASTER.running?'':'idle'}"></span><b>Master / CC mode</b> · Cortex as bus master <span style="color:#6fe3c6">beta</span></div>
       <div class="labbody">
-        <div class="labsub">Cortex becomes the controller: it sweeps safe cmd0 reads and decodes the 16-byte reply (checksum-verified → mode/fan/setpoint/room/error, grouped by ODU). <b>Never run this while a real LG central (ACP/AC Smart) is on the bus</b> — two masters collide and you'll fight its polls, so pull the central off this ODU first. Discovery sends read-only frames and never touches 0xFF (the ODU broadcast). Query bytes are editable (AA = the address byte); the default <span class="mono">80 00 A0 AA 00 00 00</span> is a safe cmd0 read. Every frame is logged — hit "save capture" to export.</div>
+        <div class="labsub">Cortex becomes the controller: it sweeps safe cmd0 reads and decodes the 16-byte reply (checksum-verified → mode/fan/setpoint/room/error, grouped by ODU). <b>Never run this while a real LG central (ACP/AC Smart) is on the bus</b> — two masters collide and you'll fight its polls, so pull the central off this ODU first. Discovery sends read-only frames and never touches 0xFF (the ODU broadcast). Query bytes are editable (AA = the address byte); the default <span class="mono">80 00 A0 AA 00 00 00</span> is a safe cmd0 read. Every frame is logged — hit "save capture" to export${foc.length?" (just the watched unit"+(foc.length>1?"s":"")+")":""}.</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0">
           <label style="font-size:11.5px;color:#5f8a84">scan <input id="m-lo" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.lo)}"> .. <input id="m-hi" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.hi)}"></label>
           <label style="font-size:11.5px;color:#5f8a84">turnaround <input id="m-ta" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.turnaround}">ms</label>
@@ -1913,16 +1903,17 @@ function renderBusScan(){
           <button class="btn" id="m-disc" ${bus.scanning?"":"disabled"} title="Step 1 · Roll call. Sweeps every address once and lists the units that answer. Do this FIRST, with the LG central disconnected. Read-only, safe.">① discover</button>
           <button class="btn" id="m-import" ${MASTER.found.size?"":"disabled"} title="Step 2 · Adds the units found by Discover into Cortex's unit list. Run Discover first.">② import ${MASTER.found.size} found</button>
           ${MASTER.running?``:`<button class="btn" id="m-start" ${bus.scanning?"":"disabled"} title="Step 3 · Keep re-reading the imported units over and over for live status (temp, mode, setpoint). Run Discover + Import first.">③ start poll loop</button>`}
-          <button class="btn" id="m-dl" title="Save every frame sent and received to a text file you can share for debugging.">⬇ save capture</button>
+          <button class="btn" id="m-dl" title="Save the frames Cortex sent and received to a text file you can share for debugging.${foc.length?' Only the watched unit(s).':''}">⬇ save capture</button>
         </div>
         <div class="mono" id="m-status" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(MASTER.found.size+" responder(s) found")}</div>
         <pre id="m-log" class="mono" style="max-height:220px;overflow:auto;border:1px solid #123a40;border-radius:8px;padding:9px;background:#05080b;font-size:11.5px;white-space:pre-wrap;margin:9px 0 0;color:#7fe8cf">${MASTER.log.slice(0,140).join("\n")}</pre>
       </div>
     </div>
     <div class="lab">
-      <div class="labhead"><span class="dot idle"></span><b>Capture I/O</b></div>
+      <div class="labhead"><span class="dot ${conn?'':'idle'}"></span><b>Raw bus &amp; capture</b></div>
       <div class="labbody">
-        <div style="display:flex;gap:8px;margin-bottom:9px;flex-wrap:wrap"><button class="btn" id="bus-dl">⬇ download capture</button><button class="btn" id="bus-clear">clear buffer</button></div>
+        <div id="bus-rawmon" class="labsub" style="margin:0 0 10px"></div>
+        <div style="display:flex;gap:8px;margin-bottom:9px;flex-wrap:wrap"><button class="btn" id="bus-dl">⬇ ${foc.length?'download watched capture':'download capture'}</button><button class="btn" id="bus-clear">clear buffer</button></div>
         <textarea id="bus-paste" class="inp" style="width:100%;height:64px;font-size:12px" placeholder="paste hex: A8 00 A0 A7 10 01 …"></textarea>
         <button class="btn" id="bus-decode" style="margin-top:8px">decode paste</button>
       </div>
@@ -1936,14 +1927,12 @@ function renderBusScan(){
     <div class="lbl" style="margin-bottom:6px">Or paste a capture (hex)</div>
     <textarea id="bus-paste" class="inp" style="width:100%;height:64px;font-family:ui-monospace,monospace;font-size:12px" placeholder="paste hex…"></textarea>
     <button class="btn" id="bus-decode" style="margin-top:8px">Load paste</button>`;
-  main.innerHTML=connbar+(isLG?((session.tech&&busView==='debug')?debugHTML:liveHTML):captureHTML);
+  main.innerHTML=connbar+(isLG?lgHTML:captureHTML);
   const ps=document.getElementById("bus-proto");if(ps)ps.onchange=e=>{bus.proto=e.target.value;bus.serial=null;busReset();renderBusScan();};
   // custom serial settings (tech) — override the protocol defaults for other buses
   const setSer=()=>{const g=id=>document.getElementById(id);if(!g("ser-baud"))return;
     bus.serial={baud:+g("ser-baud").value,dataBits:+g("ser-data").value,parity:g("ser-par").value,stopBits:+g("ser-stop").value};};
   ["ser-baud","ser-data","ser-par","ser-stop"].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=setSer;});
-  const bvl=document.getElementById("bv-live");if(bvl)bvl.onclick=()=>{busView="live";renderBusScan();};
-  const bvd=document.getElementById("bv-debug");if(bvd)bvd.onclick=()=>{busView="debug";renderBusScan();};
   const cc=document.getElementById("bus-con");if(cc)cc.onclick=busConnect;
   const dd=document.getElementById("bus-dis");if(dd)dd.onclick=busDisconnect;
   const im=document.getElementById("bus-import");if(im)im.onclick=busImport;
@@ -1951,28 +1940,8 @@ function renderBusScan(){
   const dl=document.getElementById("bus-dl");if(dl)dl.onclick=busDownload;
   const clr=document.getElementById("bus-clear");if(clr)clr.onclick=busClear;
   const dec=document.getElementById("bus-decode");if(dec)dec.onclick=busPaste;
-  const all=document.getElementById("bus-all");if(all)all.onclick=()=>document.querySelectorAll(".busrow input").forEach(c=>c.checked=all.checked);
-  const txa=document.getElementById("tx-addr");if(txa)txa.onchange=e=>{txState.addr=e.target.value===""?null:+e.target.value;txState.armed=false;renderBusScan();};
-  const txp=document.getElementById("tx-power");if(txp)txp.onchange=e=>{txState.on=e.target.value==="1";txState.armed=false;renderBusScan();};
-  const txm=document.getElementById("tx-mode");if(txm)txm.onchange=e=>{txState.mode=e.target.value;txState.armed=false;renderBusScan();};
-  const txf=document.getElementById("tx-fan");if(txf)txf.onchange=e=>{txState.fan=e.target.value;txState.armed=false;renderBusScan();};
-  const txs=document.getElementById("tx-sp");if(txs)txs.onchange=e=>{txState.spC=+e.target.value;txState.armed=false;renderBusScan();};
-  const txr=document.getElementById("tx-rep");if(txr)txr.onchange=e=>{txState.repeat=Math.max(1,Math.min(20,+e.target.value||1));txState.armed=false;renderBusScan();};
-  const txArm=document.getElementById("tx-arm");if(txArm)txArm.onclick=busSend;
-  const txGo=document.getElementById("tx-go");if(txGo)txGo.onclick=busSend;
-  const txCancel=document.getElementById("tx-cancel");if(txCancel)txCancel.onclick=()=>{txState.armed=false;renderBusScan();};
-  const t5a=document.getElementById("t5-addr");if(t5a)t5a.onchange=e=>{tx5.addr=e.target.value===""?null:+e.target.value;tx5.armed=false;renderBusScan();};
-  const t5sg=document.getElementById("t5-single");if(t5sg)t5sg.onclick=()=>{tx5.dual=false;tx5.armed=false;renderBusScan();};
-  const t5dl=document.getElementById("t5-dual");if(t5dl)t5dl.onclick=()=>{tx5.dual=true;tx5.armed=false;renderBusScan();};
-  const t5c=document.getElementById("t5-cool");if(t5c)t5c.onchange=e=>{tx5.coolC=+e.target.value;tx5.armed=false;renderBusScan();};
-  const t5h=document.getElementById("t5-heat");if(t5h)t5h.onchange=e=>{tx5.heatC=+e.target.value;tx5.armed=false;renderBusScan();};
-  const t5v=document.getElementById("t5-sv");if(t5v)t5v.onchange=e=>{tx5.single=+e.target.value;tx5.armed=false;renderBusScan();};
-  const t5cm=document.getElementById("t5-cmd");if(t5cm)t5cm.onchange=e=>{tx5.cmdId=(parseInt(e.target.value,16)||0)&0xff;tx5.armed=false;renderBusScan();};
-  const t5fl=document.getElementById("t5-flags");if(t5fl)t5fl.onchange=e=>{tx5.flags=(parseInt(e.target.value,16)||0)&0xff;tx5.armed=false;renderBusScan();};
-  const t5r=document.getElementById("t5-rep");if(t5r)t5r.onchange=e=>{tx5.repeat=Math.max(1,Math.min(20,+e.target.value||1));tx5.armed=false;renderBusScan();};
-  const t5arm=document.getElementById("t5-arm");if(t5arm)t5arm.onclick=busSend5;
-  const t5go=document.getElementById("t5-go");if(t5go)t5go.onclick=busSend5;
-  const t5cn=document.getElementById("t5-cancel");if(t5cn)t5cn.onclick=()=>{tx5.armed=false;renderBusScan();};
+  const fclr=document.getElementById("foc-clear");if(fclr)fclr.onclick=()=>{bus.focus.clear();renderBusScan();};
+  // (the Import "select all" box and the per-row Watch boxes are bound in busUpdate, where the rows are built)
   // master / CC mode wiring
   const mlo=document.getElementById("m-lo");if(mlo)mlo.onchange=e=>{const v=parseInt(e.target.value,16);if(Number.isFinite(v))MASTER.lo=Math.max(0,Math.min(255,v));};
   const mhi=document.getElementById("m-hi");if(mhi)mhi.onchange=e=>{const v=parseInt(e.target.value,16);if(Number.isFinite(v))MASTER.hi=Math.max(0,Math.min(255,v));};
@@ -2285,13 +2254,13 @@ function drawDrawer(u){
     <div class="field"><div class="lbl">Fan speed ${stg('fan')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${FANS_SEL.map(f=>`<button class="opt ${p.fan===f[0]?'sel':''}" data-fan="${f[0]}" ${dis} style="${p.fan===f[0]&&stg('fan')?STG:''}">${f[1]}</button>`).join("")}${p.fan==="auto"?`<span class="chip" title="The unit reports automatic fan speed. Pick a speed to change it.">Auto (set at the unit)</span>`:''}</div></div>
     <div class="field"><div class="lbl">Swing ${stg('swing')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="swon" class="${p.swing?'on-sel':''}" ${dis} style="${p.swing&&stg('swing')?STG:''}">On</button><button id="swoff" class="${p.swing?'':'off-sel'}" ${dis} style="${!p.swing&&stg('swing')?STG:''}">Off</button></div></div>
     <div class="field"><div class="lbl">Setpoint${isDual(p)?" · cool / heat":""} ${(stg('coolC')||stg('heatC'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
-      ${isDual(p)?`<div style="display:flex;gap:10px">
-        <div style="flex:1"><div style="font-size:11px;color:var(--cool);margin-bottom:4px">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
-        <div style="flex:1"><div style="font-size:11px;color:var(--heat);margin-bottom:4px">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
+      ${isDual(p)?`<div class="dualset">
+        <div class="dsrow"><div class="dslbl" style="color:var(--cool)">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
+        <div class="dsrow"><div class="dslbl" style="color:var(--heat)">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
     <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button></div>
-      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Locks stop changes at the wall thermostat.${(p.mode!=="auto"&&!locked)?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>`:''}</div></div>
+      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Locks stop changes at the wall thermostat.${!locked?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>${p.mode==="auto"&&!p.twoset?' <span style="color:var(--text-faint)">· auto uses one setpoint on Multi V</span>':''}`:''}</div></div>
     <div class="field">
       <button class="btn ${live&&isTech?'danger live':'primary'}" id="sendcmd" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${locked?';opacity:.5':''}" ${locked?'disabled':''}>${sendTxt}</button>
       ${live?(isTech
@@ -2361,7 +2330,7 @@ function drawDrawer(u){
     u.sp=Math.round(activeC(u)*9/5+32);
     if(canReach())await txUnit(u);
     else toast("Demo mode — saved on this screen (no equipment connected)");
-    pend=snap(u);syncCard(u);if(liveTx()||isDemo())saveUnits();if(openId===u.id)drawDrawer(u);};
+    pend=snap(u);refreshUnderDrawer();if(liveTx()||isDemo())saveUnits();if(openId===u.id)drawDrawer(u);};
   const del=document.getElementById("delunit");if(del)del.onclick=()=>{
     if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent="Tap again to remove "+dispName(u);del.classList.add("danger");return;}
     MASTER.found.delete(u.addr);MASTER.prompted.add(u.addr);ignoreAddr(u.addr,true);   // stop polling it, and don't offer it back on its own
@@ -2835,12 +2804,14 @@ function setKind(id,kind){const u=units.find(x=>x.id===id);if(!u)return;u.kind=k
    opened as a bare file (no appliance) it lives in this browser's localStorage instead. A leaf with no
    picture keeps the plain tile grid. Units only move in the explicit "Edit layout" mode (tech/admin). */
 let mapEdit=false, fpDrag=null;
-const FP_GRID=40;                                              // snap grid: square cells, this many across the picture
+let fpGrid=40, fpSnapOn=true;                                  // snap grid: cells across the picture; snap can be turned off for free placement
 function fpGet(leaf){const f=CFG&&CFG.floorplans&&CFG.floorplans[leaf];return (f&&f.id)?f:null;}
 function fpLocalKey(id){return "airow_fp_"+id;}
 function fpSrc(f){try{const d=localStorage.getItem(fpLocalKey(f.id));if(d)return d;}catch(e){}
   return "/api/floorplan/"+encodeURIComponent(f.id)+"?v="+(f.v||0);}
-function fpSnap(f,x,y){const cw=1/FP_GRID,chh=cw*((f.w||1)/(f.h||1));const cl=v=>Math.max(0,Math.min(1,v));
+function fpSnap(f,x,y){const cl=v=>Math.max(0,Math.min(1,v));
+  if(!fpSnapOn)return [+cl(x).toFixed(4),+cl(y).toFixed(4)];                 // snap off → place exactly where dropped
+  const cw=1/fpGrid,chh=cw*((f.w||1)/(f.h||1));
   return [+cl(Math.round(x/cw)*cw).toFixed(4),+cl(Math.round(y/chh)*chh).toFixed(4)];}
 // group / subgroup renamed: before[i] is the old leaf of units[i] — carry the plan to the new name
 function fpRekey(before){if(!CFG||!CFG.floorplans)return;let ch=false;
@@ -2849,25 +2820,26 @@ function fpRekey(before){if(!CFG||!CFG.floorplans)return;let ch=false;
   if(ch)saveCfg(CFG);}
 // Shrink a picked image in the browser (canvas) before it is stored anywhere — phone photos and scans
 // are far bigger than a screen needs.
-function fpReadImage(file,maxSide,quality){return new Promise((res,rej)=>{
+function fpReadImage(file,maxSide,quality,rot){rot=((rot||0)%360+360)%360;return new Promise((res,rej)=>{
   if(!file||!/^image\//.test(file.type||"")){rej(new Error("Pick an image file (PNG or JPG)"));return;}
   const url=URL.createObjectURL(file),img=new Image();
   img.onload=()=>{try{const k=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight,1));
       const w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));
-      const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");
-      x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);
-      c.toBlob(b=>b?res({blob:b,w,h,canvas:c}):rej(new Error("Couldn't process that image")),"image/jpeg",quality);
+      const swap=(rot===90||rot===270),cw=swap?h:w,ch=swap?w:h;          // bake the chosen rotation into the stored picture
+      const c=document.createElement("canvas");c.width=cw;c.height=ch;const x=c.getContext("2d");
+      x.fillStyle="#fff";x.fillRect(0,0,cw,ch);x.translate(cw/2,ch/2);x.rotate(rot*Math.PI/180);x.drawImage(img,-w/2,-h/2,w,h);URL.revokeObjectURL(url);
+      c.toBlob(b=>b?res({blob:b,w:cw,h:ch,canvas:c}):rej(new Error("Couldn't process that image")),"image/jpeg",quality);
     }catch(e){rej(new Error("Couldn't process that image"));}};
   img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("Couldn't read that image — try a PNG or JPG"));};
   img.src=url;});}
 function fpDeleteImage(id){try{localStorage.removeItem(fpLocalKey(id));}catch(e){}
   if(location.protocol!=="file:"){try{fetch("/api/floorplan/"+encodeURIComponent(id),{method:"DELETE"}).catch(()=>{});}catch(e){}}}
-async function fpUpload(leaf,file){
+async function fpUpload(leaf,file,rot){
   if(!isStaff()||!CFG)return;const local=location.protocol==="file:";
   const wrap=[...document.querySelectorAll(".floor-wrap")].find(w=>w.dataset.leaf===encodeURIComponent(leaf));
   const slot=wrap&&wrap.querySelector(".fpslot");if(slot)slot.innerHTML=brainLoader(72,"Preparing the floor plan…");
   try{
-    const r=await fpReadImage(file,local?1400:2000,local?0.8:0.86);
+    const r=await fpReadImage(file,local?1400:2000,local?0.8:0.86,rot);
     const old=fpGet(leaf),id="fp"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     if(local){                                                 // no appliance: keep it in this browser
       try{localStorage.setItem(fpLocalKey(id),r.canvas.toDataURL("image/jpeg",0.8));}
@@ -2883,7 +2855,30 @@ async function fpUpload(leaf,file){
   }catch(e){toast(e.message||"Couldn't add the floor plan");}
   renderMap();}
 function fpPick(leaf){const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp,image/*";
-  inp.onchange=()=>{const f=inp.files&&inp.files[0];if(f)fpUpload(leaf,f);};inp.click();}
+  inp.onchange=()=>{const f=inp.files&&inp.files[0];if(f)fpPreview(leaf,f);};inp.click();}
+/* Preview a picked floor-plan picture before it's saved: zoom in to check detail, rotate it to the
+   right orientation, then "Use this picture" bakes the rotation in and uploads. */
+function fpPreview(leaf,file){
+  if(!file||!/^image\//.test(file.type||"")){toast("Pick an image file (PNG or JPG)");return;}
+  const url=URL.createObjectURL(file);let zoom=1,rot=0;
+  modal(head("Preview floor plan")+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:10px">Check it looks right and rotate it if needed, then use it. Zoom is just for a closer look — it doesn't change the saved picture.</div>
+    <div id="fppv-box" style="position:relative;overflow:hidden;border:1px solid var(--border);border-radius:10px;background:#f3f4f6;height:52vh;display:flex;align-items:center;justify-content:center">
+      <img id="fppv-img" src="${url}" draggable="false" style="max-width:100%;max-height:100%;transition:transform .12s;transform:scale(1) rotate(0deg)">
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px">
+      <button class="btn" id="fppv-rot">↻ Rotate 90°</button>
+      <label style="flex:1;min-width:150px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim)">Zoom <input id="fppv-zoom" type="range" min="1" max="4" step="0.1" value="1" style="flex:1"></label>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn" id="fppv-cancel">Cancel</button><button class="btn primary" id="fppv-use">Use this picture</button></div>
+  </div>`);
+  const img=document.getElementById("fppv-img");
+  const apply=()=>{if(img)img.style.transform=`scale(${zoom}) rotate(${rot}deg)`;};
+  const done=()=>{try{URL.revokeObjectURL(url);}catch(e){}};
+  const rb=document.getElementById("fppv-rot");if(rb)rb.onclick=()=>{rot=(rot+90)%360;apply();};
+  const zi=document.getElementById("fppv-zoom");if(zi)zi.oninput=e=>{zoom=+e.target.value||1;apply();};
+  const cb=document.getElementById("fppv-cancel");if(cb)cb.onclick=()=>{done();closeModal();};
+  const ub=document.getElementById("fppv-use");if(ub)ub.onclick=()=>{done();closeModal();fpUpload(leaf,file,rot);};}
 function fpRemove(leaf){const f=fpGet(leaf);if(!f||!isStaff())return;
   modal(head("Remove this floor plan?")+`<div class="modal-body">
     <div class="note-box" style="margin-bottom:12px">This removes the picture for <b>${ue(leaf)}</b> and forgets where its units were placed. The units themselves are not touched — they go back to the plain tile view.</div>
@@ -2898,8 +2893,9 @@ function mapTile(u){const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.
     <div class="umviz">${unitGraphic(u)}</div>
     <div class="umkind"><span>${KINDS[u.kind||'wall']||KINDS.wall}</span><span>${u.on?('fan '+ue(u.fan)+' · room '+temp(u.room)):'&nbsp;'}</span></div>
   </div>`;}
-function fpMarker(u,x,y){const c=u.offline?"var(--warn)":u.err?"var(--err)":(u.on?modeColor(u):"var(--stopped)");
-  return `<div class="fpmark" data-id="${u.id}" style="left:${(x*100).toFixed(2)}%;top:${(y*100).toFixed(2)}%;--mk:${c}" title="${ue(dispName(u)+" — "+mapStateTxt(u))}"><div class="fpviz">${unitGraphic(u,'',true)}</div><div class="fpname">${ue(dispName(u))}</div></div>`;}
+function fpMarker(u,x,y,rot){const c=u.offline?"var(--warn)":u.err?"var(--err)":(u.on?modeColor(u):"var(--stopped)");rot=rot||0;
+  const rotBtn=mapEdit?`<button class="fprot" title="Rotate (for a unit on a different wall)">↻</button>`:'';
+  return `<div class="fpmark" data-id="${u.id}" style="left:${(x*100).toFixed(2)}%;top:${(y*100).toFixed(2)}%;--mk:${c}" title="${ue(dispName(u)+" — "+mapStateTxt(u))}"><div class="fpviz" style="transform:rotate(${rot}deg)">${unitGraphic(u,'',true)}</div>${rotBtn}<div class="fpname">${ue(dispName(u))}</div></div>`;}
 function renderMap(){renderGroupNav();
   if(fpDrag)return;                                            // never rebuild the map under a finger mid-drag
   if(!isStaff())mapEdit=false;
@@ -2910,13 +2906,16 @@ function renderMap(){renderGroupNav();
   main.innerHTML=`<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap">
       <div style="font-size:13.5px;color:var(--text-dim);flex:1;min-width:240px">Live building view — each unit shows what it is doing right now: color by mode, airflow speed by fan, a flashing dot on a fault. Tap one to control it.</div>
       ${isStaff()?`<button class="btn ${mapEdit?'primary':''}" id="mapedit">${mapEdit?'✓ Done editing':'✎ Edit layout'}</button>`:''}</div>
-    ${mapEdit?`<div class="editband"><span>✎ <b>Editing the layout.</b> Add a floor-plan picture to a group, then drag its units onto the picture — they snap to a grid. Drag a unit off the picture to take it off again. Nothing here is sent to the equipment.</span></div>`:''}`+
+    ${mapEdit?`<div class="editband"><span>✎ <b>Editing the layout.</b> Add a floor-plan picture to a group, then drag its units onto it. Tap a placed unit's <b>↻</b> to rotate it onto another wall. Drag a unit off the picture to take it off. Nothing here is sent to the equipment.</span>
+      <div style="flex:1"></div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px"><input type="checkbox" id="snaptog" ${fpSnapOn?'checked':''}> Snap to grid</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;${fpSnapOn?'':'opacity:.4'}">Coarse <input type="range" id="snapslider" min="12" max="80" step="2" value="${fpGrid}" ${fpSnapOn?'':'disabled'} style="width:120px"> Fine</label></div>`:''}`+
     leaves.map(leaf=>{const us=sel.filter(u=>leafKey(u)===leaf),fp=fpGet(leaf);
       const placed=fp?us.filter(u=>fp.pos&&fp.pos[u.name]):[],loose=fp?us.filter(u=>!(fp.pos&&fp.pos[u.name])):us;
       const tools=mapEdit?`<div style="flex:1"></div><button class="btn sm" data-fpup="${enc(leaf)}">${fp?'Replace picture':'＋ Add floor plan'}</button>${fp?`<button class="btn sm danger" data-fprm="${enc(leaf)}">Remove picture</button>`:''}`:'';
       let inner;
       if(fp){
-        inner=`<div class="fpstage ${mapEdit?'edit':''}" data-leaf="${enc(leaf)}"><img class="fpimg" src="${fpSrc(fp)}" alt="Floor plan — ${ue(leaf)}" draggable="false" onerror="fpImgFail(this)">${mapEdit?`<div class="fpgrid" style="background-size:${(100/FP_GRID).toFixed(4)}% ${(100/FP_GRID*((fp.w||1)/(fp.h||1))).toFixed(4)}%"></div>`:''}${placed.map(u=>fpMarker(u,fp.pos[u.name][0],fp.pos[u.name][1])).join("")}</div>`;
+        inner=`<div class="fpstage ${mapEdit?'edit':''}" data-leaf="${enc(leaf)}"><img class="fpimg" src="${fpSrc(fp)}" alt="Floor plan — ${ue(leaf)}" draggable="false" onerror="fpImgFail(this)">${(mapEdit&&fpSnapOn)?`<div class="fpgrid" style="background-size:${(100/fpGrid).toFixed(4)}% ${(100/fpGrid*((fp.w||1)/(fp.h||1))).toFixed(4)}%"></div>`:''}${placed.map(u=>fpMarker(u,fp.pos[u.name][0],fp.pos[u.name][1],fp.pos[u.name][2]||0)).join("")}</div>`;
         if(mapEdit)inner+=`<div class="fptray"><div class="tl">${loose.length?`Not on the plan yet · drag onto the picture (${loose.length})`:'Every unit in this group is on the plan'}</div><div class="chips">${loose.map(u=>`<span class="fpchip" data-id="${u.id}"><span class="ugmini">${unitGraphic(u,'',true)}</span>${ue(dispName(u))}</span>`).join("")}</div></div>`;
         else if(loose.length)inner+=`<div class="mini-lbl">Not on the plan yet</div><div class="ummap">${loose.map(mapTile).join("")}</div>`;
       }else inner=`<div class="ummap">${us.map(mapTile).join("")}</div>`;
@@ -2925,10 +2924,18 @@ function renderMap(){renderGroupNav();
       ?`Set each unit's type (wall, cassette, ducted…) from its control panel so its picture matches. ${mapEdit?"Tap <b>Done editing</b> when the layout looks right.":"Tap <b>Edit layout</b> to add a floor-plan picture for a group and place its units on it."}`
       :`Each picture matches the kind of unit in that room. Tap a unit to change its settings.`}</div>`;
   const me=document.getElementById("mapedit");if(me)me.onclick=()=>{mapEdit=!mapEdit;renderMap();};
+  const snt=document.getElementById("snaptog");if(snt)snt.onchange=()=>{fpSnapOn=snt.checked;renderMap();};
+  const sns=document.getElementById("snapslider");if(sns)sns.oninput=()=>{fpGrid=Math.max(8,Math.min(120,+sns.value||40));renderMap();};
   document.querySelectorAll("[data-fpup]").forEach(b=>b.onclick=()=>fpPick(decodeURIComponent(b.dataset.fpup)));
   document.querySelectorAll("[data-fprm]").forEach(b=>b.onclick=()=>fpRemove(decodeURIComponent(b.dataset.fprm)));
   document.querySelectorAll(".umtile[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));
-  if(mapEdit)fpBindDrag();
+  if(mapEdit){fpBindDrag();
+    document.querySelectorAll(".fpstage.edit .fprot").forEach(b=>{
+      b.onpointerdown=e=>{e.stopPropagation();};                               // don't start a drag
+      b.onclick=e=>{e.stopPropagation();const mk=b.closest(".fpmark"),stage=b.closest(".fpstage");if(!mk||!stage)return;
+        const u=units.find(x=>x.id===+mk.dataset.id),f=fpGet(decodeURIComponent(stage.dataset.leaf));
+        if(!u||!f||!f.pos||!f.pos[u.name])return;
+        const pos=f.pos[u.name];pos[2]=(((pos[2]||0)+90)%360);saveCfg(CFG);renderMap();};});}
   else document.querySelectorAll(".fpmark[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));}
 /* Drag units in Edit-layout mode. Pointer events cover mouse, touch and pen with one code path; the
    marker follows the pointer snapped to the grid, and the position is saved on release. A drag that
@@ -2948,12 +2955,13 @@ function fpBindDrag(){
       const at=ev=>{const r=stage.getBoundingClientRect(),x=(ev.clientX-offX-r.left)/r.width,y=(ev.clientY-offY-r.top)/r.height;
         const s=fpSnap(f,x,y);return {inside:x>=-0.03&&x<=1.03&&y>=-0.03&&y<=1.03,x:s[0],y:s[1]};};
       const end=()=>{el.onpointermove=el.onpointerup=el.onpointercancel=null;fpDrag=null;};
+      const prevRot=(cur&&cur[2])||0;
       el.onpointermove=ev=>{if(!moved&&Math.hypot(ev.clientX-x0,ev.clientY-y0)<4)return;moved=true;const p=at(ev);
-        if(!mk){stage.insertAdjacentHTML("beforeend",fpMarker(u,p.x,p.y));mk=stage.lastElementChild;el.classList.add("gone");}
+        if(!mk){stage.insertAdjacentHTML("beforeend",fpMarker(u,p.x,p.y,prevRot));mk=stage.lastElementChild;el.classList.add("gone");}
         mk.classList.add("drag");mk.style.left=(p.x*100).toFixed(2)+"%";mk.style.top=(p.y*100).toFixed(2)+"%";mk.style.opacity=p.inside?"":".4";};
       el.onpointerup=ev=>{end();
         if(moved){const p=at(ev);f.pos=f.pos||{};
-          if(p.inside)f.pos[u.name]=[p.x,p.y];else delete f.pos[u.name];
+          if(p.inside)f.pos[u.name]=[p.x,p.y,prevRot];else delete f.pos[u.name];   // keep the unit's rotation across a move
           saveCfg(CFG);}
         renderMap();};
       el.onpointercancel=()=>{end();renderMap();};
@@ -3050,6 +3058,13 @@ function hideThinking(){const t=document.getElementById("thinking");if(!t)return
 function fmtEta(secs){return secs>=90?Math.round(secs/60)+" min":Math.max(0,secs)+" s";}
 const LOGO=brainMark(30,"calm");
 (function(){const bl=document.getElementById("brandlogo");if(bl)bl.innerHTML=LOGO;})();
+/* The header mark comes alive (pulse + sparks, like the loader) whenever Cortex is actively
+   sweeping the bus — a discovery scan on this screen. Swapped only on the transition so the
+   animation isn't restarted every tick. Sized so the live SVG fits the 30px logo box. */
+let _brandScan=false;
+function brandScanState(){const on=!!(typeof MASTER!=="undefined"&&MASTER.discovering);if(on===_brandScan)return;
+  _brandScan=on;const bl=document.getElementById("brandlogo");if(bl)bl.innerHTML=on?brainMark(22,"live"):LOGO;}
+setInterval(brandScanState,300);
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
 function loadCfg(){try{const c=JSON.parse(localStorage.getItem("airow_cfg"));if(c&&!c.protocols)c.protocols=["lg"];return c;}catch(e){return null;}}
 /* Site settings are ONE shared document on the appliance. Saves go up one at a time, each carrying the
