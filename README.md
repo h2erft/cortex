@@ -61,6 +61,11 @@ built right into the app.
 - **Building map with floor plans** — every unit drawn top-down and animated with its live state;
   a technician/admin can upload a floor-plan picture per group and drag units onto it (snap to
   grid, explicit *Edit layout* mode), shared by every browser.
+- **Every screen shows the same thing** — the unit list, live readings and settings live on the
+  appliance; other phones and browsers mirror the connected screen and send commands through it.
+- **Self-healing** — auto-reconnect and auto-resume after a reboot, update or adapter blip, a
+  "No response" flag for units that stop answering, and crash-safe saves.
+- **Real trends and error history** — the appliance logs every unit every 5 minutes (35 days).
 - **Schedules** — on/off, mode, fan, and setpoint by time and day, with **nth-weekday**
   recurrence (e.g. the 4th Thursday) and **weather conditions** (e.g. *outdoor below 30 → heat
   at 74*).
@@ -128,6 +133,7 @@ Full details, the OTA release flow, and troubleshooting are in
 - **`cortex.html`** — the controller UI (served by the appliance, or openable as a file for a demo).
 - **`command-center.html`** — the fleet console: all your sites in one place with live health.
 - **`appliance/`** — the mini-PC backend (serial bridge, systemd service, installer, OTA).
+- **`docs/HANDOFF.md`** — developer notes: project history, what is decoded, next steps.
 - **`LGAP_reference.md`** — the decoded LGAP protocol: bus, framing, checksums, command and
   reply layouts, mode/fan codes, and the open questions.
 
@@ -143,7 +149,7 @@ pulls it automatically (verified, with auto-rollback):
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 Pre-releases follow `vX.Y.Z-beta.N` (early field testing) → `vX.Y.Z-rc.N` (feature-frozen,
-final shakeout) → `vX.Y.Z` (stable). Mark the GitHub release as a **pre-release** for the
-beta/rc tags.
+final shakeout) → `vX.Y.Z` (stable). A tag with a suffix is published as a **pre-release**
+automatically; appliances only take those when *Beta testing* is on in Settings → Updates.
 
 *Cortex by AIROW. Not affiliated with or endorsed by LG.*

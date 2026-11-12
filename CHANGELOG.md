@@ -2,7 +2,83 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.5.0 — beta (building map + animated units)
+## v1.5.0 — 2026-11-11 (stable: building map, shared live state, reliability round)
+
+_First stable release of the 1.5 line. Everything from `beta.1`–`beta.3` (below) plus a full
+audit: things that looked like they worked but did not now really work, the controller state is
+shared by every screen, and the updater bug that shipped in `beta.2`/`beta.3` is fixed._
+
+**Read this if you run a beta.** `beta.2` and `beta.3` have an updater bug: a box that has never
+touched Settings → Updates → *Beta testing* stops checking for updates. Either flip that switch
+once (on, then off again is fine) or re-run `install.sh` from a fresh checkout. 1.4.x boxes are
+not affected and update to 1.5.0 by themselves.
+
+### Fixed — things that were broken
+- **Group changes and All on / All off now really reach the units.** They changed the screen but
+  never transmitted. All on / off asks first.
+- **Commands and polling no longer talk over each other** on the bus; a command waits for the
+  poll in flight, and a late poll reply can no longer undo a command just sent.
+- **The updater** no longer stops when the channel file is missing; a build that fails its health
+  check is rolled back *and skipped* until a different build is published (no restart loop;
+  `CORTEX_UPDATE_FORCE=1` retries it); the health check waits for the *running* version.
+- **Factory reset** really resets (type RESET) instead of loading demo units.
+- **Re-running setup** keeps unit names, groups, schedules, floor plans, limits and location.
+- A removed unit stays removed (ignore list) instead of being re-added by re-discovery.
+- A missing pipe sensor shows "no reading" instead of −21°C.
+- A dropped screen no longer leaves the adapter stuck "in use" (15 s heartbeat frees it).
+- Pre-release tags are now published as GitHub pre-releases by the workflow.
+- `install.sh` no longer resets the firewall on every run (only the first time, or with
+  `CORTEX_RESET_FIREWALL=1`), so a site locked down to Tailscale stays locked down.
+
+### New — reliability
+- **One unit list for every screen.** Units, live readings and settings live on the appliance;
+  phones and other browsers mirror the screen that is connected to the equipment ("Live") and
+  send commands through it. Before, each browser had its own list.
+- **Two screens can't overwrite each other's settings** — saves are revision-checked and a stale
+  screen adopts the newer settings instead.
+- **Auto-reconnect and auto-resume**: after a reboot, update or adapter blip the connected screen
+  reconnects and resumes polling by itself. Screens reload themselves after an update.
+- **Background tabs keep working** — timers run in a worker so a hidden tab is not throttled.
+- **Schedules catch up** — a schedule missed by up to 10 minutes (reload, reconnect) still runs,
+  once. Only the connected screen fires schedules.
+- **"No response" detection** — a unit that stops answering is flagged on its tile, in alerts and
+  in the control panel.
+- **Crash-safe saves** — settings and units are written atomically with a last-good backup.
+
+### New — faster
+- A full pass of the bus takes about 2.6 s for 14 units instead of about 14.5 s (polling moves on
+  as soon as a unit answers).
+- The page is sent compressed and revalidated (about 100 kB instead of 316 kB on the wire); fonts
+  no longer block first paint.
+
+### New — real data instead of placeholders
+- **Trends** are real: the appliance logs each unit every 5 minutes (35 days kept).
+- **Error history**, **Poll this unit now**, last raw frames and reply statistics in the
+  technician section are real. The made-up runtime / energy numbers are gone.
+- Device health shows the real Tailscale address, live link and last update.
+
+### Security
+- **No built-in PINs.** The published default codes are gone; access codes are set in the setup
+  wizard and changed in Settings. Wrong-code and wrong-password attempts are rate limited.
+- The **"Re-run setup" link is gone from the login screen** (anyone could wipe a site with it).
+- Requests from other websites to the control and settings endpoints are refused.
+- Users: unique usernames, minimum password length, no default password, can't delete yourself.
+
+### Changed
+- Fan **Auto** is no longer offered in the control panel, group change or schedules — its bus
+  code is not confirmed. A unit already in auto still displays correctly.
+- Customer logins can be made view-only (Settings → Advanced → *Allow customer control*).
+- Setpoint limits are clamped to 61–86°F with min below max.
+- Developer notes moved out of `cortex.html` into `docs/HANDOFF.md`.
+
+### Known limits
+- Polling and schedules still run in the browser screen that is connected to the equipment — keep
+  one screen open on site. Moving this into the appliance service is the next step.
+- Logins are checked in the browser; treat the LAN as trusted or lock the box to Tailscale.
+- This release was verified against a simulated LGAP bus and a staged appliance (217 automated
+  checks), not yet on a live building.
+
+## v1.5.0 beta notes (building map + animated units)
 
 _Minor version bump — new building map, animated units, and the beta update channel.
 `v1.5.0-beta.1` added the building map + graphics; `beta.2` adds the top-down LG-style graphics

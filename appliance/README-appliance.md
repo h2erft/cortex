@@ -142,6 +142,21 @@ sudo /opt/cortex/current/cortex-update.sh     # check & apply right now
 cat /opt/cortex/data/update.log               # what the updater has done
 journalctl -u cortex-updater -f               # live updater log
 ```
+If a new build does not come up healthy the updater rolls back and **skips that build** until a
+different one is published. To make it try the same build again:
+```
+sudo CORTEX_UPDATE_FORCE=1 /opt/cortex/current/cortex-update.sh
+```
+
+### Stable and beta channels
+Appliances follow **stable** releases by default. Settings → Updates → *Beta testing* switches a
+box to also take pre-releases (`-beta.N`, `-rc.N`). Turning it off returns to stable at the next
+stable release that is newer than what is installed.
+
+### What lives on the box
+Everything a site needs is under `/opt/cortex/data/` and survives updates: settings
+(`appconfig.json`), the unit list (`units.json`), trend history (`history/`), floor plans
+(`floorplans/`). Each settings file has a `.bak` copy of the last good save.
 
 ---
 
@@ -180,8 +195,11 @@ certificate expires.
 
 To turn it back off, put the `#` back (or set `CORTEX_HTTPS=0`) and restart.
 
-**Firewall:** `install.sh` opens the https port for you (it manages `ufw`). If this box has only
-ever been updated over the air since before v1.5.0-beta.3, open it once by hand:
+**Firewall:** `install.sh` sets up `ufw` the **first** time it runs and leaves an already-active
+firewall alone after that (so a site you locked down to Tailscale stays locked down). When
+`CORTEX_HTTPS=1` is set it adds the https port. To make it rebuild the rules from scratch, run
+`sudo CORTEX_RESET_FIREWALL=1 bash install.sh`. If this box has only ever been updated over the
+air since before v1.5.0, open the https port once by hand:
 ```
 sudo ufw allow 8443/tcp
 ```
