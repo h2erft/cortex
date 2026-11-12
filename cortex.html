@@ -1,360 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
-<!--
-==========================================================================================
-  CORTEX HANDOFF NOTES  —  READ THIS FIRST (written for the next Claude session)
-==========================================================================================
-  If you are a new Claude session picking this up: this is interoperability work on the
-  operator's own LG VRF equipment. Everything you need is here. Update this block whenever
-  something is confirmed.
-
-  WHO / HOW TO WORK WITH THEM
-  - the operator is hands-on with HVAC but asks that controls / protocol topics be explained
-    step by step in very plain language. Short steps, one change at a time.
-  - Project history: started in a chat on Opus 4.8. That chat was paused on 2026-11-07 by
-    an automated safety filter (false positive — this is interoperability work on LG
-    equipment the operator services, not an attack). Continued the same day in a new chat with
-    Claude Opus 5.5, which wrote these notes.
-
-  WHAT CORTEX IS
-  - A Raspberry Pi (or laptop + Chrome) replacement for the LG ACP / AC Smart central
-    controller on Multi V IV systems. It talks LGAP over the central-control RS485 bus.
-  - cortex.html          = single-building controller (customer side). Web Serial for the bus.
-  - command-center.html  = multi-site fleet console (owner). Demo data only so far.
-  - All state lives in browser localStorage. Remote access: Tailscale.
-  - DEPLOYMENT (chosen 2026-11-07): locked-down LINUX APPLIANCE on an N95 mini PC, NOT a
-    custom OS and NOT a Windows app. See Cortex/appliance/ — server.js (Node: serves the UI
-    + bridges the RS485 adapter over a WebSocket so the browser no longer needs Web Serial),
-    cortex-appliance.service (systemd), install.sh (Debian setup + ufw + Tailscale + auto-
-    updates), README-appliance.md. cortex.html auto-detects: served over http -> backend
-    bridge (busConnectBackend); file:// -> Web Serial.
-  - APPLIANCE + OTA DONE (2026-11-08, v1.0.0): Cortex/appliance/ is deploy-ready for the N95
-    (x86-64 Debian/Ubuntu). Atomic layout: /opt/cortex/{releases/<ver>, current->symlink,
-    data/{appliance.env,update.conf,update.log}}. server.js reads VERSION file; exposes
-    /health + /version. OTA = cortex-update.sh + cortex-updater.timer (every ~30min): pulls
-    manifest.json {version,url,sha256}, semver-gates (never downgrades), sha256-verifies,
-    npm ci, flips current symlink, restarts, health-checks /version, AUTO-ROLLS-BACK to prev
-    release if unhealthy (keeps last 3). release.sh <ver> <base-url> builds the tgz+manifest
-    to upload. All 3 paths tested end-to-end (upgrade / bad-checksum reject / bad-build
-    rollback). OTA host NOT yet chosen by the operator (GitHub Release / S3-R2 / tailnet box) -
-    update.conf ships blank = OTA off until he pastes a manifest URL. Next ideas: move state
-    browser->SQLite on appliance; add update notes/version to fleet console health poll.
-  - 2026-11-08 GITHUB + ZERO-SSH-CONFIG: repo-ified (README.md, .gitignore, top of Cortex/).
-    GitHub Action .github/workflows/release.yml: push tag vX.Y.Z -> builds tgz+manifest ->
-    publishes Release. Appliance update.conf points at releases/latest/download/manifest.json
-    (auto-follows newest). appliance/bootstrap.sh = one-liner first install (clones repo+runs
-    install.sh); REPO placeholder YOUR-GH-USER/cortex. install.sh now sets hostname 'cortex' +
-    avahi-daemon => customers bookmark http://cortex.local:8080 (no IP, no SSH). SETUP WIZARD:
-    server.js reads site config from /opt/cortex/data/config.json (name+serial), NOT env;
-    endpoints GET/POST /api/config, GET /api/serial-ports; unconfigured '/' 302->/setup.html;
-    setup.html = first-run wizard (name site, pick adapter). serial change applies on next bus
-    connect, no restart. the operator's GH user/repo NOT yet known -> placeholders to fill in 2 spots
-    (update.conf URL + bootstrap one-liner). Public repo recommended for tokenless OTA.
-  - 2026-11-08 PRIVATE + SCRUB: operator chose a PRIVATE GitHub repo for now (public later).
-    Private OTA supported: update.conf has CORTEX_UPDATE_TOKEN (fine-grained PAT, Contents:
-    Read); cortex-update.sh sends it as a Bearer header on manifest+asset curls (AUTH array;
-    cross-host redirect drops it, signed URL self-auths — never --location-trusted).
-    bootstrap.sh takes CORTEX_TOKEN, injects into clone URL, then scrubs it from the git remote
-    (no token on disk). PERSONAL INFO SCRUBBED from all repo files for public-readiness: real
-    name, location, and demo site IDs genericized. AIROW de-branded from the main UI (header,
-    wizard, recovery-code prefix all "Cortex"); AIROW retained only in Settings>About ("Made by")
-    and the credits easter-egg. LGAP_reference.md rewritten as a
-    clean public protocol spec (TOC, worked examples, error table, capture how-to). GitHub NOT
-    yet linked to the Claude session (list_repos: no account) - operator must connect GitHub in
-    claude.ai settings, then add_repo(push) + push, OR push themselves. Private-token OTA verified.
-  - 2026-11-08 LIVE ON GITHUB + FIRST BOX DEPLOYED (repo github.com/h2erft/cortex, PRIVATE):
-    * Pushed everything from the Claude session via add_repo(push)+clone+push. NOTE: the session
-      credential pushes BRANCHES but 403s on TAGS — operator cuts releases himself (GitHub UI:
-      Releases > Draft > new tag vX.Y.Z > Publish). GitHub Action (.github/workflows/release.yml)
-      builds the tgz+manifest on tag push.
-    * WORKFLOW BUG FIXED: 'gh release create' errors if the release already exists (UI-created),
-      so assets never attached -> 404. Now: if release exists -> 'gh release upload --clobber',
-      else create. Idempotent; UI-create + Action both work.
-    * OTA DELIVERY REWRITTEN TO USE GITHUB API (big one): fine-grained PATs authenticate against
-      api.github.com but NOT the github.com/.../releases/latest/download/ browser URLs on PRIVATE
-      repos (404). So cortex-update.sh + server.js /api/update/check now hit the API:
-      GET api.github.com/repos/REPO/releases/latest, read .tag_name for version, pull the
-      manifest.json + .tgz via their .assets[].url with 'Accept: application/octet-stream' (+Bearer
-      token; curl -L drops the header on the cross-host redirect to the signed URL, which self-auths).
-      update.conf is now CORTEX_UPDATE_REPO=owner/repo (+ CORTEX_UPDATE_TOKEN for private);
-      static CORTEX_UPDATE_MANIFEST=<url> mode still supported. CORTEX_UPDATE_API_BASE overrides
-      api host for testing. A broken updater can't fix itself, so bootstrap the new one once via:
-      curl ...api.github.com/repos/REPO/contents/appliance/cortex-update.sh?ref=main (Accept: raw).
-    * FIELD SETUP GOTCHAS (fresh Ubuntu Server N95): (a) installer-written netplan may have no
-      dhcp4 -> only lo gets an IP; fix: write /etc/netplan/01-cortex.yaml {ethernets: enpX: dhcp4:
-      true} + netplan apply. (b) RTC can be hours behind -> apt refuses "Release not valid yet" and
-      install.sh aborts; fix: timedatectl set-ntp false; set-time 'UTC'; set-ntp true. (c) install:
-      token-clone repo -> cd appliance -> sudo bash install.sh (idempotent).
-    * STATE AS OF TONIGHT: first box (hostname cortex) is running v1.1.2 via OTA,
-      self-healing timer active; v1.1.1 release=mock-era UI, v1.1.2=empty-units + real update page.
-      cortex.html loadUnits() returns [] (no demo seed). Updates page auto-calls /api/update/check.
-  - 2026-11-09 MASTER-MODE FIRMWARE DIG (comm daemon bins2/f88a2ccf_33363456.elf, NOT stripped,
-    has debug_info — function names intact!). Findings (see LGAP_reference.md §1, §4e, §7b):
-    * BAUD = 4800 CONFIRMED in firmware. rs485_open() sets termios c_cflag=0x8b0|baudbits;
-      LGAP AC port = B4800 (0x8bc). Supported bauds: B1200/B4800/B9600/B38400(/B19200). 3600 is
-      NOT a termios baud — impossible. MODBUS/chiller channel = 9600 (separate). The LG rep's
-      "3600" is wrong; likely confusion with the 9600 modbus channel.
-    * MASTER TRANSACTION: SendPacketID(id,addr,...) -> SetSendPacket builds a 64-BYTE query
-      (addr at BYTE[3], cmd nibbles at [6]hi/[7]/[8]; three 16-byte blocks each sum-XOR-0x55 +1
-      checksummed, + 32-bit CRC over first 60B in [60..63]) -> WriteCommBlock -> turnaround ->
-      ReadCommBlock expects EXACTLY 16 bytes (else "No Response") -> CheckRecvPacket.
-    * REPLY = 16 bytes, integrity = CRC-16/XMODEM (poly 0x1021, init 0) over [0..13], big-endian
-      [14]=hi [15]=lo. NOT the sum checksum! This is almost certainly why addr 12 "read wrong" —
-      Cortex wasn't treating replies as CRC16 16-byte frames. all-zero reply = absent.
-    * TIMING: half-duplex; firmware packet delay default 20ms; ReadCommBlock loops rs485_rx1 with
-      its own timeout/retry; probe path even sleep(1s) between write and read. His 150ms need fits.
-    * STILL NEED A CAPTURE to lock: exact 64-byte query opcode bytes + the telemetry FIELD OFFSETS
-      within the 16-byte reply. Plan: build backend master poll loop (continuous, configurable
-      turnaround+timeout, discovery sweep, CRC16 reply validation, raw TX/RX log, command inject).
-      Recommend sniffing the real ACP's discovery+poll first to nail query+offsets so it works 1st try.
-    * Analysis tooling: /home/claude/work/dis.py (capstone+pyelftools fn disassembler; host objdump
-      has NO arm support). ELF base vaddr via PT_LOAD segs. control_ac=bins2/4f2fdd00_36345344.elf.
-  - 2026-11-09 v1.2.0 (public-launch build): repo going PUBLIC; history squashed clean.
-    * SHARED SETUP/ACCOUNTS: config (CFG: site + user accounts) now stored on the appliance
-      (DATA/appconfig.json; GET/POST /api/appconfig), not just per-browser localStorage. boot()
-      is async: fetches server CFG first -> a NEW browser/computer gets the LOGIN screen, not the
-      first-run wizard (that was the bug). saveCfg() also POSTs up. Migration: a browser that has
-      local CFG but server has none pushes it up on next load (so open Cortex once on the browser
-      you set up on). file:// demo still falls back to localStorage.
-    * POWER CONTROLS: Settings > Advanced has Restart / Power off (admin). Backend POST
-      /api/power/reboot|shutdown -> `sudo -n systemctl reboot|poweroff`. Privilege via scoped
-      /etc/sudoers.d/cortex (appliance/cortex.sudoers), installed by install.sh AND reconciled by
-      cortex-update.sh on each OTA (validated w/ visudo -c) — so it reaches already-deployed boxes.
-    * PROTOCOL DOC IN-APP: Settings > About > "Protocol reference" opens LGAP_reference.md
-      (served at /LGAP_reference.md; shipped in the release) rendered via a tiny md renderer
-      (mdLite). About version now pulls from /version (was hardcoded).
-    * TECH-INVISIBLE: there is no shared presence/online indicator, so a tech session is already
-      invisible to the customer; only actual unit-state changes would show. KEEP it that way when
-      units eventually move to shared backend state (don't broadcast "who is online"/"tech did X").
-    * (v1.3.0) MASTER/CC MODE (beta) SHIPPED: browser-side poll loop reusing the /bus bridge
-      (TX via bus.port.writable; RX via a MASTER.tap hook in ingestBytes). Tech > Bus > Debug >
-      "Master / CC mode": editable query (AA=addr placeholder; default "80 00 A0 AA 01 00 00",
-      auto-appends sum ck for the 8-byte form), scan range lo..hi, turnaround+reply-wait timing,
-      Discover / Start poll loop / Import found / Save capture. Reply validated with crc16xmodem
-      (0x1021/init0) over [0..13] vs [14:15]; unverified replies still logged. EVERY frame logged
-      (m-log) + downloadMasterLog() -> cortex-master-capture.txt. KINKS/UNCONFIRMED: exact query
-      opcode (we send a guess) + reply field offsets — need an on-wire capture to lock.
-      Old `ctrl` stub object/functions left in place but unused (dead code; ok).
-    * NEXT: use the capture to fix the real query bytes + reply field map; then move UNITS to
-      shared backend state so all browsers see the same discovered units.
-  - 2026-11-09 v1.4.0 REPLY PARSER DECODED (big) + README w/ real screenshots:
-    * Re-dug engine. DBs are config/schedule/modbus-register maps (JHISTORY=modbus regs, not
-      telemetry); bigdb_x*.sqlite corrupt from carve; schedule `ac.abs` lists commissioned addrs
-      (0..255 spread). No stored raw replies. BUT found the REPLY PARSER: control_ac
-      ProcessRxDataFromAC (0x3e198). CONFIRMED 16-byte AC reply field map (see LGAP_reference §4e):
-      [4]=addr [5]=settemp°C(0xAD=none) [6]=mode(low3) [7]=fan(low nibble)+bit7 flag
-      [8]=roomtemp(raw→InitRoomTemp float table) [9]=pipe-in [A]=pipe-out [B:C]=16bit(cap/EEV)
-      [E]~err [15]=checksum=(sum[0..14])XOR0x55. **Reply checksum is sum-XOR-0x55, NOT CRC16**
-      (CRC16/CheckRecvPacket is a lower 64-byte transport layer). CORRECTED master-mode: now
-      validates replies with lgapCk and parseReply() decodes mode/fan/settemp exactly; import
-      applies decoded state to units. Room/pipe temps still raw (InitRoomTemp table @0x25d68 is
-      static float literals, extractable next, or calibrate from capture).
-    * README.md rewritten with a real screenshot gallery (docs/img/01..06 png) rendered via
-      playwright+google-chrome (/home/claude/work/shots.py: seed localStorage cfg/units, inject
-      a classic script tag to switch module-scoped view/elev/busView since page.evaluate cannot
-      reach them; .card-main=unit card) + full self-install guide (Ubuntu + bootstrap one-liner).
-    * STILL NEED on-wire capture for: exact discovery QUERY bytes, and room-temp table values.
-  - 2026-11-10 COMMUNITY CORRECTIONS (FIELD-VERIFIED by an outside replicator; see LGAP_reference §0):
-    * Their write frame `80 00 A0 31 03 30 07 DE` (on/cool/fan3/22°C) checksum-validates with our
-      lgapCk → independently confirms checksum AND setpoint encoding. Adopted:
-    * SETPOINT IS IN THE BASIC cmd0 FRAME: b6 = °C-15 (22°C→0x07); half-degree = b0 bit2. Supersedes
-      the old "b6 not setpoint / cmd5-only" story. cmdBytesFor() now encodes b6 from setC; SP_CONFIRMED
-      = true; decodeFrame sets d.setC=f[6]+15. txUnit now sends ONLY cmd0 (dropped the auto cmd5 blast).
-    * BYTE0 is a CMD HEADER: bit7=request, bits3-6=cmd#, bit2=+0.5°C. 0x80=cmd0, 0xA0=cmd4, 0xF0=cmd14.
-      byte2 always 0xA0 (not the cmd). byte4 bit1 = EXE write-strobe (clear=read).
-    * REPLY WIRE LAYOUT (differs from our firmware STRUCT offsets — wire is authoritative since Cortex
-      reads the wire): [0]=0x10 len [1]=flags(bit0 on,bit7 +0.5) [4]=addr [5]=ERROR(decimal) [6]=mode
-      (b0-2)+fan(b4-6) [7]=setpt-15(low nib) [8/9/10]=room/pipe-in/pipe-out [11:12]=EEV(LE) [14]=sys grp.
-      parseReply() rewritten to this. Temp formula C=(192-code)/3. Errors decimal (0x68=104; 204/206=HR).
-    * ODU answers for all its IDUs from cache (power off main ODU → system silent). Group by reply[14].
-    * DISCOVERY: no special frame — sweep cmd0 READS, ~1s timeout, silence=absent. MASTER.timeout 200→1000,
-      query default →"80 00 A0 AA 00 00 00", hi default 0xFF→0xFE.
-    * SAFETY (implemented): never send 0xFF (broadcast); isSafeReadQuery() refuses blind-sweeping a write
-      cmd (cmd4/5/9 overwrite settings even with zero payload; cmd4 wipes central's per-unit settings);
-      cmd5 (0xA8) is destructive → never auto-sent, armed-tool only. "Don't be a second master" warning
-      in the master panel. STILL want one real capture to confirm reply[14] grouping + room-temp accuracy.
-  - 2026-11-09 v1.4.0 FIXES/FEATURES (pre-publish batch, reported from a live 1.1.2 box):
-    * LAYOUT BUG FIXED: off-canvas .drawer was position:absolute + translateX(102%) → created
-      horizontal overflow (blank right-scroll area; closed drawer visible when scrolled). Fix:
-      .drawer/.scrim → position:fixed, added visibility:hidden (show→visible), and
-      html,body{overflow-x:hidden}.
-    * EXEC-PERMISSION BUG (why OTA/auto-update silently failed + "cannot execute cortex-update.sh
-      Permission denied"): the GitHub Action tarball didn't preserve +x. Fixed: git now tracks all
-      appliance/*.sh as 100755; updater chmod+x the new cortex-update.sh after extract; Action
-      chmod+x in staging; cortex-updater.service ExecStart=/bin/bash ... (robust). UNBLOCK a stuck
-      box with: sudo bash /opt/cortex/current/cortex-update.sh
-    * SITE NAME in header now real (renderWho sets #site-name from CFG.site.name, else /version name).
-    * UPDATES moved into Settings (new "⬇ Updates" tab, loadSettingsUpdates) with DOWNLOAD & INSTALL
-      NOW (POST /api/update/apply → sudo systemctl start cortex-updater.service, a SEPARATE cgroup so
-      it survives the restart it triggers; sudoers updated) and SKIP THIS VERSION (localStorage
-      airow_skipver). Old nav Updates item left in place too.
-    * BUS SCAN serial settings editable (tech): baud/data/parity/stop selects in the connbar →
-      bus.serial override via effSerial(); used by both Web-Serial and backend-WS connect. For
-      Multi V 5 / other buses. Resets on protocol change.
-  - SEND setpoint: Bus scan (tech) now has a "Send setpoint (cmd5)" tool — single or dual
-    (cool+heat) °C, transmits, with editable cmd/flags bytes.
-  - 2026-11-08 UI: the NORMAL unit controls now transmit for real whenever the adapter is
-    connected (liveTx no longer requires tech) — change power/mode/fan or setpoint and Send
-    puts BOTH the 8-byte basic frame AND the 16-byte cmd5 on the bus (txUnit). Units carry
-    cool/heat setpoints in °C (coolC/heatC), a twoset flag, and mode/fan/temp locks; all are
-    shown on cards + drawer. Bus scan is split Live | Debug (busView); Debug is the cyber
-    byte zone. "🔍 Scan for new units" (busScanNew) ADDS new bus addresses only and never
-    drops an existing unit (even offline/CH242) — removal is per-unit via the drawer's
-    "Remove unit". Locks are stored/shown but not yet mapped to exact cmd5 flag bits.
-  - Hardware: Waveshare isolated USB-RS485 (FT232). Spare ACP + AC Smart 5 for bench tests.
-  - Shared write-up for an outside contact (no Cortex/site names, by request):
-    https://claude.ai/artifact/PG8QonDDG1Yg9E9m594zA8
-
-  SAFETY RULES (keep these)
-  - Listen first. Only ONE master per bus: unplug the LG CC from a channel before Cortex
-    transmits or runs Controller mode. Keep the CC labeled for a 30-second swap back.
-  - Adapter termination resistor OFF when tapping a live bus.
-  - Test after hours; customer/owner sign-off before replacing a CC on a customer site.
-
-  BUS / FRAME FORMAT  (confidence: CONFIRMED / LIKELY / GUESS)
-  - Serial 4800 8N1                                                     CONFIRMED
-  - Every frame is 8 bytes:  b0 b1 A0 addr b4 b5 b6 ck                  CONFIRMED
-  - ck = (sum of b0..b6) & 0xFF, XOR 0x55                               CONFIRMED
-  - Addresses seen on a live bus: 0x81-0xD3 plus 0x25.
-  - Frame types by b0 b1:
-      80 00 / 84 00  CC -> unit "state" frame, repeated every sweep. Also carries changes.
-                     (80 vs 84 is fixed per address; meaning unknown. Preserve it.)
-      80 B0 / 80 B2  poll frames, payload all zeros.
-      80 A3 / 84 A3  same payload as 80 00, sent occasionally. Meaning unknown.
-      A0 00          unit status reply (b4=09, b5=8x, b6). b6 here did NOT follow the
-                     command's b6 after a change — it is not the setpoint.
-      F0 C0 / C8 C0  scan / system frames, unknown.
-      09 20 A0 00 87 08 05 08  seen 4x, unknown.
-
-  THE COMMAND (decoded from the operator's 2026-11-07 capture at the CC)
-  - A change is just the 80/84 00 frame with b4 bit1 set:
-      b4 = 03 (on + change) or 02 (off + change), sent ONCE; then the CC goes back to
-      sending 01 (on) / 00 (off) every sweep.                           CONFIRMED
-  - b5 LOW nibble = MODE:  cool=0, dry=1, fan=2, auto=3, heat=4 — ALL CONFIRMED 2026-11-08
-      from the firmware mode->code strcmp chain (@0x380c8). MODELO now matches.
-  - b5 HIGH nibble = FAN:  low=1, med=2, high=3 — CONFIRMED 2026-11-08 (AC stores fan as
-      "fan1".."fan6"; the digit IS the speed code). "AUTO" fan is a separate token (code TBD).
-  - b6 = NOT the setpoint. SOLVED 2026-11-07 by disassembling the ACP firmware: the
-      8-byte basic frame carries only power/mode/fan. The setpoint travels in a
-      SEPARATE 16-byte "cmd5" frame (see SETPOINT below). Cortex preserves last-seen b6.
-  - Swing: no data yet.
-
-  SETPOINT — SOLVED 2026-11-07 from firmware (UpdateMonitorCmd5 / ProcessRxDataFromACCmd5
-  in the control-engine ELF; constants read straight out of the binary):
-  - Temperature rides a 16-byte "cmd5" frame, checksum same rule over the first 15 bytes.
-  - byte10 & 0x7F = COOLING setpoint whole °C ; byte11 & 0x7F = HEATING setpoint whole °C
-    (LG keeps cool & heat setpoints SEPARATELY).
-  - byte12 high nibble (0-9) = cool decimal, low nibble (0-9) = heat decimal;
-    setpoint °C = whole + decimal * 0.1  (0.1°C resolution, multiplier 0.1 confirmed in code).
-  - bytes 6-9 = temp limits: (byte & 0x7F)°C + (top bit ? 0.5 : 0).
-  - Simpler status frames encode a setpoint as (nibble + 15) °C for the 15-30°C range.
-  - Wire is CELSIUS. Code: decodeCmd5() + cmd5SetpointBytes() in cortex.html.
-  - HEADER — SOLVED 2026-11-08 by disassembling the builder CopyControlData_to_sendControlacCmd5
-    (ELF elf_36345344, func @0x343b0). The outgoing cmd5 is FULLY known now, no guessing:
-      [0]=A8 (mvn #0x57)  [1]=00  [2]=A0  [3]=addr  [4]=10 (cmd5 id)  [5]=flags(bit0=power on)
-      [6..9]=limits (cool lo/hi, heat lo/hi): (byte&0x7F)degC + (top bit ? 0.5 : 0)
-      [10]=cool whole degC &0x7F   [11]=heat whole degC &0x7F   [12]=(cool_dec<<4)|heat_dec
-      [13]=reserved/mode
-      [14]=ap_mkchksum(buf,14)=(sum[0..13]^0x55)&0xFF
-      [15]=(ap_mkchksum(buf,15)+1)&0xFF
-    cmd5 marker is A8 (NOT the 80 of the basic frame). TWO checksums (14 and 15). ap_mkchksum
-    (func @0x21674) = (sum ^ 0x55) & 0xFF — verified in code, == our lgapCk.
-    Cortex's cmd5SetpointBytes() now builds this exactly. Verified round-trip:
-      cool 23.5 / heat 20 -> A8 00 A0 A7 10 01 95 99 12 16 17 14 50 00 84 01.
-    LAST STEP IS JUST A REAL-UNIT SANITY TX (does the unit obey) — the bytes are certain.
-
-  FIRMWARE FINDINGS (2026-11-07, from the ACP's own control software, pulled off the unit)
-  - Confirms the wire protocol works in CELSIUS. Every setpoint is stored in degC
-    (indoor range ~4-37.5 degC); Fahrenheit is a display-only conversion (flag_fahrenheit,
-    getTemperature_F2C). Cortex should hold temps in degC internally and convert for the UI.
-  - LGAP is a set of NUMBERED commands: cmd5, cmd6, cmd7, cmd9... The basic 8-byte frame
-    (power/mode/fan) is one of them. The ac DB tracks exe_cmd5 / exe_cmd6 as SEPARATE
-    per-unit actions -> the setpoint rides a 16-byte cmd5 frame, NOT the basic frame.
-    That is why b6 never tracked temperature. DISASSEMBLED the control engine (capstone)
-    and extracted the exact cmd5 temperature encoding — see the SETPOINT block above.
-  - Indoor-unit field model (from the 'ac' table): addr, mode (COOL/HEAT/AUTO/DRY/FAN),
-    fan (LOW/MID/HIGH/AUTO), swing, modelock/fanlock/settemplock, settemp, roomtemp,
-    pipe_intemp/pipe_outtemp, louverdirec, deadband, twoset_automode (dual setpoint),
-    cool_settemp/heat_settemp, cool/heat limits, occupied, remocon_override.
-  - Ports: config.ini (/mnt/flash/config.ini) assigns each RS485 channel to a protocol:
-    AHU_LGAP (LG's own) for indoor/AHU, MODBUS for chillers + some water systems. LGAP
-    bus is on a ttymxc/ttyS port; there is also a /dev/acp node (major 222/224 drivers).
-  - Confirms cycle view is NOT on this bus (no outdoor/cycle refs in the indoor LGAP code).
-  - The engine dump arrived as a ~52MB blob (SQLite DBs + ARM ELF binaries + XML). The key
-    binaries: ahu_cont_comm / acsmart / control_ac. objdump here had no ARM support; a
-    future session wanting exact cmd5/6 bytes could pip install capstone and disassemble
-    Text2LGAP_ahu_cmd7, OR (cleaner) just do the setpoint-only wire capture.
-
-  2026-11-08 SESSION — THE FIRMWARE IS THE SOURCE OF TRUTH (big lesson, read this)
-  - We spent most of a session trying to CAPTURE a real setpoint command off the bench ACP.
-    It cannot work: the operator's bench ACP has NO indoor units on it, so the ACP only POLLS
-    empty addresses (roll call) and NEVER emits a real cmd5 setpoint command (nobody to
-    command). All those captures were the 128-unit poll sweep, not commands. Do NOT send
-    him down this path again. A setpoint command on the wire requires a real IDU present.
-  - Serial-capture gotchas we burned hours on (so you don't): (a) CoolTerm defaults to 9600;
-    the LG bus is 4800 -> 2x/4x byte "smear". (b) Web Serial in Chrome CHOKES on this noisy
-    2-wire RS485 line (RXD lights then dies) - CoolTerm's native FTDI driver is fine; this is
-    why the appliance backend (serialport lib) exists. (c) A COM port is single-owner: CoolTerm
-    and Cortex can't both hold it. (d) Parity/databits mismatch leaves structure but mangles
-    values (tell: a constant low-bit pattern in the address field every frame). Adapter = FT232R
-    on COM9. Even at 4800 8N1/8E1/8O1 the bench poll frames (FE BF.. / 36 7E.. / F0 FC.. / 3E 7E..)
-    never matched the documented 80 00 A0 format or validated a checksum - consistent with
-    "this is unit-less poll traffic in a different frame type", not the command frame.
-  - WHAT THE FIRMWARE ACTUALLY SAYS (control-engine ELF, strings + ARM disasm, confirmed):
-    * Setpoints live in a SQLite 'ac' table as cool_settemp / heat_settemp, stored as degC
-      with ONE decimal (%.1f). Dual-setpoint is real: twoset_automode, twoset_avail, deadband.
-    * To command a unit the engine sets exe_cmd5='ON', exe_cmd5_cnt='10' on that addr, then
-      CopyControlData_to_sendControlacCmd5() copies the control-data struct into rs485buf_tx
-      and ap_mkchksum stamps the checksum. So the cmd5 TEMPERATURE bytes we already encode are
-      correct; the header bytes come from that struct (runtime state), not literal constants.
-    * cmd5 vs cmd6 are SEPARATE per-unit actions (exe_cmd5 / exe_cmd6). cmd5 carries setpoint.
-    * SQL seen: "UPDATE ac SET cool_settemp=%.1f, exe_cmd5='ON', exe_cmd5_cnt='10' WHERE addr=%s"
-      and the heat_settemp twin. This is the authoritative setpoint path.
-  - 2026-11-08 FIRMWARE CONFIRMS (all from static analysis, no wire needed):
-    * MODE codes: cool=0 dry=1 fan=2 auto=3 heat=4 (strcmp chain @0x380c8). In Cortex MODELO.
-    * FAN codes: low=1 med=2 high=3 (fanN token digit = speed). In Cortex FANHI.
-    * LOCK bits in the cmd4 control frame byte4: modelock=0x08, fanlock=0x04, settemplock=0x02,
-      power=0x01 (from SELECT col order modelock,fanlock,settemplock + struct offsets). Locks
-      are stored/shown in Cortex; not yet transmitted (unsure if they also ride the 80 frame).
-    * cmd6 is a sibling 16-byte A8 frame (second per-unit control; occupancy/setback-ish).
-  - RECOMMENDED NEXT MOVE (cheap, honest): don't capture. Either (a) get the cmd5 frame layout
-    from the operator's outside collaborator (he pulled it from this same firmware) and cross-check,
-    or (b) at a REAL site, have Cortex TX its firmware-derived cmd5 to ONE unit, CC unplugged,
-    and watch the unit obey. One of those closes the header-byte gap for good.
-
-  HISTORY / LESSONS
-  - The first decode (by the earlier chat) had mode in the HIGH nibble (auto=1, cool=2,
-    heat=3) and setpoint = degC-15. That was wrong: the high nibble is FAN. So Cortex's
-    earlier "cool" commands actually went out as auto mode + med fan, and "heat" as
-    auto + HIGH fan. That probably explains the "fan went high" result.
-  - Lesson: only trust byte meanings from a controlled change made at the real CC
-    (one unit, one setting, written down), never from steady-state traffic.
-
-  CAPTURE 2026-11-07 (bus_capture_1794089122388.txt)
-  - A7 at CC: cool, low fan, 64F, on, swing clear -> 80 00 A0 A7 03 10 05 8A, then 01 10 05
-  - A6 at CC: heat, med fan, 80F, on, swing clear -> 80 00 A0 A6 03 24 06 A6, then 01 24 06
-  - Later in the same capture A6 went 02 34 06 (OFF, heat, fan high) twice. the operator did
-    not mention doing this. Ask him: was it him, a CC schedule, or something else?
-
-  NEXT STEPS
-  1. DONE 2026-11-08: cmd5 header fully recovered from the firmware builder (see SETPOINT block).
-     Cortex's cmd5SetpointBytes() is firmware-exact. Only remaining: a single real-unit sanity
-     TX at a live site (CC unplugged) to confirm the unit obeys. No more bench captures needed.
-  2. Fan high / auto, and dry / fan modes, to fill in the remaining mode/fan GUESS rows.
-  3. Wire decodeCmd5()/cmd5SetpointBytes() into the UI (show cool+heat setpoints; send).
-  4. Bench test TX on the spare ACP / one unit after hours, CC unplugged.
-  5. Cycle view (outdoor-unit temps/pressures) is NOT on the CC bus as far as the operator knows —
-     the LG CC has never been able to show it; it lives on a different bus. Don't assume the
-     CC bus can provide it. (The earlier chat knew this; corrected 2026-11-07.)
-==========================================================================================
--->
+<!-- Cortex — local-first LG VRF central controller. Developer notes: docs/HANDOFF.md · protocol: LGAP_reference.md -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cortex</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- Web fonts load in the background (never blocking the page): a controller on a site network with no
+     internet must still paint instantly — it simply falls back to the system fonts. -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 /* AIROW Control — custom LG VRF central controller UI (prototype)
    layout: top bar + left nav + unit grid/list + right control drawer + modals */
@@ -460,6 +114,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .pill.run{background:var(--accent-soft);color:var(--accent-ink)}
 .pill.stop{background:var(--surface-2);color:var(--text-dim)}
 .pill.err{background:var(--err-soft);color:var(--err);cursor:pointer}
+.pill.noresp{background:var(--warn-soft);color:var(--warn)}
 /* the two readings (what it is set to / what the room is) carry equal weight, each labelled */
 .card-read{display:grid;grid-template-columns:1fr 1fr;background:var(--surface-2);border-radius:10px;padding:9px 12px}
 .card-read.one{grid-template-columns:1fr}
@@ -833,6 +488,9 @@ svg.ug{width:100%;height:100%;display:block}
 <script>
 const MODES=[["cool","Cool","❄"],["heat","Heat","☀"],["auto","Auto","⇅"],["dry","Dry","💧"],["fan","Fan","✦"]];
 const FANS=[["low","Low"],["med","Med"],["high","High"],["auto","Auto"]];
+// Speeds you can CHOOSE. "Auto" is shown when a unit reports it, but it is not offered as a command:
+// its code on the bus is not confirmed, and picking it used to send the unit's last-seen speed instead.
+const FANS_SEL=FANS.filter(f=>f[0]!=="auto");
 const MC={cool:"cool",heat:"heat",auto:"auto",dry:"dry",fan:"fan"};
 
 /* ---- LG Multi V error code reference (verify against the unit's service manual) ---- */
@@ -923,37 +581,65 @@ function detectLocation(){
     ()=>toast("Couldn't get location — allow location access, or set it manually"),{timeout:9000});}
 let settings=loadSettings();
 let session={admin:false,tech:false};
-const ADMIN_PIN="2468", TECH_PIN="1379";
-const SITE_ID="SITE-0001", RECOVERY="CORTEX-0000-0000-0000";
-let users=[
-  {id:1,name:"You (owner)",role:"owner",protected:true},
-  {id:2,name:"Site Manager",role:"admin"},
-  {id:3,name:"Front Desk",role:"customer"}
-];
+// Access codes and the recovery code are PER SITE (set in the setup wizard, changed in Settings ▸
+// Advanced). There are deliberately no built-in defaults: a default in public source is no lock at all.
+let users=[];
 let view="units", groupFilter="all", statusFilter="all", query="", aboutTaps=0;
 let selMode=false; let selSet=new Set(); // multi-select / batch control
 
-function makeUnits(){
-  const names=["Front Office","Lobby","Conf A","Conf B","Break Room","Server Rm","Reception","Hall N",
-    "Hall S","Suite 101","Suite 102","Suite 103","Open Area","Corner Ofc","Training","Copy Rm",
-    "Exec Ofc","Pantry","Quiet Rm","Studio","North Wing","South Wing","Vault","Mail Rm"];
-  const ecodes=["CH05","CH04","CH10","CH06","CH53"]; let out=[],addr=0;
-  for(let i=0;i<names.length;i++){const g=(i%4)+1;const err=Math.random()>0.9;
-    const on=err?false:Math.random()>0.32;const mode=MODES[Math.floor(Math.random()*3)][0];
-    const sp=68+Math.floor(Math.random()*8);const ch=(g<=2?"CH1":"CH2");const floor=1+Math.floor(i/8);
-    out.push({id:i,addr:addr++,name:`AC_UNIT_${String(i).padStart(2,"0")}`,label:names[i],
-      ch,system:ch==="CH1"?"System A":"System B",floor,suite:"Ste "+(floor*100+(i%8+1)),
-      group:g,on,mode,fan:FANS[Math.floor(Math.random()*4)][0],swing:Math.random()>0.6,
-      sp,room:sp+(Math.floor(Math.random()*7)-3),err,code:err?ecodes[Math.floor(Math.random()*ecodes.length)]:null,d5:0x33,d6:0x05,
-      pipeIn:mode==="heat"?96+Math.floor(Math.random()*14):44+Math.floor(Math.random()*8),
-      pipeOut:mode==="heat"?70+Math.floor(Math.random()*8):58+Math.floor(Math.random()*10),
-      zoneLoad:on?30+Math.floor(Math.random()*70):0,
-      runtimeHrs:400+Math.floor(Math.random()*3000),kwh:+(0.5+Math.random()*6).toFixed(1),filterPct:10+Math.floor(Math.random()*90)});}
-  return out;
-}
 /* Persist units (incl. imported ones) so they survive reload AND app updates.
    localStorage is keyed to this local file, so a new cortex.html keeps the data. */
-function saveUnits(){try{localStorage.setItem("airow_units",JSON.stringify(units));}catch(e){}}
+/* The unit list is ALSO kept on the appliance (/api/units), so every computer and phone that opens
+   Cortex sees the same units and their last readings — not just the browser that ran the bus scan.
+   The screen that is connected to the equipment pushes fresh readings; the others read them. */
+let BOOTED=false;                                              // set once boot has loaded config + units
+let unitsRev=0,unitsPushT=null,unitsPushing=false,unitsPushAgain=false,lastUnitsPushAt=0;
+let SRV={masterAlive:false,at:0};                             // what the appliance last told us about the live link
+function unitsSynced(){try{return localStorage.getItem("airow_units_rev")!=null;}catch(e){return false;}}
+function noteUnitsRev(r){unitsRev=r;try{localStorage.setItem("airow_units_rev",String(r));}catch(e){}}
+function cleanUnits(){return units.map(u=>{const o={};for(const k in u){if(k[0]!=="_")o[k]=u[k];}return o;});}  // drop runtime-only fields
+function saveUnits(){try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}queueUnitsPush();}
+function queueUnitsPush(){if(location.protocol==="file:"||!BOOTED||unitsPushT)return;
+  unitsPushT=setTimeout(()=>{unitsPushT=null;pushUnits();},isMaster()?3000:400);}
+let unitsForce=false;                                          // next push replaces the shared list outright (restore from backup)
+async function pushUnits(force){
+  if(location.protocol==="file:")return;
+  if(force)unitsForce=true;
+  if(!units.length&&!unitsSynced()&&!unitsForce)return;        // never let a screen that has no units blank the shared list
+  if(unitsPushing){unitsPushAgain=true;return;}unitsPushing=true;
+  try{do{unitsPushAgain=false;const m=isMaster(),f=unitsForce;unitsForce=false;
+    const body={units:cleanUnits(),live:m&&!f,master:m};if(!f)body.base=unitsRev;
+    const r=await fetch('/api/units',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.status===409){const j=await r.json();
+      // The appliance has a different list. Normally theirs wins — but a screen holding real units
+      // never gives them up to an EMPTY list (that would silently erase a site's units).
+      if(units.length&&Array.isArray(j.units)&&!j.units.length){unitsRev=j.rev;unitsPushAgain=true;continue;}
+      adoptUnits(j);break;}
+    if(r.ok){const j=await r.json();noteUnitsRev(j.rev);lastUnitsPushAt=Date.now();}
+  }while(unitsPushAgain);}catch(e){}finally{unitsPushing=false;}}
+function adoptUnits(j){
+  if(!j||!Array.isArray(j.units))return;
+  const prev=new Map(units.map(u=>[u.addr,u]));
+  try{if(units.length)localStorage.setItem("airow_units_prev",JSON.stringify(cleanUnits()));}catch(e){}   // one-step safety copy
+  units=normalizeIds(j.units);migrateUnits(true);
+  units.forEach(u=>{const o=prev.get(u.addr);if(!o)return;
+    if(o._hist)u._hist=o._hist;
+    if(rt(u.addr).hold>Date.now()){["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","sp"].forEach(k=>{u[k]=o[k];});}});  // a command we just sent wins for a few seconds
+  noteUnitsRev(j.rev);
+  try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}
+  if(openId!=null)drawerStale=true;
+  if(BOOTED&&currentUser){renderGroupNav();liveRefresh(true);}}
+async function pullUnits(){
+  if(location.protocol==="file:")return;
+  const was=SRV.masterAlive;
+  try{const r=await fetch('/api/units',{cache:'no-store'});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();
+    SRV.masterAlive=!!j.masterAlive;SRV.at=Date.now();
+    if(j.rev!==unitsRev&&!unitsPushing&&!unitsPushT){
+      if(units.length&&(j.rev===0||(!j.units.length&&!unitsSynced()))){unitsRev=j.rev;await pushUnits();}   // first screen with a unit list shares it
+      else adoptUnits(j);}
+    else if(was!==SRV.masterAlive){fillLiveBanner();updateBusHealth();}
+  }catch(e){SRV.masterAlive=false;if(was){fillLiveBanner();updateBusHealth();}}}   // the controller itself is unreachable
+setInterval(()=>{if(BOOTED&&!isMaster()&&document.visibilityState!=="hidden")pullUnits();},4000);
 function loadUnits(){try{const u=JSON.parse(localStorage.getItem("airow_units"));if(Array.isArray(u))return normalizeIds(u);}catch(e){}return [];}
 // Guarantee every unit has a unique numeric id. Repairs units imported by an older build that
 // saved id:"" (which made the control drawer fail to open and broke selection/delete).
@@ -965,7 +651,7 @@ function normalizeIds(arr){const seen=new Set();let next=1;
 let units=loadUnits();
 /* Migrate older saved units up to the current model: dual (cool/heat) setpoints in °C,
    plus mode/fan/temp locks. Runs once on load; new fields default sensibly. */
-function migrateUnits(){let changed=false;units.forEach(u=>{
+function migrateUnits(noSave){let changed=false;units.forEach(u=>{
   if(u.coolC==null){const f=(u.sp!=null?u.sp:72);u.coolC=Math.round((f-32)*5/9*2)/2;changed=true;}
   if(u.heatC==null){u.heatC=Math.max(16,Math.round((u.coolC-2)*2)/2);changed=true;}
   if(u.twoset==null){u.twoset=false;changed=true;}
@@ -975,7 +661,7 @@ function migrateUnits(){let changed=false;units.forEach(u=>{
   if(u.grp==null){u.grp=u.system||("Group "+(u.group!=null?u.group:""))||"Ungrouped";changed=true;}  // logical top-level group
   if(u.subgrp==null){u.subgrp="";changed=true;}                                                       // logical sub-group (floor/room)
   if(u.kind==null){u.kind="wall";changed=true;}                                                        // indoor-unit body type (tech sets it)
-});if(changed)saveUnits();}
+});if(changed&&!noSave)saveUnits();}
 migrateUnits();
 
 /* ---- organization helpers ---- */
@@ -1012,7 +698,7 @@ let settingsUser=null; // per-user preferences are scoped to the signed-in user
 function settingsKey(){return "airow_settings"+(settingsUser?("__"+settingsUser):"");}
 function loadSettings(){try{const s=JSON.parse(localStorage.getItem(settingsKey()));return Object.assign({},DEF_SETTINGS,s||{},{show:Object.assign({},DEF_SETTINGS.show,(s&&s.show)||{})});}catch(e){return JSON.parse(JSON.stringify(DEF_SETTINGS));}}
 function saveSettings(){try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(e){}}
-function temp(f){return settings.unit==="C"?Math.round((f-32)*5/9)+"°C":f+"°F";}
+function temp(f){if(f==null||!isFinite(f))return "--";return settings.unit==="C"?Math.round((f-32)*5/9)+"°C":f+"°F";}
 function cksum(b){let s=0;for(let i=0;i<7;i++)s=(s+b[i])&0xff;return s^0x55;}
 function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,0];b[7]=cksum(b);
   return b.map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");}
@@ -1062,18 +748,20 @@ function fToC(f){return (f-32)*5/9;} function cToF(c){return c*9/5+32;}
 /* (A) basic power/mode/fan command (8-byte) */
 function cmdBytesFor(addr,o,change){
   const seen5=(o.d5!=null?o.d5:0x33);
-  const fanN=FANHI[o.fan]!=null?FANHI[o.fan]:(seen5>>4);       // unknown fan (e.g. auto) -> keep what the unit had
+  const fanN=FANHI[o.fan]!=null?FANHI[o.fan]:((o.fanRaw!=null?o.fanRaw:(seen5>>4))&7);   // unknown fan (e.g. auto) -> keep exactly what the unit reported
   const modeN=MODELO[o.mode]!=null?MODELO[o.mode]:(seen5&0x0f);
   const b5=(fanN<<4)|modeN;
   // b6 = setpoint in whole °C minus 15 (cmd0 write — community-confirmed: 22°C -> 0x07, frame
   // 80 00 A0 31 03 30 07 DE checksum-validates). Half-degree rides b0 bit2 (0x04). When no
   // setpoint is supplied, preserve the last-seen b6 so a power/mode/fan-only write doesn't move it.
   let b0=o.b0||0x80, b6;
+  if((b0&0x78)!==0||!(b0&0x80))b0=0x80;                       // whatever was last seen, a command is always cmd0
   let setC=(o.setC!=null)?o.setC:(o.mode==="heat"?o.heatC:o.coolC);
   if(setC!=null&&isFinite(setC)){
-    const whole=Math.round(setC*2)/2, intp=Math.floor(whole);
-    b6=Math.max(0,Math.min(45,intp-15));
-    if(whole-intp>=0.5)b0|=0x04;                              // +0.5°C flag in the header byte
+    const whole=Math.max(15,Math.min(30,Math.round(setC*2)/2)), intp=Math.floor(whole);
+    b6=Math.max(0,Math.min(15,intp-15));                      // the field is 15–30°C (one nibble in the reply); never send outside it
+    b0&=~0x04;                                                // clear a half-degree flag left over from the last-seen frame…
+    if(whole-intp>=0.5&&intp<30)b0|=0x04;                     // …and set it only when THIS setpoint has the half degree
   }else{
     b6=(o.d6!=null?o.d6:0x06);                                // no setpoint known — preserve last-seen
   }
@@ -1106,16 +794,30 @@ function cmd5SetpointBytes(addr,coolC,heatC,opt){
   b[14]=lgapCk(b,14);                        // checksum over bytes 0..13
   b[15]=(lgapCk(b,15)+1)&0xff;               // checksum over bytes 0..14, +1
   return b; }
-/* per-unit error-code history (tech-only). Persisted log if present, else a
-   believable deterministic sample so the feature has something to show. */
+/* per-unit error-code history (tech-only): what Cortex actually saw this unit report (see logErr). */
 function errorHistory(u){
-  const m=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name])||{};
-  if(m.errorLog)return m.errorLog;
-  const codes=["CH05","CH04","CH10","CH05","CH242","CH01"];const h=[];const mo=["Oct","Sep","Aug","Jul","Jun"];
-  const n=(u.id*7)%4;
-  for(let i=0;i<n;i++)h.push({code:codes[(u.id+i)%codes.length],when:`${mo[i%mo.length]} ${5+((u.id*3+i)%22)}`,cleared:true});
-  if(u.err)h.unshift({code:u.code,when:"active",cleared:false});
-  return h;}
+  const fmt=t=>new Date(t).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  return (Array.isArray(u.errLog)?u.errLog:[]).map(e=>({code:e.code,when:(e.cleared?fmt(e.at)+" → cleared "+fmt(e.cleared):fmt(e.at)),cleared:!!e.cleared}));}
+function ago(t){if(!t)return "never";const s=Math.max(0,Math.round((Date.now()-t)/1000));
+  return s<90?s+"s ago":(s<5400?Math.round(s/60)+" min ago":(s<172800?Math.round(s/3600)+" h ago":Math.round(s/86400)+" days ago"));}
+// May the signed-in person change this unit? Customers can be switched to view-only for the whole site
+// (Settings ▸ Advanced) and are locked out of a unit a technician has marked "in service".
+function ctlAllowed(u){const role=currentUser?currentUser.role:"customer";if(role!=="customer")return true;
+  if(CFG&&CFG.custCtl===false)return false;return !inService(u);}
+function isDemo(){return location.protocol==="file:"&&!liveTx();}   // opened as a bare file with no adapter: a local demo
+function notConnMsg(){return isTechView()?"Bus not connected — nothing was sent":"Cortex isn’t connected to the equipment right now, so nothing was sent.";}
+/* Change a set of units and send it. mut(u) applies the change. Nothing is changed on screen unless the
+   command can actually reach the equipment (or this is the file:// demo). Returns how many were sent. */
+async function applyAndSend(list,mut){
+  list=(list||[]).filter(ctlAllowed);
+  if(!list.length){toast("Nothing to change");return 0;}
+  if(!canReach()&&!isDemo()){toast(notConnMsg());return 0;}
+  holdUnits(list);
+  list.forEach(u=>{mut(u);u.coolC=clampC(u.coolC);u.heatC=clampC(u.heatC);u.sp=Math.round(activeC(u)*9/5+32);});
+  let n=list.length;
+  if(canReach()){if(list.length>1)toast(`Sending to ${list.length} units…`);n=await sendUnits(list);}
+  if(liveTx()||isDemo())saveUnits();
+  liveRefresh(true);return n;}
 function statusOf(u){return u.err?"err":(u.on?"run":"stop");}
 function counts(){const c={run:0,stop:0,err:0};units.forEach(u=>c[statusOf(u)]++);return c;}
 function hx(n){return "0x"+n.toString(16).padStart(2,"0").toUpperCase();}
@@ -1132,10 +834,10 @@ function renderWho(){
   const sn=document.getElementById("site-name");
   if(sn){const n=(CFG&&CFG.site&&CFG.site.name&&CFG.site.name!=="Site")?CFG.site.name:null;
     if(n)sn.textContent=n;
-    else fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name)sn.textContent=j.name;}).catch(()=>{});}
+    else if(location.protocol!=="file:")fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name)sn.textContent=j.name;}).catch(()=>{});}
   const name=currentUser?currentUser.name:"Guest";
   const role=currentUser?currentUser.role:(session.tech?"technician":(session.admin?"admin":"customer"));
-  document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${name} <span class="rolebadge">${role}</span>`;
+  document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${ue(name)} <span class="rolebadge">${ue(role)}</span>`;
   const base=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};
   const over=(session.admin&&!base.admin)||(session.tech&&!base.tech);
   document.getElementById("lockbtn").classList.toggle("hide",!over);
@@ -1201,8 +903,9 @@ function renameSub(g,s){const nn=prompt("Rename subgroup",s);if(nn==null)return;
 /* ---- unit rendering ---- */
 function modeIcon(m){return MODES.find(x=>x[0]===m)[2];}
 function unitCard(u){
-  const st=statusOf(u);const stripe=st==="err"?"var(--err)":(u.on?"var(--accent)":"var(--stopped)");
-  const pill=st==="err"?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?'<span class="pill run">Running</span>':'<span class="pill stop">Off</span>');
+  const st=statusOf(u);const stripe=u.offline?"var(--warn)":(st==="err"?"var(--err)":(u.on?"var(--accent)":"var(--stopped)"));
+  const pill=u.offline?'<span class="pill noresp" title="This unit is not answering the controller — the readings shown are the last ones received">No response</span>'
+    :(st==="err"?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?'<span class="pill run">Running</span>':'<span class="pill stop">Off</span>'));
   const ml=MODES.find(m=>m[0]===u.mode)||MODES[0];
   // Tiles are what a customer looks at all day: a name, what it is set to, what the room is. No bus
   // address, channel or system id here — a technician reads those in the control drawer.
@@ -1231,10 +934,10 @@ function unitCard(u){
   </div>`;
 }
 function unitRow(u){
-  const st=statusOf(u);const c=st==="err"?"var(--err)":(u.on?"var(--ok)":"var(--stopped)");
+  const st=statusOf(u);const c=u.offline?"var(--warn)":(st==="err"?"var(--err)":(u.on?"var(--ok)":"var(--stopped)"));
   const ml=MODES.find(m=>m[0]===u.mode)||MODES[0];
   return `<div class="lrow" data-id="${u.id}"><span class="st" style="background:${c}"></span>
-    <div style="min-width:0"><div class="lname">${ue(dispName(u))}</div><div class="lsub">${KINDS[u.kind||'wall']||KINDS.wall}${inService(u)?' · in service':''}</div></div>
+    <div style="min-width:0"><div class="lname">${ue(dispName(u))}</div><div class="lsub">${KINDS[u.kind||'wall']||KINDS.wall}${inService(u)?' · in service':''}${u.offline?' · not responding':''}</div></div>
     <div class="lc-hide">${u.err?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?ml[2]+' '+ml[1]:'<span style="color:var(--text-faint)">off</span>')}</div>
     <div class="mono">${u.on?(isDual(u)?spDisp(u.coolC)+'/'+spDisp(u.heatC):spDisp(activeC(u)))+'°'+settings.unit:"--"}${(u.modeLock||u.fanLock||u.tempLock)?' 🔒':''}</div>
     <div class="mono lc-hide" style="color:var(--text-dim)">room ${temp(u.room)}</div></div>`;
@@ -1266,7 +969,10 @@ function renderUnits(){
   renderGroupNav();const c=counts();
   const tile=(key,n,color,label)=>`<button class="tile ${statusFilter===key?'sel':''}" data-filter="${key}">
      <div class="n">${n}</div><div class="l">${color?`<span class="dot" style="background:${color}"></span>`:""}${label}</div></button>`;
+  const role=currentUser?currentUser.role:"customer";
+  const canAll=role!=="customer"||!(CFG&&(CFG.custAll===false||CFG.custCtl===false));
   main.innerHTML=`
+    <div id="livebanner"></div>
     ${settings.showWeather?weatherCard():""}
     ${settings.showTiles?`<div class="tiles">
       ${tile("run",c.run,"var(--ok)","Running")}${tile("stop",c.stop,"var(--stopped)","Off")}
@@ -1278,19 +984,34 @@ function renderUnits(){
       <select class="sel-box" id="groupby">${userDims().map(d=>`<option value="${d[0]}" ${gdim()===d[0]?'selected':''}>Group by: ${d[1]}</option>`).join("")}</select>
       <div class="segmented" id="viewseg"><button data-v="grid" class="${settings.view==='grid'?'on':''}">Grid</button><button data-v="list" class="${settings.view==='list'?'on':''}">List</button></div>
       <button class="btn ${selMode?'primary':''}" id="selbtn">${selMode?'Done selecting':'Select'}</button>
-      <button class="btn" id="alloff">All off</button><button class="btn primary" id="allon">All on</button>
+      ${canAll?`<button class="btn" id="alloff">All off</button><button class="btn primary" id="allon">All on</button>`:''}
     </div>
     <div id="batchbar"></div>
     <div id="listwrap"></div>`;
-  renderBody();renderBatchBar();
+  renderBody();renderBatchBar();fillLiveBanner();
   document.getElementById("selbtn").onclick=()=>{selMode=!selMode;if(!selMode)selSet.clear();renderUnits();};
   document.getElementById("q").oninput=e=>{query=e.target.value;renderBody();};
   document.getElementById("groupby").onchange=e=>{settings.groupBy=e.target.value;groupFilter="all";saveSettings();renderUnits();};
   document.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>{statusFilter=(statusFilter===b.dataset.filter&&b.dataset.filter!=="all")?"all":b.dataset.filter;renderUnits();});
   document.querySelectorAll("#viewseg button").forEach(b=>b.onclick=()=>{settings.view=b.dataset.v;saveSettings();renderUnits();});
-  document.getElementById("allon").onclick=()=>{units.forEach(u=>{if(!u.err)u.on=true;});saveUnits();renderUnits();};
-  document.getElementById("alloff").onclick=()=>{units.forEach(u=>u.on=false);saveUnits();renderUnits();};
+  const aon=document.getElementById("allon"),aoff=document.getElementById("alloff");
+  if(aon)aon.onclick=()=>allPower(true);if(aoff)aoff.onclick=()=>allPower(false);
 }
+/* All on / All off: acts on what is on screen (the whole site, or the group / filter you are looking at),
+   asks first, and really sends the command to every unit — it used to only flip the tiles. */
+function allPower(on){
+  const scoped=(groupFilter!=="all"||statusFilter!=="all"||!!query);
+  const list=(scoped?filtered():units.slice()).filter(ctlAllowed);
+  if(!list.length){toast("No units to change here");return;}
+  if(!canReach()&&!isDemo()){toast(notConnMsg());return;}
+  const where=scoped?(groupFilter!=="all"?"in “"+groupFilter+"”":"shown here"):"at this site";
+  modal(head(on?"Turn everything on?":"Turn everything off?")+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px">This turns <b>${on?"ON":"OFF"}</b> ${list.length===1?"the 1 unit":"all <b>"+list.length+"</b> units"} ${ue(where)}. Each one gets its own command, so it takes about a second per unit.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="ap-go">Turn ${on?"on":"off"} ${list.length} unit${list.length!==1?"s":""}</button></div></div>`);
+  document.getElementById("ap-go").onclick=async()=>{closeModal();
+    const n=await applyAndSend(list,u=>{u.on=on;});
+    if(n)toast(`${on?"On":"Off"} sent to ${n} of ${list.length} unit${list.length!==1?"s":""}`);};}
 function bindUnitClicks(){
   document.querySelectorAll("[data-id]").forEach(el=>el.onclick=e=>{
     const code=e.target.closest("[data-code]");
@@ -1357,6 +1078,7 @@ function delSelected(){
     </div></div>`);
   document.getElementById("del-cancel").onclick=closeModal;
   document.getElementById("del-go").onclick=()=>{
+    units.filter(u=>ids.includes(u.id)).forEach(u=>{MASTER.found.delete(u.addr);MASTER.prompted.add(u.addr);ignoreAddr(u.addr,true);});
     units=units.filter(u=>!ids.includes(u.id));saveUnits();selSet.clear();selMode=false;
     closeModal();renderUnits();toast(`Deleted ${ids.length} unit${ids.length>1?"s":""}`);
   };
@@ -1368,7 +1090,7 @@ function batchModal(){
     <div class="note-box" style="margin-bottom:12px">Pick only the settings you want to change. Anything left on “no change” is untouched. Each unit gets its own command.</div>
     <label class="flabel">Power</label><select class="sel-box" id="b-power"><option value="">No change</option><option value="on">Turn on</option><option value="off">Turn off</option></select>
     <label class="flabel">Mode</label><select class="sel-box" id="b-mode"><option value="">No change</option>${MODES.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join("")}</select>
-    <label class="flabel">Fan</label><select class="sel-box" id="b-fan"><option value="">No change</option>${FANS.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join("")}</select>
+    <label class="flabel">Fan</label><select class="sel-box" id="b-fan"><option value="">No change</option>${FANS_SEL.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join("")}</select>
     <label class="flabel">Swing</label><select class="sel-box" id="b-swing"><option value="">No change</option><option value="on">On</option><option value="off">Off</option></select>
     <label class="flabel">Setpoint</label><select class="sel-box" id="b-sp"><option value="">No change</option>${Array.from({length:27},(_,i)=>60+i).map(t=>`<option value="${t}">${temp(t)}</option>`).join("")}</select>
     <div style="max-height:120px;overflow:auto;margin-top:12px;font-size:12px;color:var(--text-dim)">${targets.map(u=>ue(dispName(u))).join(" · ")}</div>
@@ -1377,11 +1099,12 @@ function batchModal(){
     const gv=id=>document.getElementById(id).value;
     const power=gv("b-power"),mode=gv("b-mode"),fan=gv("b-fan"),swing=gv("b-swing"),sp=gv("b-sp");
     if(!power&&!mode&&!fan&&!swing&&!sp){toast("Pick at least one setting to change");return;}
-    let n=0;targets.forEach(u=>{
-      const svc=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service)||{};
-      if(svc.inService&&(currentUser?currentUser.role:"customer")==="customer")return; // skip locked units for customers
-      if(power)u.on=power==="on";if(mode)u.mode=mode;if(fan)u.fan=fan;if(swing)u.swing=swing==="on";if(sp)u.sp=+sp;n++;});
-    closeModal();selMode=false;selSet.clear();saveUnits();renderUnits();toast(`Command sent to ${n} unit${n!==1?'s':''}`);
+    if(!canReach()&&!isDemo()){toast(notConnMsg());return;}
+    closeModal();selMode=false;selSet.clear();renderUnits();
+    applyAndSend(targets,u=>{
+      if(power)u.on=power==="on";if(mode)u.mode=mode;if(fan)u.fan=fan;if(swing)u.swing=swing==="on";
+      if(sp){const c=(+sp-32)*5/9;u.coolC=c;u.heatC=c;}       // the list is in °F; units keep °C
+    }).then(n=>{if(n)toast(`Command sent to ${n} of ${targets.length} unit${targets.length!==1?'s':''}`);});
   };
 }
 
@@ -1431,8 +1154,25 @@ function crc16xmodem(buf,n){let c=0;for(let i=0;i<n;i++){c^=(buf[i]&0xff)<<8;for
    are safe to send blind. cmd4 (0xA0), cmd5 (0xA8) and cmd9 (0xC8) OVERWRITE stored settings even
    with an all-zero payload (cmd4 also wipes the central's per-unit settings), and address 0xFF is a
    broadcast to every ODU — Cortex never sweeps 0xFF and refuses to blind-sweep a write command. */
-let MASTER={tap:null,running:false,abort:false,discovering:false,paused:false,seq:0,rxbuf:[],found:new Map(),log:[],
-  scan:null,probe:{idx:0},prompted:new Set(),rediscover:true,
+/* Per-unit runtime facts — never saved: when it last answered, missed polls, last frames, and a short
+   "hold" after we send a command so a reply that hasn't caught up yet can't flip the screen back. */
+const RT=new Map();
+function rt(addr){let r=RT.get(addr);if(!r){r={seen:0,miss:0,ok:0,hold:0,lastRx:"",lastTx:"",txAt:0};RT.set(addr,r);}return r;}
+/* Browsers slow a background tab's timers to once a second and, after five minutes, to once a MINUTE.
+   The poll loop lives in this page, so a dashboard left behind another tab would all but stop polling
+   (and drop commands relayed from other screens). Timers inside a Worker are not slowed down, so the
+   bus timing runs off one. Falls back to ordinary timers if a Worker can't be created. */
+const WT=(()=>{try{
+  const src="const T={};onmessage=e=>{const d=e.data;if(d[0]){T[d[1]]=setTimeout(()=>{delete T[d[1]];postMessage(d[1]);},d[2]);}else{clearTimeout(T[d[1]]);delete T[d[1]];}};";
+  const w=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));const cb=new Map();let n=0;
+  w.onmessage=e=>{const f=cb.get(e.data);if(f){cb.delete(e.data);f();}};
+  w.onerror=()=>{for(const f of cb.values())setTimeout(f,0);cb.clear();};
+  return {set:(f,ms)=>{const id=++n;cb.set(id,f);w.postMessage([1,id,Math.max(0,ms|0)]);return id;}};
+}catch(e){return null;}})();
+function later(f,ms){if(WT)WT.set(f,ms);else setTimeout(f,ms);}
+const sleep=ms=>new Promise(r=>later(r,ms));
+let MASTER={tap:null,running:false,abort:false,discovering:false,paused:false,hold:0,inPoll:false,seq:0,rxbuf:[],found:new Map(),log:[],
+  scan:null,probe:{idx:0},prompted:new Set(),rediscover:true,minCycle:1500,cycleMs:0,
   lo:0x00,hi:0xfe,turnaround:30,timeout:1000,query:"80 00 A0 AA 00 00 00"};
 // A query is a safe discovery read only if byte0 is cmd0 (bits3-6 = 0, i.e. 0x80/0x84) and the
 // EXE write-strobe (byte4 bit1) is clear. Anything else could overwrite a unit on a blind sweep.
@@ -1448,18 +1188,46 @@ function buildQuery(addr){
   return b;}
 async function masterPoll(addr){
   if(addr===0xFF){mlog("⚠ refusing address 0xFF (ODU broadcast)");return null;}
-  MASTER.rxbuf=[];MASTER.tap=(bytes)=>{for(const x of bytes)MASTER.rxbuf.push(x);};
-  const q=buildQuery(addr);mlog("TX "+hx(addr)+"  "+q.map(mhex).join(" "));
-  masterWrite(q);
-  await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout));
-  MASTER.tap=null;const rx=MASTER.rxbuf.slice();
-  if(rx.length)mlog("RX "+hx(addr)+"  "+rx.map(mhex).join(" "));
-  // AC reply = 16 bytes, checksum byte[15] = (sum[0..14]) XOR 0x55. We ALSO require the reply's own
-  // address byte [4] to equal the address we polled: that rejects a frame that drifted in from a
-  // different poll (the cause of the "phantom units" bug when two loops ran at once).
-  for(let i=0;i+16<=rx.length;i++){const f=rx.slice(i,i+16);
-    if(lgapCk(f,15)===f[15]&&f[4]===addr){const p=parseReply(f);masterRecordAddr(p);mlog("    "+addr+" → "+p.text);return{addr,raw:f,ok:true,parsed:p};}}
-  return rx.length?{addr,raw:rx,ok:false}:null;}
+  MASTER.inPoll=true;
+  try{
+    // AC reply = 16 bytes, checksum byte[15] = (sum[0..14]) XOR 0x55. We ALSO require the reply's own
+    // address byte [4] to equal the address we polled: that rejects a frame that drifted in from a
+    // different poll (the cause of the "phantom units" bug when two loops ran at once).
+    MASTER.rxbuf=[];let hit=null,wake=null;
+    const find=()=>{const rx=MASTER.rxbuf;for(let i=0;i+16<=rx.length;i++){if(rx[i+4]===addr){const f=rx.slice(i,i+16);if(lgapCk(f,15)===f[15])return f;}}return null;};
+    MASTER.tap=(bytes)=>{for(const x of bytes)MASTER.rxbuf.push(x);if(!hit&&MASTER.rxbuf.length>=16){hit=find();if(hit&&wake)wake();}};
+    const q=buildQuery(addr);mlog("TX "+hx(addr)+"  "+q.map(mhex).join(" "));
+    masterWrite(q);
+    // Wait for the reply — but only as long as it takes. A unit that answers in 60 ms no longer costs
+    // the full one-second window, so a live pass over a building is several times faster. Silence
+    // (an empty address) still gets the whole window.
+    await new Promise(r=>{wake=r;later(r,MASTER.turnaround+MASTER.timeout);});
+    if(hit)await sleep(MASTER.turnaround);                      // leave the line quiet for one turnaround before anything else talks
+    MASTER.tap=null;const rx=MASTER.rxbuf.slice();
+    if(rx.length)mlog("RX "+hx(addr)+"  "+rx.map(mhex).join(" "));
+    const R=rt(addr);
+    if(hit){const p=parseReply(hit);R.seen=Date.now();R.miss=0;R.ok++;R.lastRx=hit.map(mhex).join(" ");
+      masterRecordAddr(p);mlog("    "+addr+" → "+p.text);return{addr,raw:hit,ok:true,parsed:p};}
+    R.miss++;
+    return rx.length?{addr,raw:rx,ok:false}:null;
+  }finally{MASTER.inPoll=false;MASTER.tap=null;}}
+/* ONE thing talks on the wire at a time. Anything that transmits a command (the Send button, a batch,
+   All on/off, a schedule, a command relayed from another screen) goes through here: the poll loop
+   yields, the poll that is already in flight finishes, the command goes out, polling resumes. Before
+   this, a Send could land on top of a poll and one of the two was lost. Jobs run strictly in order. */
+let busChain=Promise.resolve();
+function busExclusive(fn){
+  const job=async()=>{MASTER.hold++;
+    try{const t0=Date.now();while(MASTER.inPoll&&Date.now()-t0<3000)await sleep(15);return await fn();}
+    finally{MASTER.hold--;}};
+  const p=busChain.then(job,job);busChain=p.catch(()=>{});return p;}
+function isMaster(){return liveTx()&&MASTER.running;}           // this screen is the one polling the equipment
+/* Addresses a technician removed on purpose. The background search skips them, so a unit you took out
+   of Cortex is not quietly polled again or offered back every few minutes. Adding the unit again
+   (Discover ▸ Import, or Scan for new units) takes it off this list. */
+function ignoredAddrs(){return (CFG&&Array.isArray(CFG.ignoreAddrs))?CFG.ignoreAddrs:[];}
+function ignoreAddr(a,on){if(!CFG)return;const s=new Set(ignoredAddrs());const had=s.has(a);if(on)s.add(a);else s.delete(a);
+  if(had!==s.has(a)){CFG.ignoreAddrs=[...s].sort((x,y)=>x-y);saveCfg(CFG);}}
 // Surface a master-poll reply in the Live view table (so Live works in master mode too, not just
 // when passively sniffing a real LG controller).
 function masterRecordAddr(p){
@@ -1480,16 +1248,19 @@ function parseReply(f){
   const modeName=Object.keys(MODELO).find(k=>MODELO[k]===(f[6]&7))||("mode"+(f[6]&7));
   const fanName=Object.keys(FANHI).find(k=>FANHI[k]===((f[6]>>4)&7))||("fan"+((f[6]>>4)&7));
   const set=15+(f[7]&0x0f)+((f[1]&0x80)?0.5:0);
-  const err=f[5], room=tC(f[8]), pin=tC(f[9]), pout=tC(f[10]), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1;
-  return {addr:f[4],mode:modeName,fan:fanName,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,
+  // a missing sensor reads as an absurd code (0x00 / 0xFF) — report "no reading" rather than 147°F
+  const inR=(raw,lo,hi)=>{const v=tC(raw);return (raw!==0xFF&&isFinite(v)&&v>=lo&&v<=hi)?v:null;};   // 0xFF = sensor not fitted
+  const err=f[5], room=inR(f[8],-10,50), pin=inR(f[9],-40,90), pout=inR(f[10],-40,90), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1;
+  return {addr:f[4],mode:modeName,fan:fanName,modeRaw:f[6]&7,fanRaw:(f[6]>>4)&7,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,
     roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
-    text:`${modeName} · fan ${fanName} · set ${set}°C · room ${room}°C${err?" · ERR "+err:""} · sys ${group}`};}
+    text:`${modeName} · fan ${fanName} · set ${set}°C · room ${room==null?"—":room+"°C"}${err?" · ERR "+err:""} · sys ${group}`};}
 // Stop whatever is currently driving the bus (a sweep or the poll loop) and wait for the in-flight
 // poll to drain, so the next action starts clean. The bumped seq makes any still-running old loop
 // exit and refuse to write results. There is only ever ONE master on the wire.
 async function masterHalt(){
   MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;
-  await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout+60));
+  const t0=Date.now();while(MASTER.inPoll&&Date.now()-t0<MASTER.turnaround+MASTER.timeout+200)await sleep(20);   // only as long as the poll in flight needs
+  await sleep(MASTER.turnaround+40);
   MASTER.abort=false;}
 async function masterDiscover(){
   if(!bus.port){toast("Connect the adapter first");return;}
@@ -1502,42 +1273,85 @@ async function masterDiscover(){
   const total=hi-MASTER.lo+1;MASTER.scan={total,done:0,cur:MASTER.lo};
   MASTER.discovering=true;MASTER.found.clear();mlog("— discovery "+hx(MASTER.lo)+".."+hx(hi)+" (cmd0 reads, "+MASTER.timeout+"ms) —");busUpdate();
   for(let a=MASTER.lo;a<=hi&&!MASTER.abort&&MASTER.seq===myseq;a++){if(a===0xFF)continue;
+    while(MASTER.hold>0&&!MASTER.abort&&MASTER.seq===myseq)await sleep(25);   // a command is going out — yield the wire
     MASTER.scan={total,done:a-MASTER.lo+1,cur:a};busUpdate();const r=await masterPoll(a);
     if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);mlog("  ✓ reply at "+hx(r.addr)+(r.parsed?" · sys "+r.parsed.group:""));busUpdate();}}
   MASTER.scan=null;MASTER.discovering=false;mlog("— discovery done: "+MASTER.found.size+" responder(s) —");if(view==="busscan")renderBusScan();
   return MASTER.found.size;}
-async function masterLoopRun(){
-  if(!bus.port){toast("Connect the adapter first");return;}
-  if(!MASTER.found.size){toast("Run Discover first — there are no units to poll yet");return;}
+async function masterLoopRun(opts){
+  const auto=!!(opts&&opts.auto);
+  if(!bus.port){if(!auto)toast("Connect the adapter first");return;}
+  // resuming after a reload / restart: poll the units we already have, no new discovery needed
+  if(!MASTER.found.size)units.forEach(u=>{if(u.addr!==0xFF)MASTER.found.set(u.addr,{addr:u.addr});});
+  if(!MASTER.found.size){if(!auto)toast("Run Discover first — there are no units to poll yet");return;}
   await masterHalt();                                           // stop discovery (or a prior loop) before polling
-  const myseq=MASTER.seq;MASTER.running=true;mlog("— master poll loop started —");if(view==="busscan")renderBusScan();
-  const pause=()=>new Promise(r=>setTimeout(r,MASTER.turnaround));
-  while(MASTER.running&&!MASTER.abort&&bus.port&&MASTER.seq===myseq){
-    if(MASTER.paused){await new Promise(r=>setTimeout(r,300));continue;}   // yield the bus (e.g. a schedule is transmitting)
+  if(!bus.port)return;
+  const myseq=MASTER.seq;MASTER.running=true;busAuto(true);mlog("— master poll loop started"+(auto?" (resumed automatically)":"")+" —");if(view==="busscan")renderBusScan();
+  fillLiveBanner();
+  const pause=()=>sleep(MASTER.turnaround);
+  const mine=()=>MASTER.running&&!MASTER.abort&&bus.port&&MASTER.seq===myseq;
+  while(mine()){
+    if(MASTER.paused||MASTER.hold>0){await sleep(40);continue;}  // yield the bus while a command is transmitting
+    const t0=Date.now();
     const addrs=[...MASTER.found.keys()];
-    if(!addrs.length){await new Promise(r=>setTimeout(r,500));continue;}
+    if(!addrs.length){await sleep(500);continue;}
     // 1) poll the units we already know, and write the live readings onto the saved units
     let changed=false;
-    for(const a of addrs){if(!MASTER.running||MASTER.abort||MASTER.seq!==myseq)break;const r=await masterPoll(a);
-      if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);if(applyReplyToUnit(r.parsed))changed=true;}busUpdate();await pause();}
-    if(changed){saveUnits();                                   // keep live room/mode/setpoint fresh
-      if(openId==null&&["units","map","cycle"].includes(view))renderAll();}  // refresh dashboard if open (not mid-drawer)
-    // 2) background re-discovery: probe a few UNKNOWN addresses each cycle so a unit added later
+    for(const a of addrs){
+      while(MASTER.hold>0&&mine())await sleep(25);
+      if(!mine())break;
+      const r=await masterPoll(a);
+      if(MASTER.seq!==myseq)break;
+      if(r&&r.ok){MASTER.found.set(r.addr,r);if(applyReplyToUnit(r.parsed))changed=true;}
+      else if(markMiss(a))changed=true;
+      bus.dirty=true;await pause();}
+    if(!mine())break;
+    if(changed){saveUnits();liveRefresh();}
+    else if(Date.now()-lastUnitsPushAt>30000)queueUnitsPush();  // nothing changed for a while: still refresh "last heard" for the other screens and the trend log
+    // 2) commands sent from OTHER screens (they are not connected to the equipment — this one is)
+    await relayDrain(myseq);
+    // 3) background re-discovery: probe a few UNKNOWN addresses each cycle so a unit added later
     //    (e.g. after a remodel) is found on its own — no full re-scan needed.
-    if(MASTER.rediscover&&MASTER.running&&!MASTER.abort&&MASTER.seq===myseq){
+    if(MASTER.rediscover&&mine()){
       const hi=Math.min(MASTER.hi,0xFE);const unknown=[];
-      for(let a=MASTER.lo;a<=hi;a++){if(a!==0xFF&&!MASTER.found.has(a))unknown.push(a);}
-      for(let k=0;k<Math.min(3,unknown.length);k++){
-        if(!MASTER.running||MASTER.abort||MASTER.seq!==myseq)break;
+      const ign=new Set(ignoredAddrs());
+      for(let a=MASTER.lo;a<=hi;a++){if(a!==0xFF&&!MASTER.found.has(a)&&!ign.has(a))unknown.push(a);}
+      for(let k=0;k<Math.min(1,unknown.length);k++){        // one empty address per pass: each costs a full reply window
+        while(MASTER.hold>0&&mine())await sleep(25);
+        if(!mine())break;
         const a=unknown[MASTER.probe.idx%unknown.length];MASTER.probe.idx++;
         const r=await masterPoll(a);
-        if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);masterNewUnit(r.parsed);busUpdate();}
-        await pause();}}}
-  MASTER.running=false;mlog("— master poll loop stopped —");if(view==="busscan")renderBusScan();}
+        if(r&&r.ok&&MASTER.seq===myseq){MASTER.found.set(r.addr,r);masterNewUnit(r.parsed);bus.dirty=true;}
+        await pause();}}
+    MASTER.cycleMs=Date.now()-t0;
+    if(MASTER.cycleMs<MASTER.minCycle&&mine())await sleep(MASTER.minCycle-MASTER.cycleMs);   // a small site doesn't need to be asked 10× a second
+  }
+  if(MASTER.seq===myseq)MASTER.running=false;
+  mlog("— master poll loop stopped —");if(view==="busscan")renderBusScan();fillLiveBanner();}
+// Three polls in a row with no answer: the unit is "not responding" (power off at the unit, comm fault,
+// or the bus is down). The tile says so instead of quietly showing old readings as if they were live.
+function markMiss(a){const u=units.find(x=>x.addr===a);if(!u)return false;
+  if(rt(a).miss>=3&&!u.offline){u.offline=true;if(openId===u.id)drawerStale=true;return true;}return false;}
+/* Commands from screens that are not connected to the equipment arrive through the appliance; the
+   connected screen transmits them on its next pass. */
+async function relayDrain(myseq){
+  if(location.protocol==="file:")return;
+  let cmds=[];
+  try{const r=await fetch('/api/cmd/drain',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!r.ok)return;cmds=(await r.json()).cmds||[];}catch(e){return;}
+  if(!cmds.length)return;
+  const list=[];
+  for(const c of cmds){const u=units.find(x=>x.addr===c.addr);if(!u||!c.state)continue;
+    holdUnits([u]);
+    ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock"].forEach(k=>{if(c.state[k]!==undefined)u[k]=c.state[k];});
+    u.coolC=clampC(u.coolC);u.heatC=clampC(u.heatC);u.sp=Math.round(activeC(u)*9/5+32);
+    mlog("⇢ command from another screen → "+hx(u.addr));list.push(u);}
+  if(!list.length||MASTER.seq!==myseq)return;
+  await busExclusive(async()=>{for(const u of list){try{await txUnitRaw(u);}catch(e){mlog("✖ relayed send failed "+hx(u.addr)+": "+e.message);}}});
+  saveUnits();liveRefresh();}
 // A unit answered at an address we didn't know about. It's now being polled; ask whether to add it
 // to the saved unit list. Ask once per address per session, and don't stack dialogs.
 function masterNewUnit(p){
-  if(!p||units.find(u=>u.addr===p.addr)||MASTER.prompted.has(p.addr))return;
+  if(!p||units.find(u=>u.addr===p.addr)||MASTER.prompted.has(p.addr)||ignoredAddrs().includes(p.addr))return;
   if(!isStaff())return;                                        // ask later, when a technician/admin is signed in
   MASTER.prompted.add(p.addr);mlog("  ✚ new unit at "+hx(p.addr)+" — prompting to add");
   if(document.querySelector(".modal"))return;                 // a dialog is already open; skip (stays in found/Live)
@@ -1550,9 +1364,10 @@ function masterNewUnit(p){
   document.getElementById("nu-skip").onclick=closeModal;
   document.getElementById("nu-add").onclick=()=>{
     const nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1;
-    const u=makeDiscoveredUnit(p.addr,"System #"+p.group,nextId);units.push(u);
+    const u=makeDiscoveredUnit(p.addr,"System #"+p.group,nextId);u.grp="System "+p.group;units.push(u);ignoreAddr(p.addr,false);
     applyReplyToUnit(p);saveUnits();renderAll();renderGroupNav();closeModal();toast("Added unit "+hx(p.addr));};}
-function masterStop(){MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;if(view==="busscan")renderBusScan();}
+function masterStop(){busAuto(false);MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;if(view==="busscan")renderBusScan();fillLiveBanner();
+  setTimeout(()=>{MASTER.abort=false;},MASTER.turnaround+MASTER.timeout+80);}
 // Guided one-tap flow: confirm the LG central is off the bus, then discover → import → poll, in order.
 function masterGuided(){
   if(!bus.port){toast("Connect the adapter first");return;}
@@ -1574,16 +1389,57 @@ function masterGuided(){
 }
 // Copy a decoded reply onto the matching saved unit (live state). Room/pipe temps are stored in °F
 // (the display layer assumes °F); the reply decodes them in °C, so convert here.
-function applyReplyToUnit(p){if(!p)return;const u=units.find(x=>x.addr===p.addr);if(!u)return false;
-  u.mode=p.mode;u.fan=p.fan;u.on=!!p.on;
-  if(p.room!=null&&isFinite(p.room))u.room=Math.round(p.room*9/5+32);
-  if(p.pipeIn!=null&&isFinite(p.pipeIn))u.pipeIn=Math.round(p.pipeIn*9/5+32);
-  if(p.pipeOut!=null&&isFinite(p.pipeOut))u.pipeOut=Math.round(p.pipeOut*9/5+32);
-  if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}
-  u.err=!!p.err;u.code=p.err?("CH"+p.err):null;return true;}
+function liveSig(u){return [u.on,u.mode,u.fan,u.coolC,u.heatC,u.room,u.err,u.code,!!u.offline,u.pipeIn,u.pipeOut].join("|");}
+let drawerStale=false;
+function applyReplyToUnit(p){if(!p)return false;const u=units.find(x=>x.addr===p.addr);if(!u)return false;
+  const R=rt(p.addr),before=liveSig(u),wasClean=(openId===u.id&&pend)?!pendDirty(u):false;
+  if(Date.now()>=R.hold){                                      // right after a command, ignore control fields until the unit has caught up
+    u.mode=p.mode;u.on=!!p.on;
+    u.fan=(FANHI[p.fan]!=null)?p.fan:"auto";u.fanRaw=p.fanRaw;  // a code that isn't low/med/high shows as Auto and is re-sent unchanged
+    if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}
+    if(p.modeRaw!=null&&p.fanRaw!=null)u.d5=(p.fanRaw<<4)|p.modeRaw;}
+  u.room=(p.room!=null)?Math.round(p.room*9/5+32):null;
+  if(p.pipeIn!=null)u.pipeIn=Math.round(p.pipeIn*9/5+32);
+  if(p.pipeOut!=null)u.pipeOut=Math.round(p.pipeOut*9/5+32);
+  const oldCode=u.err?u.code:null;
+  u.err=!!p.err;u.code=p.err?("CH"+p.err):null;
+  if(u.code!==oldCode)logErr(u,oldCode);
+  u.offline=false;u.seen=Date.now();
+  if(wasClean&&pend)Object.assign(pend,snap(u));               // nothing staged in the open drawer → it follows the live unit (same object: the drawer's buttons hold a reference to it)
+  const ch=liveSig(u)!==before;if(ch&&openId===u.id)drawerStale=true;return ch;}
+// Real per-unit fault history: every time a unit's error code appears or clears, it is noted here
+// (kept with the unit, newest first, last 20). Nothing is invented.
+function logErr(u,oldCode){const L=Array.isArray(u.errLog)?u.errLog:[];const now=Date.now();
+  if(oldCode){const e=L.find(x=>x.code===oldCode&&!x.cleared);if(e)e.cleared=now;}
+  if(u.code)L.unshift({code:u.code,at:now,cleared:0});
+  u.errLog=L.slice(0,20);}
+/* Repaint what changed, and only that: the tiles (not the toolbar — so the search box keeps its text
+   and focus), the counters, the map, the open drawer if nothing is staged in it. */
+function updateTiles(){const c=counts();const t=document.querySelectorAll(".tiles .tile .n");
+  if(t.length===4){t[0].textContent=c.run;t[1].textContent=c.stop;t[2].textContent=c.err;t[3].textContent=units.length;}}
+function liveRefresh(force){
+  if(!currentUser)return;
+  if(view==="units"){if(document.getElementById("listwrap")){renderBody();updateTiles();fillLiveBanner();}else renderAll();}
+  else if(view==="map"){if(!mapEdit)renderMap();}
+  else if(view==="cycle")renderCycle();
+  else if(force&&view!=="busscan"&&!mroot.innerHTML)renderAll();
+  updateBell();
+  if(openId!=null&&drawerStale){drawerStale=false;const u=units.find(x=>x.id===openId);
+    if(!u)closeDrawer();else if(!document.getElementById("ren-inp"))drawDrawer(u);}}
+// One line above the tiles when what you see is NOT live, so old readings are never mistaken for current ones.
+function liveState(){
+  if(location.protocol==="file:")return liveTx()&&MASTER.running?"live":"demo";
+  if(liveTx())return MASTER.running?"live":(MASTER.discovering?"scan":"idle");
+  return SRV.masterAlive?"live":"stale";}
+function fillLiveBanner(){const el=document.getElementById("livebanner");if(!el)return;const st=liveState();
+  if(!units.length||st==="live"||st==="demo"||st==="scan"){el.innerHTML="";return;}
+  const msg=st==="idle"
+    ?"Connected to the equipment, but live updates are stopped."+(isTechView()?" Start them in Bus scan ▸ Debug ▸ guided setup.":"")
+    :"Showing the last known readings — Cortex isn’t connected to the equipment right now."+(isTechView()?" Open Bus scan ▸ Connect adapter.":" Changes can’t be sent until it reconnects.");
+  el.innerHTML=`<div class="note-box warn" style="margin-bottom:12px">${msg}</div>`;}
 function masterImport(){let n=0,nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1;
   for(const [a,r] of MASTER.found){const p=r&&r.parsed;let u=units.find(x=>x.addr===a);
-    if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),nextId++);units.push(u);n++;}
+    if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),nextId++);u.grp="System "+(p?p.group:1);units.push(u);n++;ignoreAddr(a,false);}
     applyReplyToUnit(p);}
   saveUnits();renderAll();renderGroupNav();toast(n?("Imported "+n+" unit(s)"):"Units updated — live readings refreshed");if(view==="busscan")renderBusScan();}
 function masterCaptureText(){return MASTER.log.slice().reverse().join("\n");}
@@ -1616,23 +1472,23 @@ setInterval(()=>{if(bus.dirty&&view==="busscan"){bus.dirty=false;busUpdate();}},
 // Header bus-health light: reads real state. Green slow pulse = connected & healthy; fast red =
 // a problem (error, or we're polling/scanning but the bus has gone silent); grey = not connected.
 function busHealth(){
-  if(!bus.port||!bus.scanning)return "off";                  // adapter not connected
-  if(bus.err)return "bad";                                   // a real adapter/bus error (RX glitch, backend serial, reopen failed)
-  return "ok";                                               // connected & no error — silence during a scan/poll is normal, not a fault
-}
+  if(bus.port&&bus.scanning)return bus.err?"bad":"ok";       // this screen holds the adapter: a real error, or healthy (silence while scanning is normal)
+  if(location.protocol!=="file:"&&SRV.masterAlive)return "via";   // another screen is connected and polling — what we show is live
+  return "off";}
 function updateBusHealth(){
   const el=document.getElementById("bus-health");if(!el)return;
-  const h=busHealth();el.classList.remove("ok","bad","off");el.classList.add(h);
-  const es=effSerial&&bus.scanning?effSerial():null;const ser=es?` · ${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"";
+  const h=busHealth();el.classList.remove("ok","bad","off");el.classList.add(h==="via"?"ok":h);
+  const es=effSerial&&bus.scanning?effSerial():null;const ser=(es&&isTechView())?` · ${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"";
   const lbl=document.getElementById("bus-label");
-  if(lbl)lbl.innerHTML=(h==="off"?"Bus offline":h==="bad"?"Bus problem":"Bus online")+(h!=="off"?`<span class="mono" style="color:var(--text-faint)">${ser}</span>`:"");
+  const txt=h==="off"?"Bus offline":h==="bad"?"Bus problem":h==="via"?"Live":(MASTER.running?"Bus online":(MASTER.discovering?"Scanning…":"Bus connected"));
+  if(lbl)lbl.innerHTML=txt+(ser?`<span class="mono" style="color:var(--text-faint)">${ser}</span>`:"");
 }
 setInterval(updateBusHealth,1000);
 async function busConnect(){
   // Appliance mode: when Cortex is SERVED over http(s) by the local backend, the backend
   // owns the real serial port and we bridge over a WebSocket. On a bare file:// page we
   // use the browser's Web Serial directly. Same send paths work in both.
-  if(location.protocol==='http:'||location.protocol==='https:'){return busConnectBackend();}
+  if(location.protocol==='http:'||location.protocol==='https:'){if(bus.port)return;return busConnectBackend();}
   if(!("serial" in navigator)){bus.err="Web Serial isn't available here. Use the paste box below, or open Cortex from the local file in Chrome.";renderBusScan();return;}
   const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
   try{
@@ -1651,18 +1507,37 @@ async function busConnect(){
 /* Appliance transport — bridge to the backend's serial port over a WebSocket. bus.port is
    a shim with the same .writable.getWriter().write() shape, so busSend / busSend5 / Controller
    mode all work unchanged; incoming bytes flow into ingestBytes() just like Web Serial. */
-function busConnectBackend(){
+/* Remember that this screen is "the one connected to the equipment". After a reload, an update, a
+   controller restart or a network blip it reconnects and resumes polling on its own — nobody has to
+   walk back to Bus scan and press Connect. Pressing Disconnect or Stop polling turns that off. */
+function busAuto(on){try{if(on)localStorage.setItem("airow_bus_auto","1");else localStorage.removeItem("airow_bus_auto");}catch(e){}}
+function busAutoWanted(){try{return localStorage.getItem("airow_bus_auto")==="1";}catch(e){return false;}}
+let busRetryT=null,busRetryN=0;
+function busAutoStart(){
+  if(location.protocol==="file:"||!busAutoWanted()||bus.port||bus.userClosed||!units.length)return;
+  busConnectBackend(true);}
+function busRetryLater(){
+  if(busRetryT||!busAutoWanted()||bus.userClosed)return;
+  const wait=bus.inUse?20000:Math.min(30000,2000*Math.pow(2,Math.min(busRetryN,4)));busRetryN++;
+  busRetryT=setTimeout(()=>{busRetryT=null;busAutoStart();},wait);}
+function busConnectBackend(auto){
   const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
+  if(auto!==true)bus.userClosed=false;
   try{
     const wsp=location.protocol==='https:'?'wss':'ws';
     const ws=new WebSocket(`${wsp}://${location.host}/bus?proto=${encodeURIComponent(bus.proto)}&baud=${effSerial().baud}&parity=${effSerial().parity}&stop=${effSerial().stopBits}&data=${effSerial().dataBits}`);
-    ws.binaryType='arraybuffer';
-    ws.onopen=()=>{bus.scanning=true;bus.err="";renderBusScan();};
-    ws.onmessage=ev=>{ if(typeof ev.data==='string'){try{const m=JSON.parse(ev.data);if(m.err)bus.err=m.err;}catch(_){ } bus.dirty=true; return; } ingestBytes(new Uint8Array(ev.data)); };
-    ws.onerror=()=>{bus.err="Backend serial error — check the adapter and the cortex service.";bus.dirty=true;renderBusScan();};
-    ws.onclose=()=>{bus.scanning=false;if(bus.port&&bus.port._ws===ws)bus.port=null;renderBusScan();};
-    bus.port={_ws:ws,writable:{getWriter:()=>({write:async(u8)=>{if(ws.readyState===1)ws.send(u8);},releaseLock:()=>{}})},close:async()=>{try{ws.close();}catch(_){}}};
-  }catch(e){bus.err="Couldn't reach the backend: "+e.message;renderBusScan();}}
+    ws.binaryType='arraybuffer';bus.inUse=false;
+    const rerender=()=>{if(view==="busscan")renderBusScan();fillLiveBanner();};
+    ws.onopen=()=>{bus.scanning=true;bus.err="";busRetryN=0;rerender();};
+    ws.onmessage=ev=>{ if(typeof ev.data==='string'){try{const m=JSON.parse(ev.data);
+          if(m.err){bus.err=m.err;if(/already in use/.test(m.err)){bus.inUse=true;bus.err="Another Cortex screen is already connected to the equipment — this screen shows its readings.";}}
+          // the adapter is really open: resume live polling if this is the screen that was doing it
+          if(m.ok&&busAutoWanted()&&!MASTER.running&&!MASTER.discovering&&!(WZ&&WZ.scan&&WZ.scan.scanning))setTimeout(()=>{if(bus.port&&bus.port._ws===ws&&!MASTER.running&&!MASTER.discovering)masterLoopRun({auto:true});},250);
+        }catch(_){ } bus.dirty=true; return; } ingestBytes(new Uint8Array(ev.data)); };
+    ws.onerror=()=>{if(!bus.inUse)bus.err="Can't reach the controller's bus service — it may be restarting. Retrying…";bus.dirty=true;};
+    ws.onclose=()=>{bus.scanning=false;if(bus.port&&bus.port._ws===ws)bus.port=null;rerender();busRetryLater();};
+    bus.port={_ws:ws,writable:{getWriter:()=>({write:async(u8)=>{if(ws.readyState===1)ws.send(u8);else throw new Error("the link to the controller dropped");},releaseLock:()=>{}})},close:async()=>{try{ws.close();}catch(_){}}};
+  }catch(e){bus.err="Couldn't reach the backend: "+e.message;if(view==="busscan")renderBusScan();busRetryLater();}}
 /* Resilient read loop: a framing/parity glitch (common when driving a 2-wire bus as
    master) errors the stream; instead of dying, release and re-acquire a fresh reader
    so you never have to unplug/replug the adapter. */
@@ -1701,7 +1576,7 @@ async function busReadLoop(){
     }
   }
   bus.reader=null;}
-async function busDisconnect(){bus.scanning=false;ctrl.running=false;
+async function busDisconnect(){bus.userClosed=true;busAuto(false);MASTER.running=false;MASTER.seq=(MASTER.seq||0)+1;bus.scanning=false;ctrl.running=false;
   try{if(bus.reader){await bus.reader.cancel();bus.reader.releaseLock();}if(bus.port)await bus.port.close();}catch(e){}
   bus.reader=null;bus.port=null;txState.armed=false;renderBusScan();}
 /* True when the drawer's Send button will actually transmit — the adapter is connected.
@@ -1710,21 +1585,51 @@ async function busDisconnect(){bus.scanning=false;ctrl.running=false;
 function liveTx(){return !!bus.port && bus.scanning;}
 /* Transmit a unit's full state: the 8-byte basic frame (power/mode/fan) AND the 16-byte
    cmd5 setpoint frame (cool/heat), each repeated a few times, like the ACP does. */
-async function txUnit(u){
-  if(ctrl.running){ctrl.cmds.set(u.addr,{on:u.on,mode:u.mode,fan:u.fan,sp:u.sp,coolC:u.coolC,heatC:u.heatC,d5:u.d5,d6:u.d6,b0:u.b0});toast(isTechView()?("Queued into controller loop → "+hx(u.addr)):("Sending to "+dispName(u)+"…"));return;}
-  if(!bus.port||!bus.port.writable){toast(isTechView()?"Bus not connected":"Not connected to the equipment — nothing was sent");return;}
+// Put ONE unit's command on the wire. The caller must already hold the bus (busExclusive).
+async function txUnitRaw(u){
+  if(!bus.port||!bus.port.writable)throw new Error("not connected");
   // One cmd0 write frame carries power/mode/fan AND setpoint (b6 = °C-15). We do NOT auto-send
   // cmd5 (0xA8): the community confirms cmd5 overwrites the unit's stored settings even with a
   // zero payload, so it stays behind the explicit, armed "cmd5" tool. cmd0 is the safe control path.
   const basic=cmdBytesFor(u.addr,Object.assign({},u,{setC:(u.mode==="heat"?u.heatC:u.coolC)}));
-  try{const w=bus.port.writable.getWriter();
-    for(let i=0;i<5;i++){await w.write(Uint8Array.from(basic));await new Promise(r=>setTimeout(r,140));}
-    w.releaseLock();
-    const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°`};
-    bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);
-    bus.dirty=true;
-    toast(isTechView()?("⚡ Sent → "+hx(u.addr)+" (power/mode/fan + setpoint)"):("Sent to "+dispName(u)));
-  }catch(e){toast("Send failed: "+e.message);}}
+  const R=rt(u.addr);R.hold=Date.now()+8000;R.lastTx=toHexBytes(basic);R.txAt=Date.now();
+  const w=bus.port.writable.getWriter();
+  try{for(let i=0;i<5;i++){await w.write(Uint8Array.from(basic));await sleep(140);}}
+  finally{try{w.releaseLock();}catch(_){}}
+  R.hold=Date.now()+6000;                                      // this unit's frames are out: give it a few seconds to act on them
+  const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°`};
+  bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);bus.dirty=true;}
+// Call BEFORE changing units you are about to send: from that moment a poll reply that is already on
+// its way must not put the old state back (it used to be able to undo one unit of an "All off").
+function holdUnits(list){const until=Date.now()+12000+list.length*900;list.forEach(u=>{rt(u.addr).hold=until;});}
+function relayOk(){return location.protocol!=="file:"&&!liveTx()&&SRV.masterAlive;}
+function canReach(){return liveTx()||relayOk();}                // can a command from THIS screen get to the equipment right now?
+/* Send the current state of one or more units to the equipment. Returns how many were sent.
+   - this screen is connected → transmit (taking the bus politely, see busExclusive)
+   - another screen is connected → hand the command to the appliance; that screen transmits it
+   - nobody is connected → 0, and the caller says so honestly */
+async function sendUnits(list){
+  list=(list||[]).filter(Boolean);if(!list.length)return 0;
+  if(ctrl.running){list.forEach(u=>ctrl.cmds.set(u.addr,{on:u.on,mode:u.mode,fan:u.fan,sp:u.sp,coolC:u.coolC,heatC:u.heatC,d5:u.d5,d6:u.d6,b0:u.b0}));return list.length;}
+  if(liveTx()){let n=0;
+    await busExclusive(async()=>{for(const u of list){try{await txUnitRaw(u);n++;}catch(e){mlog("✖ send failed "+hx(u.addr)+": "+e.message);}}});
+    return n;}
+  if(relayOk()){let n=0;
+    for(const u of list){try{
+      const r=await fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock}})});
+      if(r.ok){const j=await r.json();SRV.masterAlive=!!j.masterAlive;if(j.masterAlive){rt(u.addr).hold=Date.now()+12000;n++;}}
+    }catch(e){}}
+    return n;}
+  return 0;}
+/* Transmit one unit and tell the person what happened. */
+async function txUnit(u){
+  const n=await sendUnits([u]);
+  if(!n){toast(isTechView()?"Bus not connected — nothing was sent":"Not connected to the equipment — nothing was sent");return false;}
+  if(ctrl.running)toast(isTechView()?("Queued into controller loop → "+hx(u.addr)):("Sending to "+dispName(u)+"…"));
+  else if(liveTx())toast(isTechView()?("⚡ Sent → "+hx(u.addr)+" (power/mode/fan + setpoint)"):("Sent to "+dispName(u)));
+  else toast("Sent to "+dispName(u));
+  return true;}
 /* ===== Transmit (write to the live bus) — tech only, two-step confirm ===== */
 let txState={addr:null,on:true,mode:"cool",fan:"low",spC:24,repeat:5,armed:false};
 function txUnitBytes(addr){const u=units.find(x=>x.addr===addr);const a=bus.addrs.get(addr);const l=a&&a.last&&a.last.type==="cmd"?a.last:null;
@@ -1844,13 +1749,13 @@ function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&
   return {id,addr,name:"AC_UNIT_"+addr.toString(16).padStart(2,"0").toUpperCase(),label:"Addr 0x"+addr.toString(16).padStart(2,"0").toUpperCase(),
     ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",kind:"wall",
     on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,
-    room:72,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:50,pipeOut:60,zoneLoad:0,runtimeHrs:0,kwh:0,filterPct:100,discovered:true};}
+    room:null,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:null,pipeOut:null,discovered:true};}
 function busImport(){
   const picked=[...document.querySelectorAll(".busrow input:checked")].map(c=>+c.value);
   if(!picked.length){toast("Tick the addresses you want to import");return;}
   const oduEl=document.getElementById("bus-odu");const odu=(oduEl&&oduEl.value.trim())||"Outdoor unit 1";
   let n=0,nextId=Math.max(0,...units.map(u=>u.id))+1;
-  picked.forEach(addr=>{if(units.find(u=>u.addr===addr))return;units.push(makeDiscoveredUnit(addr,odu,nextId++));n++;});
+  picked.forEach(addr=>{if(units.find(u=>u.addr===addr))return;units.push(makeDiscoveredUnit(addr,odu,nextId++));ignoreAddr(addr,false);n++;});
   saveUnits();toast("Imported "+n+" unit"+(n!==1?"s":"")+" into "+odu);view="units";renderAll();}
 /* Non-destructive scan: ADD every new address seen on the bus, NEVER drop an existing unit
    (even one that's offline or in a comm error). Removing is manual, one unit at a time. */
@@ -1863,7 +1768,7 @@ function busScanNew(){
   if(!fresh.length){toast("No new units — all "+found.length+" on the bus are already in Cortex (nothing removed)");return;}
   const oduEl=document.getElementById("bus-odu");const odu=(oduEl&&oduEl.value.trim())||"Outdoor unit 1";
   let nextId=Math.max(0,...units.map(u=>u.id))+1;
-  fresh.forEach(addr=>units.push(makeDiscoveredUnit(addr,odu,nextId++)));
+  fresh.forEach(addr=>{units.push(makeDiscoveredUnit(addr,odu,nextId++));ignoreAddr(addr,false);});
   saveUnits();toast("➕ Added "+fresh.length+" new unit"+(fresh.length!==1?"s":"")+" · "+known+" already known, left untouched");view="units";renderAll();}
 function busLogRow(d){
   const isTx=d.type==="tx";
@@ -1907,7 +1812,7 @@ function busUpdate(){
   const mst=document.getElementById("m-status");if(mst){
     if(MASTER.discovering&&MASTER.scan){const s=MASTER.scan,left=Math.max(0,s.total-s.done),secs=Math.ceil(left*(MASTER.turnaround+MASTER.timeout)/1000);
       mst.textContent=`🔍 scanning ${hx(s.cur)} · ${s.done}/${s.total} addresses · ~${secs}s left · ${MASTER.found.size} found`;}
-    else if(MASTER.running)mst.textContent="● polling "+MASTER.found.size+" unit(s) · watching for new ones";
+    else if(MASTER.running)mst.textContent="● polling "+MASTER.found.size+" unit(s)"+(MASTER.cycleMs?" · one pass "+(MASTER.cycleMs/1000).toFixed(1)+" s":"")+" · watching for new ones";
     else mst.textContent=MASTER.found.size+" responder(s) found";}}
 function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.serial||{};
   const siteBaud=(bus.proto==="lg"&&CFG&&CFG.baud)?CFG.baud:null;   // LG generation sets the site baud (4800 gen4 / 9600 gen5)
@@ -2082,28 +1987,29 @@ function renderBusScan(){
   const mdl=document.getElementById("m-dl");if(mdl)mdl.onclick=downloadMasterLog;
   busUpdate();}
 function renderCycle(){renderGroupNav();
-  const oduLoad=Math.max(...units.map(u=>u.zoneLoad),0);
   const us=units.filter(u=>groupFilter==="all"||catVals(u,gdim()).includes(groupFilter));
-  const row=u=>`<tr style="border-top:1px solid var(--border)">
-    <td style="padding:7px 8px">${dispName(u)}</td>
+  const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
+  const row=u=>{const R=rt(u.addr);return `<tr style="border-top:1px solid var(--border)">
+    <td style="padding:7px 8px">${ue(dispName(u))}</td>
     <td class="mono" style="padding:7px 8px;color:var(--text-dim)">${hx(u.addr)}</td>
-    <td class="mono" style="padding:7px 8px">${u.err?`<span style="color:var(--err)">${u.code}</span>`:'<span style="color:var(--ok)">0</span>'}</td>
-    <td class="mono" style="padding:7px 8px">${u.on?u.room+'°':'—'}</td>
-    <td class="mono" style="padding:7px 8px">${u.on?u.pipeIn+'°':'—'}</td>
-    <td class="mono" style="padding:7px 8px">${u.on?u.pipeOut+'°':'—'}</td>
-    <td style="padding:7px 8px"><div style="background:var(--surface-2);border-radius:4px;height:7px;width:70px;overflow:hidden"><div style="height:100%;width:${u.zoneLoad}%;background:var(--accent)"></div></div></td></tr>`;
-  main.innerHTML=`<div class="cyc-note">⚙ Technician view · outdoor-cycle diagnostics. These fields come straight from each unit's <b>16-byte response frame</b> — room temp, refrigerant pipe-in / pipe-out temps, error code, and zone load. <b>Sample values</b> for now: every unit is a CH242 ghost and isn't answering yet, so this goes live the moment one real unit is on the bus.</div>
-    <div class="gauges"><div class="gauge sample"><div class="gv mono">${oduLoad}<small>idx</small></div><div class="gl">ODU total load</div></div>
-      <div class="gauge sample"><div class="gv mono">${units.filter(u=>u.on).length}<small>on</small></div><div class="gl">Units running</div></div>
-      <div class="gauge sample"><div class="gv mono">${units.filter(u=>u.err).length}<small>err</small></div><div class="gl">In error</div></div></div>
+    <td class="mono" style="padding:7px 8px">${u.offline?'<span style="color:var(--warn)">no reply</span>':(u.err?`<span style="color:var(--err)">${ue(u.code)}</span>`:'<span style="color:var(--ok)">0</span>')}</td>
+    <td class="mono" style="padding:7px 8px">${t(u.room)}</td>
+    <td class="mono" style="padding:7px 8px">${t(u.pipeIn)}</td>
+    <td class="mono" style="padding:7px 8px">${t(u.pipeOut)}</td>
+    <td style="padding:7px 8px;color:var(--text-dim);font-size:12px">${u.seen?ago(u.seen):"not yet"}</td></tr>`;};
+  const live=liveState()==="live";
+  main.innerHTML=`<div class="cyc-note">⚙ Technician view · what each indoor unit reports in its 16-byte reply: room temperature, refrigerant pipe-in / pipe-out temperatures and error code (°${settings.unit}). ${live?"Updating live.":"<b>Not live right now</b> — these are the last readings received."} Outdoor-unit pressures and compressor data are not on this bus.</div>
+    <div class="gauges"><div class="gauge"><div class="gv mono">${units.filter(u=>u.on).length}<small> on</small></div><div class="gl">Units running</div></div>
+      <div class="gauge"><div class="gv mono">${units.filter(u=>u.err).length}<small> err</small></div><div class="gl">Reporting an error</div></div>
+      <div class="gauge"><div class="gv mono">${units.filter(u=>u.offline).length}<small> silent</small></div><div class="gl">Not responding</div></div>
+      ${isMaster()&&MASTER.cycleMs?`<div class="gauge"><div class="gv mono">${(MASTER.cycleMs/1000).toFixed(1)}<small> s</small></div><div class="gl">Time for one full pass</div></div>`:''}</div>
     <div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-top:14px">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:var(--surface-2);text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
-        <th style="padding:8px">Unit</th><th style="padding:8px">Addr</th><th style="padding:8px">Err</th><th style="padding:8px">Room</th><th style="padding:8px">Pipe in</th><th style="padding:8px">Pipe out</th><th style="padding:8px">Load</th></tr></thead>
-      <tbody>${us.map(row).join("")}</tbody></table></div>
-    <button class="btn" id="odutrend" style="width:100%;justify-content:center;margin-top:14px">📈 View 30-day outdoor-cycle trend (all units)</button>
-    <div class="cyc-note" style="margin-top:12px">⚠ Room/pipe temps are <b>not</b> in the routine frames the bus scanner sniffs — live captures confirmed the status frames carry no room temp. Getting them needs an <b>active poll</b> to each unit (planned, built on the Send tool). Values here are samples until then.</div>`;
-  const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(units.map(u=>u.id).slice(0,10),{odu:true});}
+        <th style="padding:8px">Unit</th><th style="padding:8px">Addr</th><th style="padding:8px">Err</th><th style="padding:8px">Room</th><th style="padding:8px">Pipe in</th><th style="padding:8px">Pipe out</th><th style="padding:8px">Last heard</th></tr></thead>
+      <tbody>${us.map(row).join("")||'<tr><td colspan="7" style="padding:16px;color:var(--text-faint)">No units yet.</td></tr>'}</tbody></table></div>
+    <button class="btn" id="odutrend" style="width:100%;justify-content:center;margin-top:14px">📈 Pipe-out temperature trend (first 10 units)</button>`;
+  const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(us.map(u=>u.id).slice(0,10),{odu:true});}
 /* ---- schedules ---- */
 const DAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
 function schedules(){if(CFG&&!CFG.schedules)CFG.schedules=[];return (CFG&&CFG.schedules)||[];}
@@ -2119,13 +2025,13 @@ const NTHLBL={"1":"1st","2":"2nd","3":"3rd","4":"4th","5":"5th","last":"last"};
 function schDays(s){const base=s.days.length===7?"Every day":(s.days.length===5&&[1,2,3,4,5].every(d=>s.days.includes(d))?"Weekdays":(!s.days.length?"No days":s.days.slice().sort().map(d=>DAYS[d]).join(" ")));
   return (s.nth&&s.nth!=="every")?(NTHLBL[s.nth]+" "+base+" of the month"):base;}
 function schCard(s){return `<div class="sch ${s.enabled?'':'soff'}">
-  <div><div class="sname">${s.name||"Untitled"} ${s.cond&&s.cond.op?`<span class="tagchip">if outdoor ${s.cond.op} ${s.cond.temp}°</span>`:""}</div>
-    <div class="ssum">${schTarget(s)} · ${schAction(s)}</div><div class="ssum mono">${s.time} · ${schDays(s)}</div></div>
+  <div><div class="sname">${ue(s.name||"Untitled")} ${s.cond&&s.cond.op?`<span class="tagchip">if outdoor ${ue(s.cond.op)} ${ue(s.cond.temp)}°</span>`:""}</div>
+    <div class="ssum">${ue(schTarget(s))} · ${ue(schAction(s))}</div><div class="ssum mono">${ue(s.time)} · ${schDays(s)}</div></div>
   <div style="display:flex;align-items:center;gap:10px"><button class="toggle ${s.enabled?'on':''}" data-stog="${s.id}"></button>
     <button class="linklike" data-sedit="${s.id}">Edit</button><button class="linklike" style="color:var(--err)" data-sdel="${s.id}">Delete</button></div></div>`;}
 function renderSchedule(){renderGroupNav();const list=schedules();
   main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <div style="font-size:13.5px;color:var(--text-dim)">Schedules fire real bus commands while Cortex is open and the adapter is connected. Keep the appliance's dashboard open for 24/7 operation.</div>
+    <div style="font-size:13.5px;color:var(--text-dim)">Schedules send real commands. They are run by the Cortex screen that is connected to the equipment, so keep that screen open — if it was closed at the scheduled time, the schedule still runs when it comes back within ${Math.round(SCH_GRACE/60000)} minutes.</div>
     <button class="btn primary" id="newsch">+ New schedule</button></div>
     ${list.length?list.map(schCard).join(""):'<div class="cyc-note">No schedules yet. Create one to automate on/off, mode, fan, and temperature by time and day.</div>'}`;
   document.getElementById("newsch").onclick=()=>scheduleEditor(null);
@@ -2137,7 +2043,7 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
   const grpNames=[...new Set(units.map(grpOf))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const subNames=[...new Set(units.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   modal(head(id?"Edit schedule":"New schedule")+`<div class="modal-body">
-    <label class="flabel">Name</label><input id="s-name" class="inp" value="${s.name}" placeholder="e.g. Weekday setback">
+    <label class="flabel">Name</label><input id="s-name" class="inp" value="${ue(s.name)}" placeholder="e.g. Weekday setback">
     <label class="flabel">Applies to</label>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <select id="s-ttype" class="sel-box"><option value="all" ${s.target.type==="all"?"selected":""}>All units</option><option value="group" ${s.target.type==="group"?"selected":""}>A group</option><option value="sub" ${s.target.type==="sub"?"selected":""}>A subgroup</option><option value="unit" ${s.target.type==="unit"?"selected":""}>One unit</option></select>
@@ -2148,7 +2054,7 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <select id="s-power" class="sel-box"><option value="" ${!s.action.power?"selected":""}>Power: no change</option><option value="on" ${s.action.power==="on"?"selected":""}>Turn on</option><option value="off" ${s.action.power==="off"?"selected":""}>Turn off</option></select>
       <select id="s-mode" class="sel-box"><option value="">Mode: no change</option>${MODES.map(m=>`<option value="${m[0]}" ${s.action.mode===m[0]?"selected":""}>${m[1]}</option>`).join("")}</select>
-      <select id="s-fan" class="sel-box"><option value="">Fan: no change</option>${FANS.map(f=>`<option value="${f[0]}" ${s.action.fan===f[0]?"selected":""}>${f[1]}</option>`).join("")}</select>
+      <select id="s-fan" class="sel-box"><option value="">Fan: no change</option>${FANS_SEL.map(f=>`<option value="${f[0]}" ${s.action.fan===f[0]?"selected":""}>${f[1]}</option>`).join("")}</select>
       <input id="s-sp" class="inp" style="width:140px;margin:0" type="number" min="60" max="86" placeholder="Setpoint °${settings.unit}" value="${s.action.sp!=null?s.action.sp:""}"></div>
     <div class="mini-lbl">When</div>
     <input id="s-time" class="inp" style="width:140px" type="time" value="${s.time}">
@@ -2178,7 +2084,10 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
     s.days=[...document.querySelectorAll("#s-days [data-day].on")].map(b=>+b.dataset.day);
     s.cond.op=document.getElementById("s-cop").value;const ct=document.getElementById("s-ctemp").value;s.cond.temp=ct===""?null:+ct;
     if(!CFG.schedules)CFG.schedules=[];const idx=CFG.schedules.findIndex(x=>x.id===s.id);
-    if(idx>=0)CFG.schedules[idx]=s;else CFG.schedules.push(s);saveCfg(CFG);closeModal();renderSchedule();};}
+    if(idx>=0)CFG.schedules[idx]=s;else CFG.schedules.push(s);
+    // saved a few minutes AFTER today's run time? then its first run is the next matching day, not "right now"
+    {const due=schDue(s,new Date());if(due&&Date.now()>=due.getTime()){const f=loadFired();f[s.id]=schKey(s,new Date());saveFired(f);}}
+    saveCfg(CFG);closeModal();renderSchedule();};}
 /* ---- schedule engine: evaluates schedules each half-minute and fires bus commands ---- */
 function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
 function schNthMatches(s,now){const nth=s.nth||"every";if(nth==="every")return true;
@@ -2194,27 +2103,40 @@ function schTargetUnits(s){const t=s.target||{};
   if(t.type==="sub")return units.filter(u=>leafKey(u)===t.val);
   return [];}
 async function fireSchedule(s){const tgt=schTargetUnits(s);if(!tgt.length)return;const a=s.action;
-  tgt.forEach(u=>{if(a.power)u.on=a.power==="on";if(a.mode)u.mode=a.mode;if(a.fan)u.fan=a.fan;
+  const n=await applyAndSendAs(tgt,u=>{if(a.power)u.on=a.power==="on";if(a.mode)u.mode=a.mode;if(a.fan&&a.fan!=="auto")u.fan=a.fan;
     if(a.sp!=null){const c=settings.unit==="C"?a.sp:(a.sp-32)*5/9;u.coolC=Math.round(c*2)/2;u.heatC=Math.round(c*2)/2;}});
-  saveUnits();
-  if(typeof liveTx==="function"&&liveTx()){
-    const resume=MASTER.running&&!MASTER.paused;if(resume){MASTER.paused=true;await new Promise(r=>setTimeout(r,MASTER.turnaround+MASTER.timeout+60));} // let any in-flight poll finish, then own the bus
-    for(const u of tgt){try{await txUnit(u);}catch(e){}}
-    if(resume)MASTER.paused=false;}
-  if(view==="units"||view==="schedule")renderAll();
-  toast(`⏱ Schedule "${s.name}" ran → ${tgt.length} unit${tgt.length>1?"s":""}`);}
-function schTick(){if(!CFG||!CFG.schedules||!CFG.schedules.length)return;const now=new Date();
-  const hhmm=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
-  const dow=now.getDay(),fireKey=now.toDateString()+" "+hhmm;let dirty=false;
+  if(view==="schedule")renderAll();
+  toast(`⏱ Schedule "${s.name}" ran → ${n} of ${tgt.length} unit${tgt.length>1?"s":""}`);}
+// a schedule acts for the site, not for whoever happens to be signed in — it is not subject to the customer lock
+async function applyAndSendAs(list,mut){
+  holdUnits(list);
+  list.forEach(u=>{mut(u);u.coolC=clampC(u.coolC);u.heatC=clampC(u.heatC);u.sp=Math.round(activeC(u)*9/5+32);});
+  let n=list.length;if(canReach())n=await sendUnits(list);
+  saveUnits();liveRefresh(true);return n;}
+/* Which run of each schedule has already happened is remembered by THIS screen (not in the shared
+   config), so firing a schedule never rewrites site settings from a screen with an old copy. */
+const SCH_GRACE=10*60000;
+function loadFired(){try{return JSON.parse(localStorage.getItem("airow_sched_fired"))||{};}catch(e){return {};}}
+function saveFired(f){try{localStorage.setItem("airow_sched_fired",JSON.stringify(f));}catch(e){}}
+function schDue(s,now){const m=/^(\d\d):(\d\d)$/.exec(s.time||"");if(!m)return null;const d=new Date(now);d.setHours(+m[1],+m[2],0,0);return d;}
+function schKey(s,now){return now.toDateString()+" "+s.time;}
+function schTick(){if(!CFG||!CFG.schedules||!CFG.schedules.length)return;
+  // Only the screen connected to the equipment runs schedules; other screens just display them.
+  if(location.protocol!=="file:"&&!liveTx())return;
+  const now=new Date(),fired=loadFired();let dirty=false;
   CFG.schedules.forEach(s=>{
-    if(!s.enabled||s.time!==hhmm)return;
-    if(!(s.days&&s.days.includes(dow)))return;
+    if(!s.enabled)return;
+    const due=schDue(s,now);if(!due)return;
+    // Due any time in the last few minutes — not "this exact minute". A browser that throttled its
+    // timers, reloaded for an update, or briefly lost the adapter no longer skips the run.
+    const late=now-due;if(late<0||late>SCH_GRACE)return;
+    if(!(s.days&&s.days.includes(now.getDay())))return;
     if(!schNthMatches(s,now))return;
-    if(s.lastFired===fireKey)return;
+    const key=schKey(s,now);if(fired[s.id]===key)return;
     if(!schCondOk(s))return;
-    s.lastFired=fireKey;dirty=true;fireSchedule(s);});
-  if(dirty)saveCfg(CFG);}
-setInterval(schTick,30000);                                    // twice a minute; lastFired guards against double-fire
+    fired[s.id]=key;dirty=true;fireSchedule(s);});
+  if(dirty)saveFired(fired);}
+setInterval(schTick,20000);
 
 /* ---- updates ---- real OTA check against the appliance backend ---- */
 let updateState=null;  // null = not checked yet; else {current,latest,updateAvailable,configured,error,checkedAt,checking}
@@ -2222,7 +2144,7 @@ function ue(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<
 async function doUpdateCheck(){
   updateState={checking:true}; renderUpdates();
   try{
-    const r=await fetch('/api/update/check',{cache:'no-store'});
+    const r=await fetch('/api/update/check?fresh=1',{cache:'no-store'});
     updateState=await r.json();
   }catch(e){
     updateState={error:'Could not reach the update service — this screen works on the installed appliance, not the file:// demo.'};
@@ -2254,7 +2176,6 @@ function renderUpdates(){renderGroupNav();
   const ch=document.getElementById("check"); if(ch) ch.onclick=doUpdateCheck;}
 
 /* ---- device health ---- */
-const DEV={host:"Raspberry Pi 5",os:"Cortex OS 0.1 · Debian 12",uptime:"12d 4h",cpu:14,temp:48,mem:38,disk:22,frames:41,errs:0};
 function healthBadge(ok){return ok?'<span class="badge-ok">Healthy</span>':'<span class="badge-new" style="background:var(--warn-soft);color:var(--warn)">Attention</span>';}
 function devStat(label,val,sub){return `<div class="gauge"><div class="gv mono">${val}</div><div class="gl">${label}${sub?` · ${sub}`:""}</div></div>`;}
 let DEVLIVE=null,DEVERR=null,DEVLOADING=false;
@@ -2294,12 +2215,14 @@ function renderDevice(){renderGroupNav();
    <div class="gauges">
      ${devStat("CPU load",v(d.cpu,"%"),d.cores?d.cores+" cores":"")}${devStat("CPU temp",d.temp==null?"no sensor":d.temp+"°C")}
      ${devStat("Memory",v(d.mem,"%"))}${devStat("Disk",v(d.disk,"%"))}
-     ${devStat("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Tailscale · up":"Local only")}
+     ${devStat("Remote access",d.tailscale?"Tailscale · up":"Local only",d.tailscale?ue(d.tailscale):(d.tailscale===undefined?"":"run “sudo tailscale up” on the controller"))}
      ${devStat("Bus adapter",busTxt,busSub)}
+     ${devStat("Live link to equipment",d.masterAlive?"Polling":"Not polling",d.masterAlive?"a Cortex screen is connected":"no screen is connected to the equipment")}
      ${httpsStat}
    </div>
    ${hs&&hs.active&&location.protocol==="http:"?`<div class="note-box" style="margin-top:14px">Secure access is on. Open <a href="https://${ue(location.hostname)}:${ue(hs.port)}/" style="color:var(--accent)">https://${ue(location.hostname)}:${ue(hs.port)}</a> to use it${hs.cert&&hs.cert.selfSigned?" — with the built-in self-signed certificate your browser shows a one-time warning you accept":""}. This plain http address keeps working too.</div>`:""}
-   <div class="cyc-note" style="margin-top:16px">⚙ Live vitals read from the appliance OS. Values marked "no sensor" / "n/a" just mean this hardware doesn't expose that reading. Cortex can alert from the command center if CPU temp or disk cross a threshold.</div>`;
+   ${d.lastUpdate?`<div class="note-box" style="margin-top:14px;font-size:12.5px"><b>Last update check:</b> <span class="mono">${ue(d.lastUpdate)}</span></div>`:""}
+   <div class="cyc-note" style="margin-top:16px">⚙ Live vitals read from the appliance OS. Values marked "no sensor" / "n/a" just mean this hardware doesn't expose that reading.</div>`;
   document.getElementById("devref").onclick=loadDevice;}
 
 function renderAll(){
@@ -2333,12 +2256,13 @@ function drawDrawer(u){
   if(!pend)pend=snap(u);const p=pend;
   const role=currentUser?currentUser.role:"customer";
   const isTech=session.tech, canService=session.tech||session.admin;
-  const locked=svc.inService&&role==="customer";
+  const viewOnly=role==="customer"&&CFG&&CFG.custCtl===false;   // site-wide "customers can look but not change"
+  const locked=(svc.inService&&role==="customer")||viewOnly;
   const dirty=pendDirty(u);
   const stg=f=>p[f]!==u[f];
   const dis=locked?'disabled':'';
   const hist=isTech?errorHistory(u):[];
-  const live=!locked&&liveTx();
+  const live=!locked&&liveTx(), relay=!locked&&relayOk(), R=rt(u.addr);
   const where=grpOf(u)+(subOf(u)!=="General"?TREESEP+subOf(u):"");
   const sendTxt=isTech?(live?`⚡ ${dirty?'Send':'Resend'} to LIVE unit → ${hx(u.addr)}`:`${dirty?'Send':'Resend'} command → ${hx(u.addr)}`):(dirty?'Send':'Send again');
   drawer.innerHTML=`<div class="drawer-head"><div style="min-width:0;flex:1">
@@ -2354,10 +2278,11 @@ function drawDrawer(u){
         ${(session.tech||session.admin)?`<select class="sel-box" style="width:100%" onchange="setKind(${u.id},this.value)">${Object.entries(KINDS).map(([k,n])=>`<option value="${k}" ${(u.kind||'wall')===k?'selected':''}>${n}</option>`).join("")}</select>`:`<div style="font-size:13px;color:var(--text-dim)">${KINDS[u.kind||'wall']}</div>`}
       </div>
     </div>
-    ${locked?`<div class="note-box" style="color:var(--warn);margin-bottom:14px">🔧 In service — controls are locked. A technician can clear the In-service lock to re-enable customer control.</div>`:""}
+    ${u.offline?`<div class="note-box warn" style="margin-bottom:14px">This unit isn’t answering the controller${u.seen?" (last heard "+ago(u.seen)+")":""}. What you see below is its last known state. Check that the unit has power.</div>`:""}
+    ${locked?`<div class="note-box" style="color:var(--warn);margin-bottom:14px">${viewOnly?"👁 View only — changing units is turned off for this login. Ask the site admin if you need control.":"🔧 In service — controls are locked. A technician can clear the In-service lock to re-enable customer control."}</div>`:""}
     <div class="field"><div class="lbl">Power ${stg('on')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="pon" class="${p.on?'on-sel':''}" ${dis} style="${p.on&&stg('on')?STG:''}">On</button><button id="poff" class="${p.on?'':'off-sel'}" ${dis} style="${!p.on&&stg('on')?STG:''}">Off</button></div></div>
     <div class="field"><div class="lbl">Mode ${stg('mode')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${MODES.map(m=>`<button class="opt ${MC[m[0]]} ${p.mode===m[0]?'sel':''}" data-mode="${m[0]}" ${dis} style="${p.mode===m[0]&&stg('mode')?STG:''}">${m[2]} ${m[1]}</button>`).join("")}</div></div>
-    <div class="field"><div class="lbl">Fan speed ${stg('fan')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${FANS.map(f=>`<button class="opt ${p.fan===f[0]?'sel':''}" data-fan="${f[0]}" ${dis} style="${p.fan===f[0]&&stg('fan')?STG:''}">${f[1]}</button>`).join("")}</div></div>
+    <div class="field"><div class="lbl">Fan speed ${stg('fan')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${FANS_SEL.map(f=>`<button class="opt ${p.fan===f[0]?'sel':''}" data-fan="${f[0]}" ${dis} style="${p.fan===f[0]&&stg('fan')?STG:''}">${f[1]}</button>`).join("")}${p.fan==="auto"?`<span class="chip" title="The unit reports automatic fan speed. Pick a speed to change it.">Auto (set at the unit)</span>`:''}</div></div>
     <div class="field"><div class="lbl">Swing ${stg('swing')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="swon" class="${p.swing?'on-sel':''}" ${dis} style="${p.swing&&stg('swing')?STG:''}">On</button><button id="swoff" class="${p.swing?'':'off-sel'}" ${dis} style="${!p.swing&&stg('swing')?STG:''}">Off</button></div></div>
     <div class="field"><div class="lbl">Setpoint${isDual(p)?" · cool / heat":""} ${(stg('coolC')||stg('heatC'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       ${isDual(p)?`<div style="display:flex;gap:10px">
@@ -2372,12 +2297,9 @@ function drawDrawer(u){
       ${live?(isTech
         ?`<div style="font-size:11px;color:var(--err);text-align:center;margin-top:5px">Bus connected — Send transmits power/mode/fan + setpoint to the live unit${dirty?'':' (re-sends current settings)'}</div>`
         :`<div style="font-size:11.5px;color:var(--text-dim);text-align:center;margin-top:6px">Connected to the equipment — Send changes the real unit right away${dirty?'':' (it sends the current settings again)'}.</div>`)
-       :(!locked&&!isTech?`<div style="font-size:11.5px;color:var(--warn);text-align:center;margin-top:6px">Not connected to the equipment right now — changes are saved here but won’t reach the unit until it reconnects.</div>`:'')}
+       :relay?`<div style="font-size:11.5px;color:var(--text-dim);text-align:center;margin-top:6px">${isTech?"Another Cortex screen holds the bus — Send goes through it (a few seconds).":"Connected to the equipment — Send reaches the unit in a few seconds."}</div>`
+       :(!locked?`<div style="font-size:11.5px;color:var(--warn);text-align:center;margin-top:6px">${isDemo()?"Demo mode (opened as a file, no adapter) — changes stay on this screen.":(isTech?"Bus not connected — Send can’t transmit. Connect in Bus scan.":"Cortex isn’t connected to the equipment right now — Send won’t work until it reconnects.")}</div>`:'')}
       ${dirty&&!locked?`<button class="linklike" id="revert" style="display:block;margin:9px auto 0">Revert changes</button>`:''}</div>
-    <div class="field"><div class="lbl">Runtime &amp; energy</div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-dim)">
-        <div><b style="color:var(--text)">${u.runtimeHrs}h</b> runtime</div><div><b style="color:var(--text)">${u.kwh} kWh</b> today</div>
-        <div>filter <b style="color:${u.filterPct<20?'var(--warn)':'var(--text)'}">${u.filterPct}%</b></div></div></div>
     <div class="field"><button class="btn" id="trendbtn" style="width:100%;justify-content:center">📈 View 30-day trends</button></div>
     ${isTech?`
     <div class="field" style="border-top:2px solid var(--border);padding-top:14px"><div class="lbl" style="color:var(--accent)">⚙ Technician</div>
@@ -2388,19 +2310,19 @@ function drawDrawer(u){
       <div class="hex mono">${cmdFrameFor(u.addr,p)}</div>
       <div class="k" style="margin-top:7px">cmd5 setpoint · cool ${spDisp(p.coolC)}° / heat ${spDisp(p.heatC)}°</div>
       <div class="hex mono">${toHexBytes(cmd5SetpointBytes(u.addr,p.coolC,p.heatC,{on:p.on}))}</div></div></div>
-    <div class="field"><div class="lbl">Live sensors · 16-byte response</div><div class="frame-box" style="line-height:1.9">
-      room <b class="mono">${u.room}°</b> · target <b class="mono">${temp(u.sp).replace(/°[FC]/,'')}°</b> · pipe-in <b class="mono">${u.pipeIn}°</b> · pipe-out <b class="mono">${u.pipeOut}°</b><br>
-      zone load <b class="mono">${u.zoneLoad}</b> · error <b class="mono" style="color:${u.err?'var(--err)':'var(--ok)'}">${u.err?u.code:'0'}</b>
-      <div style="font-size:10.5px;color:var(--text-faint);margin-top:4px">sample — live when this unit answers on the bus</div></div></div>
+    <div class="field"><div class="lbl">Live sensors · from the unit's 16-byte reply</div><div class="frame-box" style="line-height:1.9">
+      room <b class="mono">${temp(u.room)}</b> · setpoint <b class="mono">${u.on||u.seen?spDisp(activeC(u))+"°"+settings.unit:"--"}</b> · pipe-in <b class="mono">${u.seen?temp(u.pipeIn):"--"}</b> · pipe-out <b class="mono">${u.seen?temp(u.pipeOut):"--"}</b><br>
+      error <b class="mono" style="color:${u.err?'var(--err)':'var(--ok)'}">${u.err?ue(u.code):'none'}</b>
+      <div style="font-size:10.5px;color:var(--text-faint);margin-top:4px">${u.seen?("last reply "+ago(u.seen)):"no reply received from this unit yet"}</div></div></div>
     <div class="field"><div class="lbl">Comms &amp; diagnostics</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-dim)">
-        <div>last seen <b style="color:var(--text)">${u.err?'—':'2s ago'}</b></div><div>frames <b style="color:var(--text)">${u.err?'0':'OK'}</b></div><div>addr <b class="mono" style="color:var(--text)">${hx(u.addr)}</b></div></div>
-      <button class="btn" id="poll" style="width:100%;justify-content:center;margin-top:8px">Force poll this unit</button></div>
-    <div class="field"><div class="lbl">Raw frames</div><div class="frame-box">
-      <div class="k">last command sent</div><div class="hex mono">${cmdFrame(u)}</div>
-      <div class="k" style="margin-top:7px">last reply</div><div class="hex mono" style="color:${u.err?'var(--err)':'var(--text)'}">${u.err?'— no reply (CH242 ghost)':'80 B0 A0 '+hx(u.addr).slice(2)+' 00 00 00 ··'}</div></div></div>
+        <div>last heard <b style="color:${u.offline?'var(--warn)':'var(--text)'}">${u.seen?ago(u.seen):'never'}</b></div><div>replies this session <b style="color:var(--text)">${R.ok}</b></div><div>missed in a row <b style="color:${R.miss?'var(--warn)':'var(--text)'}">${R.miss}</b></div></div>
+      <button class="btn" id="poll" style="width:100%;justify-content:center;margin-top:8px">Poll this unit now</button></div>
+    <div class="field"><div class="lbl">Raw frames (this session)</div><div class="frame-box">
+      <div class="k">last command sent${R.txAt?" · "+ago(R.txAt):""}</div><div class="hex mono">${R.lastTx||"— none yet"}</div>
+      <div class="k" style="margin-top:7px">last reply</div><div class="hex mono">${R.lastRx||"— none yet"}</div></div></div>
     <div class="field"><div class="lbl">Error history</div>
-      ${hist.length?hist.map(h=>`<div class="setrow" style="padding:7px 0"><div data-code="${h.code}" style="cursor:pointer"><b>${h.code}</b> <span style="color:var(--text-dim)">${ERRORS[h.code]?'· '+ERRORS[h.code].t:''}</span></div><div style="font-size:12px;color:${h.cleared?'var(--text-faint)':'var(--err)'}">${h.cleared?'cleared · '+h.when:'● active'}</div></div>`).join(''):'<div style="color:var(--text-faint);font-size:13px">No past errors recorded.</div>'}
+      ${hist.length?hist.map(h=>`<div class="setrow" style="padding:7px 0"><div data-code="${ue(h.code)}" style="cursor:pointer"><b>${ue(h.code)}</b> <span style="color:var(--text-dim)">${ERRORS[h.code]?'· '+ERRORS[h.code].t:''}</span></div><div style="font-size:12px;color:${h.cleared?'var(--text-faint)':'var(--err)'}">${h.cleared?ue(h.when):'● active since '+ue(h.when)}</div></div>`).join(''):'<div style="color:var(--text-faint);font-size:13px">No errors recorded for this unit since Cortex started watching it.</div>'}
       <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Tap a code to open its LG diagnosis.</div></div>
     <div class="field"><div class="lbl">Remove unit</div>
       <button class="btn" id="delunit" style="width:100%;justify-content:center">Remove this unit from Cortex</button>
@@ -2420,18 +2342,30 @@ function drawDrawer(u){
   const rb=document.getElementById("renbtn");if(rb)rb.onclick=()=>startRename(u);   // renaming stays allowed even when controls are locked
   const svcT=drawer.querySelector('[data-tog="svc"]');if(svcT)svcT.onclick=()=>{svc.inService=!svc.inService;setMeta(u,{service:svc});drawDrawer(u);renderBody();};
   const svcL=document.getElementById("svc-log");if(svcL)svcL.onclick=()=>{svc.note=document.getElementById("svc-note").value.trim();svc.history=svc.history||[];svc.history.push({when:new Date().toLocaleDateString(),note:svc.note||"(no note)"});setMeta(u,{service:svc});drawDrawer(u);};
-  const poll=document.getElementById("poll");if(poll)poll.onclick=()=>{u.room+=(Math.random()<.5?-1:1);u.zoneLoad=u.on?30+Math.floor(Math.random()*70):0;toast("Polled "+dispName(u));drawDrawer(u);};
+  const poll=document.getElementById("poll");if(poll)poll.onclick=async()=>{
+    if(!liveTx()){toast("Bus not connected — connect in Bus scan to poll this unit");return;}
+    poll.disabled=true;poll.textContent="Polling…";
+    const r=await busExclusive(()=>masterPoll(u.addr));
+    if(r&&r.ok){applyReplyToUnit(r.parsed);saveUnits();liveRefresh();toast("Reply from "+hx(u.addr)+" — "+r.parsed.text);}
+    else{markMiss(u.addr);toast("No reply from "+hx(u.addr));}
+    if(openId===u.id)drawDrawer(u);};
   const tb=document.getElementById("trendbtn");if(tb)tb.onclick=()=>openTrends([u.id]);
   const re=document.getElementById("revert");if(re)re.onclick=()=>{pend=snap(u);drawDrawer(u);};
   const send=document.getElementById("sendcmd");if(send&&!locked)send.onclick=async ()=>{
-    u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=p.coolC;u.heatC=p.heatC;u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;
+    if(send.dataset.busy)return;
+    // Nothing is applied unless it can actually be sent: the staged values simply stay staged.
+    if(!canReach()&&!isDemo()){toast(notConnMsg());return;}
+    send.dataset.busy="1";send.disabled=true;send.textContent="Sending…";
+    holdUnits([u]);
+    u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=clampC(p.coolC);u.heatC=clampC(p.heatC);u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;
     u.sp=Math.round(activeC(u)*9/5+32);
-    if(liveTx()){await txUnit(u);}
-    else{toast(isTech?("Command staged → "+dispName(u)+" · connect the bus (Bus scan ▸ Connect) to transmit"):("Saved for "+dispName(u)+" — not connected to the equipment, so nothing was sent"));}
-    pend=snap(u);syncCard(u);saveUnits();drawDrawer(u);};
+    if(canReach())await txUnit(u);
+    else toast("Demo mode — saved on this screen (no equipment connected)");
+    pend=snap(u);syncCard(u);if(liveTx()||isDemo())saveUnits();if(openId===u.id)drawDrawer(u);};
   const del=document.getElementById("delunit");if(del)del.onclick=()=>{
     if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent="Tap again to remove "+dispName(u);del.classList.add("danger");return;}
-    units=units.filter(x=>x.id!==u.id);saveUnits();toast("Removed "+dispName(u));closeDrawer();renderBody();};
+    MASTER.found.delete(u.addr);MASTER.prompted.add(u.addr);ignoreAddr(u.addr,true);   // stop polling it, and don't offer it back on its own
+    units=units.filter(x=>x.id!==u.id);saveUnits();toast("Removed "+dispName(u));closeDrawer();renderAll();};
   if(!locked){
     const re2=()=>drawDrawer(u);
     const g=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};
@@ -2536,6 +2470,7 @@ function renderChannelRow(el,chan){
 }
 async function loadChannelRow(){
   const el=document.getElementById("setchan");if(!el)return;
+  if(location.protocol==="file:"){el.innerHTML="";return;}     // no controller behind a local file — nothing to switch
   let chan='stable';
   try{const r=await fetch('/api/update-channel',{cache:'no-store'});if(r.ok)chan=(await r.json()).channel||'stable';}catch(e){}
   renderChannelRow(el,chan);
@@ -2554,7 +2489,8 @@ async function setUpdateChannel(beta){
 let _skipVer=null;try{_skipVer=localStorage.getItem("airow_skipver");}catch(e){}
 async function loadSettingsUpdates(){
   loadChannelRow();   // paint the channel toggle immediately, independent of the (slow) update check
-  let st;try{const r=await fetch('/api/update/check',{cache:'no-store'});st=await r.json();}catch(e){st={error:"This screen works on the installed appliance."};}
+  let st;if(location.protocol==="file:")st={error:"Updates are handled by the Cortex controller. This copy was opened as a file on this computer."};
+  else{try{const r=await fetch('/api/update/check',{cache:'no-store'});st=await r.json();}catch(e){st={error:"Couldn't reach the controller to check for updates."};}}
   const el=document.getElementById("setupd");if(!el)return;
   const cur=st.current||"—";
   let h=`<div class="setrow"><div><div class="sl">This controller</div><div class="sd">Cortex <span class="mono">v${ue(cur)}</span>${st.name?" · "+ue(st.name):""}</div></div>`;
@@ -2613,17 +2549,18 @@ function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];c
   if(i>=0){if(CFG.protocols.length>1)CFG.protocols.splice(i,1);}else CFG.protocols.push(k);saveCfg(CFG);drawSettings();}
 function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Site</div>
-  ${row("Site name",(CFG&&CFG.site&&CFG.site.name)||"—",canAdmin()?"<button class=\"linklike\" onclick=\"setSiteName()\">Rename</button>":"<span style=\"color:var(--text-faint);font-size:12px\">admins only</span>")}
+  ${row("Site name",ue((CFG&&CFG.site&&CFG.site.name)||"—"),canAdmin()?"<button class=\"linklike\" onclick=\"setSiteName()\">Rename</button>":"<span style=\"color:var(--text-faint);font-size:12px\">admins only</span>")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Manufacturer</div>
   <div class="sd" style="margin-bottom:8px">Cortex controls <b>LG (LGAP)</b> today. Other brands are in development.</div>
   <div class="setrow"><div><div class="sl">LG (LGAP)</div><div class="sd mono">RS485 · full control</div></div><button class="toggle on" disabled style="opacity:.8"></button></div>
   ${["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"].map(k=>`<div class="setrow" style="opacity:.55"><div><div class="sl">${PROTOCOLS[k].label}</div><div class="sd" style="color:var(--accent)">Coming soon</div></div></div>`).join("")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
-  ${row("Raw frame monitor","Show live bus frames (debug)",tog("rawmon",false))}
-  ${row("Allow customer control","Let customers change setpoints/modes",tog("custctl",true))}
-  ${row("Allow customer All-On/Off","",tog("custall",true))}
-  ${row("Remote access",(CFG&&CFG.remote&&CFG.remote.enabled)?"Enabled via Tailscale":"Not configured",`<button class="linklike" onclick="startWizard()">Re-run setup</button>`)}
+  ${row("Allow customer control","Off = customer logins can look but not change anything",tog("custctl",!(CFG&&CFG.custCtl===false)))}
+  ${row("Allow customer All on / All off","Show the All on / All off buttons to customer logins",tog("custall",!(CFG&&CFG.custAll===false)))}
+  ${row("Setup wizard","Run the first-time setup again. Keeps your units, names, schedules and floor plans; replaces the site details, logins and access codes.",`<button class="linklike" onclick="closeModal();startWizard()">Re-run setup</button>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Security</div>
+  ${row("Admin access code",(CFG&&CFG.adminPin)?"Set — unlocks Advanced settings and Users for someone signed in without admin rights":"Not set — only admin logins can open Advanced settings",`<button class="linklike" onclick="changePin('admin')">${(CFG&&CFG.adminPin)?"Change":"Set"}</button>`)}
+  ${row("Technician access code",(CFG&&CFG.techPin)?"Set — unlocks the technician tools for someone signed in without technician rights":"Not set — only technician logins can open the technician tools",`<button class="linklike" onclick="changePin('tech')">${(CFG&&CFG.techPin)?"Change":"Set"}</button>`)}
   ${row("Auto sign-out","Sign out after this long with no activity. A refresh within the window stays signed in.",`<select class="sel-box" onchange="setSessionTimeout(this.value)">${[[15,"15 min"],[30,"30 min"],[60,"1 hour"],[120,"2 hours"],[240,"4 hours"],[480,"8 hours"],[0,"Never"]].map(o=>`<option value="${o[0]}" ${((CFG&&CFG.sessionTimeoutMin!=null?CFG.sessionTimeoutMin:60)===o[0])?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Location &amp; weather</div>
   ${row("Site location",(CFG&&CFG.site&&CFG.site.lat!=null)?`${CFG.site.lat}, ${CFG.site.lon} · weather live`:"Not set — weather won't load until set","<button class=\"linklike\" onclick=\"detectLocation()\">Use my location</button> <button class=\"linklike\" onclick=\"setManualLocation()\" style=\"margin-left:10px\">Enter manually</button>")}
@@ -2636,13 +2573,23 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
   ${row("Restart controller","Reboot the device — back online in ~1 min",`<button class="linklike" onclick="powerCtl('reboot')">Restart</button>`)}
   ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}
-  ${row("Factory reset (demo)","Clear this controller's saved config",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset</button>`)}
+  ${row("Factory reset","Erase this site's setup — logins, units, names, schedules — and start over with the setup wizard",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset…</button>`)}
   <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Advanced settings affect every user on this controller.</div>`;}
 function setSessionTimeout(v){if(!CFG)return;CFG.sessionTimeoutMin=parseInt(v,10)||0;saveCfg(CFG);touchSession();toast("Auto sign-out: "+(CFG.sessionTimeoutMin?CFG.sessionTimeoutMin+" min":"never"));}
 function canAdmin(){return !!(session.admin||(currentUser&&currentUser.role==="owner"));}
+function changePin(kind){if(!canAdmin()||!CFG){toast("Admins only");return;}
+  const label=kind==="admin"?"admin":"technician",key=kind==="admin"?"adminPin":"techPin",other=kind==="admin"?"techPin":"adminPin";
+  const v=prompt("New "+label+" access code — 4 digits (leave empty to remove the code)","");if(v==null)return;const p=v.trim();
+  if(p===""){delete CFG[key];saveCfg(CFG);drawSettings();toast("The "+label+" code was removed");return;}
+  if(!/^\d{4}$/.test(p)){toast("The code must be exactly 4 digits");return;}
+  if(/^(\d)\1{3}$/.test(p)||p==="1234"||p==="0000"){toast("Pick a code that is harder to guess");return;}
+  if(CFG[other]===p){toast("Use a different code than the "+(kind==="admin"?"technician":"admin")+" one");return;}
+  CFG[key]=p;saveCfg(CFG);drawSettings();toast("New "+label+" code saved");}
 function setSiteName(){if(!canAdmin()){toast("Admins only");return;}const cur=(CFG&&CFG.site&&CFG.site.name)||"";
   const v=prompt("Site name",cur);if(v==null)return;const n=v.trim();if(!n)return;
-  if(CFG&&CFG.site){CFG.site.name=n;saveCfg(CFG);}renderWho();drawSettings();toast("Site renamed");}
+  if(CFG&&CFG.site){CFG.site.name=n;saveCfg(CFG);
+    if(location.protocol!=="file:"){try{fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});}catch(e){}}}
+  renderWho();drawSettings();toast("Site renamed");}
 function setManualLocation(){const cur=(CFG&&CFG.site&&CFG.site.lat!=null)?CFG.site.lat+", "+CFG.site.lon:"";
   const v=prompt("Enter latitude, longitude (e.g. 40.37, -111.74)",cur);if(v==null)return;
   const m=(v||"").split(/[ ,]+/).map(Number).filter(n=>!isNaN(n));
@@ -2651,7 +2598,7 @@ function setManualLocation(){const cur=(CFG&&CFG.site&&CFG.site.lat!=null)?CFG.s
   WEATHER.ts=0;loadWeather();if(setTab)drawSettings();toast("Location set — loading weather");}
 function usersTab(){return `
   <div style="margin-bottom:6px">${users.map(u=>`<div class="urow">
-    <div><div style="font-weight:500">${u.name}</div><div style="font-size:12px;color:var(--text-faint)">${u.protected?'Owner account — cannot be removed':'tap a role to change'}</div></div>
+    <div><div style="font-weight:500">${ue(u.name)}</div><div style="font-size:12px;color:var(--text-faint)">${u.protected?'Owner account — cannot be removed':ue(u.username||'')}</div></div>
     <div style="display:flex;align-items:center;gap:8px"><span class="rchip ${u.role}">${u.role}</span>
       ${u.protected?'':`<button class="linklike" data-edit="${u.id}">Edit</button><button class="linklike" style="color:var(--err)" data-del="${u.id}">Remove</button>`}</div></div>`).join("")}</div>
   <button class="btn primary" id="adduser" style="margin-top:10px">+ Add user</button>`;}
@@ -2663,12 +2610,12 @@ function aboutTab(){const isPriv=session.admin||session.tech;return `
   ${row("Product","",`<span style="color:var(--text-dim)">Cortex</span>`)}
   ${row("Made by","Local-first HVAC control",`<span style="color:var(--text-dim)">AIROW</span>`)}
   ${row("Version","",`<span class="mono" id="verline" style="color:var(--text-dim);cursor:default">v0.1.0</span>`)}
-  ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${(CFG&&CFG.site&&CFG.site.name)||'Site'}</span>`)}
+  ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${ue((CFG&&CFG.site&&CFG.site.name)||'Site')}</span>`)}
   ${row("Remote access","",`<span style="color:var(--text-dim)">${(CFG&&CFG.remote&&CFG.remote.enabled)?'Tailscale — on':'Off'}</span>`)}
   ${isPriv?row("Protocol reference","The LGAP protocol — everything we've decoded",`<button class="linklike" onclick="viewProtocolDoc()">Open</button>`):""}
-  ${isPriv?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Owner recovery</div>
+  ${canAdmin()&&CFG&&CFG.recovery?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Owner recovery</div>
      <div class="sd" style="margin-bottom:8px">Per-site code to regain owner access if you're locked out. Keep it somewhere safe.</div>
-     <div class="recovery">${(CFG&&CFG.recovery)||RECOVERY}</div>`:
+     <div class="recovery">${ue(CFG.recovery)}</div>`:
      `<div style="margin-top:16px;font-size:12px;color:var(--text-faint)">Cortex by AIROW — local-first VRF control.</div>`}`;}
 
 /* ---- protocol reference viewer (the "what we know" doc, served by the appliance) ---- */
@@ -2715,6 +2662,7 @@ async function viewProtocolDoc(){
     :`<div class="note-box">The protocol reference ships with the installed appliance — open Cortex from the device to read it here.</div>`;
 }
 function fillVersion(){const el=document.getElementById('verline');if(!el)return;
+  if(location.protocol==="file:"){el.textContent="local file (no controller)";return;}
   fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.version)el.textContent='v'+j.version;}).catch(()=>{});}
 function wireSettings(){fillVersion();
   mroot.querySelectorAll("[data-set]").forEach(el=>{
@@ -2724,44 +2672,59 @@ function wireSettings(){fillVersion();
     const k=b.dataset.tog;
     if(["mode","room","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
     else if(["showTiles","showWeather"].includes(k))settings[k]=!settings[k];
+    else if(k==="custctl"||k==="custall"){if(!CFG||!canAdmin())return;const f=k==="custctl"?"custCtl":"custAll";CFG[f]=(CFG[f]===false);saveCfg(CFG);
+      toast(k==="custctl"?(CFG.custCtl?"Customers can change units":"Customers are now view-only"):(CFG.custAll?"All on / All off shown to customers":"All on / All off hidden from customers"));}
     saveSettings();b.classList.toggle("on");refreshBackground();});
   mroot.querySelectorAll("[data-accent]").forEach(b=>b.onclick=()=>{settings.accent=b.dataset.accent;saveSettings();applyTheme();drawSettings();refreshBackground();});
   const ver=document.getElementById("verline");
   if(ver)ver.onclick=()=>{aboutTaps++;if(aboutTaps>=7){aboutTaps=0;askPin("tech");}};
   const add=document.getElementById("adduser");if(add)add.onclick=()=>editUser(null);
   mroot.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editUser(+b.dataset.edit));
-  mroot.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{users=users.filter(u=>u.id!==+b.dataset.del);if(CFG){CFG.users=users;saveCfg(CFG);}drawSettings();});
+  mroot.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const t=users.find(u=>u.id===+b.dataset.del);if(!t||t.protected)return;
+    if(currentUser&&t.username===currentUser.username){toast("You can’t remove the account you are signed in with");return;}
+    if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Tap again to remove";return;}
+    users=users.filter(u=>u.id!==t.id);if(CFG){CFG.users=users;saveCfg(CFG);}drawSettings();toast("Removed "+t.name);});
 }
 function refreshBackground(){if(mroot.innerHTML===""){/*no modal*/}renderAll();}
 
 function editUser(id){const u=id?users.find(x=>x.id===id):{name:"",username:"",role:"customer"};
   modal(head(id?"Edit user":"Add user")+`<div class="modal-body">
-    <div class="field"><div class="lbl">Name</div><input id="uname" class="inp" value="${u.name||''}" placeholder="Full name"></div>
-    <div class="field"><div class="lbl">Username</div><input id="uuser" class="inp" value="${u.username||''}" placeholder="login name"></div>
+    <div class="field"><div class="lbl">Name</div><input id="uname" class="inp" value="${ue(u.name||'')}" placeholder="Full name"></div>
+    <div class="field"><div class="lbl">Username</div><input id="uuser" class="inp" value="${ue(u.username||'')}" placeholder="login name" autocomplete="off"></div>
     <div class="field"><div class="lbl">${id?'New password (optional)':'Password'}</div><input id="upass" type="password" class="inp" placeholder="${id?'leave blank to keep':'set a password'}"></div>
     <div class="field"><div class="lbl">Role</div><div class="opts">
       ${["customer","admin","technician"].map(r=>`<button class="opt ${u.role===r?'sel':''}" data-role="${r}">${r}</button>`).join("")}</div></div>
+    <div class="err-text" id="uerr"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
       <button class="btn" onclick="drawSettings()">Cancel</button><button class="btn primary" id="usave">Save</button></div></div>`);
   let role=u.role;mroot.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>{role=b.dataset.role;mroot.querySelectorAll("[data-role]").forEach(x=>x.classList.toggle("sel",x===b));});
   document.getElementById("usave").onclick=()=>{const name=document.getElementById("uname").value.trim()||"Unnamed";
     const un=document.getElementById("uuser").value.trim();const pw=document.getElementById("upass").value;
+    const bad=m=>{document.getElementById("uerr").textContent=m;};
+    if(!un){bad("Enter a username — it is what this person types to sign in.");return;}
+    if(users.some(x=>x.username===un&&x.id!==id)){bad("That username is already taken.");return;}
+    if(!id&&pw.length<4){bad("Set a password of at least 4 characters.");return;}       // no silent default password
+    if(id&&pw&&pw.length<4){bad("The new password needs at least 4 characters.");return;}
     if(id){u.name=name;u.username=un;u.role=role;if(pw)u.passhash=hash(pw);}
-    else{users.push({id:Date.now(),name,username:un,passhash:hash(pw||"changeme"),role});}
+    else{users.push({id:Date.now(),name,username:un,passhash:hash(pw),role});}
     if(CFG){CFG.users=users;saveCfg(CFG);}drawSettings();};
 }
 
 /* ---- passcode gates ---- */
-function askPin(kind){const want=kind==="admin"?((CFG&&CFG.adminPin)||ADMIN_PIN):((CFG&&CFG.techPin)||TECH_PIN);const label=kind==="admin"?"Admin":"Technician";
+let pinFails=0,pinLockUntil=0;
+function askPin(kind){const want=kind==="admin"?(CFG&&CFG.adminPin):(CFG&&CFG.techPin);const label=kind==="admin"?"Admin":"Technician";
+  if(!want){toast("No "+label.toLowerCase()+" access code is set for this site — sign in with "+(kind==="admin"?"an admin":"a technician")+" account.");return;}
+  if(Date.now()<pinLockUntil){toast("Too many wrong codes — try again in "+Math.ceil((pinLockUntil-Date.now())/1000)+" seconds");return;}
   modal(head(`${label} passcode`)+`<div class="modal-body">
     <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px">Enter the ${label.toLowerCase()} passcode to unlock ${kind==="tech"?"technician / cycle diagnostics":"advanced settings"} for this session.</div>
     <input id="pin" class="pin-input" inputmode="numeric" maxlength="4" placeholder="••••">
     <div class="err-text" id="pinerr"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="pinok">Unlock</button></div></div>`);
   const inp=document.getElementById("pin");inp.focus();
-  const submit=()=>{if(inp.value===want){if(kind==="admin")elev.admin=true;else{elev.tech=true;view="cycle";}recomputeSession();
+  const submit=()=>{if(inp.value===want){pinFails=0;if(kind==="admin")elev.admin=true;else{elev.tech=true;view="cycle";}recomputeSession();
       renderWho();closeModal();if(kind==="admin")openSettings();else renderAll();}
-    else{document.getElementById("pinerr").textContent="Incorrect passcode.";inp.value="";inp.focus();}};
+    else{pinFails++;if(pinFails>=5){pinFails=0;pinLockUntil=Date.now()+60000;closeModal();toast("Too many wrong codes — locked for one minute");return;}
+      document.getElementById("pinerr").textContent="Incorrect passcode.";inp.value="";inp.focus();}};
   document.getElementById("pinok").onclick=submit;inp.onkeydown=e=>{if(e.key==="Enter")submit();};
 }
 
@@ -2792,21 +2755,17 @@ function onKey(e){const tag=(e.target.tagName||"").toLowerCase();if(tag==="input
 
 function buildAlerts(){const a=[];
   units.filter(u=>u.err).forEach(u=>a.push({sev:(ERRORS[u.code]||{}).sev||"medium",title:dispName(u)+" · "+u.code,sub:(ERRORS[u.code]||{}).t||"Error",code:u.code}));
-  units.filter(u=>!u.err&&u.filterPct<15).forEach(u=>a.push({sev:"low",title:dispName(u)+" · filter low",sub:"Filter life "+u.filterPct+"% — schedule a change",code:null}));
+  units.filter(u=>u.offline).forEach(u=>a.push({sev:"medium",title:dispName(u)+" · not responding",sub:"No answer from this unit"+(u.seen?" since "+ago(u.seen):"")+" — check its power",code:null}));
   return a;}
 function updateBell(){const b=document.getElementById("bellbadge");if(!b)return;const n=buildAlerts().length;
   b.textContent=n;b.classList.toggle("hide",n===0);}
 function openAlerts(){const a=buildAlerts(),sc={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
   modal(head("Alerts"+(a.length?` · ${a.length}`:""))+`<div class="modal-body">
     ${a.length?a.map(x=>`<div class="alert-row" ${x.code?`data-ac="${x.code}"`:""}><span class="alert-dot" style="background:var(--${sc[x.sev]||'warn'})"></span>
-      <div><div style="font-weight:500">${x.title}</div><div style="font-size:12.5px;color:var(--text-dim)">${x.sub}</div></div></div>`).join(""):'<div style="color:var(--text-dim);padding:10px 0">No active alerts. Everything looks healthy.</div>'}
-    <div class="mini-lbl" style="margin-top:14px">Notify me</div>
-    <div class="setrow" style="padding-top:4px"><div><div class="sl">Push to my phone</div></div>${tog("notifpush",settings.notif&&settings.notif.push)}</div>
-    <div class="setrow"><div><div class="sl">Email</div></div>${tog("notifemail",settings.notif&&settings.notif.email)}</div>
+      <div><div style="font-weight:500">${ue(x.title)}</div><div style="font-size:12.5px;color:var(--text-dim)">${ue(x.sub)}</div></div></div>`).join(""):'<div style="color:var(--text-dim);padding:10px 0">No active alerts. Everything looks healthy.</div>'}
+    <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Alerts show here while Cortex is open. Phone and email notifications are not available yet.</div>
   </div>`);
-  mroot.querySelectorAll("[data-ac]").forEach(r=>r.onclick=()=>openError(r.dataset.ac));
-  mroot.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{settings.notif=settings.notif||{};
-    if(b.dataset.tog==="notifpush")settings.notif.push=!settings.notif.push;else settings.notif.email=!settings.notif.email;saveSettings();b.classList.toggle("on");});}
+  mroot.querySelectorAll("[data-ac]").forEach(r=>r.onclick=()=>openError(r.dataset.ac));}
 
 const KINDS={wall:"Wall mount",cassette4:"4-way cassette",cassette1:"1-way cassette",ducted:"Ducted",floor:"Floor standing",ceiling:"Ceiling suspended"};
 /* top-down airflow directions per indoor-unit type (N/E/S/W, viewed from the ceiling) */
@@ -2932,14 +2891,14 @@ function fpRemove(leaf){const f=fpGet(leaf);if(!f||!isStaff())return;
   document.getElementById("fprm-go").onclick=()=>{fpDeleteImage(f.id);delete CFG.floorplans[leaf];saveCfg(CFG);closeModal();renderMap();toast("Floor plan removed");};}
 function fpImgFail(img){const st=img.closest(".fpstage");if(!st||st.classList.contains("noimg"))return;st.classList.add("noimg");img.remove();
   st.insertAdjacentHTML("afterbegin",`<div style="padding:14px;font-size:13px;color:#5a6372">The floor-plan picture for this group couldn't be loaded on this device${isStaff()?" — use Edit layout ▸ Replace picture to add it again":""}.</div>`);}
-function mapStateTxt(u){return u.err?(u.code||"error"):(u.on?((MODES.find(m=>m[0]===u.mode)||["",u.mode])[1]+" · "+spDisp(activeC(u))+"°"+settings.unit):"Off");}
+function mapStateTxt(u){return u.offline?"No response":u.err?(u.code||"error"):(u.on?((MODES.find(m=>m[0]===u.mode)||["",u.mode])[1]+" · "+spDisp(activeC(u))+"°"+settings.unit):"Off");}
 function mapTile(u){const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:ue(mapStateTxt(u));
   return `<div class="umtile" data-id="${u.id}">
     <div class="umhead"><span class="umname" title="${ue(dispName(u))}">${ue(dispName(u))}</span><span class="umstate">${stateTxt}</span></div>
     <div class="umviz">${unitGraphic(u)}</div>
     <div class="umkind"><span>${KINDS[u.kind||'wall']||KINDS.wall}</span><span>${u.on?('fan '+ue(u.fan)+' · room '+temp(u.room)):'&nbsp;'}</span></div>
   </div>`;}
-function fpMarker(u,x,y){const c=u.err?"var(--err)":(u.on?modeColor(u):"var(--stopped)");
+function fpMarker(u,x,y){const c=u.offline?"var(--warn)":u.err?"var(--err)":(u.on?modeColor(u):"var(--stopped)");
   return `<div class="fpmark" data-id="${u.id}" style="left:${(x*100).toFixed(2)}%;top:${(y*100).toFixed(2)}%;--mk:${c}" title="${ue(dispName(u)+" — "+mapStateTxt(u))}"><div class="fpviz">${unitGraphic(u,'',true)}</div><div class="fpname">${ue(dispName(u))}</div></div>`;}
 function renderMap(){renderGroupNav();
   if(fpDrag)return;                                            // never rebuild the map under a finger mid-drag
@@ -3002,24 +2961,6 @@ function fpBindDrag(){
 
 /* ---- 30-day timestamped data log + trends ---- */
 const DAY=86400000, TPAL=["#3b82f6","#ef4444","#10b981","#f59e0b","#8b5cf6","#ec4899","#14b8a6","#f97316","#6366f1","#84cc16"];
-function histLog(u){ // ~30 days of timestamped samples, generated once per unit and cached
-  if(u._hist)return u._hist;
-  const N=360, step=DAY*30/N, now=Date.now(), pts=[];let r=u.room||72;
-  let errIdx = u.err ? N-3 : (u.id%4===0 ? N-1-((u.id*7)%250) : -1); // ongoing error, or a past transient
-  let transient = !u.err;
-  for(let i=0;i<N;i++){const t=now-(N-1-i)*step;const hr=new Date(t).getHours();
-    const night=hr<6||hr>=20;const sp=(u.sp||72)+(night?(u.mode==='heat'?-3:3):0);
-    r+=(Math.random()-0.5)*1.4+(sp-r)*0.1;
-    let err=null,errStart=false;
-    if(errIdx>=0){
-      if(i>=errIdx-7&&i<errIdx)r+=(u.mode==='heat'?1.3:-1.3); // pre-error drift
-      if(i===errIdx)errStart=true;
-      if(i>=errIdx)err=u.err?u.code:"CH05";
-      if(transient&&i>errIdx+5)err=null; // transient cleared
-    }
-    pts.push({t,room:+r.toFixed(1),sp,load:Math.max(0,Math.min(100,Math.round((u.zoneLoad||40)+(Math.random()-0.5)*22))),pipeOut:(u.pipeOut||62)+Math.round((Math.random()-0.5)*6),err,errStart});
-  }
-  u._hist=pts;return pts;}
 function trendChart(series,range){
   const W=720,H=300,pl=42,pr=14,ptp=16,pb=48,now=Date.now(),t0=now-range;
   const S=series.map((s,i)=>({...s,color:s.color||TPAL[i%TPAL.length],P:s.pts.filter(p=>p.t>=t0)}));
@@ -3035,18 +2976,30 @@ function trendChart(series,range){
   return `<svg width="100%" viewBox="0 0 ${W} ${H}">${grid}${ticks}${marks}${lines}</svg><div style="margin-top:10px;display:flex;flex-wrap:wrap">${legend}</div>`;}
 let trendCtx=null, trendRange=DAY;
 function openTrends(ids,opts){trendCtx={ids:ids.slice(),opts:opts||{}};if(trendRange==null)trendRange=DAY;drawTrends();}
-function drawTrends(){const {ids,opts}=trendCtx;const us=units.filter(u=>ids.includes(u.id));if(!us.length){closeModal();return;}
-  const metric=opts.odu?"load":"room";
-  const series=us.map(u=>{const h=histLog(u);return {name:dispName(u),pts:h.map(p=>({t:p.t,y:p[metric]})),markers:h.filter(p=>p.errStart).map(p=>p.t),err:u.err};});
-  const title=(opts.odu?"Outdoor-cycle trend · ":"Trends · ")+(us.length>1?us.length+" units":dispName(us[0]));
-  modal(head(title)+`<div class="modal-body">
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+/* Trends come from the controller's own log (/api/history): one real reading per unit every 5 minutes
+   while Cortex is connected to the equipment, kept about a month. Nothing here is generated. */
+async function drawTrends(){const {ids,opts}=trendCtx;const us=units.filter(u=>ids.includes(u.id)).slice(0,10);if(!us.length){closeModal();return;}
+  const title=(opts.odu?"Pipe-out temperature · ":"Trends · ")+(us.length>1?us.length+" units":ue(dispName(us[0])));
+  const bar=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       ${[["24 h",DAY],["7 days",7*DAY],["30 days",30*DAY]].map(r=>`<button class="btn sm ${trendRange===r[1]?'primary':''}" data-range="${r[1]}">${r[0]}</button>`).join("")}
-      <div style="flex:1"></div><div style="font-size:12px;color:var(--text-dim)">${opts.odu?"Outdoor-unit load index":"Room temperature (°"+settings.unit+")"}</div></div>
-    ${trendChart(series,trendRange)}
-    <div class="note-box" style="margin-top:12px">Every reading is timestamped and kept ~30 days. Dashed lines mark when a unit tripped into error — widen the range to see how it was behaving beforehand. Sample data until the live bus is logging.</div>
-  </div>`,true);
-  mroot.querySelectorAll("[data-range]").forEach(b=>b.onclick=()=>{trendRange=+b.dataset.range;drawTrends();});}
+      <div style="flex:1"></div><div style="font-size:12px;color:var(--text-dim)">${opts.odu?"Refrigerant pipe-out temperature":"Room temperature"} (°${settings.unit})</div></div>`;
+  const show=inner=>{modal(head(title)+`<div class="modal-body">${bar}${inner}</div>`,true);
+    mroot.querySelectorAll("[data-range]").forEach(b=>b.onclick=()=>{trendRange=+b.dataset.range;drawTrends();});};
+  if(location.protocol==="file:"){show(`<div class="note-box">Trends are recorded by the Cortex controller. This copy was opened as a file on this computer, so there is no log to show.</div>`);return;}
+  show(brainLoader(64,"Loading the readings…","row"));
+  const my=trendCtx;let j=null;
+  try{const r=await fetch(`/api/history?addrs=${us.map(u=>u.addr).join(",")}&days=${Math.round(trendRange/DAY)}`,{cache:"no-store"});if(r.ok)j=await r.json();}catch(e){}
+  if(trendCtx!==my||!mroot.innerHTML)return;                   // closed or changed while loading
+  if(!j){show(`<div class="note-box warn">Couldn’t load the history from the controller. It may be restarting or running an older version.</div>`);return;}
+  const col=opts.odu?6:1;
+  const series=us.map(u=>{const rows=(j.series&&j.series[u.addr])||[];const step=Math.max(1,Math.ceil(rows.length/500));const pts=[],marks=[];let prevErr=0;
+    rows.forEach((r,i)=>{if(r[4]&&!prevErr)marks.push(r[0]);prevErr=r[4]?1:0;
+      if(i%step===0&&r[col]!=null&&isFinite(r[col]))pts.push({t:r[0],y:tnum(r[col])});});
+    return {name:ue(dispName(u)),pts,markers:marks,err:u.err};});
+  const total=series.reduce((n,s)=>n+s.pts.length,0);
+  show(total
+    ?trendChart(series,trendRange)+`<div class="note-box" style="margin-top:12px">Real readings from this controller’s log — one every ${Math.round((j.every||300000)/60000)} minutes while Cortex is connected to the equipment, kept about a month. A dashed line marks the moment a unit reported an error. Gaps mean Cortex wasn’t connected then.</div>`
+    :`<div class="note-box">No readings in this period yet. Cortex logs each unit every ${Math.round((j.every||300000)/60000)} minutes while it is connected to the equipment — check back after it has been running for a while.</div>`);}
 
 /* ---- chrome wiring ---- */
 document.addEventListener("keydown",onKey);
@@ -3099,9 +3052,54 @@ const LOGO=brainMark(30,"calm");
 (function(){const bl=document.getElementById("brandlogo");if(bl)bl.innerHTML=LOGO;})();
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
 function loadCfg(){try{const c=JSON.parse(localStorage.getItem("airow_cfg"));if(c&&!c.protocols)c.protocols=["lg"];return c;}catch(e){return null;}}
-function saveCfg(c){try{localStorage.setItem("airow_cfg",JSON.stringify(c));}catch(e){}
-  // also push to the appliance so every browser/computer shares the same setup + accounts
-  try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)}).catch(()=>{});}catch(e){}}
+/* Site settings are ONE shared document on the appliance. Saves go up one at a time, each carrying the
+   revision this screen started from; if another screen saved first, the appliance answers "conflict"
+   and we show its newer copy instead of silently wiping the other person's change (a user they just
+   added, a schedule, a floor plan). Screens also re-read the settings every 20 s, so a rename or a new
+   schedule made on one computer shows up on the others without a reload. */
+let cfgBusy=false,cfgAgain=false,cfgDirty=false;
+function cfgStore(){try{localStorage.setItem("airow_cfg",JSON.stringify(CFG));}catch(e){}}
+function saveCfg(c){if(c&&c!==CFG)CFG=c;cfgStore();if(location.protocol!=="file:")cfgPush();}
+async function cfgPush(){
+  if(cfgBusy){cfgAgain=true;return;}cfgBusy=true;
+  try{do{cfgAgain=false;if(!CFG)break;
+    const r=await fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(CFG)});
+    if(r.status===409){const j=await r.json();cfgAdopt(j.config,true);break;}
+    if(r.ok){const j=await r.json();if(CFG&&j&&typeof j._rev==="number"){CFG._rev=j._rev;cfgStore();}cfgDirty=false;}
+    else{cfgDirty=true;if(r.status===413)toast("Couldn’t save — the site settings have grown too large for the controller");}
+  }while(cfgAgain);}catch(e){cfgDirty=true;}                   // offline: keep it locally and retry on the next sync tick
+  finally{cfgBusy=false;}}
+function cfgAdopt(c,conflict){
+  if(!c||!c.provisioned)return;
+  CFG=c;if(!CFG.protocols)CFG.protocols=["lg"];if(typeof CFG._rev!=="number")CFG._rev=0;
+  users=CFG.users||users;cfgStore();cfgDirty=false;
+  if(currentUser){const me=(CFG.users||[]).find(u=>u.username===currentUser.username);
+    if(!me){logout("This account was removed.");return;}
+    if(me.role!==currentUser.role||me.name!==currentUser.name){currentUser.role=me.role;currentUser.name=me.name;recomputeSession();}}
+  if(conflict)toast("These settings were just changed on another screen — showing the latest. Please make your change again.");
+  if(currentUser&&!fpDrag){renderWho();if(!mroot.innerHTML)renderAll();}}
+async function cfgPull(){
+  if(location.protocol==="file:"||cfgBusy||!CFG||!CFG.provisioned)return;
+  if(cfgDirty){cfgPush();return;}
+  try{const r=await fetch('/api/appconfig',{cache:'no-store'});if(!r.ok)return;const j=await r.json();
+    if(cfgBusy||cfgDirty)return;
+    if(j&&j.provisioned){if((j._rev||0)!==(CFG._rev||0))cfgAdopt(j,false);}
+    else if(j&&typeof j._rev==="number"&&!WZ){location.reload();}   // the site was factory-reset from another screen
+  }catch(e){}}
+setInterval(()=>{if(BOOTED&&document.visibilityState!=="hidden")cfgPull();},20000);
+/* After an update the controller restarts with a new version; an open screen notices and reloads itself
+   (once nobody is in the middle of something), so nobody keeps working on last week's page. */
+let LOADED_VER=null;
+async function versionWatch(){
+  if(location.protocol==="file:")return;
+  try{const r=await fetch('/version',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.version)return;
+    if(LOADED_VER===null){LOADED_VER=j.version;return;}
+    if(j.version===LOADED_VER)return;
+    const busy=!!mroot.innerHTML||openId!=null||MASTER.discovering||fpDrag||mapEdit||(WZ&&document.getElementById("screen-setup").classList.contains("show"));
+    if(busy){toast("Cortex was updated to v"+j.version+" — this screen will refresh when you’re done here");return;}
+    location.reload();
+  }catch(e){}}
+setInterval(versionWatch,45000);
 function roleCaps(r){return{admin:r==="admin"||r==="owner",tech:r==="technician"||r==="owner"};}
 function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};session.admin=b.admin||elev.admin;session.tech=b.tech||elev.tech;}
 function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}
@@ -3125,8 +3123,28 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   if(view==="device"&&!isStaff())view="units";
   renderAll();loadWeather();}
 function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(msg);}
-function factoryReset(){try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_units");}catch(e){}units=makeUnits();closeModal();CFG=null;currentUser=null;startWizard();}
-function setSpLimit(which,v){if(!CFG)return;const n=parseInt(v,10);if(!isFinite(n))return;CFG[which==="min"?"spMinF":"spMaxF"]=n;saveCfg(CFG);toast("Setpoint "+which+" "+n+"°");}
+function factoryReset(){
+  if(!canAdmin()){toast("Admins only");return;}
+  modal(head("Factory reset?")+`<div class="modal-body">
+    <div class="note-box warn" style="margin-bottom:12px">This erases <b>everything about this site</b> from the controller: all logins, the unit list, names, groups, schedules and floor plans. The equipment itself is not touched, and Cortex's software stays installed. Afterwards the setup wizard runs again.<br><br>Tip: download a backup first (Settings ▸ Advanced ▸ Back up configuration).</div>
+    <label class="flabel">Type RESET to confirm</label><input id="fr-inp" class="inp mono" autocomplete="off" placeholder="RESET">
+    <div class="err-text" id="fr-err"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" id="fr-go">Erase and start over</button></div></div>`);
+  document.getElementById("fr-go").onclick=async()=>{
+    if(document.getElementById("fr-inp").value.trim().toUpperCase()!=="RESET"){document.getElementById("fr-err").textContent="Type RESET (in capitals) to confirm.";return;}
+    busAuto(false);try{await busDisconnect();}catch(e){}
+    if(location.protocol!=="file:"){
+      let ok=false;try{const r=await fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({_reset:true})});ok=r.ok;}catch(e){}
+      if(!ok){document.getElementById("fr-err").textContent="The controller didn't accept the reset — nothing was erased. Check the connection and try again.";return;}
+      try{await fetch('/api/units',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({units:[]})});}catch(e){}
+    }
+    try{["airow_cfg","airow_units","airow_units_prev","airow_units_rev","airow_session","airow_bus_auto","airow_sched_fired"].forEach(k=>localStorage.removeItem(k));}catch(e){}
+    location.reload();};}
+function setSpLimit(which,v){if(!CFG)return;let n=parseInt(v,10);if(!isFinite(n))return;
+  n=Math.max(61,Math.min(86,n));                               // the equipment itself accepts 16–30°C (61–86°F)
+  const lo=which==="min"?n:(CFG.spMinF!=null?CFG.spMinF:61),hi=which==="max"?n:(CFG.spMaxF!=null?CFG.spMaxF:86);
+  if(lo>=hi){toast("The lowest setting must be below the highest");drawSettings();return;}
+  CFG[which==="min"?"spMinF":"spMaxF"]=n;saveCfg(CFG);drawSettings();toast("Setpoint "+(which==="min"?"lowest":"highest")+": "+n+"°F");}
 function setWxOverride(v){if(!CFG)return;const t=v===""?null:parseInt(v,10);CFG.wxOverride=(t!=null&&isFinite(t))?t:null;saveCfg(CFG);toast(CFG.wxOverride!=null?("Outdoor temp forced to "+CFG.wxOverride+"° (testing)"):"Override cleared — using live weather");if(view==="units")renderAll();}
 function exportBackup(){try{const data={_cortex:"backup",v:1,ts:new Date().toISOString(),cfg:CFG,units:units,settings:settings};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");
@@ -3137,8 +3155,9 @@ function importBackup(){const inp=document.createElement("input");inp.type="file
     r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||!d.cfg||!Array.isArray(d.units)){toast("Not a Cortex backup file");return;}
       modal(head("Restore backup?")+`<div class="modal-body"><div class="note-box" style="margin-bottom:12px">This replaces the current configuration, users, units, groups, and schedules with the backup from <b>${ue((d.ts||"").slice(0,10))}</b>. It does not change the controller's software.</div>
         <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="rb-go">Restore</button></div></div>`);
-      document.getElementById("rb-go").onclick=()=>{CFG=d.cfg;units=normalizeIds(d.units);if(d.settings){settings=Object.assign({},DEF_SETTINGS,d.settings);saveSettings();}
-        saveCfg(CFG);saveUnits();applyTheme();closeModal();renderAll();toast("Backup restored");};
+      document.getElementById("rb-go").onclick=()=>{CFG=d.cfg;delete CFG._rev;users=CFG.users||users;units=normalizeIds(d.units);migrateUnits(true);if(d.settings){settings=Object.assign({},DEF_SETTINGS,d.settings);saveSettings();}
+        saveCfg(CFG);try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}pushUnits(true);
+        MASTER.found.clear();applyTheme();closeModal();renderWho();renderAll();toast("Backup restored");};
     }catch(e){toast("Couldn't read that backup file");}};
     r.readAsText(f);};
   inp.click();}
@@ -3148,14 +3167,26 @@ async function bootMain(){
   // Shared setup/accounts come from the appliance first, so a NEW browser or computer sees the
   // same state (login screen), not the first-run wizard. Falls back to local for the file:// demo.
   let server=null;
-  try{const r=await fetch('/api/appconfig',{cache:'no-store'});if(r.ok)server=await r.json();}catch(e){}
-  if(server&&server.provisioned){CFG=server;try{localStorage.setItem("airow_cfg",JSON.stringify(server));}catch(e){}}
-  else{CFG=loadCfg();
-    // this browser is already set up but the appliance isn't yet -> migrate it up once
-    if(CFG&&CFG.provisioned&&server!==null){try{fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(CFG)}).catch(()=>{});}catch(e){}}
+  if(location.protocol!=="file:"){
+    // Served by the controller: wait for it. A network blip or a controller that is still starting
+    // must never drop someone into the first-time setup wizard (where they could overwrite the site).
+    for(let i=0;;i++){
+      try{const r=await fetch('/api/appconfig',{cache:'no-store'});if(r.ok){server=await r.json();break;}}catch(e){}
+      showThinking("Can’t reach the controller yet — trying again…");await sleep(Math.min(5000,1000+i*500));}
+    showThinking("Loading your site…");
   }
+  if(server&&server.provisioned){CFG=server;if(typeof CFG._rev!=="number")CFG._rev=0;if(!CFG.protocols)CFG.protocols=["lg"];cfgStore();}
+  else if(server&&typeof server._rev==="number"){               // the controller was factory-reset: don't resurrect this browser's old copy
+    CFG=null;try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_session");}catch(e){}}
+  else{CFG=loadCfg();
+    // this browser is already set up but the appliance never was -> migrate it up once
+    if(CFG&&CFG.provisioned&&server!==null){delete CFG._rev;cfgPush();}
+  }
+  if(CFG&&CFG.provisioned){try{await pullUnits();}catch(e){}}  // the shared unit list, before anything is drawn
+  BOOTED=true;versionWatch();
   const su=sessionValid();                                     // persisted login, if still within the timeout
   if(!CFG||!CFG.provisioned){startWizard();return;}
+  setTimeout(busAutoStart,400);                                // if this is the screen that was connected to the equipment, reconnect + resume
   if(su&&CFG.users&&CFG.users.some(u=>u.username===su.username)){enterApp(CFG.users.find(u=>u.username===su.username));return;}
   showLogin();}
 
@@ -3163,22 +3194,28 @@ async function bootMain(){
 function showLogin(err){showScreen("login");const site=(CFG&&CFG.site&&CFG.site.name)||"this site";
   document.getElementById("screen-login").innerHTML=`<div class="auth"><div class="auth-card">
    <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Cortex</div></div>
-   <div class="auth-body"><h2>Sign in</h2><div class="auth-sub">${site}</div>
+   <div class="auth-body"><h2>Sign in</h2><div class="auth-sub">${ue(site)}</div>
     <label class="flabel">Username</label><input id="li-user" class="inp" autocomplete="off">
     <label class="flabel">Password</label><input id="li-pass" type="password" class="inp">
-    <div class="err-text" id="li-err">${err||""}</div>
+    <div class="err-text" id="li-err">${ue(err||"")}</div>
     <button class="btn primary" id="li-go" style="width:100%;justify-content:center;padding:12px">Sign in</button>
     <div style="display:flex;justify-content:space-between;margin-top:14px">
-      <button class="linklike" id="li-recover">Trouble signing in?</button>
-      <button class="linklike" id="li-setup" style="color:var(--text-faint)">Re-run setup</button></div>
+      <button class="linklike" id="li-recover">Trouble signing in?</button></div>
    </div></div></div>`;
-  const go=()=>{const un=document.getElementById("li-user").value.trim();const pw=document.getElementById("li-pass").value;
-    const u=CFG.users.find(x=>x.username===un);
-    if(u&&u.passhash===hash(pw))enterApp(u);else showLogin("Wrong username or password.");};
+  // (The old "Re-run setup" link is gone from this screen: it let anyone who could reach the login page
+  //  replace every account and wipe the site without a password. Setup is re-run from Settings ▸ Advanced.)
+  const go=()=>{
+    if(Date.now()<authLockUntil){showLogin("Too many attempts — wait "+Math.ceil((authLockUntil-Date.now())/1000)+" seconds and try again.");return;}
+    const un=document.getElementById("li-user").value.trim();const pw=document.getElementById("li-pass").value;
+    const u=(CFG.users||[]).find(x=>x.username===un);
+    if(u&&u.passhash===hash(pw)){authFails=0;enterApp(u);}
+    else{authFail();showLogin("Wrong username or password.");}};
   document.getElementById("li-go").onclick=go;
   document.getElementById("li-pass").onkeydown=e=>{if(e.key==="Enter")go();};
-  document.getElementById("li-recover").onclick=recoverFlow;
-  document.getElementById("li-setup").onclick=startWizard;}
+  document.getElementById("li-user").onkeydown=e=>{if(e.key==="Enter")document.getElementById("li-pass").focus();};
+  document.getElementById("li-recover").onclick=recoverFlow;}
+let authFails=0,authLockUntil=0;                               // slow down guessing: 5 misses → 30 s pause
+function authFail(){authFails++;if(authFails>=5){authFails=0;authLockUntil=Date.now()+30000;}}
 function recoverFlow(){showScreen("login");
   document.getElementById("screen-login").innerHTML=`<div class="auth"><div class="auth-card">
    <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Account recovery</div></div>
@@ -3189,12 +3226,14 @@ function recoverFlow(){showScreen("login");
     <div style="text-align:center;margin-top:14px"><button class="linklike" onclick="showLogin()">Back to sign in</button></div>
    </div></div></div>`;
   document.getElementById("rc-go").onclick=()=>{
-    if(document.getElementById("rc").value.trim().toUpperCase()===CFG.recovery){resetOwner();}
-    else document.getElementById("rc-err").textContent="That code doesn't match this site.";};}
+    if(Date.now()<authLockUntil){document.getElementById("rc-err").textContent="Too many attempts — wait "+Math.ceil((authLockUntil-Date.now())/1000)+" seconds.";return;}
+    const code=document.getElementById("rc").value.trim().toUpperCase();
+    if(CFG&&CFG.recovery&&code&&code===String(CFG.recovery).toUpperCase()){authFails=0;resetOwner();}
+    else{authFail();document.getElementById("rc-err").textContent="That code doesn't match this site.";}};}
 function resetOwner(){const owner=CFG.users.find(u=>u.protected)||CFG.users[0];
   document.getElementById("screen-login").innerHTML=`<div class="auth"><div class="auth-card">
    <div class="auth-head"><div class="auth-logo"><span class="logo">${LOGO}</span>Reset owner password</div></div>
-   <div class="auth-body"><h2>New password</h2><div class="auth-sub">For ${owner.name} (${owner.username})</div>
+   <div class="auth-body"><h2>New password</h2><div class="auth-sub">For ${ue(owner.name)} (${ue(owner.username)})</div>
     <input id="np" type="password" class="inp" placeholder="New password">
     <input id="np2" type="password" class="inp" placeholder="Confirm password">
     <div class="err-text" id="np-err"></div>
@@ -3206,23 +3245,24 @@ function resetOwner(){const owner=CFG.users.find(u=>u.protected)||CFG.users[0];
 
 /* ---- first-time setup wizard ---- */
 let WZ=null, WZi=0;
-function startWizard(){WZ={site:{name:"",location:"",unit:"F"},owner:{name:"",username:"",pass:"",confirm:""},adminPin:"",techPin:"",team:[],remote:{enabled:false},protocols:["lg"]};WZi=0;showScreen("setup");renderWizard();}
+function startWizard(){WZ={site:{name:(CFG&&CFG.site&&CFG.site.name)||"",location:(CFG&&CFG.site&&CFG.site.location)||"",unit:(CFG&&CFG.site&&CFG.site.unit)||"F"},owner:{name:"",username:"",pass:"",confirm:""},adminPin:"",techPin:"",team:[],remote:{enabled:!!(CFG&&CFG.remote&&CFG.remote.enabled)},protocols:["lg"]};WZi=0;showScreen("setup");renderWizard();
+  if(location.protocol!=="file:"&&!WZ.site.name){const w=WZ;fetch('/api/config',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name&&WZ===w&&!w.site.name&&WZi<=1){w.site.name=j.name;if(WZi===1&&!v("wz-name"))renderWizard();}}).catch(()=>{});}}
 function v(id){const el=document.getElementById(id);return el?el.value:"";}
 const WSTEPS=[
  {title:"Welcome",sub:"Let's commission this Cortex controller for the site.",
   body:()=>`<div class="note-box">This 6-step setup creates the site identity, your owner account, access codes, your team, and remote access. It runs once per controller. You can re-run it later from Settings → Advanced.</div>`,
   save:()=>null},
  {title:"Site",sub:"What are we controlling?",
-  body:()=>`<label class="flabel">Site name</label><input id="wz-name" class="inp" value="${WZ.site.name}" placeholder="e.g. Main Office Park">
-   <label class="flabel">Location (optional)</label><input id="wz-loc" class="inp" value="${WZ.site.location}" placeholder="123 Main St, City ST">
+  body:()=>`<label class="flabel">Site name</label><input id="wz-name" class="inp" value="${ue(WZ.site.name)}" placeholder="e.g. Main Office Park">
+   <label class="flabel">Location (optional)</label><input id="wz-loc" class="inp" value="${ue(WZ.site.location)}" placeholder="123 Main St, City ST">
    <label class="flabel">Temperature unit</label><div class="segmented"><button data-u="F" class="${WZ.site.unit==='F'?'on':''}">°F</button><button data-u="C" class="${WZ.site.unit==='C'?'on':''}">°C</button></div>`,
   wire:()=>{document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{WZ.site.name=v("wz-name");WZ.site.location=v("wz-loc");WZ.site.unit=b.dataset.u;renderWizard();});},
   save:()=>{WZ.site.name=v("wz-name").trim();WZ.site.location=v("wz-loc").trim();return WZ.site.name?null:"Give the site a name.";}},
  {title:"Owner account",sub:"Your login. This account can't be deleted.",
-  body:()=>`<label class="flabel">Your name</label><input id="wz-oname" class="inp" value="${WZ.owner.name}" placeholder="Full name">
-   <label class="flabel">Username</label><input id="wz-ouser" class="inp" value="${WZ.owner.username}" placeholder="login name">
-   <div class="pinpair"><div><label class="flabel">Password</label><input id="wz-opass" type="password" class="inp" value="${WZ.owner.pass}"></div>
-    <div><label class="flabel">Confirm</label><input id="wz-oconf" type="password" class="inp" value="${WZ.owner.confirm}"></div></div>`,
+  body:()=>`<label class="flabel">Your name</label><input id="wz-oname" class="inp" value="${ue(WZ.owner.name)}" placeholder="Full name">
+   <label class="flabel">Username</label><input id="wz-ouser" class="inp" value="${ue(WZ.owner.username)}" placeholder="login name" autocomplete="off">
+   <div class="pinpair"><div><label class="flabel">Password</label><input id="wz-opass" type="password" class="inp" value="${ue(WZ.owner.pass)}"></div>
+    <div><label class="flabel">Confirm</label><input id="wz-oconf" type="password" class="inp" value="${ue(WZ.owner.confirm)}"></div></div>`,
   save:()=>{WZ.owner.name=v("wz-oname").trim();WZ.owner.username=v("wz-ouser").trim();WZ.owner.pass=v("wz-opass");WZ.owner.confirm=v("wz-oconf");
     if(!WZ.owner.name||!WZ.owner.username)return "Enter your name and a username.";
     if(WZ.owner.pass.length<4)return "Password needs at least 4 characters.";
@@ -3235,7 +3275,7 @@ const WSTEPS=[
     if(!/^\d{4}$/.test(WZ.adminPin)||!/^\d{4}$/.test(WZ.techPin))return "Both codes must be 4 digits.";
     if(WZ.adminPin===WZ.techPin)return "Use different codes for admin and technician.";return null;}},
  {title:"Your team",sub:"Add people now, or skip and add them later in Settings.",
-  body:()=>`${WZ.team.length?`<div style="margin-bottom:10px">${WZ.team.map((t,i)=>`<div class="team-row"><div><b>${t.name}</b> <span class="rchip ${t.role}">${t.role}</span><div style="font-size:12px;color:var(--text-faint)">${t.username}</div></div><button class="linklike" style="color:var(--err)" data-rm="${i}">Remove</button></div>`).join("")}</div>`:`<div class="note-box">No team members yet. Add one below, or continue.</div>`}
+  body:()=>`${WZ.team.length?`<div style="margin-bottom:10px">${WZ.team.map((t,i)=>`<div class="team-row"><div><b>${ue(t.name)}</b> <span class="rchip ${ue(t.role)}">${ue(t.role)}</span><div style="font-size:12px;color:var(--text-faint)">${ue(t.username)}</div></div><button class="linklike" style="color:var(--err)" data-rm="${i}">Remove</button></div>`).join("")}</div>`:`<div class="note-box">No team members yet. Add one below, or continue.</div>`}
    <label class="flabel">Add a person</label>
    <input id="tm-name" class="inp" placeholder="Name"><input id="tm-user" class="inp" placeholder="Username">
    <div class="pinpair"><div><input id="tm-pass" type="password" class="inp" placeholder="Temp password"></div>
@@ -3244,14 +3284,15 @@ const WSTEPS=[
   wire:()=>{document.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{WZ.team.splice(+b.dataset.rm,1);renderWizard();});
     const add=document.getElementById("tm-add");if(add)add.onclick=()=>{const n=v("tm-name").trim(),u=v("tm-user").trim();
       if(!n||!u){document.getElementById("wzerr").textContent="Name and username required to add.";return;}
-      WZ.team.push({name:n,username:u,pass:v("tm-pass")||"changeme",role:v("tm-role")});renderWizard();};},
+      if(v("tm-pass").length<4){document.getElementById("wzerr").textContent="Give this person a temporary password (at least 4 characters).";return;}
+      if(u===WZ.owner.username||WZ.team.some(t=>t.username===u)){document.getElementById("wzerr").textContent="That username is already used.";return;}
+      WZ.team.push({name:n,username:u,pass:v("tm-pass"),role:v("tm-role")});renderWizard();};},
   save:()=>null},
  {title:"Remote access",sub:"Reach this controller securely from anywhere.",
   body:()=>`<div class="note-box">Recommended: <b>Tailscale</b> — a private network with no port forwarding, so the controller never sits on the open internet. (WireGuard works too.)</div>
-   <div class="setrow"><div><div class="sl">Enable remote access</div><div class="sd">Sets up this controller's end at finish</div></div><button class="toggle ${WZ.remote.enabled?'on':''}" id="rm-tog"></button></div>
+   <div class="setrow"><div><div class="sl">I'll use remote access at this site</div><div class="sd">Just a note for your records — it changes nothing on the controller</div></div><button class="toggle ${WZ.remote.enabled?'on':''}" id="rm-tog"></button></div>
    <div id="rm-detail" class="${WZ.remote.enabled?'':'hide'}" style="margin-top:12px">
-     <label class="flabel">This controller will join as</label><div class="recovery" style="color:var(--text)">cortex-${(WZ.site.name||'site').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,18)}</div>
-     <div class="note-box" style="margin-top:12px">At finish you'll get a one-time join link. Install Tailscale on your phone or laptop, approve the device, and reach the dashboard at its private name — no public IP, no open ports.</div></div>`,
+     <div class="note-box" style="margin-top:12px">Tailscale is already installed on the controller. To switch it on, sign in to the controller once (keyboard or SSH) and run <span class="mono">sudo tailscale up</span>, then open the link it prints and approve the device. Install Tailscale on your phone or laptop with the same account and you can reach this dashboard from anywhere — no public IP, no open ports. Device health shows “Tailscale · up” once it is connected.</div></div>`,
   wire:()=>{const t=document.getElementById("rm-tog");if(t)t.onclick=()=>{WZ.remote.enabled=!WZ.remote.enabled;renderWizard();};},
   save:()=>null},
  {title:"Equipment manufacturer",sub:"Which system are you installing on? This sets how Cortex listens to the bus.",
@@ -3284,12 +3325,12 @@ const WSTEPS=[
   wire:()=>{const b=document.getElementById("wz-scan");if(b)b.onclick=runScan;},
   save:()=>null},
  {title:"Review & finish",sub:"",
-  body:()=>`<div class="note-box">✓ Scanned the bus — found <b>${(WZ.scan&&WZ.scan.found.length)||units.length} indoor units</b> across CH1–CH2, 1 outdoor system.</div>
-   <div class="sumrow"><span class="k">Site</span><span>${WZ.site.name||'—'}</span></div>
-   <div class="sumrow"><span class="k">Owner</span><span>${WZ.owner.name} · ${WZ.owner.username}</span></div>
+  body:()=>`<div class="note-box">${(WZ.scan&&WZ.scan.done)?`✓ Bus scan finished — <b>${WZ.scan.found.length} indoor unit${WZ.scan.found.length!==1?"s":""}</b> found${WZ.scan.found.length?" and ready to add":""}.`:(units.length?`Keeping the <b>${units.length} unit${units.length!==1?"s":""}</b> already in Cortex.`:"No bus scan yet — you can add units later from Bus scan (technician).")}</div>
+   <div class="sumrow"><span class="k">Site</span><span>${ue(WZ.site.name||'—')}</span></div>
+   <div class="sumrow"><span class="k">Owner</span><span>${ue(WZ.owner.name)} · ${ue(WZ.owner.username)}</span></div>
    <div class="sumrow"><span class="k">Team</span><span>${WZ.team.length} added</span></div>
    <div class="sumrow"><span class="k">Access codes</span><span>set</span></div>
-   <div class="sumrow"><span class="k">Remote access</span><span>${WZ.remote.enabled?'Tailscale — enabled':'Off'}</span></div>
+   <div class="sumrow"><span class="k">Remote access</span><span>${WZ.remote.enabled?'Planned (Tailscale)':'Not planned'}</span></div>
    <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Finishing creates your account and signs you in.</div>`,
   save:()=>null}
 ];
@@ -3337,6 +3378,8 @@ function renderWizard(){const s=WSTEPS[WZi];
     if(WZi===WSTEPS.length-1)provision();else{WZi++;renderWizard();}};}
 function provision(){
   const rc="CORTEX-"+(WZ.site.name||"SITE").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6)+"-"+Math.random().toString(16).slice(2,6).toUpperCase()+"-"+Math.random().toString(16).slice(2,6).toUpperCase();
+  const old=(CFG&&CFG.provisioned)?CFG:null;                      // re-running setup on a working site
+  const scanned=!!(WZ.scan&&WZ.scan.done);                        // did THIS run of the wizard scan the bus?
   CFG={provisioned:true,site:{name:WZ.site.name,location:WZ.site.location,unit:WZ.site.unit},
     protocols:(WZ.protocols&&WZ.protocols.length?WZ.protocols:["lg"]),
     adminPin:WZ.adminPin,techPin:WZ.techPin,recovery:rc,remote:WZ.remote,unitMeta:{},
@@ -3344,8 +3387,18 @@ function provision(){
     users:[{id:1,name:WZ.owner.name,username:WZ.owner.username,passhash:hash(WZ.owner.pass),role:"owner",protected:true},
       ...WZ.team.map((t,i)=>({id:2+i,name:t.name,username:t.username,passhash:hash(t.pass),role:t.role}))]};
   settings.unit=WZ.site.unit;CFG.gen=WZ.gen||"4";CFG.baud=(WZ.gen==="5")?9600:4800;
-  saveSettings();saveCfg(CFG);enterApp(CFG.users[0]);
-  if(MASTER.found&&MASTER.found.size)masterImport();            // add units found by the wizard's bus scan
+  // Re-running setup replaces the site details, logins and access codes — it must NOT throw away the
+  // work that is already there: unit names/tags, schedules, floor plans, limits, the weather location.
+  if(old){["unitMeta","schedules","floorplans","spMinF","spMaxF","sessionTimeoutMin","wxOverride","custCtl","custAll","ignoreAddrs"].forEach(k=>{if(old[k]!==undefined)CFG[k]=old[k];});
+    if(old.site){["lat","lon"].forEach(k=>{if(old.site[k]!=null)CFG.site[k]=old.site[k];});}}
+  WZ=null;
+  saveSettings();saveCfg(CFG);
+  // keep the appliance's own site name (used by /health and the fleet console) in step with this one
+  if(location.protocol!=="file:"){try{fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:CFG.site.name})}).catch(()=>{});}catch(e){}}
+  enterApp(CFG.users[0]);
+  if(scanned&&MASTER.found&&MASTER.found.size){masterImport(); // add units found by the wizard's bus scan…
+    if(bus.port&&!MASTER.running)masterLoopRun();}             // …and go live straight away (the scan step already had the LG central disconnected)
+  else pullUnits();
 }
 
 boot();
