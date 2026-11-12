@@ -51,8 +51,12 @@ jobs:
             # release already exists (e.g. created in the UI) — just attach/replace the files
             gh release upload "$GITHUB_REF_NAME" dist/cortex-*.tgz dist/manifest.json --clobber
           else
+            # A tag with a suffix (v1.5.0-beta.1, -rc.1, -alpha.2) is a PRE-release. Marking it so is
+            # what keeps it away from customer boxes: the stable channel only installs GitHub's
+            # "latest" release, and GitHub never counts a pre-release as latest.
+            PRE=""; case "$GITHUB_REF_NAME" in *-*) PRE="--prerelease" ;; esac
             gh release create "$GITHUB_REF_NAME" \
               dist/cortex-*.tgz dist/manifest.json \
               --title "Cortex $GITHUB_REF_NAME" \
-              --notes "Automated Cortex appliance release."
+              --notes "Automated Cortex appliance release." $PRE
           fi

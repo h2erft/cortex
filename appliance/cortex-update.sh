@@ -51,7 +51,14 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 # Update channel: 'stable' (default) ignores pre-releases; 'beta' also accepts alpha/beta/rc.
 # Written by the UI toggle (server.js -> $DATA/update-channel). Default stable if the file is absent.
-CHAN="$(tr -d '[:space:]' < "$DATA/update-channel" 2>/dev/null | tr 'A-Z' 'a-z')"; CHAN="${CHAN:-stable}"
+# NOTE: the file usually does NOT exist (it is only created when someone flips the Beta toggle). Reading
+# it must never fail the script: under `set -euo pipefail` a failed read here used to abort the whole
+# updater on every box that had never touched the toggle — i.e. no more updates, silently, forever.
+CHAN="stable"
+if [ -r "$DATA/update-channel" ]; then
+  CHAN="$( (tr -d '[:space:]' < "$DATA/update-channel" | tr 'A-Z' 'a-z') 2>/dev/null || true )"
+fi
+[ "$CHAN" = "beta" ] || CHAN="stable"
 
 # ACCEPT_OCTET makes the GitHub asset API return the file bytes (not JSON metadata).
 ACCEPT_OCTET=()
@@ -111,6 +118,16 @@ if [ "$REL_CMP" = "same" ]; then
 fi
 if [ "$REL_CMP" = "older" ]; then
   log "running $CUR is newer than available $NEW — not downgrading"
+  exit 0
+fi
+# --- don't retry a build that already failed here -------------------------------
+# If $NEW was installed before and did not come up healthy, we rolled back. Without this check the
+# timer would re-activate the same bad build every 30 minutes — restarting Cortex (and dropping the
+# bus) each time, forever. Skip it until a DIFFERENT build is published (new version or new
+# checksum), or until someone forces it:  sudo CORTEX_UPDATE_FORCE=1 /opt/cortex/current/cortex-update.sh
+FAILED="$DATA/update-failed"
+if [ -z "${CORTEX_UPDATE_FORCE:-}" ] && [ -f "$FAILED" ] && [ "$(cat "$FAILED" 2>/dev/null)" = "$NEW $SHA" ]; then
+  log "skipping $NEW — it failed its health check on this box earlier (waiting for a newer build)"
   exit 0
 fi
 if [ -d "$REL/$NEW" ]; then
@@ -188,28 +205,34 @@ systemctl restart cortex-appliance
 
 # --- health check, with rollback ---------------------------------------------
 ok=""
-for i in $(seq 1 20); do
+for i in $(seq 1 40); do
   sleep 1
-  v="$(curl -fsS --max-time 3 "http://127.0.0.1:$PORT/version" 2>/dev/null | jq -r '.version // empty' || true)"
+  # ".running" is the version the process loaded when it STARTED (new in 1.5.0). ".version" is read from
+  # disk through the 'current' symlink, so an old process that somehow survived the restart would
+  # report the new number; prefer the one that can't be fooled.
+  v="$(curl -fsS --max-time 3 "http://127.0.0.1:$PORT/version" 2>/dev/null | jq -r '.running // .version // empty' 2>/dev/null || true)"
   if [ "$v" = "$NEW" ]; then ok=1; break; fi
 done
 
 if [ -n "$ok" ]; then
   log "update OK — now running $NEW"
+  rm -f "$FAILED"
   # prune old releases, keeping the newest $KEEP (never the live one)
   live="$(basename "$(readlink -f "$ROOT/current")")"
   # shellcheck disable=SC2012
-  ls -1 "$REL" 2>/dev/null | grep -vx "$live" | sort -V | head -n -"$KEEP" | while read -r old; do
-    [ -n "$old" ] && { log "pruning old release $old"; rm -rf "${REL:?}/$old"; }
+  { ls -1 "$REL" 2>/dev/null | grep -vx "$live" | sort -V | head -n -"$KEEP" || true; } | while read -r old; do
+    if [ -n "$old" ]; then log "pruning old release $old"; rm -rf "${REL:?}/$old"; fi
   done
   exit 0
 fi
 
 log "NEW BUILD $NEW UNHEALTHY — rolling back to ${PREV:-previous}"
+printf '%s %s\n' "$NEW" "$SHA" > "$FAILED" 2>/dev/null || true     # remember it so the timer doesn't retry this build
 if [ -n "${PREV:-}" ] && [ -d "$PREV" ]; then
   ln -sfn "$PREV" "$ROOT/current.tmp"; mv -Tf "$ROOT/current.tmp" "$ROOT/current"
   systemctl restart cortex-appliance
   log "rolled back to $(cat "$ROOT/current/VERSION" 2>/dev/null)"
+  rm -rf "${REL:?}/$NEW"                                            # a forced retry downloads it fresh
 else
   log "no previous release to roll back to — leaving $NEW; check journalctl -u cortex-appliance"
 fi

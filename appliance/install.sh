@@ -131,16 +131,28 @@ if [ -f "$HERE/cortex.sudoers" ] && visudo -cf "$HERE/cortex.sudoers" >/dev/null
 fi
 
 # 7) lockdown: firewall + automatic security updates
-ufw --force reset >/dev/null
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp                 # SSH on the LAN (tighten/remove once Tailscale SSH is set up)
-ufw allow in on tailscale0 to any port 8080 proto tcp 2>/dev/null || true  # Cortex over Tailscale
-ufw allow 8080/tcp               # Cortex on the LAN during setup; see step 4 below to lock down
-# optional https port (nothing listens on it unless CORTEX_HTTPS=1 is set in appliance.env)
-ufw allow in on tailscale0 to any port "$HTTPS_PORT" proto tcp 2>/dev/null || true
-ufw allow "$HTTPS_PORT"/tcp
-ufw --force enable
+# The firewall is laid down ONCE, on the first install. Re-running this installer (to update a box by
+# hand) used to reset it every time — which silently re-opened Cortex to the whole LAN on a box that
+# had been locked down to Tailscale-only. Now an already-active firewall is left exactly as it is.
+# To start the rules over on purpose:  sudo CORTEX_RESET_FIREWALL=1 bash install.sh
+if [ -n "${CORTEX_RESET_FIREWALL:-}" ] || ! ufw status 2>/dev/null | grep -q '^Status: active'; then
+  ufw --force reset >/dev/null
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow 22/tcp                 # SSH on the LAN (tighten/remove once Tailscale SSH is set up)
+  ufw allow in on tailscale0 to any port 8080 proto tcp 2>/dev/null || true  # Cortex over Tailscale
+  ufw allow 8080/tcp               # Cortex on the LAN during setup; see step 4 below to lock down
+  # optional https port (nothing listens on it unless CORTEX_HTTPS=1 is set in appliance.env)
+  ufw allow in on tailscale0 to any port "$HTTPS_PORT" proto tcp 2>/dev/null || true
+  ufw allow "$HTTPS_PORT"/tcp
+  ufw --force enable
+else
+  echo "   firewall already active — left as is (CORTEX_RESET_FIREWALL=1 to rebuild the rules)"
+  # the one additive exception: if https has been switched on, make sure its port is reachable
+  if grep -qE '^[[:space:]]*CORTEX_HTTPS=(1|true|yes|on)' "$DATA/appliance.env" 2>/dev/null; then
+    ufw allow "$HTTPS_PORT"/tcp >/dev/null 2>&1 || true
+  fi
+fi
 dpkg-reconfigure -f noninteractive unattended-upgrades || true
 
 echo
