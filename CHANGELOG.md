@@ -2,6 +2,42 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.1 — 2026-11-12 (controls polish, debug cleanup, floor-plan placement)
+
+_Beta — publish as a GitHub **pre-release**. Builds on stable v1.5.0._
+
+**Controls**
+- **Auto mode now uses a single setpoint** by default (Multi V units take one target in auto). You
+  can still switch a unit to separate cool + heat with the toggle under Locks — in any mode.
+- The **dual cool/heat setpoints are stacked** so the control panel no longer runs wider than the
+  panel (no more sideways scrollbar).
+- Changing a unit's **mode or fan now updates the building map immediately**, not only after the
+  next poll.
+
+**Building map**
+- **Rotate a placed unit** — each unit on a floor plan has a ↻ handle in Edit layout to turn it 90°
+  at a time, so it can sit on any wall.
+- **Snap control** — a Coarse↔Fine grid slider, and a **Snap to grid** switch you can turn off for
+  free, exact placement.
+- **Preview a floor-plan picture before saving it** — after you pick an image you can zoom in to
+  check it and rotate it to the right orientation, then "Use this picture". The rotation is baked
+  into the saved plan.
+
+**Bus scan (technician)**
+- **One view instead of a Live/Debug toggle.** Everything for monitoring and debugging is on one
+  page: the units-on-the-bus table, the live activity feed, Master/CC mode, the raw monitor and the
+  capture tools.
+- **Removed the raw "TX basic command" and "TX setpoint" senders.** Control a unit from its own
+  page once it's imported; discovery and scanning stay read-only.
+- **Watch one or two units.** Tick **👁 Watch** on a row to narrow the activity feed — and a saved
+  capture — to just those units. Handy for following one unit on a busy bus. One set of capture
+  controls now, not two.
+
+**Other**
+- The **header logo plays its animation while a bus scan is running.**
+- **Group rename is easier to find** — the ✎ pencils next to a group and subgroup in the sidebar
+  are always visible now (and work on touchscreens), not only on hover.
+
 ## v1.5.0 — 2026-11-11 (stable: building map, shared live state, reliability round)
 
 _First stable release of the 1.5 line. Everything from `beta.1`–`beta.3` (below) plus a full
