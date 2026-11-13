@@ -18,7 +18,19 @@ facts live in `LGAP_reference.md`; where the two disagree, the reference wins.
   - Project history: started in a chat on Opus 4.8. That chat was paused on 2026-11-07 by
     an automated safety filter (false positive — this is interoperability work on LG
     equipment the operator services, not an attack). Continued the same day in a new chat with
-    Claude Opus 5.5, which wrote these notes.
+    Claude Opus 5.5, which wrote these notes. Work has continued since across Fable 5.2 and
+    Opus 4.8 sessions — the model in use changes; the Co-Authored-By line on commits follows it.
+
+  CURRENT STATE (2026-11-13)
+  - Repo is PUBLIC (github.com/h2erft/cortex). Latest STABLE = v1.5.0. Latest BETA = v1.6.0-beta.1.
+    The operator cuts releases himself (the session credential pushes branches but 403s on tags).
+  - Appliance + OTA in production on his N95 box (hostname cortex). Stable + beta update channels;
+    Settings > Updates > "Beta testing" opts a box into pre-releases.
+  - Shared state lives on the appliance (units.json / appconfig.json / history/) and mirrors to
+    every browser; the connected "master" screen runs the poll loop + schedules.
+  - NONE of the 1.5/1.6 work has run on a real LG bus/hardware yet — all verified on a simulated
+    LGAP bus + staged appliance (test tooling lives in-session under /home/claude/sim, NOT in repo).
+  - NEW tool: uart-sniffer.html (read-only Web Serial bus listener) — see the 2026-11-11→13 entry.
 
   WHAT CORTEX IS
   - A Raspberry Pi (or laptop + Chrome) replacement for the LG ACP / AC Smart central
@@ -215,6 +227,66 @@ facts live in `LGAP_reference.md`; where the two disagree, the reference wins.
   - Adapter termination resistor OFF when tapping a live bus.
   - Test after hours; customer/owner sign-off before replacing a CC on a customer site.
 
+  - 2026-11-11 → 13  v1.5.0 STABLE + v1.6.0-beta.1 + UART SNIFFER (Fable 5.2 / Opus 4.8 sessions):
+    * v1.5.0 (stable): building MAP with floor-plan images + top-down LG-style unit graphics;
+      customer vs technician visibility; SHARED unit list/live state on the appliance (every
+      screen mirrors the connected one, commands relay through it); revisioned config saves
+      (409 on stale); bus arbitration (command vs poll never overlap); early-exit polling
+      (~2.6s/pass vs ~14.5s); auto-reconnect/auto-resume; worker-timer schedules w/ 10-min
+      catch-up; "No response" detection; atomic crash-safe saves; real trends (NDJSON history)
+      + real error log + real force-poll (fake data removed); no built-in PINs + login throttle;
+      same-origin/CSRF guards; gzip+ETag UI. Plus the updater fix below.
+    * UPDATER BUG (shipped in beta.2/beta.3, fixed in 1.5.0): cortex-update.sh aborted under
+      set -euo pipefail when DATA/update-channel was missing -> a box that never touched the Beta
+      toggle stopped updating forever. Fix: default to stable if the file is absent. Also: skip a
+      build that failed its health check until a different one ships (CORTEX_UPDATE_FORCE=1
+      overrides); install.sh only resets ufw on first run (CORTEX_RESET_FIREWALL=1 to force).
+    * v1.6.0-beta.1: auto mode = single setpoint by default (Multi V; cool+heat toggle still there,
+      stacked so the panel can't overflow sideways); map updates immediately on mode/fan change;
+      floor plans: rotate a placed unit (90°, persists across moves), snap-strength slider +
+      snap-off, image preview (zoom to inspect, rotate baked in) before saving; bus-scan folded
+      into ONE view (removed the Live/Debug toggle AND the raw TX "basic"/"setpoint" senders —
+      discovery stays read-only, control a unit from its own page); per-unit "Watch" filter narrows
+      the activity feed + a saved capture to 1-2 addresses; header logo animates during a scan;
+      group-rename pencils always visible (touch-friendly), not hover-only.
+    * TEST TOOLING (in-session only, NOT in repo, /home/claude/sim): pty LGAP simulator + staged
+      appliance harness + Playwright suites (t_server/t_ws/t_e2e/t_flows/t_stress/t_proto/t_ota/
+      t_newui). ~220 checks green on the 1.6.0-beta.1 code. Recreate if you need them.
+    * UART SNIFFER (uart-sniffer.html — NEW, in repo, served by the appliance, linked from the
+      bus-scan debug view): standalone, Cortex-styled, runs in Chrome/Edge via the Web Serial API.
+      Open on a laptop (file://) or over https — Web Serial needs a secure context, so NOT plain
+      http://cortex.local. READ-ONLY by design (never opens the writable stream / getWriter). Live
+      hex+ASCII, configurable baud/parity/stop, a structure helper (most-common-byte gap +
+      autocorrelation to tell when the baud looks right and guess frame length), capture to raw
+      .bin + timestamped hex log, and markers to line up against an LGMV CSV export. Pure-logic
+      funcs exposed as window.__sniff for testing.
+  - 2026-11-13  RESEARCH DIRECTION — richer data sources beyond the LGAP central bus. This is all
+    the LEGITIMATE interoperability path: observe the operator's OWN equipment, correlate, replicate.
+    * ODU UART = the LGMV service port on the outdoor-unit main PCB, straight off the main MICOM.
+      Far richer than the CEN/LGAP bus Cortex uses today: the whole refrigeration cycle (pressures,
+      discharge/pipe temps, every EEV position, target/actual compressor Hz, electrical, per-IDU +
+      HRU data). This is what the sniffer targets. CAVEAT: it is a DIFFERENT, UNDOCUMENTED protocol
+      from LGAP and is ODU-family-specific — none of Cortex's LGAP decode carries over; it's its
+      own reverse-engineering job per generation. Electrically it's ordinary UART (the LGMV dongle
+      is a CP210x USB-UART bridge). Decode plan: run LGMV while passively sniffing, then line raw
+      bytes up against LGMV's labeled CSV export (ground truth). Start with Multi V IV (MV4). Baud
+      is not published — try 38400/115200/57600/19200/9600; the structure helper flags a good one.
+    * LGMV control scope (documented): IDU on/off, mode, setpoint, fan, temp-limit (LGMV Business
+      "IDU control"). EEVs + compressor normally run on the ODU's own fuzzy control (hold superheat
+      ~3°C / subcool ~15°C); LGMV shows them read-only. They ARE driven to known states by the
+      documented SERVICE MODES: Integrated Test Run (ITR/Fd7), vacuum mode, pump-down, auto-charge.
+      Free-form "set EEV = N pulses / compressor = N Hz" is not publicly documented. Path to it:
+      sniff LGMV running those modes on the operator's own gear, then replicate the frames.
+    * IDU wired-remote bus (CN-REMO on the indoor-unit PCB) is already community-decoded (JanM321
+      esphome-lg-controller: 13-byte status msg every ~20s) — lower-hanging per-room data than ODU UART.
+    * EEPROM dumps (CH341A programmer, SOIC8 clip, 24-series I2C / 25-series SPI) are a SEPARATE
+      data source = STORED config/history on the board, NOT the live stream and NOT the locked MICOM
+      firmware. Mind the cheap CH341A's 3.3V issue on 3.3V chips; de-energize the ODU before clipping.
+    * LATS IMPORT idea (parse an LG LATS .xls design -> editable system + validation + charge calc):
+      prototype built (lats.html, in-session only, NOT in repo) then SHELVED by the operator as too
+      much for now. Don't resume unless he asks. LATS exports a .xls engineering report; the native
+      project file is proprietary. Multi V 5 limits + the charge formula are captured in that prototype.
+
   BUS / FRAME FORMAT  (confidence: CONFIRMED / LIKELY / GUESS)
   - Serial 4800 8N1                                                     CONFIRMED
   - Every frame is 8 bytes:  b0 b1 A0 addr b4 b5 b6 ck                  CONFIRMED
@@ -349,6 +421,11 @@ facts live in `LGAP_reference.md`; where the two disagree, the reference wins.
   4. Bench test TX on the spare ACP / one unit after hours, CC unplugged.
   5. Cycle view (outdoor-unit temps/pressures) is NOT on the CC bus as far as the operator knows —
      the LG CC has never been able to show it; it lives on a different bus. Don't assume the
-     CC bus can provide it. (The earlier chat knew this; corrected 2026-11-07.)
+     CC bus can provide it. (The earlier chat knew this; corrected 2026-11-07.) --> this is exactly
+     the gap the ODU UART / LGMV-port work (2026-11-13 entry) is meant to fill.
+  6. UART FRONTIER (current focus): collect a real Multi V IV ODU-UART capture WITH a matching LGMV
+     CSV export running at the same time (use uart-sniffer.html + its markers). That paired data is
+     the thing everything downstream needs — no decoder can be built without it. Once captured,
+     correlate bytes->labels and start an MV4 ODU-UART decoder (separate from the LGAP decoder).
 ==========================================================================================
 ```
