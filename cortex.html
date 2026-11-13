@@ -1916,6 +1916,10 @@ function renderBusScan(){
         <div style="display:flex;gap:8px;margin-bottom:9px;flex-wrap:wrap"><button class="btn" id="bus-dl">⬇ ${foc.length?'download watched capture':'download capture'}</button><button class="btn" id="bus-clear">clear buffer</button></div>
         <textarea id="bus-paste" class="inp" style="width:100%;height:64px;font-size:12px" placeholder="paste hex: A8 00 A0 A7 10 01 …"></textarea>
         <button class="btn" id="bus-decode" style="margin-top:8px">decode paste</button>
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;font-size:12px;color:var(--text-dim)">
+          Chasing the outdoor-unit <b>UART</b> service port (the LGMV port) instead of this RS485 bus? That's a separate, much richer feed off the main MICOM — a different protocol from this one.
+          <a href="uart-sniffer.html" target="_blank" rel="noopener" class="linklike">Open the UART sniffer ↗</a> — read-only, runs on a laptop in Chrome.
+        </div>
       </div>
     </div>`;
   /* ---- CAPTURE view: non-LG protocols (raw bytes only) ---- */

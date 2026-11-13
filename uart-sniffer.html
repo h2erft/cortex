@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cortex · UART Sniffer</title>
+<!--
+  Cortex — UART Sniffer  ·  read-only serial bus listener
+  Runs in Chrome/Edge via the Web Serial API. Open this file on a laptop (file://),
+  plug a USB-to-TTL adapter into the bus (RX + GND only), hit Connect, pick the port.
+
+  READ-ONLY BY DESIGN: this page never opens the serial port's writable stream, so it
+  can only listen — it cannot transmit onto the bus. Safe to leave connected.
+
+  Web Serial needs a "secure context": works from file:// (local) or https, NOT plain
+  http://cortex.local. If navigator.serial is missing you'll see a notice below.
+-->
+<style>
+:root{
+  --bg:#0b0f14; --surface:#121820; --surface-2:#0e141b; --border:#223041; --border-strong:#2c3e52;
+  --text:#dce6f0; --text-dim:#8aa0b4; --text-faint:#5f7488;
+  --accent:#36a3ff; --accent-soft:#12324e; --ok:#2ecc8f; --okbg:#0f2b22; --warn:#e3b341; --warnbg:#2b2410; --err:#ff6b6b; --errbg:#2c1515;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; --radius:13px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.45}
+.wrap{max-width:1080px;margin:0 auto;padding:16px 18px 70px}
+header.app{display:flex;align-items:center;gap:12px;margin:2px 0 16px}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#36a3ff,#2ecc8f);display:grid;place-items:center;color:#07101a;font-weight:800;font-size:17px}
+header.app h1{font-size:18px;margin:0;font-weight:700}
+header.app .sub{font-size:12px;color:var(--text-faint)}
+.proto{margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;background:#1d2a38;color:#8fd0ff;padding:3px 8px;border-radius:999px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:13px;margin:0 0 10px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--text)}
+.card h2 .hint{font-weight:400;color:var(--text-faint);font-size:12px}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+label.fld{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text-dim)}
+select,input{font-family:inherit;font-size:13px;color:var(--text);background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;padding:6px 8px}
+select:focus,input:focus{outline:none;border-color:var(--accent)}
+.btn{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text);border-radius:9px;padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#07101a}
+.btn.danger:hover{border-color:var(--err);color:var(--err)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:5px 9px;font-size:12px}
+.pill{font-family:var(--mono);font-size:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.stat{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-dim)}
+.dot{width:9px;height:9px;border-radius:50%;background:#54708a;display:inline-block}
+.dot.on{background:var(--ok);box-shadow:0 0 7px var(--ok)}
+.dot.rx{background:var(--accent)}
+.mono{font-family:var(--mono)}
+#mon{font-family:var(--mono);font-size:12px;background:#05090d;border:1px solid var(--border);border-radius:9px;padding:10px;height:340px;overflow:auto;white-space:pre;color:#bfe6c9;line-height:1.5}
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px}
+.sum{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px}
+.sum .k{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px}
+.sum .v{font-size:19px;font-weight:700;margin-top:2px}
+.sum .v small{font-size:12px;color:var(--text-dim);font-weight:500}
+.note{background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:9px 12px;font-size:12.5px;color:var(--text-dim);margin:0 0 12px}
+.warnband{background:var(--warnbg);border:1px solid #4a3c10;color:var(--warn);border-radius:8px;padding:9px 12px;font-size:12.5px;margin:0 0 12px}
+.errband{background:var(--errbg);border:1px solid #4a1d1d;color:var(--err);border-radius:8px;padding:10px 12px;font-size:13px;margin:0 0 12px}
+.mk{display:flex;gap:8px;align-items:center;font-size:12px;border-bottom:1px solid var(--border);padding:5px 2px}
+.mk .t{font-family:var(--mono);color:var(--text-dim);flex:0 0 auto}
+.muted{color:var(--text-faint);font-size:12px}
+.foot{color:var(--text-faint);font-size:11px;text-align:center;margin-top:20px;line-height:1.6}
+h3.s{font-size:12px;color:var(--text-dim);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="app">
+  <div class="logo">C</div>
+  <div><h1>Cortex · UART Sniffer <span class="proto">read-only</span></h1>
+  <div class="sub">Listen to a serial bus from your laptop — never transmits</div></div>
+</header>
+
+<div id="nosupport" class="errband" style="display:none">
+  This browser can't open serial ports (no Web Serial API). Open this file in <b>Chrome</b> or <b>Edge</b> on a laptop,
+  from a local file or over https. It won't work over plain <span class="pill">http://cortex.local</span>.
+</div>
+
+<div class="card">
+  <h2>Connection <span class="hint">RX + GND only · baud is unknown on the LG ODU UART, so try a few</span></h2>
+  <div class="row">
+    <label class="fld">Baud
+      <select id="baud">
+        <option>9600</option><option>19200</option><option selected>38400</option><option>57600</option>
+        <option>115200</option><option>4800</option><option>2400</option><option value="custom">custom…</option>
+      </select></label>
+    <input id="baudc" type="number" placeholder="custom baud" style="width:110px;display:none">
+    <label class="fld">Data<select id="bits"><option selected>8</option><option>7</option></select></label>
+    <label class="fld">Parity<select id="parity"><option value="none" selected>none</option><option value="even">even</option><option value="odd">odd</option></select></label>
+    <label class="fld">Stop<select id="stop"><option selected>1</option><option>2</option></select></label>
+    <div style="flex:1"></div>
+    <button class="btn primary" id="connect">Connect…</button>
+    <button class="btn danger" id="disconnect" disabled>Disconnect</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <span class="stat"><span class="dot" id="link"></span><span id="linktxt">not connected</span></span>
+    <span class="stat"><span class="dot rx" id="rxdot" style="opacity:.25"></span><span id="rate">0 B/s</span></span>
+    <span class="stat">total <span class="pill" id="total">0</span></span>
+    <div style="flex:1"></div>
+    <button class="btn sm" id="pause">Pause view</button>
+    <button class="btn sm" id="clear">Clear view</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Live bus <span class="hint">hex + ASCII · newest at the bottom</span></h2>
+  <div id="mon"></div>
+</div>
+
+<div class="card">
+  <h2>Structure helper <span class="hint">guesses whether the baud is right and how long each frame is</span></h2>
+  <div class="row" style="margin-bottom:10px"><button class="btn sm" id="analyze">Analyze recent bytes</button>
+    <span class="muted">Needs a few hundred bytes. If it looks like noise, change the baud and try again.</span></div>
+  <div class="sum-grid" id="analysis"></div>
+</div>
+
+<div class="card">
+  <h2>Capture <span class="hint">record raw bytes and drop markers to line up with an LGMV CSV later</span></h2>
+  <div class="row">
+    <button class="btn primary" id="rec">● Start recording</button>
+    <span class="stat">recorded <span class="pill" id="recbytes">0</span> bytes</span>
+    <div style="flex:1"></div>
+    <input id="mknote" placeholder="marker note, e.g. 'turned IDU1 on'" style="width:220px">
+    <button class="btn" id="mark" disabled>+ Marker</button>
+  </div>
+  <div id="marks" style="margin-top:10px"></div>
+  <h3 class="s">Download</h3>
+  <div class="row">
+    <button class="btn" id="dl-bin" disabled>⬇ raw .bin</button>
+    <button class="btn" id="dl-hex" disabled>⬇ timestamped hex log</button>
+    <button class="btn" id="dl-mk" disabled>⬇ markers .csv</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>How to connect (read first)</h2>
+  <div class="note" style="margin-bottom:8px"><b>Safety:</b> measure the signal voltage with a multimeter before wiring — LG service UART is likely 5V or 3.3V TTL. Use an adapter that matches (or a level shifter). Connect <b>GND first</b>, then the adapter's <b>RX</b> to the bus <b>TX</b>. For a pure sniff, leave the adapter's TX disconnected and don't connect VCC.</div>
+  <div class="muted" style="line-height:1.7">
+    1 · Plug in your USB-to-TTL adapter (a CP2102 one matches what LGMV uses).<br>
+    2 · Pick the baud (LG's ODU UART baud isn't published — start at 38400, then try 115200, 57600, 19200, 9600). The <b>Structure helper</b> tells you when a baud looks right.<br>
+    3 · Click <b>Connect</b> and choose the adapter's COM port.<br>
+    4 · To decode fields later: run LG's LGMV at the same time, hit <b>Start recording</b> here, and drop a <b>Marker</b> each time you change something (turn an IDU on, change setpoint). Afterward, line the markers up against LGMV's exported CSV.
+  </div>
+</div>
+
+<div class="foot">
+  Cortex UART Sniffer — read-only. It never writes to the bus.<br>
+  Capturing a proprietary bus is for your own diagnostics; decoding is a reverse-engineering effort, one ODU family at a time.
+</div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const MAXBUF=2_000_000;           // ring cap for analysis/live
+let buf=new Uint8Array(MAXBUF), head=0, filled=0;   // ring buffer of recent bytes
+let total=0, winBytes=0;
+let port=null, reader=null, keepReading=false, paused=false;
+let recording=false, recChunks=[], recBytes=0, recStart=0, markers=[];
+
+function hx(b){return b.toString(16).toUpperCase().padStart(2,"0");}
+
+/* ---- ingest: the ONLY entry point for bytes (also used by tests) ---- */
+function ingest(bytes){            // bytes: Uint8Array
+  for(let i=0;i<bytes.length;i++){ buf[head]=bytes[i]; head=(head+1)%MAXBUF; if(filled<MAXBUF)filled++; }
+  total+=bytes.length; winBytes+=bytes.length;
+  if(recording){ recChunks.push({t:performance.now()-recStart, data:bytes.slice()}); recBytes+=bytes.length; }
+  pendingView=true;
+}
+function recentBytes(n){            // last n bytes in order, as a plain array
+  n=Math.min(n,filled); const out=new Array(n);
+  for(let i=0;i<n;i++){ out[n-1-i]=buf[(head-1-i+MAXBUF)%MAXBUF]; }
+  return out;
+}
+
+/* ---- structure analysis ---- */
+function analyze(arr){
+  const n=arr.length; if(n<32) return {n, note:"need more data (let it run)"};
+  let pr=0; const hist=new Array(256).fill(0);
+  for(let i=0;i<n;i++){ const b=arr[i]; hist[b]++; if((b>=32&&b<127)||b===9||b===10||b===13)pr++; }
+  let topByte=0; for(let i=1;i<256;i++) if(hist[i]>hist[topByte]) topByte=i;
+  // gaps between occurrences of the most common byte (likely a header/sync) -> frame length
+  let last=-1; const gaps={};
+  for(let i=0;i<n;i++){ if(arr[i]===topByte){ if(last>=0){const g=i-last; if(g>=2&&g<=256)gaps[g]=(gaps[g]||0)+1;} last=i; } }
+  let gapGuess=0,gapCount=0; for(const g in gaps){ if(gaps[g]>gapCount){gapCount=gaps[g];gapGuess=+g;} }
+  // autocorrelation: repeating period
+  let autoGuess=0, autoScore=0; const maxLag=Math.min(96, n>>2);
+  for(let lag=2; lag<=maxLag; lag++){ let s=0; const lim=n-lag; for(let i=0;i<lim;i++) if(arr[i]===arr[i+lag]) s++; const norm=s/lim; if(norm>autoScore){autoScore=norm;autoGuess=lag;} }
+  const printablePct=Math.round(pr/n*100);
+  const topPct=Math.round(hist[topByte]/n*100);
+  // crude "baud looks right" heuristic: structured streams have a dominant sync byte and/or strong periodicity
+  const structured = (autoScore>0.25) || (gapCount>=3 && topPct>=4 && topPct<=60);
+  return {n, printablePct, topByte, topByteHex:"0x"+hx(topByte), topPct, gapGuess, gapCount,
+          autoGuess, autoScorePct:+(autoScore*100).toFixed(1), structured};
+}
+function renderAnalysis(a){
+  if(a.note){ $("analysis").innerHTML=`<div class="sum"><div class="k">status</div><div class="v" style="font-size:14px">${a.note}</div></div>`; return; }
+  const verdict = a.structured
+    ? `<span style="color:var(--ok)">looks structured ✓</span>`
+    : `<span style="color:var(--warn)">looks like noise — try another baud</span>`;
+  const frame = a.structured ? (a.gapCount>=3?a.gapGuess:a.autoGuess) : "—";
+  $("analysis").innerHTML =
+    sum("Baud verdict", verdict) +
+    sum("Likely frame length", frame+(frame!=="—"?" <small>bytes</small>":"")) +
+    sum("Sync byte?", a.topByteHex+` <small>(${a.topPct}%)</small>`) +
+    sum("Periodicity", a.autoScorePct+"% <small>@ "+a.autoGuess+"</small>") +
+    sum("Printable", a.printablePct+"%") +
+    sum("Analyzed", a.n+" <small>bytes</small>");
+  function sum(k,v){return `<div class="sum"><div class="k">${k}</div><div class="v" style="font-size:16px">${v}</div></div>`;}
+}
+
+/* ---- live hex view (throttled) ---- */
+let pendingView=false;
+function renderView(){
+  if(paused||!pendingView) return; pendingView=false;
+  const arr=recentBytes(1024); const mon=$("mon"); let out="";
+  for(let i=0;i<arr.length;i+=16){
+    const row=arr.slice(i,i+16);
+    const hex=row.map(hx).join(" ").padEnd(16*3-1," ");
+    const asc=row.map(b=>(b>=32&&b<127)?String.fromCharCode(b):".").join("");
+    out+=hex+"  |"+asc+"|\n";
+  }
+  const atBottom = mon.scrollTop+mon.clientHeight >= mon.scrollHeight-24;
+  mon.textContent=out;
+  if(atBottom) mon.scrollTop=mon.scrollHeight;
+}
+setInterval(renderView, 120);
+setInterval(()=>{ $("rate").textContent=winBytes+" B/s"; const d=$("rxdot"); d.style.opacity=winBytes>0?"1":"0.25"; winBytes=0; $("total").textContent=total.toLocaleString(); if(recording)$("recbytes").textContent=recBytes.toLocaleString(); }, 1000);
+
+/* ---- Web Serial ---- */
+function serialCfg(){
+  let b=$("baud").value; if(b==="custom") b=+$("baudc").value||38400; else b=+b;
+  return {baudRate:b, dataBits:+$("bits").value, parity:$("parity").value, stopBits:+$("stop").value, bufferSize:4096, flowControl:"none"};
+}
+async function connect(){
+  try{
+    port=await navigator.serial.requestPort();
+    await port.open(serialCfg());
+    keepReading=true; setLink(true);
+    $("connect").disabled=true; $("disconnect").disabled=false; $("mark").disabled=false;
+    readLoop();
+  }catch(e){ if(e&&e.name!=="NotFoundError") setErr("Couldn't open port: "+e.message); }
+}
+async function readLoop(){
+  while(port && port.readable && keepReading){
+    reader=port.readable.getReader();
+    try{ while(true){ const {value,done}=await reader.read(); if(done)break; if(value&&value.length) ingest(value); } }
+    catch(e){ setErr("Read error: "+e.message); }
+    finally{ try{reader.releaseLock();}catch(_){} }
+  }
+}
+async function disconnect(){
+  keepReading=false;
+  try{ if(reader) await reader.cancel(); }catch(_){}
+  try{ if(port) await port.close(); }catch(_){}
+  port=null; setLink(false);
+  $("connect").disabled=false; $("disconnect").disabled=true; $("mark").disabled=true;
+}
+function setLink(on){ $("link").className="dot"+(on?" on":""); $("linktxt").textContent=on?("connected · "+serialCfg().baudRate+" baud"):"not connected"; }
+function setErr(m){ let e=$("nosupport"); e.style.display="block"; e.className="errband"; e.textContent=m; }
+
+/* ---- recording + export ---- */
+function flatRecord(){ let n=recChunks.reduce((a,c)=>a+c.data.length,0); const out=new Uint8Array(n); let o=0; for(const c of recChunks){ out.set(c.data,o); o+=c.data.length; } return out; }
+function dl(name,blob){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; a.click(); }
+function stamp(){ return new Date().toISOString().replace(/[:.]/g,"-").slice(0,19); }
+
+/* ---- wire up UI ---- */
+$("baud").onchange=e=>{ $("baudc").style.display = e.target.value==="custom"?"inline-block":"none"; };
+$("connect").onclick=connect;
+$("disconnect").onclick=disconnect;
+$("pause").onclick=()=>{ paused=!paused; $("pause").textContent=paused?"Resume view":"Pause view"; pendingView=true; };
+$("clear").onclick=()=>{ head=0; filled=0; $("mon").textContent=""; };
+$("analyze").onclick=()=>renderAnalysis(analyze(recentBytes(4096)));
+$("rec").onclick=()=>{
+  recording=!recording;
+  if(recording){ recChunks=[]; recBytes=0; markers=[]; recStart=performance.now(); $("rec").textContent="■ Stop recording"; $("rec").classList.remove("primary"); renderMarks(); }
+  else { $("rec").textContent="● Start recording"; $("rec").classList.add("primary"); }
+  const has=recBytes>0||recChunks.length>0;
+  $("dl-bin").disabled=$("dl-hex").disabled=!(recChunks.length>0);
+  $("dl-mk").disabled=markers.length===0;
+};
+$("mark").onclick=()=>{ const t=recording?(performance.now()-recStart):0; markers.push({t:Math.round(t), note:$("mknote").value||"(mark)", atByte:recBytes}); $("mknote").value=""; renderMarks(); $("dl-mk").disabled=false; };
+function renderMarks(){
+  $("marks").innerHTML = markers.length? markers.map(m=>`<div class="mk"><span class="t">+${(m.t/1000).toFixed(1)}s · @${m.atByte}B</span><span>${esc(m.note)}</span></div>`).join("")
+    : '<div class="muted">No markers yet. While recording, note what you did and when so you can match it to LGMV data.</div>';
+}
+$("dl-bin").onclick=()=>{ if(recChunks.length) dl("cortex_uart_"+stamp()+".bin", new Blob([flatRecord()],{type:"application/octet-stream"})); };
+$("dl-hex").onclick=()=>{
+  let lines="# Cortex UART capture "+new Date().toISOString()+"  baud="+serialCfg().baudRate+"\n# ms_since_start  hex bytes\n";
+  for(const c of recChunks){ lines+=c.t.toFixed(1).padStart(10)+"  "+Array.from(c.data).map(hx).join(" ")+"\n"; }
+  dl("cortex_uart_"+stamp()+".hexlog.txt", new Blob([lines],{type:"text/plain"}));
+};
+$("dl-mk").onclick=()=>{
+  let csv="ms_since_start,seconds,byte_offset,note\n"+markers.map(m=>`${m.t},${(m.t/1000).toFixed(2)},${m.atByte},"${String(m.note).replace(/"/g,'""')}"`).join("\n")+"\n";
+  dl("cortex_uart_markers_"+stamp()+".csv", new Blob([csv],{type:"text/csv"}));
+};
+
+/* ---- boot ---- */
+if(!("serial" in navigator)){ $("nosupport").style.display="block"; $("connect").disabled=true; }
+renderMarks();
+window.addEventListener("beforeunload",()=>{ try{disconnect();}catch(_){} });
+// expose pure logic for tests
+window.__sniff={ingest,analyze,recentBytes,get total(){return total;},reset(){head=0;filled=0;total=0;}};
+</script>
+</body>
+</html>
