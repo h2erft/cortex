@@ -2,6 +2,30 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.2 — 2026-11-13 (working wall-controller locks)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.1._
+
+**Locks now actually work.** Previously the Mode/Fan/Temp lock buttons only changed Cortex's own
+screen — no lock command was ever put on the bus, so the wall thermostats were never locked. The LG
+lock command was reverse-engineered live from a running ACP (unit 0x5E, each lock isolated on the
+wire 2026-11-13) and is now implemented.
+
+- **Cortex sends the lock command (cmd4).** Locks ride a distinct `A0 00 A0 addr b4 b5 b6` frame —
+  byte 4 bits: `0x02` temp · `0x04` fan · `0x08` mode (plus `0x01` power). Cortex emits it right
+  after the normal control frame when you Send a unit.
+- **Locks set at the wall or the ACP now show up in Cortex.** Incoming cmd4 frames are decoded, so
+  the lock chips reflect reality instead of guessing (this was the "changes don't reflect" issue).
+- **Safe by design.** A cmd4 overwrites a unit's stored settings if sent with the wrong payload, so
+  Cortex replays each unit's *own* observed `b5/b6` and **never sends cmd4 blind** — if it hasn't yet
+  seen the ACP address a unit, it logs a warning and skips the lock rather than risk the unit. Let
+  Cortex watch the bus alongside the ACP once to learn each unit's template.
+- Fixed a wrong decode: the `80`-frame's byte-4 `0x04` bit was being shown as a lock — it tracks
+  mode, not a lock. Locks are read only from cmd4 now.
+- _Known gap:_ the ACP's separate "hard lock" produced no change in this frame and isn't handled yet.
+- Appliance bumped to serve this UI; `server.js` is unchanged (the serial bridge is byte-transparent,
+  so the browser-built lock frame reaches the adapter as-is).
+
 ## v1.6.0-beta.1 — 2026-11-12 (controls polish, debug cleanup, floor-plan placement)
 
 _Beta — publish as a GitHub **pre-release**. Builds on stable v1.5.0._

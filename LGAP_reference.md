@@ -188,25 +188,51 @@ Key points:
 - Verified round-trip: cool 23.5 / heat 20 →
   `A8 00 A0 A7 10 01 95 99 12 16 17 14 50 00 84 01`.
 
-### 4c. Control command "cmd4" + locks
-*Builder `FindAcCmd4SendData`.* A control command with marker **A0 / A4** (not 80). This is
-where the function **locks** live.
+### 4c. Control command "cmd4" + locks  ✅ WIRE-CONFIRMED 2026-11-13
+*Builder `FindAcCmd4SendData`.* A control command with marker **A0** (not 80). This is where
+the function **locks** live. Full 8-byte frame, captured live from a running ACP and verified
+by isolating each lock on unit `0x5E`:
 
-`byte4` carries the lock bits — set when a lock is ON, cleared when OFF. Bit mapping
-(high confidence, from the firmware's column order and struct offsets):
+```
+A0  00  A0  addr  b4  b5  b6  ck
+[0] A0            cmd4 marker
+[1] 00
+[2] A0            (always)
+[3] addr          indoor-unit central address
+[4] b4            power + LOCK bits (below)
+[5] b6 → static   per-unit payload (0x85 on 0x5E) — NOT live mode/fan/setpoint
+[6] b6 → static   per-unit payload (0x08 on 0x5E) — NOT live mode/fan/setpoint
+[7] ck            sum(0..6) XOR 0x55
+```
 
-| Bit  | Mask   | Meaning          |
-|------|--------|------------------|
-| bit3 | `0x08` | **MODE lock**    |
-| bit2 | `0x04` | **FAN lock**     |
-| bit1 | `0x02` | **SET-TEMP lock**|
-| bit0 | `0x01` | power on         |
+`byte4` carries the lock bits — set when a lock is ON, cleared when OFF. **Confirmed on the
+wire**, each lock toggled alone:
 
-Important: these lock bits belong to the **cmd4 (A0/A4)** control frame, **not** the 8-byte
-`80` state frame — where the same bit1 position is the "change" flag. The two frames are
-different; lock bits must never be OR'd into the `80` frame (it would corrupt the change
-flag). Transmitting locks therefore requires sending a cmd4 frame; its full header has not
-yet been confirmed on the wire (see §8).
+| Bit  | Mask   | Meaning          | Observed b4 (that lock only) |
+|------|--------|------------------|------------------------------|
+| bit3 | `0x08` | **MODE lock**    | `09` |
+| bit2 | `0x04` | **FAN lock**     | `05` |
+| bit1 | `0x02` | **SET-TEMP lock**| `03` |
+| bit0 | `0x01` | power on         | `01` (all unlocked) |
+
+All three locked = `0F`. (Earlier guess from firmware struct order was correct.)
+
+**Bytes 5–6 are a static per-unit value, not live settings.** On `0x5E` they stayed `85 08`
+through every mode change (auto→cool), setpoint change (70→72 °F) and lock change. Across other
+units in the ACP's sweep they vary slightly (`83–86` / `07–09`), so they appear to be a stored
+per-unit config/limit. **Replay each unit's own observed `b5/b6` verbatim; never send cmd4 with
+a guessed or zero payload** — per §Safety, a cmd4 overwrites the unit's stored settings.
+
+Important: these lock bits belong to the **cmd4 (A0)** control frame, **not** the 8-byte `80`
+state frame. In the `80` frame the byte-4 `0x04` bit tracks **mode**, not a lock — do not OR
+lock bits into the `80` frame.
+
+**"Hard lock"** (the ACP's lock-everything option) produced **no** change in this frame — no
+b4 bit, no b5/b6 change, and no other frame shape to the unit was seen. It likely uses a
+separate path (or the lossy tap dropped it); not yet decoded.
+
+The ACP also re-sends cmd4 for every unit during a periodic **full-unit sweep**, which is how a
+passive Cortex learns each unit's `b5/b6` template before it ever has to transmit.
 
 ### 4d. Control command "cmd6" — 16 bytes
 *Builder confirmed.* A second per-unit control frame, a sibling of cmd5: same **A8** marker,

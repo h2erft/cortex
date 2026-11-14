@@ -730,7 +730,16 @@ function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,
          [14] = ap_mkchksum(buf,14) = (sum[0..13] ^ 0x55) & 0xFF
          [15] = (ap_mkchksum(buf,15) + 1) & 0xFF = ((sum[0..14] ^ 0x55) + 1) & 0xFF
        NOTE: cmd5 marker is A8 (the 80 00 A0 basic frame is a DIFFERENT command).
-       TWO checksums (14 AND 15); ap_mkchksum == lgapCk (sum XOR 0x55), confirmed in code. */
+       TWO checksums (14 AND 15); ap_mkchksum == lgapCk (sum XOR 0x55), confirmed in code.
+   (C) 8-byte "cmd4" frame  A0 00 A0 addr b4 b5 b6 ck — carries the WALL-CONTROLLER LOCKS.
+       LIVE-DECODED on a running ACP 2026-11-13 (unit 0x5E, each lock isolated on the wire):
+         b4 bit0=power · bit1=TEMP lock (0x02) · bit2=FAN lock (0x04) · bit3=MODE lock (0x08)
+         (all-unlocked 0x01, temp-only 0x03, fan-only 0x05, mode-only 0x09, all three 0x0F)
+       b5,b6 are a STATIC per-unit payload (0x85 0x08 on 0x5E) — they did NOT move for mode,
+       setpoint OR lock changes, so they are NOT live settings; we replay each unit's own
+       observed b5/b6 verbatim and NEVER send cmd4 blind (a guessed cmd4 overwrites settings).
+       The "hard lock" produced no bit in this frame (likely a separate path) — not handled.
+       cmd0 (80-frame) carries NO locks; its b4 bit2 tracks mode, not a lock. */
 const MODELO={cool:0,dry:1,fan:2,auto:3,heat:4};  // ALL CONFIRMED 2026-11-08 from firmware mode→code converter (strcmp chain @0x380c8)
 const FANHI={low:1,med:2,high:3};       // low + med confirmed on wire; high by LG convention
 const SP_CONFIRMED=true;                // cmd0 basic frame b6 = °C-15 (community-confirmed, checksum-verified)
@@ -1143,17 +1152,22 @@ function validFrame(f){return f[2]===0xA0 && cksum(f)===f[7];}
 function frameType(f){
   if(f[0]===0x80&&f[1]===0x00)return "cmd";
   if(f[0]===0x84&&f[1]===0x00)return "cmd";
-  if(f[0]===0xA0&&f[1]===0x00)return "status";   // unit status heartbeat (room temp is NOT in it)
+  if(f[0]===0xA0&&f[1]===0x00)return "cmd4";     // cmd4 (0xA0): carries the wall-controller LOCKS in byte4 (live-decoded 2026-11-13)
   if(f[0]===0x80&&(f[1]===0xB0||f[1]===0xB2))return "poll";
   if((f[0]===0xF0||f[0]===0xC8)&&f[1]===0xC0)return "scan";
   return "other";}
 function decodeFrame(f){
   const t=frameType(f),d={addr:f[3],type:t,hex:[...f].map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ")};
-  if(t==="cmd"){d.power=(f[4]&0x01)?"on":"off";d.locked=!!(f[4]&0x04);d.writing=!!(f[4]&0x02);
-    d.change=!!(f[4]&0x02);d.b0=f[0];d.b5=f[5];d.b6=f[6];
+  if(t==="cmd"){d.power=(f[4]&0x01)?"on":"off";d.writing=!!(f[4]&0x02);
+    d.change=!!(f[4]&0x02);d.b0=f[0];d.b5=f[5];d.b6=f[6];     // NOTE: cmd0 byte4 bit2 is NOT a lock (it tracks mode); locks live in cmd4
     d.mode=BMODE[f[5]&0x0f]||("m"+(f[5]&0x0f));d.fan=BFAN[f[5]>>4]||("f"+(f[5]>>4));
     d.setC=f[6]+15+((f[0]&0x04)?0.5:0);                       // b6 = °C-15; header bit2 = +0.5°C
     d.setF=SP_CONFIRMED?Math.round(d.setC*9/5+32):null;}
+  else if(t==="cmd4"){                                          // byte4: bit0 power · bit1 temp-lock · bit2 fan-lock · bit3 mode-lock
+    d.power=(f[4]&0x01)?"on":"off";
+    d.tempLock=!!(f[4]&0x02);d.fanLock=!!(f[4]&0x04);d.modeLock=!!(f[4]&0x08);
+    d.locked=d.tempLock||d.fanLock||d.modeLock;
+    d.c4b4=f[4];d.c4b5=f[5];d.c4b6=f[6];}                      // b5/b6 = this unit's static cmd4 payload (replayed verbatim when we send locks)
   return d;}
 function crc16xmodem(buf,n){let c=0;for(let i=0;i<n;i++){c^=(buf[i]&0xff)<<8;for(let k=0;k<8;k++)c=(c&0x8000)?((c<<1)^0x1021)&0xffff:(c<<1)&0xffff;}return c&0xffff;}
 /* ---- MASTER / CC mode (beta) — Cortex drives the bus like the LG ACP ----
@@ -1475,6 +1489,10 @@ function handleDecoded(d){
   const a=bus.addrs.get(d.addr)||{addr:d.addr,count:0,cmd:0,types:new Set()};
   a.count++;if(d.type==="cmd")a.cmd++;a.types.add(d.type);a.last=d;a.seen=Date.now();bus.addrs.set(d.addr,a);
   if(d.type==="cmd"){const u=units.find(x=>x.addr===d.addr);if(u){u.d5=d.b5;u.d6=d.b6;u.b0=d.b0;}} // keep last-seen bytes for safe re-send
+  if(d.type==="cmd4"){const u=units.find(x=>x.addr===d.addr);if(u){
+    u.c4b5=d.c4b5;u.c4b6=d.c4b6;                               // learn this unit's cmd4 template — required to send locks safely (never blind)
+    if(rt(u.addr).hold<=Date.now()){u.tempLock=d.tempLock;u.fanLock=d.fanLock;u.modeLock=d.modeLock;}  // reflect locks changed at the wall/ACP
+  }}
   bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();
   bus.raw.push(d.hex);if(bus.raw.length>8000)bus.raw.shift();
   bus.dirty=true;}
@@ -1602,13 +1620,26 @@ async function txUnitRaw(u){
   // cmd5 (0xA8): the community confirms cmd5 overwrites the unit's stored settings even with a
   // zero payload, so it stays behind the explicit, armed "cmd5" tool. cmd0 is the safe control path.
   const basic=cmdBytesFor(u.addr,Object.assign({},u,{setC:(u.mode==="heat"?u.heatC:u.coolC)}));
+  // cmd4 LOCK frame (0xA0): byte4 = power|temp(0x02)|fan(0x04)|mode(0x08). b5/b6 are this unit's static cmd4
+  // payload, learned from the bus — NEVER sent blind (an all-zero/guessed cmd4 overwrites stored settings). Live-decoded 2026-11-13.
+  let lock=null;
+  if(u.c4b5!=null&&u.c4b6!=null){
+    const b4=(u.on?0x01:0)|(u.tempLock?0x02:0)|(u.fanLock?0x04:0)|(u.modeLock?0x08:0);
+    lock=[0xA0,0x00,0xA0,u.addr,b4,u.c4b5,u.c4b6,0];lock[7]=cksum(lock);
+  }else if(u.modeLock||u.fanLock||u.tempLock){
+    mlog("⚠ "+hx(u.addr)+": locks NOT sent — cmd4 template unknown. Let Cortex watch the ACP address this unit once to learn it.");
+  }
   const R=rt(u.addr);R.hold=Date.now()+8000;R.lastTx=toHexBytes(basic);R.txAt=Date.now();
   const w=bus.port.writable.getWriter();
-  try{for(let i=0;i<5;i++){await w.write(Uint8Array.from(basic));await sleep(140);}}
+  try{
+    for(let i=0;i<5;i++){await w.write(Uint8Array.from(basic));await sleep(140);}
+    if(lock){for(let i=0;i<3;i++){await w.write(Uint8Array.from(lock));await sleep(140);}}   // then enforce locks via cmd4
+  }
   finally{try{w.releaseLock();}catch(_){}}
   R.hold=Date.now()+6000;                                      // this unit's frames are out: give it a few seconds to act on them
-  const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°`};
-  bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);bus.dirty=true;}
+  const lk=[u.modeLock?"mode":"",u.fanLock?"fan":"",u.tempLock?"temp":""].filter(Boolean);
+  const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°${lock?(" · lock["+(lk.join("+")||"none")+"]"):""}`};
+  bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);if(lock)bus.raw.push("TX "+toHexBytes(lock));bus.dirty=true;}
 // Call BEFORE changing units you are about to send: from that moment a poll reply that is already on
 // its way must not put the old state back (it used to be able to undo one unit of an "All off").
 function holdUnits(list){const until=Date.now()+12000+list.length*900;list.forEach(u=>{rt(u.addr).hold=until;});}
@@ -1793,7 +1824,8 @@ function busScanNew(){
 function busLogRow(d){
   const isTx=d.type==="tx";
   let ds,tag=d.type;
-  if(d.type==="cmd"){ds=`${d.change?"<b>CHANGE</b> · ":""}${d.power} · ${d.mode} · fan ${d.fan}${d.locked?" · 🔒":""}`;tag=d.change?"command":"state";}
+  if(d.type==="cmd"){ds=`${d.change?"<b>CHANGE</b> · ":""}${d.power} · ${d.mode} · fan ${d.fan}`;tag=d.change?"command":"state";}
+  else if(d.type==="cmd4"){const lk=[d.modeLock?"mode":"",d.fanLock?"fan":"",d.tempLock?"temp":""].filter(Boolean);ds=`locks: ${lk.length?"🔒 "+lk.join("+"):"🔓 none"}`;tag="lock";}
   else if(isTx){ds=`TX → ${d.label!=null?d.label:`${d.power} · ${d.mode}${d.setF!=null?" · "+d.setF+"°":""}`}`;tag="sent";}
   else{ds=d.type;tag=d.type;}
   return `<div class="fr ${isTx?"tx":""}"><span class="ad">${hx(d.addr)}</span><span class="hx mono">${d.hex}</span><span class="ds">${ds}</span><span class="tag">${tag}</span></div>`;}
