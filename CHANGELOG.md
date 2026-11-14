@@ -2,6 +2,24 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.5 — 2026-11-14 (dimension locks work without a learned template)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.3/4._
+
+Fixes Mode/Fan/Temp lock (and unlock) on a channel where Cortex is the master and no ACP is present
+— the common deployment. Found on-site: a unit (0xC9) stayed mode-locked because Cortex skipped the
+cmd4 lock frame for any unit whose setpoint-limit band it hadn't learned from an ACP, so the unlock
+was never transmitted.
+
+- **Cortex now always sends the cmd4 lock frame**, using each unit's learned limit band when it has
+  one and otherwise a safe default of the full **15–30 °C** range. This lets locks be both set and
+  **cleared** on an ACP-free bus. Since Cortex only transmits as the sole master (no ACP to clobber),
+  it is authoritative and this is safe.
+- Because the dimension-lock state can't be read back over CEN (only the hard lock can), hitting Send
+  asserts the unit's lock state as shown in Cortex; a unit whose band hasn't been learned gets the
+  default 15–30 °C band (only matters while Temp lock is engaged — a note is logged).
+- No change to the hard lock (cmd0) or the decoders from beta.3.
+
 ## v1.6.0-beta.3 — 2026-11-14 (hard lock + lock-decode corrections)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.2._

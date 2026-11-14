@@ -736,9 +736,10 @@ function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,
        LIVE-DECODED on a running ACP 2026-11-13 (unit 0x5E, each lock isolated on the wire):
          b4 bit0=power · bit1=TEMP lock (0x02) · bit2=FAN lock (0x04) · bit3=MODE lock (0x08)
          (all-unlocked 0x01, temp-only 0x03, fan-only 0x05, mode-only 0x09, all three 0x0F)
-       b5,b6 are a STATIC per-unit payload (0x85 0x08 on 0x5E) — they did NOT move for mode,
-       setpoint OR lock changes, so they are NOT live settings; we replay each unit's own
-       observed b5/b6 verbatim and NEVER send cmd4 blind (a guessed cmd4 overwrites settings).
+       b5,b6 are the SETPOINT-LIMIT band (lower=(b5&0x0F)+15, upper=b6+15, b5 bit7 set) [kit §6.2] —
+       static per unit (0x85 0x08 = 20–23°C on 0x5E), not live mode/fan/setpoint. We replay a unit's
+       learned band when we have seen the ACP set it; else default to the full 15–30°C range. Cortex
+       transmits only as the sole master (no ACP to clobber), so asserting locks + band is safe there.
        The "hard lock" (whole wall-controller lock) is NOT here — it is the cmd0 remote-controller
        lock: cmd0 (80-frame) byte4 bit2 (0x04), sent with EXE, field-verified in the LGAP kit §6.1
        (reply byte1 bit2 echoes it). So Cortex sends the hard lock on the cmd0 control frame it
@@ -1624,15 +1625,15 @@ async function txUnitRaw(u){
   // cmd5 (0xA8): the community confirms cmd5 overwrites the unit's stored settings even with a
   // zero payload, so it stays behind the explicit, armed "cmd5" tool. cmd0 is the safe control path.
   const basic=cmdBytesFor(u.addr,Object.assign({},u,{setC:(u.mode==="heat"?u.heatC:u.coolC)}));
-  // cmd4 LOCK frame (0xA0): byte4 = power|temp(0x02)|fan(0x04)|mode(0x08). b5/b6 are this unit's static cmd4
-  // payload, learned from the bus — NEVER sent blind (an all-zero/guessed cmd4 overwrites stored settings). Live-decoded 2026-11-13.
-  let lock=null;
-  if(u.c4b5!=null&&u.c4b6!=null){
-    const b4=(u.on?0x01:0)|(u.tempLock?0x02:0)|(u.fanLock?0x04:0)|(u.modeLock?0x08:0);
-    lock=[0xA0,0x00,0xA0,u.addr,b4,u.c4b5,u.c4b6,0];lock[7]=cksum(lock);
-  }else if(u.modeLock||u.fanLock||u.tempLock){
-    mlog("⚠ "+hx(u.addr)+": locks NOT sent — cmd4 template unknown. Let Cortex watch the ACP address this unit once to learn it.");
-  }
+  // cmd4 LOCK frame (0xA0): byte4 = power|temp(0x02)|fan(0x04)|mode(0x08). b5/b6 = the setpoint-limit band
+  // (lower=(b5&0x0F)+15, upper=b6+15, b5 bit7 always set) [kit §6.2]. Use each unit's learned band when we've
+  // seen the ACP set it; otherwise default to the full 15–30°C range (no restriction). Cortex transmits only
+  // as the sole bus master (no ACP present to clobber), so it is authoritative — safe to assert locks + band.
+  const haveBand=(u.c4b5!=null&&u.c4b6!=null);
+  const b5c4=haveBand?u.c4b5:0x80, b6c4=haveBand?u.c4b6:0x0F;   // default band 15–30°C: b5=0x80 (lower 15, bit7 set), b6=0x0F (upper 30)
+  const b4c4=(u.on?0x01:0)|(u.tempLock?0x02:0)|(u.fanLock?0x04:0)|(u.modeLock?0x08:0);
+  const lock=[0xA0,0x00,0xA0,u.addr,b4c4,b5c4,b6c4,0];lock[7]=cksum(lock);   // always sent, so a stale lock can be CLEARED (b4 dimension bits 0)
+  if(!haveBand&&u.tempLock)mlog("ℹ "+hx(u.addr)+": temp lock using default 15–30°C band (no learned band yet)");
   const R=rt(u.addr);R.hold=Date.now()+8000;R.lastTx=toHexBytes(basic);R.txAt=Date.now();
   const w=bus.port.writable.getWriter();
   try{
