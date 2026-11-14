@@ -2,6 +2,28 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.3 — 2026-11-14 (hard lock + lock-decode corrections)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.2._
+
+Cross-checked the lock work against a field-verified LGAP reference kit and corrected two things,
+plus added the "hard lock."
+
+- **Hard lock (whole wall-controller lock) now works.** It is the cmd0 **remote-controller lock**
+  (cmd0 byte 4, bit `0x04`), sent with EXE on the control frame Cortex already uses — not a cmd4
+  bit, which is why toggling it alone showed no cmd4 change on 2026-11-13. New **Hard** toggle in
+  the unit's Locks row, alongside Mode / Fan / Temp.
+- **Fixed a beta.2 regression:** beta.2 removed the cmd0 byte-4 `0x04` lock decode on the assumption
+  it tracked mode. The reference (field-verified: lock on/off tested, reply byte 1 bit 2 confirms)
+  shows that bit *is* the remote lock. Restored, and the lock now reflects when set at the wall or
+  the ACP.
+- Dimension locks (Mode/Fan/Temp via cmd4) are unchanged from beta.2 and confirmed correct; the
+  reference also confirms cmd4 bytes 5–6 are the **setpoint-limit band** (lower = `(b5 & 0x0F)+15`,
+  upper = `b6+15`), so replaying each unit's own bytes 5–6 — which beta.2 already does — is right.
+- Docs updated (CHANGELOG, LGAP reference §4c, in-file protocol notes).
+- `server.js` still unchanged (byte-transparent bridge; the state relay carries the new `hardLock`
+  field through as-is).
+
 ## v1.6.0-beta.2 — 2026-11-13 (working wall-controller locks)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.1._

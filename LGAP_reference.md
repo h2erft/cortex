@@ -227,9 +227,11 @@ Important: these lock bits belong to the **cmd4 (A0)** control frame, **not** th
 state frame. In the `80` frame the byte-4 `0x04` bit tracks **mode**, not a lock — do not OR
 lock bits into the `80` frame.
 
-**"Hard lock"** (the ACP's lock-everything option) produced **no** change in this frame — no
-b4 bit, no b5/b6 change, and no other frame shape to the unit was seen. It likely uses a
-separate path (or the lossy tap dropped it); not yet decoded.
+**"Hard lock"** (the ACP's lock-everything / whole-wall-controller option) is **not** in this
+cmd4 frame. It is the **cmd0 remote-controller lock: cmd0 byte 4 bit 2 (`0x04`)**, sent with EXE,
+field-verified (reply byte 1 bit 2 echoes it). That is why toggling the hard lock alone left the
+cmd4 frame unchanged yesterday — it rides the cmd0 control frame, not cmd4. (A reconciling note on
+an earlier live read: cmd0 `b4=05` seen with mode=cool was the remote-lock bit, not a mode bit.)
 
 The ACP also re-sends cmd4 for every unit during a periodic **full-unit sweep**, which is how a
 passive Cortex learns each unit's `b5/b6` template before it ever has to transmit.

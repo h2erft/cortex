@@ -633,7 +633,7 @@ function adoptUnits(j){
   units=normalizeIds(j.units);migrateUnits(true);
   units.forEach(u=>{const o=prev.get(u.addr);if(!o)return;
     if(o._hist)u._hist=o._hist;
-    if(rt(u.addr).hold>Date.now()){["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","sp"].forEach(k=>{u[k]=o[k];});}});  // a command we just sent wins for a few seconds
+    if(rt(u.addr).hold>Date.now()){["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","sp"].forEach(k=>{u[k]=o[k];});}});  // a command we just sent wins for a few seconds
   noteUnitsRev(j.rev);
   try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}
   if(openId!=null)drawerStale=true;
@@ -667,6 +667,7 @@ function migrateUnits(noSave){let changed=false;units.forEach(u=>{
   if(u.modeLock==null){u.modeLock=false;changed=true;}
   if(u.fanLock==null){u.fanLock=false;changed=true;}
   if(u.tempLock==null){u.tempLock=false;changed=true;}
+  if(u.hardLock==null){u.hardLock=false;changed=true;}
   if(u.grp==null){u.grp=u.system||("Group "+(u.group!=null?u.group:""))||"Ungrouped";changed=true;}  // logical top-level group
   if(u.subgrp==null){u.subgrp="";changed=true;}                                                       // logical sub-group (floor/room)
   if(u.kind==null){u.kind="wall";changed=true;}                                                        // indoor-unit body type (tech sets it)
@@ -738,8 +739,10 @@ function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,
        b5,b6 are a STATIC per-unit payload (0x85 0x08 on 0x5E) — they did NOT move for mode,
        setpoint OR lock changes, so they are NOT live settings; we replay each unit's own
        observed b5/b6 verbatim and NEVER send cmd4 blind (a guessed cmd4 overwrites settings).
-       The "hard lock" produced no bit in this frame (likely a separate path) — not handled.
-       cmd0 (80-frame) carries NO locks; its b4 bit2 tracks mode, not a lock. */
+       The "hard lock" (whole wall-controller lock) is NOT here — it is the cmd0 remote-controller
+       lock: cmd0 (80-frame) byte4 bit2 (0x04), sent with EXE, field-verified in the LGAP kit §6.1
+       (reply byte1 bit2 echoes it). So Cortex sends the hard lock on the cmd0 control frame it
+       already uses, and the three dimension locks on this cmd4 frame. */
 const MODELO={cool:0,dry:1,fan:2,auto:3,heat:4};  // ALL CONFIRMED 2026-11-08 from firmware mode→code converter (strcmp chain @0x380c8)
 const FANHI={low:1,med:2,high:3};       // low + med confirmed on wire; high by LG convention
 const SP_CONFIRMED=true;                // cmd0 basic frame b6 = °C-15 (community-confirmed, checksum-verified)
@@ -783,7 +786,7 @@ function cmdBytesFor(addr,o,change){
   }else{
     b6=(o.d6!=null?o.d6:0x06);                                // no setpoint known — preserve last-seen
   }
-  const b4=(o.on?1:0)|(change===false?0:2);
+  const b4=(o.on?1:0)|(change===false?0:2)|(o.hardLock?0x04:0);  // bit2 = remote-controller (hard) lock, applied with EXE [kit §6.1]
   const b=[b0,0x00,0xA0,addr,b4,b5,b6,0];b[7]=cksum(b);return b;}
 function cmdFrameFor(addr,o){return toHexBytes(cmdBytesFor(addr,o));}
 function cmdFrame(u){return cmdFrameFor(u.addr,u);}
@@ -930,7 +933,7 @@ function unitCard(u){
   const mv=u.mode==="fan"?"fanm":MC[u.mode];             // the fan-only palette is --fanm / --fanm-soft
   const modechip=settings.show.mode&&u.on?`<span class="modechip" style="background:var(--${mv}-soft);color:var(--${u.mode==="fan"?"text-dim":mv})">${ml[2]} ${ml[1]}</span>`:"";
   const fanchip=settings.show.fan&&u.on?`<span class="chip">Fan ${ue((FANS.find(f=>f[0]===u.fan)||["",u.fan])[1])}</span>`:"";
-  const lockOn=[u.modeLock?'Mode':'',u.fanLock?'Fan':'',u.tempLock?'Temp':''].filter(Boolean);
+  const lockOn=[u.modeLock?'Mode':'',u.fanLock?'Fan':'',u.tempLock?'Temp':'',u.hardLock?'Hard':''].filter(Boolean);
   const lockChip=lockOn.length?`<span class="chip" title="Locked at the wall thermostat: ${lockOn.join(', ')}">🔒 ${lockOn.length===3?'Locked':lockOn.join(' · ')}</span>`:"";
   const chipRow=[modechip,fanchip,lockChip].filter(Boolean).join("");
   const meta2=getMeta(u);
@@ -957,7 +960,7 @@ function unitRow(u){
   return `<div class="lrow" data-id="${u.id}"><span class="st" style="background:${c}"></span>
     <div style="min-width:0"><div class="lname">${ue(dispName(u))}</div><div class="lsub">${KINDS[u.kind||'wall']||KINDS.wall}${inService(u)?' · in service':''}${u.offline?' · not responding':''}</div></div>
     <div class="lc-hide">${u.err?`<span class="pill err" data-code="${u.code}">${u.code}</span>`:(u.on?ml[2]+' '+ml[1]:'<span style="color:var(--text-faint)">off</span>')}</div>
-    <div class="mono">${u.on?(isDual(u)?spDisp(u.coolC)+'/'+spDisp(u.heatC):spDisp(activeC(u)))+'°'+settings.unit:"--"}${(u.modeLock||u.fanLock||u.tempLock)?' 🔒':''}</div>
+    <div class="mono">${u.on?(isDual(u)?spDisp(u.coolC)+'/'+spDisp(u.heatC):spDisp(activeC(u)))+'°'+settings.unit:"--"}${(u.modeLock||u.fanLock||u.tempLock||u.hardLock)?' 🔒':''}</div>
     <div class="mono lc-hide" style="color:var(--text-dim)">room ${temp(u.room)}</div></div>`;
 }
 function applyFilters(l){return l.filter(u=>statusFilter==="all"||statusOf(u)===statusFilter)
@@ -1159,7 +1162,7 @@ function frameType(f){
 function decodeFrame(f){
   const t=frameType(f),d={addr:f[3],type:t,hex:[...f].map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ")};
   if(t==="cmd"){d.power=(f[4]&0x01)?"on":"off";d.writing=!!(f[4]&0x02);
-    d.change=!!(f[4]&0x02);d.b0=f[0];d.b5=f[5];d.b6=f[6];     // NOTE: cmd0 byte4 bit2 is NOT a lock (it tracks mode); locks live in cmd4
+    d.change=!!(f[4]&0x02);d.remoteLock=!!(f[4]&0x04);d.locked=d.remoteLock;d.b0=f[0];d.b5=f[5];d.b6=f[6];  // cmd0 byte4 bit2 = remote-controller (hard) lock [kit §6.1, field-verified]; dimension locks are cmd4
     d.mode=BMODE[f[5]&0x0f]||("m"+(f[5]&0x0f));d.fan=BFAN[f[5]>>4]||("f"+(f[5]>>4));
     d.setC=f[6]+15+((f[0]&0x04)?0.5:0);                       // b6 = °C-15; header bit2 = +0.5°C
     d.setF=SP_CONFIRMED?Math.round(d.setC*9/5+32):null;}
@@ -1274,8 +1277,8 @@ function parseReply(f){
   const set=15+(f[7]&0x0f)+((f[1]&0x80)?0.5:0);
   // a missing sensor reads as an absurd code (0x00 / 0xFF) — report "no reading" rather than 147°F
   const inR=(raw,lo,hi)=>{const v=tC(raw);return (raw!==0xFF&&isFinite(v)&&v>=lo&&v<=hi)?v:null;};   // 0xFF = sensor not fitted
-  const err=f[5], room=inR(f[8],-10,50), pin=inR(f[9],-40,90), pout=inR(f[10],-40,90), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1;
-  return {addr:f[4],mode:modeName,fan:fanName,modeRaw:f[6]&7,fanRaw:(f[6]>>4)&7,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,
+  const err=f[5], room=inR(f[8],-10,50), pin=inR(f[9],-40,90), pout=inR(f[10],-40,90), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1, remoteLock=(f[1]&0x04)===0x04;  // reply byte1 bit2 = remote lock [kit §3.2]
+  return {addr:f[4],mode:modeName,fan:fanName,modeRaw:f[6]&7,fanRaw:(f[6]>>4)&7,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,remoteLock,
     roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
     text:`${modeName} · fan ${fanName} · set ${set}°C · room ${room==null?"—":room+"°C"}${err?" · ERR "+err:""} · sys ${group}`};}
 // Stop whatever is currently driving the bus (a sweep or the poll loop) and wait for the in-flight
@@ -1366,7 +1369,7 @@ async function relayDrain(myseq){
   const list=[];
   for(const c of cmds){const u=units.find(x=>x.addr===c.addr);if(!u||!c.state)continue;
     holdUnits([u]);
-    ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock"].forEach(k=>{if(c.state[k]!==undefined)u[k]=c.state[k];});
+    ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock"].forEach(k=>{if(c.state[k]!==undefined)u[k]=c.state[k];});
     u.coolC=clampC(u.coolC);u.heatC=clampC(u.heatC);u.sp=Math.round(activeC(u)*9/5+32);
     mlog("⇢ command from another screen → "+hx(u.addr));list.push(u);}
   if(!list.length||MASTER.seq!==myseq)return;
@@ -1421,7 +1424,8 @@ function applyReplyToUnit(p){if(!p)return false;const u=units.find(x=>x.addr===p
     u.mode=p.mode;u.on=!!p.on;
     u.fan=(FANHI[p.fan]!=null)?p.fan:"auto";u.fanRaw=p.fanRaw;  // a code that isn't low/med/high shows as Auto and is re-sent unchanged
     if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}
-    if(p.modeRaw!=null&&p.fanRaw!=null)u.d5=(p.fanRaw<<4)|p.modeRaw;}
+    if(p.modeRaw!=null&&p.fanRaw!=null)u.d5=(p.fanRaw<<4)|p.modeRaw;
+    if(p.remoteLock!=null)u.hardLock=!!p.remoteLock;}                      // hard lock set at the wall/ACP reflects here
   u.room=(p.room!=null)?Math.round(p.room*9/5+32):null;
   if(p.pipeIn!=null)u.pipeIn=Math.round(p.pipeIn*9/5+32);
   if(p.pipeOut!=null)u.pipeOut=Math.round(p.pipeOut*9/5+32);
@@ -1637,8 +1641,9 @@ async function txUnitRaw(u){
   }
   finally{try{w.releaseLock();}catch(_){}}
   R.hold=Date.now()+6000;                                      // this unit's frames are out: give it a few seconds to act on them
-  const lk=[u.modeLock?"mode":"",u.fanLock?"fan":"",u.tempLock?"temp":""].filter(Boolean);
-  const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°${lock?(" · lock["+(lk.join("+")||"none")+"]"):""}`};
+  const dim=lock?[u.modeLock?"mode":"",u.fanLock?"fan":"",u.tempLock?"temp":""].filter(Boolean):[];   // dimension locks only ride the cmd4 frame (sent when template known)
+  const lk=[...dim,...(u.hardLock?["hard"]:[])];                                                        // hard lock rides the cmd0 frame, always sent
+  const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°${lk.length?(" · lock["+lk.join("+")+"]"):""}`};
   bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);if(lock)bus.raw.push("TX "+toHexBytes(lock));bus.dirty=true;}
 // Call BEFORE changing units you are about to send: from that moment a poll reply that is already on
 // its way must not put the old state back (it used to be able to undo one unit of an "All off").
@@ -1658,7 +1663,7 @@ async function sendUnits(list){
   if(relayOk()){let n=0;
     for(const u of list){try{
       const r=await fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock}})});
+        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock}})});
       if(r.ok){const j=await r.json();SRV.masterAlive=!!j.masterAlive;if(j.masterAlive){rt(u.addr).hold=Date.now()+12000;n++;}}
     }catch(e){}}
     return n;}
@@ -1799,7 +1804,7 @@ function busClear(){busReset();renderBusScan();}
 function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&&a.last&&a.last.type==="cmd")?a.last:null;const modeOk=s&&["auto","cool","heat"].includes(s.mode);
   return {id,addr,name:"AC_UNIT_"+addr.toString(16).padStart(2,"0").toUpperCase(),label:"Addr 0x"+addr.toString(16).padStart(2,"0").toUpperCase(),
     ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",kind:"wall",
-    on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,
+    on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,hardLock:false,
     room:null,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:null,pipeOut:null,discovered:true};}
 function busImport(){
   const picked=[...document.querySelectorAll(".busrow input.busimp:checked")].map(c=>+c.value);
@@ -1824,7 +1829,7 @@ function busScanNew(){
 function busLogRow(d){
   const isTx=d.type==="tx";
   let ds,tag=d.type;
-  if(d.type==="cmd"){ds=`${d.change?"<b>CHANGE</b> · ":""}${d.power} · ${d.mode} · fan ${d.fan}`;tag=d.change?"command":"state";}
+  if(d.type==="cmd"){ds=`${d.change?"<b>CHANGE</b> · ":""}${d.power} · ${d.mode} · fan ${d.fan}${d.remoteLock?" · 🔒hard":""}`;tag=d.change?"command":"state";}
   else if(d.type==="cmd4"){const lk=[d.modeLock?"mode":"",d.fanLock?"fan":"",d.tempLock?"temp":""].filter(Boolean);ds=`locks: ${lk.length?"🔒 "+lk.join("+"):"🔓 none"}`;tag="lock";}
   else if(isTx){ds=`TX → ${d.label!=null?d.label:`${d.power} · ${d.mode}${d.setF!=null?" · "+d.setF+"°":""}`}`;tag="sent";}
   else{ds=d.type;tag=d.type;}
@@ -2243,9 +2248,9 @@ function renderAll(){
 const drawer=document.getElementById("drawer"),scrim=document.getElementById("scrim");
 let openId=null;
 let pend=null; // staged (not-yet-sent) command for the open unit
-function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,d5:u.d5,d6:u.d6,b0:u.b0};}
+function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,hardLock:u.hardLock,d5:u.d5,d6:u.d6,b0:u.b0};}
 function openDrawer(id){openId=id;const u=units.find(x=>x.id===id);pend=snap(u);drawDrawer(u);drawer.classList.add("show");scrim.classList.add("show");}
-function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock);}
+function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock||pend.hardLock!==u.hardLock);}
 function closeDrawer(){openId=null;drawerRenderedId=null;drawer.classList.remove("show");scrim.classList.remove("show");
   const fx=document.getElementById("fxlayer");if(fx)fx.innerHTML="";}
 scrim.onclick=closeDrawer;
@@ -2294,9 +2299,9 @@ function drawDrawer(u){
         <div class="dsrow"><div class="dslbl" style="color:var(--cool)">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
         <div class="dsrow"><div class="dslbl" style="color:var(--heat)">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
-    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
-      <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button></div>
-      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Locks stop changes at the wall thermostat.${!locked?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>${p.mode==="auto"&&!p.twoset?' <span style="color:var(--text-faint)">· auto uses one setpoint on Multi V</span>':''}`:''}</div></div>
+    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
+      <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button><button class="opt ${p.hardLock?'sel':''}" id="lk-hard" ${dis}>${p.hardLock?'🔒':'🔓'} Hard</button></div>
+      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Mode/Fan/Temp lock those dimensions; Hard lock locks the whole wall controller.${!locked?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>${p.mode==="auto"&&!p.twoset?' <span style="color:var(--text-faint)">· auto uses one setpoint on Multi V</span>':''}`:''}</div></div>
     <div class="field">
       <button class="btn ${live&&isTech?'danger live':'primary'}" id="sendcmd" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${locked?';opacity:.5':''}" ${locked?'disabled':''}>${sendTxt}</button>
       ${live?(isTech
@@ -2362,7 +2367,7 @@ function drawDrawer(u){
     if(!canReach()&&!isDemo()){toast(notConnMsg());return;}
     send.dataset.busy="1";send.disabled=true;send.textContent="Sending…";
     holdUnits([u]);
-    u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=clampC(p.coolC);u.heatC=clampC(p.heatC);u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;
+    u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=clampC(p.coolC);u.heatC=clampC(p.heatC);u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;u.hardLock=p.hardLock;
     u.sp=Math.round(activeC(u)*9/5+32);
     if(canReach())await txUnit(u);
     else toast("Demo mode — saved on this screen (no equipment connected)");
@@ -2387,6 +2392,7 @@ function drawDrawer(u){
     g("lk-mode",()=>{p.modeLock=!p.modeLock;re2();});
     g("lk-fan",()=>{p.fanLock=!p.fanLock;re2();});
     g("lk-temp",()=>{p.tempLock=!p.tempLock;re2();});
+    g("lk-hard",()=>{p.hardLock=!p.hardLock;re2();});
     g("two-toggle",()=>{p.twoset=!p.twoset;re2();});
   }
 }
