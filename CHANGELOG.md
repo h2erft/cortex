@@ -2,6 +2,14 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.10 — 2026-11-15 (bookmark/tab icon)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.9._
+
+- **Brain logo now shows as the browser tab and bookmark icon** (favicon), using the same artwork as
+  the in-app logo — a white brain on the Cortex green, legible on light and dark bookmark bars. Added to
+  the controller, Command Center, Setup and the UART tool pages. It's a self-contained SVG, no extra file.
+
 ## v1.6.0-beta.9 — 2026-11-15 (release notes on the update page · experimental UART page · Wi-Fi module support)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.8._
