@@ -241,6 +241,28 @@ The firmware-engine reading earlier in this section was done with capstone, no R
 - `tip(html)` renders the "i" popover; `row()` moves any description longer than ~56 characters into one.
 - `siteGen()` / `siteCaps()` gate auto fan and dual setpoints (family 0x0E or 4800 baud = generation 4).
 
+## 1.7.0-beta.3 addendum (2026-11-15) — the controller is now the master
+
+- **`appliance/busmaster.js`** is the poll loop on the appliance (same rules as `masterLoopRun` in
+  `cortex.html`): cmd0 reads, queued commands (cmd0 ×5 + cmd4 ×3), cmd14 pages 0/subs/5 once a minute.
+  `server.js` starts it from a 10 s supervisor when `master-mode` is `1`, nothing holds the adapter and
+  15 s have passed since a dashboard left; a `/bus` WebSocket connection makes it stop first.
+  `masterAlive()` is true while it runs, so other screens relay commands through `/api/cmd` as before.
+  Its frame builders must stay byte-identical to the dashboard's (`tests/busmaster.test.js`,
+  `tests/scheduler.test.js`, `tests/protocol.test.js` hold the reference frames).
+- **`appliance/recorder.js`**: 12-minute ring (15 s samples), fault events in `DATA/events/` (index +
+  one JSON per event, 30 days), outdoor trend log `DATA/history/odu-<date>.ndjson` (raw pages, 35 days).
+  Outdoor pages are stored raw; the dashboard decodes them (`decodeOduPage`). Endpoints: `/api/odu`,
+  `/api/events`, `/api/events/:id`, `/api/history/odu`. The dashboard that holds the adapter posts its
+  pages to `/api/odu` so recording works in both modes.
+- New appliance files must be added to **both** `release.yml` and `release.sh` (now: scheduler,
+  busmaster, recorder, pwa).
+- Cycle page help text (`CY_HELP`) and the checks (`oduAdvice`, `cyTone`) come from LG's "Typical
+  Operating Values — Multi V IV" and protection-control tables in the Multi V advanced service class
+  deck the operator supplied. Do not commit those PDFs.
+- Still open: verify the controller loop and the 0x30 inventory on site; gen-5 family codes; HRU data
+  (service port only); real push notifications need HTTPS — the webhook is the supported route today.
+
 ## 9. Things that will bite you
 
 - `cortex.html` is one long file with long lines. Edit with exact-match replacements and re-run the

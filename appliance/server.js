@@ -372,7 +372,7 @@ app.post('/api/appconfig', (req, res) => {
 const UNITSF = path.join(DATA, 'units.json');
 let unitsDoc = (() => { const d = readJsonSafe(UNITSF); return (d && Array.isArray(d.units)) ? d : { rev: 0, ts: 0, units: [] }; })();
 let unitsDirty = false, unitsFlushT = null, masterAt = 0;
-function masterAlive() { return Date.now() - masterAt < 30000; }
+function masterAlive() { return Date.now() - masterAt < 30000 || (typeof busMaster !== 'undefined' && busMaster && busMaster.alive()); }
 function flushUnits() {
   if (unitsFlushT) { clearTimeout(unitsFlushT); unitsFlushT = null; }
   if (!unitsDirty) return;
@@ -393,7 +393,7 @@ app.put('/api/units', express.json({ limit: '2mb' }), (req, res) => {
   }
   if (b.master) masterAt = Date.now();
   unitsDoc = { rev: unitsDoc.rev + 1, ts: Date.now(), units: b.units };
-  if (b.master) histSample();
+  if (b.master) { histSample(); recorder.sample(unitsDoc.units); }
   unitsDirty = true;
   // Live readings arrive every few seconds; don't hammer the disk with them. Layout changes
   // (add / remove / regroup) are written straight away.
@@ -418,7 +418,7 @@ function histSample() {
     if (!u || typeof u.addr !== 'number' || u.offline || !u.seen || now - u.seen > 120000) continue;   // only units that answered recently
     const set = (u.mode === 'heat' ? u.heatC : u.coolC);
     s[u.addr] = [u.room == null ? null : u.room, typeof set === 'number' ? set : null, u.on ? 1 : 0,
-                 u.err && u.code ? String(u.code) : 0, u.pipeIn == null ? null : u.pipeIn, u.pipeOut == null ? null : u.pipeOut];
+                 u.err && u.code ? String(u.code) : 0, u.pipeIn == null ? null : u.pipeIn, u.pipeOut == null ? null : u.pipeOut, u.eev == null ? null : u.eev];
   }
   if (!Object.keys(s).length) return;
   histLast = now;
@@ -595,6 +595,9 @@ app.post('/api/update/keep-beta', (_req, res) => {
 
 // --- first-run redirect -------------------------------------------------------
 // An unconfigured box sends you straight to the setup wizard; once named, '/' is the app.
+const pwa = require('./pwa');
+app.get('/manifest.webmanifest', (_req, res) => { res.type('application/manifest+json').json(pwa.manifest(readConfig().name)); });
+app.get('/icon-256.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400').type('png').send(pwa.ICON_PNG); });
 app.get('/', (_req, res, next) => {
   const app2 = readJsonSafe(APPCFG);
   if (!readConfig().configured && !(app2 && app2.provisioned) && fs.existsSync(path.join(DIR, 'setup.html'))) {
@@ -635,7 +638,7 @@ app.use(express.static(DIR, { index: 'cortex.html', extensions: ['html'] }));
 const server = http.createServer(app);
 
 // One serial consumer at a time — the bus is a single physical port (shared by http AND https).
-let busy = false;
+let busy = false, lastScreenLeft = 0, busMaster = null;
 
 // USB adapters don't always come back with the same name after a replug or reboot (ttyUSB0 can
 // become ttyUSB1). If the configured device is gone and exactly ONE USB serial adapter is plugged
@@ -665,8 +668,10 @@ function attachBus(srv) {
    }
  }, 15000);
  wss.on('close', () => clearInterval(beat));
- wss.on('connection', (ws, req) => {
+ wss.on('connection', async (ws, req) => {
   ws.isAlive = true; ws.on('pong', () => { ws.isAlive = true; });
+  if (busMaster && busMaster.state.active) { try { await busMaster.stop(); } catch (_) {} }   // a dashboard wants the adapter: the controller's own loop lets go
+  if (ws.readyState !== 1) return;
   if (busy) { try { ws.send(JSON.stringify({ err: 'serial already in use by another session' })); } catch (_) {} ws.close(); return; }
   const u = new URL(req.url, 'http://x');
   const serial = resolveSerial();                             // read fresh: wizard changes apply here
@@ -695,7 +700,7 @@ function attachBus(srv) {
   ws.on('message', (msg, isBinary) => { if (isBinary && port.writable) port.write(Buffer.from(msg)); }); // browser -> bytes
 
   let cleaned = false;
-  const cleanup = () => { if (cleaned) return; cleaned = true; busy = false; busRx.active = false; try { if (port.isOpen) port.close(() => {}); } catch (_) {} };
+  const cleanup = () => { if (cleaned) return; cleaned = true; busy = false; busRx.active = false; lastScreenLeft = Date.now(); try { if (port.isOpen) port.close(() => {}); } catch (_) {} };
   ws.on('close', cleanup);
   ws.on('error', cleanup);
  });
@@ -712,7 +717,7 @@ const MASTERF = path.join(DATA, 'master-mode'), FIREDF = path.join(DATA, 'sched-
 const masterMode = () => { try { return fs.readFileSync(MASTERF, 'utf8').trim() === '1'; } catch (_) { return false; } };
 app.get('/api/master-mode', (_req, res) => { cors(res); res.json({ on: masterMode() }); });
 app.post('/api/master-mode', (req, res) => { cors(res);
-  try { fs.writeFileSync(MASTERF, (req.body && req.body.on) ? '1\n' : '0\n'); res.json({ ok: true, on: masterMode() }); }
+  try { fs.writeFileSync(MASTERF, (req.body && req.body.on) ? '1\n' : '0\n'); if (!(req.body && req.body.on) && busMaster) busMaster.stop(); res.json({ ok: true, on: masterMode() }); }
   catch (e) { res.status(500).json({ err: e.message }); } });
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 // Put frames on the bus ourselves: open the adapter, send each frame three times, close it.
@@ -764,10 +769,75 @@ const schedRunner = scheduler.createRunner({
     unitsDirty = true; flushUnits();
   },
   getOutdoor: schedOutdoor,
+  disableSchedule: (id) => { try { const c = readJsonSafe(APPCFG) || {}; const s0 = (c.schedules || []).find(x => x.id === id); if (!s0) return;
+    s0.enabled = false; c._rev = (Number(c._rev) || 0) + 1; writeFileAtomic(APPCFG, JSON.stringify(c, null, 2)); } catch (e) { console.error('schedule disable failed:', e.message); } },
   loadFired: () => readJsonSafe(FIREDF) || {},
   saveFired: (f) => { try { writeFileAtomic(FIREDF, JSON.stringify(f)); } catch (_) {} },
   log: (e) => console.log('schedule:', JSON.stringify(e)),
 });
+// --- recorder: rolling buffer, fault events with the 10 minutes before, outdoor trends ----------
+const { createRecorder } = require('./recorder');
+const recorder = createRecorder({ dataDir: DATA, log: (t) => console.log('recorder:', t),
+  notify: (ev) => {                                           // optional alert webhook (Home Assistant, ntfy, anything that takes a POST)
+    const cfg = readJsonSafe(APPCFG) || {}; const url = cfg.alertUrl;
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
+    const site = (cfg.site && cfg.site.name) || readConfig().name || 'Cortex';
+    const what = ev.kind === 'silent' ? 'stopped responding' : ('error ' + ev.code);
+    const text = `${site}: ${ev.kind === 'odu' ? 'Outdoor unit' : (ev.name || 'Unit')} 0x${ev.addr.toString(16).toUpperCase()} ${what}`;
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Title': 'Cortex alert' },
+      body: JSON.stringify({ site, text, message: text, title: 'Cortex alert', event: ev }), signal: AbortSignal.timeout(8000) }).catch(e => console.error('alert webhook failed:', e.message));
+  } });
+app.post('/api/odu', (req, res) => { cors(res);                // pages read by the dashboard that holds the adapter
+  const pages = (req.body && Array.isArray(req.body.pages)) ? req.body.pages.slice(0, 16) : [];
+  for (const h of pages) if (typeof h === 'string' && /^[0-9a-f]{128}$/i.test(h)) recorder.onOdu(Buffer.from(h, 'hex'));
+  res.json({ ok: true }); });
+app.get('/api/odu', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ odu: recorder.oduState(), poller: pollerInfo() }); });
+app.get('/api/events', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ events: recorder.events() }); });
+app.get('/api/events/:id', (req, res) => { cors(res); const d = recorder.event(req.params.id); if (!d) return res.status(404).json({ err: 'no such event' }); res.json(d); });
+app.get('/api/history/odu', (req, res) => { cors(res); res.set('Cache-Control', 'no-store');
+  const addr = parseInt(req.query.addr, 10), days = Math.max(1, Math.min(31, parseInt(req.query.days, 10) || 1));
+  if (!Number.isInteger(addr) || addr < 0 || addr > 0xFE) return res.status(400).json({ err: 'addr' });
+  res.json({ addr, days, rows: recorder.oduHistory(addr, days) }); });
+
+// --- the poll loop, on the controller ----------------------------------------------
+// Runs whenever Cortex is the bus master on this site and no dashboard holds the adapter, so the
+// equipment is watched (and faults are recorded) with every browser closed. See busmaster.js.
+const { createMaster } = require('./busmaster');
+function patchUnits(patches) {
+  if (!patches || !patches.length) return;
+  const by = new Map(patches.map(p => [p.addr, p.fields])); let ch = false;
+  const units = unitsDoc.units.map(u => { const f = u && by.get(u.addr); if (!f) return u;
+    const n = Object.assign({}, u, f);
+    if ('code' in f && (f.code || null) !== (u.code || null)) {             // same fault history the dashboard keeps
+      const L = Array.isArray(u.errLog) ? u.errLog.map(x => Object.assign({}, x)) : [], t = Date.now();
+      if (u.code) { const e = L.find(x => x.code === u.code && !x.cleared); if (e) e.cleared = t; }
+      if (f.code) L.unshift({ code: f.code, at: t, cleared: 0 });
+      n.errLog = L.slice(0, 20); }
+    ch = true; return n; });
+  if (!ch) return;
+  unitsDoc = { rev: unitsDoc.rev + 1, ts: Date.now(), units };
+  unitsDirty = true; if (!unitsFlushT) unitsFlushT = setTimeout(flushUnits, 15000);
+}
+busMaster = createMaster({
+  openPort: () => new Promise((resolve, reject) => { const sp = new SerialPort({ path: resolveSerial(), baudRate: 4800, parity: 'none', stopBits: 1, dataBits: 8 }, (err) => err ? reject(err) : resolve(sp)); }),
+  getUnits: () => unitsDoc.units,
+  patchUnits,
+  drain: () => { const now = Date.now(), out = cmdQueue.filter(c => now - c.ts < CMD_TTL); cmdQueue = []; return out; },
+  oduAddrs: () => { const c = readJsonSafe(APPCFG) || {}; return Array.isArray(c.oduAddrs) ? c.oduAddrs.filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF) : []; },
+  onOdu: (f) => recorder.onOdu(f),
+  onPass: () => { histSample(); recorder.sample(unitsDoc.units); },
+  onBytes: (n) => { busRx.bytes += n; busRx.last = Date.now(); },
+  onEnd: () => { busy = false; busRx.active = false; pollerEndedAt = Date.now(); },
+  log: (t) => console.log('busmaster:', t),
+});
+function pollerInfo() { const S = busMaster.state; return { active: S.active, alive: busMaster.alive(), passMs: S.passMs, lastPassAt: S.lastPassAt, passes: S.passes, error: S.error, masterMode: masterMode() }; }
+let pollerEndedAt = 0;
+setInterval(() => {                                           // supervisor: take the bus when it is ours and nobody else has it
+  if (busMaster.state.active || busy || !masterMode()) return;
+  if (!unitsDoc.units.length || Date.now() - lastScreenLeft < 15000) return;
+  if (busMaster.state.error && Date.now() - pollerEndedAt < 60000) return;      // adapter missing or failing: try again in a minute, not every 10 s   // give a reloading dashboard a moment to come back first
+  busy = true; busRx.active = true; busMaster.start();
+}, 10000);
 setInterval(() => { schedRunner.tick().catch(e => console.error('schedule tick failed:', e && e.message)); }, 20000);
 app.get('/api/sched', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store');
   res.json({ server: true, masterMode: masterMode(), masterAlive: masterAlive(), history: schedRunner.history }); });
@@ -776,7 +846,7 @@ server.listen(PORT, () => console.log(`Cortex appliance listening on :${PORT}  (
 
 // Save the latest unit readings before the service stops (an update or a reboot), and never let a
 // stray promise rejection take the whole controller down.
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { flushUnits(); } catch (_) {} process.exit(0); });
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { flushUnits(); } catch (_) {} try { recorder.flush(); } catch (_) {} process.exit(0); });
 process.on('unhandledRejection', (e) => console.error('unhandled rejection:', e && e.message ? e.message : e));
 
 // --- optional HTTPS -------------------------------------------------------------

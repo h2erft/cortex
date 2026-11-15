@@ -2,6 +2,36 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.3 — 2026-11-15 (controller polls by itself · fault recorder · cycle page help)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.2. Adds `appliance/busmaster.js`,
+`appliance/recorder.js`, `appliance/pwa.js`; changes `server.js`, `scheduler.js`, `cortex.html`._
+
+- **The controller now polls the equipment itself** (`appliance/busmaster.js`) whenever Cortex is the
+  bus master and no dashboard holds the adapter: live readings, commands from any screen, schedules and
+  outdoor-unit reads keep going with every browser closed. It hands the adapter over the moment a
+  dashboard connects from Bus scan, and takes it back about 25 s after that screen leaves.
+- **Fault history with pre-fault recording** (`appliance/recorder.js`, new *Fault history* page for
+  admins and technicians). Every indoor error code, outdoor error and unit that stops answering is
+  logged on a 30-day timeline. Each record keeps the **10 minutes of readings before the fault** and
+  the 5 minutes after (a sample about every 15 s: every indoor unit plus every outdoor unit's pages),
+  with charts and a downloadable file.
+- **Outdoor-unit trends.** Raw outdoor pages are logged every 5 minutes for 35 days; each outdoor unit
+  has a *Trends* button (pressures, temperatures, compressors, superheat/subcooling, EEVs, fans,
+  inverter amps) for main and sub units. Indoor trend rows now also carry the EEV position.
+- **Outdoor / cycle page.** Main and sub units sit side by side, each with its own colour; systems are
+  numbered and colour-banded. Compressors are animated scrolls whose speed follows the Hz; fans spin
+  with rpm. Every reading has an "i" explaining what the part is, what it is controlling and what normal
+  looks like (cooling, heating, defrost), and a *Worth a look* box compares running values with LG's
+  Typical Operating Values for Multi V IV. Outdoor data now shows on every screen, not only the one
+  holding the adapter.
+- **Schedules:** new *Repeat* tick box — untick it and the schedule runs once, then switches itself off.
+- **Fault alerts:** Settings ▸ *Fault alerts* posts each new fault to a web address (Home Assistant
+  webhook, ntfy, …). Cortex can also be added to a phone's home screen (manifest + icon).
+- Tests: `tests/busmaster.test.js` (poll loop and recorder against a simulated bus).
+
+**Not yet verified on equipment:** the controller's own poll loop, and the 0x30 inventory pages.
+
 ## v1.7.0-beta.2 — 2026-11-15 (schedules without a browser · group by outdoor unit · new cycle page)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.1. Changes `cortex.html`,

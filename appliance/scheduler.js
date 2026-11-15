@@ -141,6 +141,7 @@ function createRunner(io) {
             io.queue(u.addr, { on: !!c.on, mode: c.mode, fan: c.fan, swing: !!c.swing, coolC: c.coolC, heatC: c.heatC }); });
           fired[s.id] = key; io.saveFired(fired);
           note({ id: s.id, name: s.name, result: 'queued', units: tgt.length });
+          if (s.once && io.disableSchedule) io.disableSchedule(s.id);
           continue;
         }
         if (!io.masterMode()) {                                     // Cortex is not the bus master here — never write
@@ -151,7 +152,7 @@ function createRunner(io) {
         const changed = tgt.map(u => applyAction(Object.assign({}, u), s.action, unit));
         const frames = changed.map(cmd0Bytes);
         let ok = false; try { ok = await io.transmit(frames); } catch (e) { ok = false; note({ id: s.id, name: s.name, result: 'error', err: String(e && e.message || e) }); }
-        if (ok) { io.commitUnits(changed); fired[s.id] = key; io.saveFired(fired); note({ id: s.id, name: s.name, result: 'sent', units: tgt.length }); }
+        if (ok) { io.commitUnits(changed); fired[s.id] = key; io.saveFired(fired); note({ id: s.id, name: s.name, result: 'sent', units: tgt.length }); if (s.once && io.disableSchedule) io.disableSchedule(s.id); }
         // not ok (adapter busy / missing): leave it un-fired so the next tick inside the grace window retries
       }
     } finally { running = false; }
