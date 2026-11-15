@@ -46,9 +46,10 @@ const STREAM = [   // a central controller polling 4 indoor units and one outdoo
     out.c0_read = H(cmdBytesFor(0x31, base, false));
     // ---- cmd4 locks + limits
     out.c4_none = H(cmd4BytesFor(0xC9, { on: true }));
-    out.c4_mode = H(cmd4BytesFor(0x5E, { on: true, modeLock: true, c4b5: 0x85, c4b6: 0x08 }));
-    out.c4_all = H(cmd4BytesFor(0x5E, { on: true, modeLock: true, fanLock: true, tempLock: true, c4b5: 0x85, c4b6: 0x08 }));
-    out.c4_band = H(cmd4BytesFor(0x01, { on: true, tempLock: true, limLo: 19, limHi: 26 }));
+    out.c4_mode = H(cmd4BytesFor(0x5E, { on: true, modeLock: true, c4b5: 0x85, c4b6: 0x08 }));   // range unlocked -> learned band dropped, full 15-30 sent
+    out.c4_all = H(cmd4BytesFor(0x5E, { on: true, modeLock: true, fanLock: true, tempLock: true, rangeLock: true, c4b5: 0x85, c4b6: 0x08 }));
+    out.c4_band = H(cmd4BytesFor(0x01, { on: true, tempLock: true, rangeLock: true, limLo: 19, limHi: 26 }));
+    out.c4_rangeoff = H(cmd4BytesFor(0x01, { on: true, rangeLock: false, limLo: 19, limHi: 26 }));   // limits ignored when range unlocked
     out.c4_unitOff = H(cmd4BytesFor(0x10, { on: false, modeLock: true }));     // byte4 bit0 is always 1 in the ACP's builder, not "power"
     // ---- cmd5 (debug tool only): layout rebuilt from the ACP engine binary
     out.c5 = H(cmd5SetpointBytes(0x31, 24.5, 20, { twoset: true }));
@@ -83,7 +84,7 @@ const STREAM = [   // a central controller polling 4 indoor units and one outdoo
     c0_basic: '80 00 A0 31 03 20 07 2E', c0_swing: '80 00 A0 31 03 28 07 D6', c0_fanAuto: '80 00 A0 31 03 40 07 CE',
     c0_quietKept: '80 00 A0 31 03 50 07 FE', c0_hardLock: '80 00 A0 31 07 20 07 2A', c0_half: '84 00 A0 31 03 20 07 2A',
     c0_filterBitDropped: '80 00 A0 31 03 76 07 84', c0_read: '80 00 A0 31 01 20 07 2C',
-    c4_none: 'A0 00 A0 C9 01 80 0F CC', c4_mode: 'A0 00 A0 5E 09 85 08 61', c4_all: 'A0 00 A0 5E 0F 85 08 6F', c4_band: 'A0 00 A0 01 03 84 0B 86', c4_unitOff: 'A0 00 A0 10 09 80 0F BD',
+    c4_none: 'A0 00 A0 C9 01 83 0F C9', c4_mode: 'A0 00 A0 5E 09 83 0F 6C', c4_all: 'A0 00 A0 5E 0F 85 08 6F', c4_band: 'A0 00 A0 01 03 84 0B 86', c4_rangeoff: 'A0 00 A0 01 01 83 0F 81', c4_unitOff: 'A0 00 A0 10 09 83 0F BE',
     c5: 'A8 00 A0 31 10 01 A5 0A 20 04 98 94 50 00 8C 31', c5dec: { cool: 24.5, heat: 20, twoset: true, cl: false, cs: true, occ: true, lim: '37.5,10,32,4' },
     reply: { addr: 0x2D, on: true, mode: 'cool', fan: 'low', set: 20, room: 21, pin: 11.3, pout: 19, eev: 40, cap: 12, load: 0x24, lock: false, swing: false },
     reply7: { mode: 'auto', side: 'heat', fan: 'auto', swing: true, lock: true },

@@ -2,6 +2,27 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.8 — 2026-11-15 (temp-range lock + clearer lock behavior)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.7. Changes `cortex.html` and
+`appliance/server.js`._
+
+On-site testing confirmed the locks work (C9): Temp lock blocks every temperature change at the wall,
+and a set range limits movement only while temp is unlocked. This release makes that explicit and adds
+a dedicated range control.
+
+- **New "Temp range" lock**, separate from Temp lock, in a unit's Locks section:
+  - Locked → the wall thermostat may only be set between the two values you enter.
+  - Unlocked → no range limit (Cortex sends the thermostat's full 64–86 °F / 18–30 °C band).
+- **Range is set with input boxes** now, not a dropdown. Bounded to the thermostat's own range,
+  64–86 °F (18–30 °C); enter values in whichever unit the app is set to.
+- **Clearer wording.** The Locks section now spells out that Temp lock blocks all temperature changes,
+  while the range only limits movement when its lock is on (and notes when Temp lock overrides it).
+- A learned/narrower band on a unit shows the range lock as on, with that band filled in.
+- `server.js` passes the new `rangeLock` flag through the relay.
+- Tests updated (`node tests/protocol.test.js`): range off now sends the full 18–30 °C band; range on
+  sends the chosen band.
+
 ## v1.6.0-beta.7 — 2026-11-15 (outdoor-unit service port decoder)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.6. Only `uart-sniffer.html` and

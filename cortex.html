@@ -634,7 +634,7 @@ function adoptUnits(j){
   units=normalizeIds(j.units);migrateUnits(true);
   units.forEach(u=>{const o=prev.get(u.addr);if(!o)return;
     if(o._hist)u._hist=o._hist;
-    if(rt(u.addr).hold>Date.now()){["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","sp"].forEach(k=>{u[k]=o[k];});}});  // a command we just sent wins for a few seconds
+    if(rt(u.addr).hold>Date.now()){["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","rangeLock","sp"].forEach(k=>{u[k]=o[k];});}});  // a command we just sent wins for a few seconds
   noteUnitsRev(j.rev);
   try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}
   if(openId!=null)drawerStale=true;
@@ -668,6 +668,7 @@ function migrateUnits(noSave){let changed=false;units.forEach(u=>{
   if(u.modeLock==null){u.modeLock=false;changed=true;}
   if(u.fanLock==null){u.fanLock=false;changed=true;}
   if(u.tempLock==null){u.tempLock=false;changed=true;}
+  if(u.rangeLock==null){u.rangeLock=((u.c4b5!=null&&(u.c4b5&0x0F)>3)||(u.c4b6!=null&&(u.c4b6&0x0F)<15));changed=true;}
   if(u.hardLock==null){u.hardLock=false;changed=true;}
   if(u.grp==null){u.grp=u.system||("Group "+(u.group!=null?u.group:""))||"Ungrouped";changed=true;}  // logical top-level group
   if(u.subgrp==null){u.subgrp="";changed=true;}                                                       // logical sub-group (floor/room)
@@ -739,7 +740,7 @@ function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,(u.d5||0)&
          (all-unlocked 0x01, temp-only 0x03, fan-only 0x05, mode-only 0x09, all three 0x0F)
        b5,b6 are the SETPOINT-LIMIT band (lower=(b5&0x0F)+15, upper=b6+15, b5 bit7 set) [kit §6.2] —
        static per unit (0x85 0x08 = 20–23°C on 0x5E), not live mode/fan/setpoint. We replay a unit's
-       learned band when we have seen the ACP set it; else default to the full 15–30°C range. Cortex
+       learned band when we have seen the ACP set it; else default to the full 64–86°F (18–30°C) range. Cortex
        transmits only as the sole master (no ACP to clobber), so asserting locks + band is safe there.
        The "hard lock" (whole wall-controller lock) is NOT here — it is the cmd0 remote-controller
        lock: cmd0 (80-frame) byte4 bit2 (0x04), sent with EXE, field-verified in the LGAP kit §6.1
@@ -1296,12 +1297,16 @@ function parseReply(f){
    (LGAP reference kit ch.04 §6.2, field-verified; matches Cortex's own live decode of 2026-11-13.)
    There is NO read-only cmd4 — every cmd4 overwrites the ODU's staged lock/limit bytes for that unit —
    so Cortex only ever sends it as the sole bus master, never while a real LG central is on the line. */
-function bandLo(u){return u.c4b5!=null?((u.c4b5&0x0F)+15):15;}
+function bandLo(u){return u.c4b5!=null?((u.c4b5&0x0F)+15):18;}
 function bandHi(u){return u.c4b6!=null?((u.c4b6&0x0F)+15):30;}
 function bandKnown(u){return u.c4b5!=null&&u.c4b6!=null;}
 function cmd4BytesFor(addr,o){
-  const lo=Math.max(15,Math.min(30,o.limLo!=null?o.limLo:bandLo(o)));
-  const hi=Math.max(lo,Math.min(30,o.limHi!=null?o.limHi:bandHi(o)));
+  // The setpoint range (b5/b6) always rides the cmd4 frame. Range lock OFF -> send the full 15-30°C band,
+  // which the thermostat treats as "no limit". Range lock ON -> send the chosen band. (Confirmed on site:
+  // Temp lock blocks ALL changes; the band only limits movement while temp is unlocked.)
+  const useRange=!!o.rangeLock;
+  const lo=useRange?Math.max(18,Math.min(30,o.limLo!=null?o.limLo:bandLo(o))):18;
+  const hi=useRange?Math.max(lo,Math.min(30,o.limHi!=null?o.limHi:bandHi(o))):30;
   // byte4 bit0 is ALWAYS 1 in the ACP's own builder (FindAcCmd4SendData: "orr #1") — it is not the power bit.
   // High nibble = louver direction (0 = leave); header 0xA4 instead of 0xA0 = "address lock" flag. Cortex sends neither.
   const b4=0x01|(o.tempLock?0x02:0)|(o.fanLock?0x04:0)|(o.modeLock?0x08:0);
@@ -1522,7 +1527,7 @@ async function relayDrain(myseq){
   const list=[];
   for(const c of cmds){const u=units.find(x=>x.addr===c.addr);if(!u||!c.state)continue;
     holdUnits([u]);
-    ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","c4b5","c4b6"].forEach(k=>{if(c.state[k]!==undefined&&c.state[k]!==null)u[k]=c.state[k];});
+    ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","rangeLock","c4b5","c4b6"].forEach(k=>{if(c.state[k]!==undefined&&c.state[k]!==null)u[k]=c.state[k];});
     u.coolC=clampC(u.coolC);u.heatC=clampC(u.heatC);u.sp=Math.round(activeC(u)*9/5+32);
     mlog("⇢ command from another screen → "+hx(u.addr));list.push(u);}
   if(!list.length||MASTER.seq!==myseq)return;
@@ -1659,7 +1664,7 @@ function handleDecoded(d){
   if(d.type==="cmd"){const u=units.find(x=>x.addr===d.addr);if(u){u.d5=d.b5&0x7F;u.d6=d.b6;u.b0=d.b0;}} // keep last-seen bytes for safe re-send (never the filter-reset bit)
   if(d.type==="cmd4"){const u=units.find(x=>x.addr===d.addr);if(u){
     u.c4b5=d.c4b5;u.c4b6=d.c4b6;                               // learn this unit's cmd4 template — required to send locks safely (never blind)
-    if(rt(u.addr).hold<=Date.now()){u.tempLock=d.tempLock;u.fanLock=d.fanLock;u.modeLock=d.modeLock;}  // reflect locks changed at the wall/ACP
+    if(rt(u.addr).hold<=Date.now()){u.tempLock=d.tempLock;u.fanLock=d.fanLock;u.modeLock=d.modeLock;u.rangeLock=((d.c4b5&0x0F)>3)||((d.c4b6&0x0F)<15);}  // reflect locks changed at the wall/ACP; a band narrower than 64–86°F means a range is in force
   }}
   bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();
   bus.raw.push(d.hex);if(bus.raw.length>8000)bus.raw.shift();
@@ -1790,10 +1795,10 @@ async function txUnitRaw(u){
   const basic=cmdBytesFor(u.addr,Object.assign({},u,{setC:(u.mode==="heat"?u.heatC:u.coolC)}));
   // cmd4 LOCK frame (0xA0): byte4 = power|temp(0x02)|fan(0x04)|mode(0x08). b5/b6 = the setpoint-limit band
   // (lower=(b5&0x0F)+15, upper=b6+15, b5 bit7 always set) [kit §6.2]. Use each unit's learned band when we've
-  // seen the ACP set it; otherwise default to the full 15–30°C range (no restriction). Cortex transmits only
+  // seen the ACP set it; otherwise default to the full 64–86°F (18–30°C) range (no restriction). Cortex transmits only
   // as the sole bus master (no ACP present to clobber), so it is authoritative — safe to assert locks + band.
   const lock=cmd4BytesFor(u.addr,u);                           // always sent, so a stale lock can be CLEARED (b4 dimension bits 0)
-  if(!bandKnown(u)&&u.tempLock)mlog("ℹ "+hx(u.addr)+": temp lock using the default 15–30°C limits (set them in the unit's Locks section)");
+  if(u.rangeLock&&bandLo(u)<=18&&bandHi(u)>=30)mlog("ℹ "+hx(u.addr)+": range lock is on but set to the full 64–86°F, so it won't limit anything — narrow the range in the Locks section");
   const R=rt(u.addr);R.hold=Date.now()+8000;R.lastTx=toHexBytes(basic);R.txAt=Date.now();
   const w=bus.port.writable.getWriter();
   try{
@@ -1824,7 +1829,7 @@ async function sendUnits(list){
   if(relayOk()){let n=0;
     for(const u of list){try{
       const r=await fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock,c4b5:u.c4b5,c4b6:u.c4b6}})});
+        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock,rangeLock:!!u.rangeLock,c4b5:u.c4b5,c4b6:u.c4b6}})});
       if(r.ok){const j=await r.json();SRV.masterAlive=!!j.masterAlive;if(j.masterAlive){rt(u.addr).hold=Date.now()+12000;n++;}}
     }catch(e){}}
     return n;}
@@ -1965,7 +1970,7 @@ function busClear(){busReset();renderBusScan();}
 function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&&a.last&&a.last.type==="cmd")?a.last:null;const modeOk=s&&["auto","cool","heat"].includes(s.mode);
   return {id,addr,name:"AC_UNIT_"+addr.toString(16).padStart(2,"0").toUpperCase(),label:"Addr 0x"+addr.toString(16).padStart(2,"0").toUpperCase(),
     ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",kind:"wall",
-    on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,hardLock:false,
+    on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,hardLock:false,rangeLock:false,
     room:null,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:null,pipeOut:null,discovered:true};}
 function busImport(){
   const picked=[...document.querySelectorAll(".busrow input.busimp:checked")].map(c=>+c.value);
@@ -2415,9 +2420,9 @@ function renderAll(){
 const drawer=document.getElementById("drawer"),scrim=document.getElementById("scrim");
 let openId=null;
 let pend=null; // staged (not-yet-sent) command for the open unit
-function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,hardLock:u.hardLock,limLo:bandLo(u),limHi:bandHi(u),d5:u.d5,d6:u.d6,b0:u.b0,fanRaw:u.fanRaw};}
+function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,hardLock:u.hardLock,rangeLock:u.rangeLock,limLo:bandLo(u),limHi:bandHi(u),d5:u.d5,d6:u.d6,b0:u.b0,fanRaw:u.fanRaw};}
 function openDrawer(id){openId=id;const u=units.find(x=>x.id===id);pend=snap(u);drawDrawer(u);drawer.classList.add("show");scrim.classList.add("show");}
-function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock||pend.hardLock!==u.hardLock||pend.limLo!==bandLo(u)||pend.limHi!==bandHi(u));}
+function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock||pend.hardLock!==u.hardLock||pend.rangeLock!==u.rangeLock||(pend.rangeLock&&(pend.limLo!==bandLo(u)||pend.limHi!==bandHi(u))));}
 function closeDrawer(){openId=null;drawerRenderedId=null;drawer.classList.remove("show");scrim.classList.remove("show");
   const fx=document.getElementById("fxlayer");if(fx)fx.innerHTML="";}
 scrim.onclick=closeDrawer;
@@ -2466,15 +2471,19 @@ function drawDrawer(u){
         <div class="dsrow"><div class="dslbl" style="color:var(--cool)">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
         <div class="dsrow"><div class="dslbl" style="color:var(--heat)">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
-    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||p.limLo!==bandLo(u)||p.limHi!==bandHi(u)||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
+    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('rangeLock')||(p.rangeLock&&(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)))||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button><button class="opt ${p.hardLock?'sel':''}" id="lk-hard" ${dis}>${p.hardLock?'🔒':'🔓'} Hard</button></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--text-dim)">Setpoint limits
-        <select class="sel-box" id="lim-lo" ${dis} style="width:auto;margin:0">${Array.from({length:16},(_,k)=>k+15).map(c=>`<option value="${c}" ${p.limLo===c?"selected":""}>${spDisp(c)}°</option>`).join("")}</select> to
-        <select class="sel-box" id="lim-hi" ${dis} style="width:auto;margin:0">${Array.from({length:16},(_,k)=>k+15).map(c=>`<option value="${c}" ${p.limHi===c?"selected":""}>${spDisp(c)}°</option>`).join("")}</select>
-        <span style="color:var(--text-faint)">the range the wall thermostat may use while Temp lock is on</span></div>
+      <div style="margin-top:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="opt ${p.rangeLock?'sel':''}" id="lk-range" ${dis}>${p.rangeLock?'🔒':'🔓'} Temp range</button>
+          <input class="inp mono" id="lim-lo" type="number" ${p.rangeLock?'':'disabled'} ${dis} min="${settings.unit==="C"?18:64}" max="${settings.unit==="C"?30:86}" step="1" value="${spDisp(p.limLo)}" style="width:72px;margin:0"> <span style="color:var(--text-faint)">to</span>
+          <input class="inp mono" id="lim-hi" type="number" ${p.rangeLock?'':'disabled'} ${dis} min="${settings.unit==="C"?18:64}" max="${settings.unit==="C"?30:86}" step="1" value="${spDisp(p.limHi)}" style="width:72px;margin:0"> <span style="color:var(--text-faint)">°${settings.unit}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-faint);margin-top:7px">When <b>Temp range</b> is locked, the wall thermostat can only be set between these two temperatures. Unlocked, there is no range limit.${p.rangeLock&&p.tempLock?' <span style="color:var(--warn)">Temp lock is also on, so no changes are allowed at all right now.</span>':''}</div>
+      </div>
       ${(()=>{const A=rt(u.addr).lockAck;if(!A)return "";const want=(u.tempLock?2:0)|(u.fanLock?4:0)|(u.modeLock?8:0),ok=(A.b4&0x0E)===want;
         return `<div style="font-size:11.5px;margin-top:6px;color:${ok?'var(--ok)':'var(--warn)'}">${ok?"✓ Outdoor unit confirmed these locks":"Outdoor unit last confirmed different locks"} · ${ago(A.at)}</div>`;})()}
-      <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Mode/Fan/Temp lock those dimensions; Hard lock locks the whole wall controller.${!locked?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>${p.mode==="auto"&&!p.twoset?' <span style="color:var(--text-faint)">· auto uses one setpoint on Multi V</span>':''}`:''}</div></div>
+      <div style="font-size:11px;color:var(--text-faint);margin-top:6px"><b>Temp lock</b> blocks every temperature change at the wall; <b>Mode</b>/<b>Fan</b> lock those; <b>Hard lock</b> locks the whole wall controller.${!locked?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>${p.mode==="auto"&&!p.twoset?' <span style="color:var(--text-faint)">· auto uses one setpoint on Multi V</span>':''}`:''}</div></div>
     <div class="field">
       <button class="btn ${live&&isTech?'danger live':'primary'}" id="sendcmd" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${locked?';opacity:.5':''}" ${locked?'disabled':''}>${sendTxt}</button>
       ${live?(isTech
@@ -2491,7 +2500,7 @@ function drawDrawer(u){
     <div class="field"><div class="lbl">Command preview (what Send puts on the bus)</div><div class="frame-box">
       <div class="k">basic · ${p.on?"on":"off"} · ${p.mode} · ${p.fan} fan${p.swing?" · swing":""}</div>
       <div class="hex mono">${cmdFrameFor(u.addr,p)}</div>
-      <div class="k" style="margin-top:7px">cmd4 locks · ${[p.modeLock?"mode":"",p.fanLock?"fan":"",p.tempLock?"temp":""].filter(Boolean).join("+")||"none"} · limits ${p.limLo}–${p.limHi}°C (sent after the basic frame)</div>
+      <div class="k" style="margin-top:7px">cmd4 locks · ${[p.modeLock?"mode":"",p.fanLock?"fan":"",p.tempLock?"temp":""].filter(Boolean).join("+")||"none"} · range ${p.rangeLock?p.limLo+"–"+p.limHi+"°C":"off (full 18–30°C / 64–86°F)"} (sent after the basic frame)</div>
       <div class="hex mono">${toHexBytes(cmd4BytesFor(u.addr,p))}</div>
       <div class="k" style="margin-top:7px">cmd5 setpoint · cool ${spDisp(p.coolC)}° / heat ${spDisp(p.heatC)}°</div>
       <div class="hex mono">${toHexBytes(cmd5SetpointBytes(u.addr,p.coolC,p.heatC,{twoset:!!p.twoset}))}</div></div></div>
@@ -2543,8 +2552,8 @@ function drawDrawer(u){
     if(!canReach()&&!isDemo()){toast(notConnMsg());return;}
     send.dataset.busy="1";send.disabled=true;send.textContent="Sending…";
     holdUnits([u]);
-    u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=clampC(p.coolC);u.heatC=clampC(p.heatC);u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;u.hardLock=p.hardLock;
-    if(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)||(p.tempLock&&!bandKnown(u))){u.c4b5=0x80|(Math.max(15,Math.min(30,p.limLo))-15);u.c4b6=(Math.max(p.limLo,Math.min(30,p.limHi))-15)&0x0F;}
+    u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=clampC(p.coolC);u.heatC=clampC(p.heatC);u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;u.hardLock=p.hardLock;u.rangeLock=p.rangeLock;
+    if(p.rangeLock){u.c4b5=0x80|(Math.max(18,Math.min(30,p.limLo))-15);u.c4b6=(Math.max(p.limLo,Math.min(30,p.limHi))-15)&0x0F;}
     u.sp=Math.round(activeC(u)*9/5+32);
     if(canReach())await txUnit(u);
     else toast("Demo mode — saved on this screen (no equipment connected)");
@@ -2570,9 +2579,10 @@ function drawDrawer(u){
     g("lk-fan",()=>{p.fanLock=!p.fanLock;re2();});
     g("lk-temp",()=>{p.tempLock=!p.tempLock;re2();});
     g("lk-hard",()=>{p.hardLock=!p.hardLock;re2();});
-    {const lo=document.getElementById("lim-lo"),hi=document.getElementById("lim-hi");
-      if(lo)lo.onchange=()=>{p.limLo=parseInt(lo.value,10);if(p.limHi<p.limLo)p.limHi=p.limLo;re2();};
-      if(hi)hi.onchange=()=>{p.limHi=parseInt(hi.value,10);if(p.limLo>p.limHi)p.limLo=p.limHi;re2();};}
+    g("lk-range",()=>{p.rangeLock=!p.rangeLock;re2();});
+    {const lo=document.getElementById("lim-lo"),hi=document.getElementById("lim-hi"),toC=v=>{if(!isFinite(v))return null;const c=settings.unit==="C"?v:(v-32)*5/9;return Math.max(18,Math.min(30,Math.round(c)));};
+      if(lo)lo.onchange=()=>{const v=toC(parseFloat(lo.value));if(v!=null){p.limLo=v;if(p.limHi<p.limLo)p.limHi=p.limLo;}re2();};
+      if(hi)hi.onchange=()=>{const v=toC(parseFloat(hi.value));if(v!=null){p.limHi=v;if(p.limLo>p.limHi)p.limLo=p.limHi;}re2();};}
     g("two-toggle",()=>{p.twoset=!p.twoset;re2();});
   }
 }
