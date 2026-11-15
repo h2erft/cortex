@@ -240,9 +240,18 @@ function readUpdateConf() {
 // Full semver-ish compare incl. pre-release suffix. Returns + if a>b, - if a<b, 0 if equal.
 // A version with NO suffix (stable) outranks the same x.y.z WITH a suffix (1.4.4 > 1.4.4-beta.1).
 function verParts(v){ const m=String(v).trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/); return m?[+m[1],+m[2],+m[3],m[4]||'~']:[0,0,0,'~']; }
+// Compare the pre-release suffix dot-part by dot-part, numeric parts numerically so beta.10 > beta.9
+// (a plain string compare put beta.9 above beta.10). '~' is the no-suffix sentinel: stable outranks any pre-release.
+function cmpSuffix(a,b){ if(a===b) return 0; if(a==='~') return 1; if(b==='~') return -1;
+  const pa=a.split('.'), pb=b.split('.');
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){ const x=pa[i], y=pb[i];
+    if(x===undefined) return -1; if(y===undefined) return 1;      // shorter pre-release precedes (semver)
+    const nx=/^\d+$/.test(x), ny=/^\d+$/.test(y);
+    if(nx&&ny){ if(+x!==+y) return +x<+y?-1:1; } else if(x!==y) return x<y?-1:1; }
+  return 0; }
 function cmpVer(a,b){ const x=verParts(a),y=verParts(b);
   for(let i=0;i<3;i++){ if(x[i]!==y[i]) return x[i]-y[i]; }
-  if(x[3]===y[3]) return 0; if(x[3]==='~') return 1; if(y[3]==='~') return -1; return x[3]<y[3]?-1:1; }
+  return cmpSuffix(x[3],y[3]); }
 function isNewer(cur, next){ return cmpVer(next, cur) > 0; }
 
 // --- update channel: 'stable' (default) or 'beta' (also accepts pre-releases) --

@@ -5,6 +5,13 @@ controllers (ACP, AC Smart) use to talk to indoor VRF/VRV units. It exists so Co
 anyone else doing interoperability work on their own LG equipment — can speak the bus
 directly instead of being locked to LG's controllers.
 
+> **Milestone — v1.6.0 (stable), Nov 2026.** Everything the stable Cortex controller relies on in
+> here is confirmed on a live Multi V IV system: indoor-unit discovery, the cmd0 write + 16-byte
+> reply decode, dual cool/heat setpoints (cmd5), and the remote-controller locks — Mode/Fan/Temp
+> and the hard lock via cmd4/cmd0, plus a settable temperature **range** (cmd4 band, default the
+> thermostat's own 64–86 °F / 18–30 °C). The outdoor-unit service-port (UART / LGMV) work is
+> tracked separately in **docs/UART_SERVICE_PORT.md** and ships only in 1.7.0-beta builds.
+>
 > **Status / disclaimer.** This is not official LG documentation and is not affiliated with
 > or endorsed by LG. It was derived by analyzing a central controller's own control engine
 > and by capturing live traffic on a bus of LG equipment. Field offsets marked below as

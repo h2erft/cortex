@@ -5,12 +5,14 @@ directly over the RS485 bus, so a small mini-PC on-site runs the whole indoor-un
 power, mode, fan, dual setpoints, locks — from a clean web UI you reach on the LAN or
 remotely over Tailscale. No cloud, no per-controller license, no vendor lock-in.
 
-> **Status:** working appliance + UI. The LGAP **master/controller** mode has been
-> **field-validated on a live Multi V IV system** — Cortex discovered 14 indoor units, decoded
-> their state, and controls them directly. Still verifying a couple of details (the ODU/system
-> grouping byte and error-code propagation). Reverse-engineering notes are in
-> **[LGAP_reference.md](LGAP_reference.md)**; see **[CHANGELOG.md](CHANGELOG.md)** for release
-> history. Contributions welcome.
+> **Status: v1.6.0 — first stable release.** Cortex runs a live LG Multi V IV fleet as a drop-in
+> central controller: it discovers indoor units, decodes their state, and controls power, mode,
+> fan, dual cool/heat setpoints and every remote-controller lock — including a settable
+> temperature-**range** lock — directly over LGAP, all field-validated on real equipment.
+> Experimental outdoor-unit service-port (UART / LGMV) diagnostics are developed separately on
+> the `1.7.0-beta` track and are **not** part of the stable build. Protocol notes:
+> **[LGAP_reference.md](LGAP_reference.md)** · release history: **[CHANGELOG.md](CHANGELOG.md)**.
+> Contributions welcome.
 
 ---
 
@@ -22,29 +24,32 @@ everyone gets a login screen.
 ![Setup wizard](docs/img/01-setup-wizard.png)
 
 **Dashboard** — every indoor unit at a glance: what it's set to, the room temperature, mode,
-locks and faults, in your own groups. This is the screen a customer uses day to day, so it shows
-names — never bus addresses. (Screenshots below predate the v1.5.0 tile and logo refresh.)
+locks and faults, grouped your way, with live site weather and fleet status up top. This is the
+screen a customer uses day to day, so it shows names — never bus addresses.
 
 ![Dashboard](docs/img/02-dashboard.png)
 
-**Unit control** — tap a unit for power, mode, fan, dual cool/heat setpoints, and per-function
-locks.
+**Unit control** — tap a unit for power, mode, fan, dual cool/heat setpoints, and the full lock
+set: Mode / Fan / Temp / Hard, plus a **Temp range** lock with a settable min–max the wall
+thermostat must stay inside.
 
 ![Unit control](docs/img/03-unit-control.png)
 
-**Bus scan (live)** — a readable, real-time view of what's happening on the RS485 bus.
+**Bus scan + Master mode** — a readable, real-time view of the RS485 bus, and the Master / CC
+workshop where Cortex drives the bus like the LG controller: discover units, poll replies, send
+commands, with raw TX/RX logging.
 
-![Bus scan live](docs/img/04-bus-live.png)
+![Bus scan and master mode](docs/img/04-bus-scan.png)
 
-**Master / CC mode + debug tools** — the byte-level workshop: Cortex drives the bus like the
-LG controller (discover units, poll replies, send commands), with raw TX/RX logging.
+**Schedules** — automate on/off, mode, fan and setpoint by time and day, with nth-weekday
+recurrence and weather conditions (e.g. *outdoor below 30° → heat*).
 
-![Master mode](docs/img/05-master-mode.png)
+![Schedules](docs/img/05-schedule.png)
 
-**Settings / About** — remote access, power controls, and the full LGAP protocol reference
-built right into the app.
+**Settings / About** — remote access, update channel, power controls, and the full LGAP
+protocol reference built right into the app.
 
-![Settings and About](docs/img/06-settings-about.png)
+![Settings and About](docs/img/06-settings.png)
 
 ---
 

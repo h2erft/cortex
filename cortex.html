@@ -878,8 +878,8 @@ function renderWho(){
   document.getElementById("lockbtn").classList.toggle("hide",!over);
   document.getElementById("lockbtn").classList.toggle("lit",over);
   document.getElementById("nav-cycle").classList.toggle("hide",!session.tech);
-  document.getElementById("nav-uart").classList.toggle("hide",!session.tech);
-  if(!session.tech&&view==="uart")view="units";
+  document.getElementById("nav-uart").classList.toggle("hide",!(session.tech&&IS_BETA));   // UART is experimental — pre-release builds only
+  if((!session.tech||!IS_BETA)&&view==="uart")view="units";
   document.getElementById("nav-busscan").classList.toggle("hide",!session.tech);
   if(!session.tech&&view==="busscan")view="units";
   const db=document.getElementById("devbtn");if(db){db.classList.toggle("hide",!isStaff());db.classList.toggle("lit",view==="device");}
@@ -3361,10 +3361,14 @@ async function cfgPull(){
 setInterval(()=>{if(BOOTED&&document.visibilityState!=="hidden")cfgPull();},20000);
 /* After an update the controller restarts with a new version; an open screen notices and reloads itself
    (once nobody is in the middle of something), so nobody keeps working on last week's page. */
+// UART is an experimental, pre-release-only feature. A pre-release build carries a version suffix
+// (1.7.0-beta.1); a stable build (1.6.0) has none. file:// = local dev, always shows it.
+let IS_BETA=(location.protocol==="file:");
 let LOADED_VER=null;
 async function versionWatch(){
   if(location.protocol==="file:")return;
   try{const r=await fetch('/version',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.version)return;
+    const beta=/-/.test(j.version); if(beta!==IS_BETA){IS_BETA=beta;if(currentUser)renderWho();}
     if(LOADED_VER===null){LOADED_VER=j.version;return;}
     if(j.version===LOADED_VER)return;
     const busy=!!mroot.innerHTML||openId!=null||MASTER.discovering||fpDrag||mapEdit||(WZ&&document.getElementById("screen-setup").classList.contains("show"));
@@ -3522,7 +3526,8 @@ function startWizard(){WZ={site:{name:(CFG&&CFG.site&&CFG.site.name)||"",locatio
 function v(id){const el=document.getElementById(id);return el?el.value:"";}
 const WSTEPS=[
  {title:"Welcome",sub:"Let's commission this Cortex controller for the site.",
-  body:()=>`<div class="note-box">This 6-step setup creates the site identity, your owner account, access codes, your team, and remote access. It runs once per controller. You can re-run it later from Settings → Advanced.</div>`,
+  body:()=>`<div style="font-size:16px;font-weight:650;color:var(--accent);line-height:1.35;margin-bottom:12px">Ready to kick that clunky LG central controller to the curb and run this system with something actually useful and awesome? Let's set it up. 🚀</div>
+   <div class="note-box">This guided setup creates the site identity, your owner account, access codes, your team, and remote access. It runs once per controller. You can re-run it later from Settings → Advanced.</div>`,
   save:()=>null},
  {title:"Site",sub:"What are we controlling?",
   body:()=>`<label class="flabel">Site name</label><input id="wz-name" class="inp" value="${ue(WZ.site.name)}" placeholder="e.g. Main Office Park">

@@ -29,7 +29,7 @@ need curl; need jq; need sha256sum; need tar; need node; need systemctl
 
 # semver compare that matches server.js: a plain x.y.z (stable) outranks the same x.y.z with a
 # pre-release suffix (1.4.4 > 1.4.4-beta.1). sort -V gets this backwards, so we use node. Prints newer|older|same.
-vercmp(){ node -e 'const f=v=>{const m=String(v).trim().replace(/^v/,"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);return m?[+m[1],+m[2],+m[3],m[4]||"~"]:[0,0,0,"~"];};const a=f(process.argv[1]),b=f(process.argv[2]);let c=0;for(let i=0;i<3;i++){if(a[i]!==b[i]){c=a[i]-b[i];break;}}if(!c)c=a[3]===b[3]?0:(a[3]==="~"?1:(b[3]==="~"?-1:(a[3]<b[3]?-1:1)));process.stdout.write(c>0?"newer":c<0?"older":"same");' "$1" "$2"; }
+vercmp(){ node -e 'const f=v=>{const m=String(v).trim().replace(/^v/,"").match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);return m?[+m[1],+m[2],+m[3],m[4]||"~"]:[0,0,0,"~"];};const cs=(a,b)=>{if(a===b)return 0;if(a==="~")return 1;if(b==="~")return -1;const pa=a.split("."),pb=b.split(".");for(let i=0;i<Math.max(pa.length,pb.length);i++){const x=pa[i],y=pb[i];if(x===undefined)return -1;if(y===undefined)return 1;const nx=/^[0-9]+$/.test(x),ny=/^[0-9]+$/.test(y);if(nx&&ny){if(+x!==+y)return +x<+y?-1:1;}else if(x!==y)return x<y?-1:1;}return 0;};const a=f(process.argv[1]),b=f(process.argv[2]);let c=0;for(let i=0;i<3;i++){if(a[i]!==b[i]){c=a[i]-b[i];break;}}if(!c)c=cs(a[3],b[3]);process.stdout.write(c>0?"newer":c<0?"older":"same");' "$1" "$2"; }
 
 # --- config -------------------------------------------------------------------
 # update.conf is a shell fragment. Point at updates one of two ways:

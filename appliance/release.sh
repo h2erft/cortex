@@ -37,7 +37,9 @@ printf '%s\n' "$VER" > "$HERE/VERSION"
 # 2) stage exactly what a release contains
 cp "$HERE/server.js" "$HERE/package.json" "$HERE/VERSION" "$HERE/cortex-update.sh" "$HERE/cortex.sudoers" "$HERE/cortex-appliance.service" "$HERE/cortex-updater.service" "$HERE/cortex-updater.timer" "$STAGE/"
 [ -f "$HERE/package-lock.json" ] && cp "$HERE/package-lock.json" "$STAGE/" || true
-for f in cortex.html command-center.html setup.html uart-sniffer.html LGAP_reference.md; do
+UIFILES="cortex.html command-center.html setup.html LGAP_reference.md"
+case "$VER" in *-*) UIFILES="$UIFILES uart-sniffer.html" ;; esac   # experimental UART tool ships in pre-releases only
+for f in $UIFILES; do
   if   [ -f "$UIDIR/$f" ]; then cp "$UIDIR/$f" "$STAGE/"
   elif [ -f "$HERE/$f"  ]; then cp "$HERE/$f"  "$STAGE/"
   else echo "   ! warning: $f not found — release will not include it" >&2; fi

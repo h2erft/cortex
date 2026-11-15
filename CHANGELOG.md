@@ -2,6 +2,27 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0 — 2026-11-15 (first stable release)
+
+**Cortex is a working, field-validated drop-in replacement for LG's ACP / AC Smart central
+controllers.** On a live Multi V IV system it discovers indoor units, decodes their state, and
+controls power, mode, fan, dual cool/heat setpoints and every remote-controller lock directly
+over LGAP — no ACP, no per-controller license, no cloud.
+
+Highlights since the 1.5.x line:
+- **Remote-controller locks, confirmed on site:** Mode / Fan / Temp and the hard (whole-wall)
+  lock, plus a separate **Temp range** lock with a settable min–max bounded to the thermostat's
+  own 64–86 °F / 18–30 °C. Temp lock blocks all changes; the range only limits movement while
+  temp is unlocked. Entered in input boxes, explained in plain language in the unit panel.
+- **Passive reply decode, outdoor-unit CEN pages, and protocol fixes** from the beta line.
+- **Update page shows release notes**, and the OTA version comparator now orders pre-releases
+  correctly (beta.10 > beta.9).
+- **Brain logo as the browser tab / bookmark icon.**
+- **Setup wizard** opens with a bit more attitude.
+
+The experimental outdoor-unit service-port (UART / LGMV) tool is **not** in this stable build; it
+continues on the 1.7.0-beta track.
+
 ## v1.6.0-beta.10 — 2026-11-15 (bookmark/tab icon)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.9._
