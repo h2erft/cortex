@@ -2,6 +2,39 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.2 — 2026-11-15 (schedules without a browser · group by outdoor unit · new cycle page)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.1. Changes `cortex.html`,
+`appliance/server.js`, and adds `appliance/scheduler.js`._
+
+- **Schedules now run on the controller itself**, with every browser closed (`appliance/scheduler.js`).
+  If a dashboard is connected it is handed the command; if nobody is, the controller opens the adapter,
+  sends, and closes it. It only transmits when Cortex was left running the bus (set by the poll loop),
+  never on a site where Cortex is just listening. Times use the site's time zone; the Schedule page
+  shows ready/waiting and the last runs.
+- **Group by outdoor unit.** Each outdoor unit is asked for its own list of indoor units (monitor pages
+  0x30–0x32) and units are grouped under the outdoor unit they belong to. Runs at the end of guided
+  setup and from Outdoor / cycle ▸ *Group by outdoor unit* (shows the lists before applying). Import no
+  longer groups by reply byte 14, a load value that drifts during a sweep (the cause of extra groups).
+- **Outdoor / cycle page rebuilt.** Outdoor units first, as colour-coded panels (high side, low side,
+  compressors incl. inverter 2 volts/amps/DC link, fans/valves/heat exchanger) with out-of-range
+  readings flagged; indoor units below, grouped by outdoor unit; and a new animated **refrigerant
+  diagram** view with live values.
+- **Multi-select control panel.** "Set & send" on a selection opens the same style panel as a single
+  unit (power, mode, fan, swing, setpoint, locks); only what you touch is sent.
+- **Equipment generation.** Auto fan speed and separate cool/heat setpoints in Auto are hidden on
+  generation-4 systems; Settings ▸ *Equipment generation* overrides the detection.
+- **Calmer screens.** Long explanations moved behind small "i" icons across settings, locks, bus scan,
+  schedules and the cycle page.
+- **Bus status light is clickable.** Technicians get a live bus panel (link, serial, poll pass, frames);
+  everyone else gets a plain explanation and what to do when the bus is offline.
+- **Bus scan page** restyled end to end in the Master/CC terminal look.
+- Newly discovered units default to **Fan coil unit**. In-service lock is technician-only.
+- Fixed: signing out showed "[object PointerEvent]" on the login screen.
+- Tests: `tests/scheduler.test.js` (frame builder, time-zone due logic, who-sends rules).
+
+**Not yet verified on equipment:** the controller-side schedule transmit and the 0x30 inventory pages.
+
 ## v1.7.0-beta.1 — 2026-11-15 (UART track resumes · fix leaving the beta channel)
 
 _Beta — publish as a GitHub **pre-release**. First build of the 1.7.0 line, on top of 1.6.0 stable._

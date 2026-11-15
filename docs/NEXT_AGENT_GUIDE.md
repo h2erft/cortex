@@ -221,6 +221,26 @@ named `LGMV-business` on **one of the operator's PCs**. The note has the exact 5
 - Never commit decompiler output or LG's files.
 The firmware-engine reading earlier in this section was done with capstone, no REA needed.
 
+## 1.7.0-beta.2 addendum (2026-11-15) — read before touching schedules, grouping or the cycle page
+
+- **Schedules run in `appliance/scheduler.js`** (pure helpers + `createRunner`), wired in `server.js`
+  after `attachBus(server)`. Browser `schTick` now only runs for `file://` demo copies. The appliance
+  transmits by itself only when `DATA/master-mode` is `1` (the dashboard posts `/api/master-mode` from
+  `busAuto()`); with a master screen alive it queues to `/api/cmd` instead. `cmd0Bytes` there must stay
+  byte-identical to `cmdBytesFor` in `cortex.html`. `scheduler.js` is listed explicitly in
+  `release.yml` and `release.sh` — a new appliance file must be added to both or OTA breaks.
+  **Unverified on equipment:** direct transmit (3 × cmd0 per unit, 350 ms apart).
+- **ODU → IDU membership** comes from cmd14 pages 0x30–0x32 (`masterOduInventory`,
+  `decodeOduInventory`): byte 11 = count, (type, address) pairs from byte 16. The outside reference
+  grades this "likely"; first live result decides whether auto-grouping stays on in guided setup.
+  Reply byte 14 is a load value — never group by it again.
+- **Still browser-driven:** the poll loop, trends and outdoor-unit reads only run while a dashboard
+  holds the adapter. Moving the master loop into the appliance is the next architectural step (it
+  would also give the cycle page data on every screen and make alerts/push possible).
+- Cycle page: `renderCycle` → `oduCards` / `oduDiagrams` / `iduSection`; styles are the `.cy-*` rules.
+- `tip(html)` renders the "i" popover; `row()` moves any description longer than ~56 characters into one.
+- `siteGen()` / `siteCaps()` gate auto fan and dual setpoints (family 0x0E or 4800 baud = generation 4).
+
 ## 9. Things that will bite you
 
 - `cortex.html` is one long file with long lines. Edit with exact-match replacements and re-run the

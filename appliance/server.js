@@ -382,7 +382,7 @@ function flushUnits() {
 app.get('/api/units', (_req, res) => {
   cors(res);
   res.set('Cache-Control', 'no-store');
-  res.json({ rev: unitsDoc.rev, ts: unitsDoc.ts, units: unitsDoc.units, masterAlive: masterAlive(), pending: cmdQueue.length });
+  res.json({ rev: unitsDoc.rev, ts: unitsDoc.ts, units: unitsDoc.units, masterAlive: masterAlive(), pending: cmdQueue.length, sched: true });
 });
 app.put('/api/units', express.json({ limit: '2mb' }), (req, res) => {
   cors(res);
@@ -702,6 +702,75 @@ function attachBus(srv) {
  return wss;
 }
 attachBus(server);
+
+// --- schedules that run without a browser ------------------------------------------
+// See scheduler.js. The dashboard tells us whether Cortex is the bus master on this site
+// (POST /api/master-mode when the poll loop starts / is stopped by a person); only then may the
+// appliance transmit on its own.
+const scheduler = require('./scheduler');
+const MASTERF = path.join(DATA, 'master-mode'), FIREDF = path.join(DATA, 'sched-fired.json');
+const masterMode = () => { try { return fs.readFileSync(MASTERF, 'utf8').trim() === '1'; } catch (_) { return false; } };
+app.get('/api/master-mode', (_req, res) => { cors(res); res.json({ on: masterMode() }); });
+app.post('/api/master-mode', (req, res) => { cors(res);
+  try { fs.writeFileSync(MASTERF, (req.body && req.body.on) ? '1\n' : '0\n'); res.json({ ok: true, on: masterMode() }); }
+  catch (e) { res.status(500).json({ err: e.message }); } });
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+// Put frames on the bus ourselves: open the adapter, send each frame three times, close it.
+async function schedTransmit(frames) {
+  if (busy || !frames.length) return false;
+  busy = true;
+  let port = null;
+  try {
+    port = await new Promise((resolve, reject) => {
+      const sp = new SerialPort({ path: resolveSerial(), baudRate: 4800, parity: 'none', stopBits: 1, dataBits: 8 }, (err) => err ? reject(err) : resolve(sp));
+    });
+    port.on('error', () => {});
+    await wait(300);
+    for (const f of frames) {
+      for (let i = 0; i < 3; i++) {
+        await new Promise((resolve, reject) => port.write(Buffer.from(f), (e) => e ? reject(e) : port.drain((e2) => e2 ? reject(e2) : resolve())));
+        await wait(350);                                         // leave room for the outdoor unit's 16-byte reply
+      }
+      await wait(250);
+    }
+    return true;
+  } finally {
+    try { if (port && port.isOpen) await new Promise(r => port.close(() => r())); } catch (_) {}
+    busy = false;
+  }
+}
+let wxCache = { at: 0, key: '', temp: null };
+async function schedOutdoor(cfg, unit) {
+  const site = cfg.site || {};
+  if (cfg.wxOverride != null && isFinite(cfg.wxOverride)) return +cfg.wxOverride;
+  if (site.lat == null || site.lon == null) return null;
+  const key = site.lat + ',' + site.lon + ',' + unit;
+  if (wxCache.key === key && Date.now() - wxCache.at < 15 * 60000) return wxCache.temp;
+  const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${site.lat}&longitude=${site.lon}&current=temperature_2m&temperature_unit=${unit === 'C' ? 'celsius' : 'fahrenheit'}`, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const j = await r.json(), t = j && j.current && j.current.temperature_2m;
+  wxCache = { at: Date.now(), key, temp: (typeof t === 'number') ? t : null };
+  return wxCache.temp;
+}
+const schedRunner = scheduler.createRunner({
+  getConfig: () => readJsonSafe(APPCFG) || {},
+  getUnits: () => unitsDoc.units,
+  masterAlive, masterMode,
+  queue: (addr, state) => { cmdQueue = cmdQueue.filter(c => Date.now() - c.ts < CMD_TTL && c.addr !== addr); cmdQueue.push({ id: ++cmdSeq, ts: Date.now(), addr, state }); },
+  transmit: schedTransmit,
+  commitUnits: (changed) => {
+    const by = new Map(changed.map(u => [u.id, u]));
+    unitsDoc = { rev: unitsDoc.rev + 1, ts: Date.now(), units: unitsDoc.units.map(u => by.has(u.id) ? by.get(u.id) : u) };
+    unitsDirty = true; flushUnits();
+  },
+  getOutdoor: schedOutdoor,
+  loadFired: () => readJsonSafe(FIREDF) || {},
+  saveFired: (f) => { try { writeFileAtomic(FIREDF, JSON.stringify(f)); } catch (_) {} },
+  log: (e) => console.log('schedule:', JSON.stringify(e)),
+});
+setInterval(() => { schedRunner.tick().catch(e => console.error('schedule tick failed:', e && e.message)); }, 20000);
+app.get('/api/sched', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store');
+  res.json({ server: true, masterMode: masterMode(), masterAlive: masterAlive(), history: schedRunner.history }); });
 
 server.listen(PORT, () => console.log(`Cortex appliance listening on :${PORT}  (serial ${resolveSerial()})`));
 

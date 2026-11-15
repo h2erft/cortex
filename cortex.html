@@ -56,7 +56,14 @@ header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var
 .brand{display:flex;align-items:center;gap:10px;font-weight:600}
 .brand .logo{width:30px;height:30px;display:grid;place-items:center;color:var(--accent)}
 .site{display:flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:13px}
-.bus{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim)}
+.bus{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-dim);cursor:pointer;border-radius:999px;padding:5px 10px;margin:-5px -4px;transition:background .15s}
+.bus:hover{background:var(--surface-2)}
+#buspop{position:fixed;z-index:60;width:380px;max-width:calc(100vw - 16px)}
+.buspop:not(.lab){background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;box-shadow:0 14px 40px -14px rgba(0,0,0,.35)}
+.buspop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.buspop-grid>div{background:#0a1319;border:1px solid #16343a;border-radius:8px;padding:6px 9px}
+.buspop-grid small{display:block;font:10px ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.12em;color:#5f8a84}
+.buspop-grid b{font:600 12.5px ui-monospace,Menlo,monospace;color:#d6fff4}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
 .spacer{flex:1}
 .clock{font-size:13px;color:var(--text-dim)}
@@ -101,7 +108,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:9px;padding:8px 13px;font-size:13.5px;font-weight:500;display:inline-flex;gap:7px;align-items:center}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(244px,1fr));gap:12px}
 .grid.compact{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px}
 .card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 14px 14px 16px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .12s,transform .12s;overflow:hidden;display:flex;flex-direction:column;gap:11px;min-width:0}
 .card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
@@ -109,7 +116,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .card.off{opacity:.72}
 .card-top{display:flex;align-items:center;gap:10px;min-width:0}
 .card-id{flex:1 1 auto;min-width:0}
-.card-name{font-weight:600;font-size:14.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:break-word}
+.card-name{font-weight:600;font-size:14.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:break-word;hyphens:auto}
 .dname .card-name{display:block;white-space:nowrap}
 .lname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card-meta{font-size:11.5px;color:var(--text-faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -255,6 +262,62 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .wiz-dot.cur,.wiz-dot.done{background:var(--accent)}
 .wiz-foot{display:flex;justify-content:space-between;gap:10px;padding:16px 24px;border-top:1px solid var(--border)}
 .pinpair{display:flex;gap:12px}.pinpair>div{flex:1}
+.ii{display:inline-flex;width:15px;height:15px;border-radius:50%;border:1px solid var(--border-strong);color:var(--text-faint);font:italic 700 10.5px/1 Georgia,serif;align-items:center;justify-content:center;cursor:help;vertical-align:1px;margin-left:6px;text-transform:none;letter-spacing:0;flex:none;user-select:none}
+.ii:hover,.ii:focus{color:var(--accent);border-color:var(--accent);outline:none}
+#tipbox{position:fixed;z-index:9999;max-width:300px;background:var(--text);color:var(--bg);border-radius:9px;padding:9px 11px;font-size:12.5px;line-height:1.45;box-shadow:0 8px 28px -8px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .12s}
+#tipbox.show{opacity:1}
+#tipbox b{font-weight:650}
+.batchstrip{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px}
+.batchstrip .ugmini{width:44px}
+.cy-top{display:flex;gap:12px;margin-bottom:12px}
+.cy-g{padding:12px 15px}
+.cy-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.cy-live{font:600 12px ui-monospace,Menlo,monospace;color:var(--text-faint)}.cy-live.on{color:var(--ok)}
+.cy-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-top:14px;overflow:hidden}
+.cy-head{display:flex;gap:12px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--surface-2),var(--surface))}
+.cy-badge{font:700 13px ui-monospace,Menlo,monospace;background:var(--accent);color:#fff;border-radius:9px;padding:8px 9px;letter-spacing:.04em}
+.cy-title{font-weight:650;font-size:15px}.cy-subt{font-size:12.5px;color:var(--text-dim);margin-top:2px}
+.cy-pill{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:2px 9px;background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border);vertical-align:1px;margin-left:4px}
+.cy-pill.run{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok);border-color:transparent}
+.cy-pill.cool{background:var(--cool-soft);color:var(--cool);border-color:transparent}.cy-pill.heat{background:var(--heat-soft);color:var(--heat);border-color:transparent}
+.cy-pill.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}.cy-pill.bad{background:var(--err-soft);color:var(--err);border-color:transparent}
+.cy-unit{padding:6px 16px 14px;border-top:1px solid var(--border)}.cy-unit:first-of-type{border-top:none}
+.cy-uhead{display:flex;gap:4px;align-items:center;margin:10px 0 2px;font-size:13.5px;text-transform:capitalize}
+.cy-sec{margin-top:10px}.cy-sec>span{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--text-faint);font-weight:600}
+.cy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px;margin-top:6px}
+.cy-tile{background:var(--surface-2);border-radius:10px;padding:9px 11px;border-left:3px solid var(--border-strong);min-width:0}
+.cy-tile small{display:block;font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cy-tile b{display:block;font:600 19px ui-monospace,"SFMono-Regular",Menlo,monospace;margin-top:2px;white-space:nowrap}
+.cy-tile b i{font:400 11.5px system-ui,sans-serif;color:var(--text-dim);margin-left:3px}
+.cy-tile em{display:block;font-style:normal;font-size:10.5px;color:var(--text-faint);margin-top:1px}
+.cy-tile.hot{border-left-color:#e5484d}.cy-tile.hot b{color:#e5484d}
+.cy-tile.warm{border-left-color:var(--heat)}.cy-tile.warm b{color:var(--heat)}
+.cy-tile.cold{border-left-color:var(--cool)}.cy-tile.cold b{color:var(--cool)}
+.cy-tile.warn{background:var(--warn-soft);border-left-color:var(--warn)}.cy-tile.warn b{color:var(--warn)}
+.cy-tile.bad{background:var(--err-soft);border-left-color:var(--err)}.cy-tile.bad b{color:var(--err)}
+.cy-comps{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:6px}
+.cy-comp{display:flex;gap:12px;align-items:center;background:var(--surface-2);border-radius:10px;padding:10px 12px}
+.cy-comp small{font-size:11px;color:var(--text-dim)}.cy-comp b{display:block;font:600 19px ui-monospace,Menlo,monospace}.cy-comp b i{font:400 11.5px system-ui;color:var(--text-dim)}
+.cy-comp em{display:block;font-style:normal;font-size:11px;color:var(--text-faint)}
+.cy-rotor{width:38px;height:38px;border-radius:50%;border:2px solid var(--border-strong);display:flex;align-items:center;justify-content:center;flex:none}
+.cy-rotor span{width:22px;height:22px;border-radius:50%;border:3px solid var(--text-faint);border-top-color:transparent}
+.cy-comp.run .cy-rotor{border-color:#e5484d}.cy-comp.run .cy-rotor span{border-color:#e5484d;border-top-color:transparent;animation:cyspin 1.1s linear infinite}.cy-comp.run b{color:#e5484d}
+@keyframes cyspin{to{transform:rotate(360deg)}}
+.cy-table{width:100%;border-collapse:collapse;font-size:13px}
+.cy-table th{text-align:left;padding:8px 10px;color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:.5px;background:var(--surface-2);white-space:nowrap}
+.cy-table td{padding:7px 10px;border-top:1px solid var(--border);white-space:nowrap}
+.cy-table .dim,.cy-plan .dim{color:var(--text-dim)}
+.cy-table tr.cy-grp td{background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:12px}
+.cy-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
+.cy-eev{display:inline-block;width:46px;height:5px;border-radius:3px;background:var(--border);margin-right:7px;vertical-align:middle;overflow:hidden}.cy-eev span{display:block;height:100%;background:var(--accent)}
+.cy-svg{display:block;width:100%;height:auto;padding:6px 8px 10px}
+.cy-dl{font:11px system-ui,sans-serif;fill:var(--text-dim)}.cy-dv{font:600 11.5px ui-monospace,Menlo,monospace;fill:var(--text)}.cy-dn{font:650 11.5px system-ui,sans-serif;fill:var(--text);letter-spacing:.02em}
+.cy-flow{stroke-dasharray:2 12;opacity:.28}
+.cy-flow.on{opacity:1;animation:cyflow 1s linear infinite}
+@keyframes cyflow{to{stroke-dashoffset:-14}}
+.cy-spin{animation:cyspin 1.2s linear infinite}
+.cy-plan{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13.5px}.cy-plan>div{margin-top:7px;display:flex;flex-wrap:wrap;gap:5px}
+@media (prefers-reduced-motion:reduce){.cy-flow.on,.cy-spin,.cy-comp.run .cy-rotor span{animation:none}}
 .note-box{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text-dim);margin-bottom:12px}
 .note-box.warn{border-color:var(--warn,#d9820a);background:color-mix(in srgb,var(--warn,#d9820a) 10%,transparent);color:var(--text)}
 .step-num{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
@@ -316,6 +379,22 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
 /* ===== Debug / "lab" cyberpunk theme — scoped to .lab, tech byte-level tools only ===== */
 .lab{--neon:#2ff5c8;--neon-dim:#1f9e86;--grid:#13ff9b1a;background:#070b10;border:1px solid #16343a;border-radius:14px;color:#8ff3dd;position:relative;overflow:hidden;box-shadow:0 0 0 1px #0c1a1e inset,0 8px 30px -14px #000}
+.lab{--border:#123a40;--border-strong:#1d4048;--surface:#070b10;--surface-2:#0a1319;--text:#cdf6ec;--text-dim:#8fb8b0;--text-faint:#5f8a84;--accent:#2ff5c8;--accent-soft:#0f2a2a;--ok:#2ff5c8;--warn:#ffb36b}
+.lab .connbar{background:none;border:none;box-shadow:none;padding:0;margin:0}
+.lab .connbar .stat{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.lab table{font-family:ui-monospace,Menlo,monospace;font-size:12.5px!important}
+.lab thead tr{background:#0a1319!important;color:#5f8a84!important}
+.lab .feed{background:#070f13;border-color:#16343a;border-radius:10px}
+.lab .feed .fr{font-family:ui-monospace,Menlo,monospace;font-size:12px;padding:5px 12px;border-color:#0e2024}
+.lab .feed .fr.tx{background:#1a0a0d}.lab .feed .fr.tx .ds{color:#ff9e9e}
+.lab .note-box,.lab .editband{background:#0a1319!important;border-color:#16343a!important;color:#8fb8b0!important}
+.lab .linklike{color:var(--neon)}
+.lab .ii{border-color:#1d4048;color:#5f8a84}
+.lab input[type=checkbox]{accent-color:#2ff5c8}
+.cyhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 2px 14px;font-family:ui-monospace,"SFMono-Regular",Menlo,monospace}
+.cyhead .cyt{font-size:19px;font-weight:700;letter-spacing:.22em;color:var(--text)}
+.cyhead .cys{font-size:11.5px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+.cyhead .cyr{margin-left:auto;font-size:11.5px;color:var(--text-faint);letter-spacing:.08em}
 .lab::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(47,245,200,.035) 0 1px,transparent 1px 3px);mix-blend-mode:screen;opacity:.6}
 .lab>*{position:relative}
 .lab .labhead{display:flex;align-items:center;gap:8px;font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;text-transform:uppercase;letter-spacing:.14em;font-size:11px;color:var(--neon);padding:11px 14px;border-bottom:1px solid #123a40}
@@ -505,6 +584,21 @@ const FANS=[["low","Low"],["med","Med"],["high","High"],["auto","Auto"],["quiet"
 // so it is now a real command. Quiet (5) and Power (6) are shown when a unit reports them but are not offered:
 // whether a unit accepts them is model-dependent, so Cortex only re-sends them unchanged.
 const FANS_SEL=FANS.filter(f=>f[0]!=="quiet"&&f[0]!=="power");
+/* What the wall thermostats on this site can do depends on the equipment generation. Multi V IV and
+   older (outdoor family byte 0x0E, 4800-baud bus) have no automatic fan speed and take ONE setpoint in
+   auto; newer gear (Multi V 5 class, 9600 baud) adds both. Site override: CFG.statGen = 4 | 5. */
+function siteGen(){
+  if(CFG&&(CFG.statGen===4||CFG.statGen===5))return CFG.statGen;
+  if(CFG&&CFG.baud===9600)return 5;
+  return 4;}
+function siteGenWhy(){
+  if(CFG&&(CFG.statGen===4||CFG.statGen===5))return "set by hand in Settings";
+  if(CFG&&CFG.baud===9600)return "9600-baud bus";
+  try{for(const o of ODU.values()){const p0=o.pages&&o.pages[0];if(p0){const d=decodeOduPage(p0.f);return "outdoor unit "+hx(d.addr)+" reports "+d.product+", family 0x"+d.family.toString(16).toUpperCase().padStart(2,"0");}}}catch(e){}
+  return "4800-baud bus";}
+function siteCaps(){const g=siteGen();return {gen:g,autoFan:g>=5,dualAuto:g>=5};}
+function fansFor(){const c=siteCaps();return FANS_SEL.filter(f=>f[0]!=="auto"||c.autoFan);}
+function genNote(){const c=siteCaps();return c.gen>=5?"":"These units are on a generation-4 (Multi V IV class) system — "+siteGenWhy()+". Their thermostats have no automatic fan speed and use a single setpoint in Auto mode. Newer generation-5 equipment adds both.";}
 const MC={cool:"cool",heat:"heat",auto:"auto",dry:"dry",fan:"fan"};
 
 /* ---- LG Multi V error code reference (verify against the unit's service manual) ---- */
@@ -1120,29 +1214,61 @@ function delSelected(){
     closeModal();renderUnits();toast(`Deleted ${ids.length} unit${ids.length>1?"s":""}`);
   };
 }
-function batchModal(){
-  const ids=[...selSet];const targets=units.filter(u=>ids.includes(u.id));
-  const b={power:"",mode:"",fan:"",swing:"",sp:""}; // "" = no change
-  modal(head(`Batch command · ${targets.length} units`)+`<div class="modal-body">
-    <div class="note-box" style="margin-bottom:12px">Pick only the settings you want to change. Anything left on “no change” is untouched. Each unit gets its own command.</div>
-    <label class="flabel">Power</label><select class="sel-box" id="b-power"><option value="">No change</option><option value="on">Turn on</option><option value="off">Turn off</option></select>
-    <label class="flabel">Mode</label><select class="sel-box" id="b-mode"><option value="">No change</option>${MODES.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join("")}</select>
-    <label class="flabel">Fan</label><select class="sel-box" id="b-fan"><option value="">No change</option>${FANS_SEL.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join("")}</select>
-    <label class="flabel">Swing</label><select class="sel-box" id="b-swing"><option value="">No change</option><option value="on">On</option><option value="off">Off</option></select>
-    <label class="flabel">Setpoint</label><select class="sel-box" id="b-sp"><option value="">No change</option>${Array.from({length:27},(_,i)=>60+i).map(t=>`<option value="${t}">${temp(t)}</option>`).join("")}</select>
-    <div style="max-height:120px;overflow:auto;margin-top:12px;font-size:12px;color:var(--text-dim)">${targets.map(u=>ue(dispName(u))).join(" · ")}</div>
-    <div class="mf" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="b-send">Send to ${targets.length} units</button></div></div>`,true);
-  document.getElementById("b-send").onclick=()=>{
-    const gv=id=>document.getElementById(id).value;
-    const power=gv("b-power"),mode=gv("b-mode"),fan=gv("b-fan"),swing=gv("b-swing"),sp=gv("b-sp");
-    if(!power&&!mode&&!fan&&!swing&&!sp){toast("Pick at least one setting to change");return;}
+/* Batch control panel — the same panel as a single unit, for everything that is selected.
+   Every control starts at "no change"; only what you touch is sent. */
+let bp=null;
+function batchModal(){const ids=[...selSet];if(!ids.length)return;
+  bp={ids,on:null,mode:null,fan:null,swing:null,spC:null,modeLock:null,fanLock:null,tempLock:null,hardLock:null};
+  closeDrawer();drawBatch();drawer.classList.add("show");scrim.classList.add("show");}
+function drawBatch(){if(!bp)return;
+  const targets=units.filter(u=>bp.ids.includes(u.id)),n=targets.length;
+  const role=currentUser?currentUser.role:"customer";
+  const blocked=targets.filter(u=>!ctlAllowed(u)).length;
+  const touched=["on","mode","fan","swing","spC","modeLock","fanLock","tempLock","hardLock"].filter(k=>bp[k]!==null).length;
+  const nc='<span style="color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0"> · no change</span>';
+  const st=k=>bp[k]!==null?'<span style="color:var(--warn)">• staged</span>':nc;
+  const cur=(()=>{const v=targets.map(u=>activeC(u)).filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);return v.length?v[Math.floor(v.length/2)]:22;})();
+  const tri=(k,label)=>`<button class="opt ${bp[k]!==null?'sel':''}" data-blk="${k}" style="${bp[k]!==null?STG:''}">${bp[k]===null?'·':(bp[k]?'🔒':'🔓')} ${label}</button>`;
+  const names=targets.map(u=>ue(dispName(u)));
+  drawer.innerHTML=`<div class="drawer-head"><div style="min-width:0;flex:1">
+      <div class="card-name">${n} unit${n!==1?"s":""} selected</div>
+      <div class="card-meta" title="${names.join(", ")}">${names.slice(0,4).join(" · ")}${n>4?` · +${n-4} more`:""}</div></div>
+    <button class="icon-btn" id="dclose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+   <div class="drawer-body">
+    <div class="batchstrip">${targets.slice(0,12).map(u=>`<div class="ugmini" title="${ue(dispName(u))}">${unitGraphic(u,'',true)}</div>`).join("")}${n>12?`<span class="chip">+${n-12}</span>`:""}</div>
+    ${blocked?`<div class="note-box warn" style="margin-bottom:14px">${blocked} of these ${blocked>1?"are":"is"} locked for your login and will be skipped.</div>`:""}
+    <div class="field"><div class="lbl">Power ${st('on')}</div><div class="pwr"><button data-bon="1" class="${bp.on===true?'on-sel':''}">On</button><button data-bon="0" class="${bp.on===false?'off-sel':''}">Off</button></div></div>
+    <div class="field"><div class="lbl">Mode ${st('mode')}</div><div class="opts">${MODES.map(m=>`<button class="opt ${MC[m[0]]} ${bp.mode===m[0]?'sel':''}" data-bmode="${m[0]}">${m[2]} ${m[1]}</button>`).join("")}</div></div>
+    <div class="field"><div class="lbl">Fan speed${genNote()?tip(genNote()):''} ${st('fan')}</div><div class="opts">${fansFor().map(f=>`<button class="opt ${bp.fan===f[0]?'sel':''}" data-bfan="${f[0]}">${f[1]}</button>`).join("")}</div></div>
+    <div class="field"><div class="lbl">Swing ${st('swing')}</div><div class="pwr"><button data-bsw="1" class="${bp.swing===true?'on-sel':''}">On</button><button data-bsw="0" class="${bp.swing===false?'off-sel':''}">Off</button></div></div>
+    <div class="field"><div class="lbl">Setpoint ${st('spC')}</div>
+      <div class="stepper"><button id="bspdn">−</button><div class="val mono" style="${bp.spC!==null?'color:var(--warn)':'color:var(--text-faint)'}">${bp.spC!==null?spDisp(bp.spC):"—"}<small>°${settings.unit}</small></div><button id="bspup">+</button></div>
+      ${bp.spC===null?`<div style="font-size:12px;color:var(--text-faint);margin-top:6px">Each unit keeps its own setpoint. Press + or − to set one for all (starts from ${spDisp(cur)}°).</div>`:""}</div>
+    ${role!=="customer"?`<div class="field"><div class="lbl">Locks${tip("Tap once to lock on every selected unit, again to unlock, a third time for no change. <b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat, <b>Temp</b> blocks temperature changes, <b>Hard</b> locks the whole wall controller.")}</div>
+      <div class="opts">${tri("modeLock","Mode")}${tri("fanLock","Fan")}${tri("tempLock","Temp")}${tri("hardLock","Hard")}</div></div>`:""}
+    <div class="field">
+      <button class="btn primary" id="bsendgo" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${touched?'':';opacity:.5'}" ${touched?'':'disabled'}>Send to ${n} unit${n!==1?"s":""}</button>
+      ${touched?`<button class="linklike" id="bclear" style="display:block;margin:10px auto 0;font-size:12.5px">Clear changes</button>`:""}</div>
+   </div>`;
+  const re=()=>{const b=drawer.querySelector('.drawer-body'),y=b?b.scrollTop:0;drawBatch();const b2=drawer.querySelector('.drawer-body');if(b2)b2.scrollTop=y;};
+  const tog=(k,v)=>{bp[k]=bp[k]===v?null:v;re();};
+  drawer.querySelector("#dclose").onclick=()=>{bp=null;closeDrawer();};
+  drawer.querySelectorAll("[data-bon]").forEach(b=>b.onclick=()=>tog("on",b.dataset.bon==="1"));
+  drawer.querySelectorAll("[data-bsw]").forEach(b=>b.onclick=()=>tog("swing",b.dataset.bsw==="1"));
+  drawer.querySelectorAll("[data-bmode]").forEach(b=>b.onclick=()=>tog("mode",b.dataset.bmode));
+  drawer.querySelectorAll("[data-bfan]").forEach(b=>b.onclick=()=>tog("fan",b.dataset.bfan));
+  drawer.querySelectorAll("[data-blk]").forEach(b=>b.onclick=()=>{const k=b.dataset.blk;bp[k]=bp[k]===null?true:(bp[k]===true?false:null);re();});
+  const step=d=>{bp.spC=bp.spC!==null?spStep(bp.spC,d):clampC(cur);re();};
+  drawer.querySelector("#bspdn").onclick=()=>step(-1);drawer.querySelector("#bspup").onclick=()=>step(1);
+  const bc=drawer.querySelector("#bclear");if(bc)bc.onclick=()=>{["on","mode","fan","swing","spC","modeLock","fanLock","tempLock","hardLock"].forEach(k=>bp[k]=null);re();};
+  const go=drawer.querySelector("#bsendgo");if(go)go.onclick=()=>{
     if(!canReach()&&!isDemo()){toast(notConnMsg());return;}
-    closeModal();selMode=false;selSet.clear();renderUnits();
+    const c=bp;bp=null;closeDrawer();selMode=false;selSet.clear();renderUnits();
     applyAndSend(targets,u=>{
-      if(power)u.on=power==="on";if(mode)u.mode=mode;if(fan)u.fan=fan;if(swing)u.swing=swing==="on";
-      if(sp){const c=(+sp-32)*5/9;u.coolC=c;u.heatC=c;}       // the list is in °F; units keep °C
-    }).then(n=>{if(n)toast(`Command sent to ${n} of ${targets.length} unit${targets.length!==1?'s':''}`);});
-  };
+      if(c.on!==null)u.on=c.on;if(c.mode!==null)u.mode=c.mode;if(c.fan!==null)u.fan=c.fan;if(c.swing!==null)u.swing=c.swing;
+      if(c.spC!==null){u.coolC=c.spC;u.heatC=c.spC;}
+      ["modeLock","fanLock","tempLock","hardLock"].forEach(k=>{if(c[k]!==null)u[k]=c[k];});
+    }).then(k=>{if(k)toast(`Command sent to ${k} of ${targets.length} unit${targets.length!==1?'s':''}`);});};
 }
 
 /* ---- cycle + schedule ---- */
@@ -1411,37 +1537,178 @@ async function oduFindClick(){
       if(f){found++;mlog("  ✓ outdoor unit at "+hx(a));}}
     toast(found?("Found "+found+" outdoor unit"+(found!==1?"s":"")):"No outdoor unit answered");}
   finally{oduBusy=false;if(view==="cycle")renderCycle();}}
-function oduSection(){
-  const F=settings.unit!=="C";
-  const tt=c=>(c==null||!isFinite(c))?"—":(F?Math.round(c*9/5+32):Math.round(c*10)/10)+"°";
-  const dt=k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*9/5*10)/10:k)+"°";            // a temperature DIFFERENCE (superheat/subcool)
-  const pr=k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*0.145038)+" psi":k+" kPa");
-  const list=[...ODU.values()].sort((a,b)=>a.addr-b.addr);
-  const tables=list.map(o=>{const us=oduUnits(o);if(!us.length)return "";const m=us[0];
-    const rows=[["High pressure",u=>pr(u.hp)],["Low pressure",u=>pr(u.lp)],["Condensing temp",u=>tt(u.cond)],["Evaporating temp",u=>tt(u.evap)],
-      ["Suction temp",u=>tt(u.suct)],["Superheat",u=>dt(u.sh)],["Liquid pipe temp",u=>tt(u.liq)],["Subcooling",u=>dt(u.sc)],
-      ["Discharge temp 1 / 2",u=>tt(u.disch1)+" / "+tt(u.disch2)],["Outdoor air",u=>tt(u.air)],
-      ["Compressor 1 (target → actual)",u=>u.inv1Target+" → "+u.inv1Hz+" Hz"],["Compressor 2 (target → actual)",u=>u.inv2Target+" → "+u.inv2Hz+" Hz"],
-      ["Fan 1 / 2",u=>u.fan1+" / "+u.fan2],["EEV main 1 / main 2 / subcool",u=>u.eev1+" / "+u.eev2+" / "+u.eevSc+" pls"],
-      ["Compression ratio",u=>u.ratio==null?"—":u.ratio],["Inverter 1 input",u=>u.inv1V+" V · "+u.inv1A+" A"],["DC link 1 / 2",u=>u.dc1+" / "+u.dc2+" V"],
-      ["Defrost · oil return · 4-way",u=>(u.defrost?"defrost":"—")+" · "+(u.oilReturn?"oil return":"—")+" · "+(u.fourWay?"heat":"cool")],
-      ["Firmware",u=>u.fw]];
-    const flt=o.pages[5]&&o.pages[5].f.slice(8,38).some(x=>x);
-    return `<div style="border:1px solid var(--border);border-radius:12px;margin-top:12px;overflow:auto">
-      <div style="padding:10px 12px;background:var(--surface-2);font-size:13px"><b>Outdoor unit ${hx(o.addr)}</b> · ${ue(m.product)} · ${m.mode} · ${m.idus} indoor unit${m.idus!==1?"s":""} ·
-        ${m.err?`<span style="color:var(--err)">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span style="color:var(--ok)">no error</span>'}${flt?' · <span style="color:var(--warn)">fault table has entries</span>':''}
-        <span style="color:var(--text-faint);float:right">${ago(o.at)}</span></div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
-        <th style="padding:7px 8px"></th>${us.map(u=>`<th style="padding:7px 8px">${ue(u.unit)}${u.running?' · running':' · idle'}</th>`).join("")}</tr></thead>
-      <tbody>${rows.map(r=>`<tr style="border-top:1px solid var(--border)"><td style="padding:6px 8px;color:var(--text-dim)">${r[0]}</td>${us.map(u=>`<td class="mono" style="padding:6px 8px">${r[1](u)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;}).join("");
-  const ctl=isMaster()?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
-      <input class="inp" id="odu-addr" placeholder="ODU address (hex)" style="width:150px;margin:0" maxlength="4">
-      <button class="btn" id="odu-read">Read outdoor unit</button><button class="btn" id="odu-find">Find outdoor units</button>
-      ${oduAddrs().length?`<span style="font-size:12px;color:var(--text-dim)">known: ${oduAddrs().map(a=>hx(a)).join(", ")} · refreshed about once a minute</span>`:""}</div>`
-    :`<div style="font-size:12px;color:var(--text-faint);margin-top:8px">${liveTx()?"Fills in by itself as the LG central polls its outdoor units (every few minutes).":"Connect to the bus to see outdoor-unit data."}</div>`;
-  return `<div style="margin-top:22px"><div style="font-weight:600">Outdoor units <span style="color:#6fe3c6;font-size:12px;font-weight:400">beta</span></div>
-    <div style="font-size:12px;color:var(--text-dim);margin-top:3px">Pressures, temperatures and compressor data from the outdoor unit's monitor pages (Multi V IV tables — treat values on other families as approximate).</div>
-    ${ctl}${tables||(list.length?"":'<div style="font-size:13px;color:var(--text-faint);margin-top:10px">No outdoor-unit data received yet.</div>')}</div>`;}
+/* ---- outdoor / cycle page pieces ---- */
+function cyFmt(){const F=settings.unit!=="C";return {
+  tt:c=>(c==null||!isFinite(c))?"—":(F?Math.round(c*9/5+32):Math.round(c*10)/10)+"°",
+  dt:k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*9/5*10)/10:k)+"°",          // a temperature DIFFERENCE (superheat / subcooling)
+  pr:k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*0.145038):k),
+  pu:F?"psi":"kPa"};}
+function oduControls(){
+  if(!isMaster())return `<span style="font-size:12px;color:var(--text-faint)">${liveTx()?"Fills in as the LG central polls its outdoor units.":"Outdoor data is read by the screen that is connected to the bus."}</span>`;
+  return `<input class="inp" id="odu-addr" placeholder="ODU addr (hex)" style="width:128px;margin:0" maxlength="4">
+      <button class="btn" id="odu-read">Read</button><button class="btn" id="odu-find" title="Sweep every address for outdoor units (about 2 minutes)">Find outdoor units</button>
+      <button class="btn primary" id="odu-group" ${oduAddrs().length?"":"disabled style=\"opacity:.5\""} title="Ask each outdoor unit which indoor units belong to it, then group them">Group by outdoor unit</button>`;}
+// colour for a reading: ok / warn / bad
+function cyTone(kind,u){
+  if(kind==="disch"){const d=Math.max(u.disch1==null?-99:u.disch1,u.disch2==null?-99:u.disch2);return d>=115?"bad":d>=105?"warn":"";}
+  if(kind==="sh")return (u.running&&u.sh!=null&&(u.sh<1||u.sh>20))?"warn":"";
+  if(kind==="sc")return (u.running&&u.sc!=null&&u.sc<1)?"warn":"";
+  if(kind==="ratio")return (u.running&&u.ratio!=null&&(u.ratio>4.5||u.ratio<1.3))?"warn":"";
+  return "";}
+function oduUnitPanel(u){const f=cyFmt();
+  const tile=(cls,label,val,unit,sub,tone)=>`<div class="cy-tile ${cls} ${tone||""}"><small>${label}</small><b>${val}<i>${unit||""}</i></b>${sub?`<em>${sub}</em>`:""}</div>`;
+  const comp=(n,tg,hz,v,a,dc)=>`<div class="cy-comp ${hz?'run':''}"><div class="cy-rotor"><span></span></div><div><small>Inverter ${n}</small><b>${hz}<i> Hz</i></b><em>target ${tg} Hz</em><em>${v} V · ${a} A · DC ${dc} V</em></div></div>`;
+  return `<div class="cy-unit">
+    <div class="cy-uhead"><b>${ue(u.unit)} unit</b><span class="cy-pill ${u.running?'run':''}">${u.running?"running":"idle"}</span><span class="cy-pill ${u.mode==='heat'?'heat':u.mode==='cool'?'cool':''}">${ue(u.mode)}</span>${u.defrost?'<span class="cy-pill warn">defrost</span>':''}${u.oilReturn?'<span class="cy-pill warn">oil return</span>':''}<span style="margin-left:auto;font-size:11.5px;color:var(--text-faint)">firmware ${ue(u.fw)}</span></div>
+    <div class="cy-sec"><span>High side</span>
+      <div class="cy-grid">${tile("hot","High pressure",f.pr(u.hp),f.pu,"target "+f.pr(u.hpTarget))}${tile("hot","Discharge 1",f.tt(u.disch1),"","",cyTone("disch",u))}${tile("hot","Discharge 2",f.tt(u.disch2),"","",cyTone("disch",u))}${tile("warm","Condensing",f.tt(u.cond))}${tile("warm","Liquid pipe",f.tt(u.liq))}${tile("warm","Subcooling",f.dt(u.sc),"","target "+f.dt(u.scTarget),cyTone("sc",u))}</div></div>
+    <div class="cy-sec"><span>Low side</span>
+      <div class="cy-grid">${tile("cold","Low pressure",f.pr(u.lp),f.pu,"target "+f.pr(u.lpTarget))}${tile("cold","Evaporating",f.tt(u.evap))}${tile("cold","Suction",f.tt(u.suct))}${tile("cold","Superheat",f.dt(u.sh),"","target "+f.dt(u.shTarget),cyTone("sh",u))}${tile("","Compression ratio",u.ratio==null?"—":u.ratio,"","",cyTone("ratio",u))}${tile("","Outdoor air",f.tt(u.air))}</div></div>
+    <div class="cy-sec"><span>Compressors</span>
+      <div class="cy-comps">${comp(1,u.inv1Target,u.inv1Hz,u.inv1V,u.inv1A,u.dc1)}${comp(2,u.inv2Target,u.inv2Hz,u.inv2V,u.inv2A,u.dc2)}</div></div>
+    <div class="cy-sec"><span>Fans, valves, heat exchanger</span>
+      <div class="cy-grid">${tile("","Fan 1",u.fan1," rpm")}${tile("","Fan 2",u.fan2," rpm")}${tile("","EEV main 1",u.eev1," pls")}${tile("","EEV main 2",u.eev2," pls")}${tile("","EEV subcool",u.eevSc," pls")}${tile("","4-way valve",u.fourWay?"heat":"cool")}${tile("warm","Heat exchanger",f.tt(u.hex))}${tile("warm","Subcooler in",f.tt(u.scIn))}${tile("warm","Subcooler out",f.tt(u.scOut))}</div></div>
+  </div>`;}
+function oduHead(o,m){const flt=o.pages[5]&&o.pages[5].f.slice(8,38).some(x=>x);const mine=units.filter(u=>u.odu===o.addr).length;
+  return `<div class="cy-head"><div class="cy-badge">${hx(o.addr)}</div>
+    <div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)} <span class="cy-pill ${m.mode==='heat'?'heat':m.mode==='cool'?'cool':''}">${ue(m.mode)}</span></div>
+      <div class="cy-subt">${ue(m.product)} · family 0x${m.family.toString(16).toUpperCase().padStart(2,"0")} · ${m.idus} indoor unit${m.idus!==1?"s":""}${mine?` · ${mine} matched in Cortex`:""}${m.subs?` · ${m.subs} sub unit${m.subs>1?"s":""}`:""}</div></div>
+    <div style="margin-left:auto;text-align:right">${m.err?`<span class="cy-pill bad">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span class="cy-pill run">no error</span>'}${flt?' <span class="cy-pill warn">fault table has entries</span>':''}
+      <div style="font-size:11.5px;color:var(--text-faint);margin-top:4px">read ${ago(o.at)}</div></div></div>`;}
+function oduCards(list){
+  const cards=list.map(o=>{const us=oduUnits(o);if(!us.length)return "";
+    return `<div class="cy-card">${oduHead(o,us[0])}${us.map(oduUnitPanel).join("")}</div>`;}).join("");
+  return cards||`<div class="cyc-note" style="margin-top:14px">No outdoor-unit data yet. ${isMaster()?"Use <b>Find outdoor units</b> (or type the outdoor unit's central address and press Read).":"It appears here once the screen connected to the bus has read an outdoor unit."}</div>`;}
+function iduSection(){
+  const us=units.filter(u=>groupFilter==="all"||catVals(u,gdim()).includes(groupFilter));
+  const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
+  const tone=(v,room)=>(v==null||room==null)?"":(v<room-4?"color:var(--cool)":v>room+4?"color:var(--heat)":"");
+  const row=u=>{const dT=(u.pipeIn!=null&&u.pipeOut!=null)?tnum(u.pipeOut)-tnum(u.pipeIn):null;const eevPct=u.eev!=null?Math.max(0,Math.min(100,Math.round((u.eev-40)/(1350-40)*100))):null;
+    return `<tr>
+    <td><span class="cy-dot" style="background:${u.offline?'var(--warn)':u.err?'var(--err)':u.on?modeColor(u):'var(--text-faint)'}"></span>${ue(dispName(u))}</td>
+    <td class="mono dim">${hx(u.addr)}</td>
+    <td>${u.offline?'<span style="color:var(--warn)">no reply</span>':(u.err?`<span style="color:var(--err)">${ue(u.code)}</span>`:(u.on?ue(u.mode):'<span class="dim">off</span>'))}</td>
+    <td class="mono">${u.on?spDisp(activeC(u))+"°":"—"}</td>
+    <td class="mono">${t(u.room)}</td>
+    <td class="mono" style="${tone(u.pipeIn,u.room)}">${t(u.pipeIn)}</td>
+    <td class="mono" style="${tone(u.pipeOut,u.room)}">${t(u.pipeOut)}</td>
+    <td class="mono dim">${dT==null?"—":(dT>0?"+":"")+dT+"°"}</td>
+    <td class="mono">${u.eev!=null?`<span class="cy-eev"><span style="width:${eevPct}%"></span></span>${u.eev}`:"—"}</td>
+    <td class="mono dim">${u.capK?u.capK+"k":"—"}</td>
+    <td class="dim" style="font-size:12px">${u.seen?ago(u.seen):"not yet"}</td></tr>`;};
+  const groups=new Map();us.forEach(u=>{const k=u.odu!=null?u.odu:-1;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(u);});
+  const keys=[...groups.keys()].sort((a,b)=>a-b);
+  const body=keys.map(k=>`${keys.length>1||k!==-1?`<tr class="cy-grp"><td colspan="11">${k===-1?"Outdoor unit not known yet":"Outdoor unit "+hx(k)} · ${groups.get(k).length} unit${groups.get(k).length!==1?"s":""}</td></tr>`:""}${groups.get(k).map(row).join("")}`).join("");
+  return `<div class="cy-card" style="margin-top:16px"><div class="cy-head"><div class="cy-title">Indoor units</div>
+      <div style="margin-left:auto"><button class="btn sm" id="odutrend">📈 Pipe-out trend</button></div></div>
+    <div style="overflow:auto"><table class="cy-table">
+      <thead><tr><th>Unit</th><th>Addr</th><th>State</th><th>Set</th><th>Room</th><th>Pipe in</th><th>Pipe out</th><th title="Pipe out minus pipe in">Δ</th><th title="Indoor expansion valve position, pulses (about 40 = closed)">EEV</th><th title="Unit capacity, kBtu/h">Cap</th><th>Last heard</th></tr></thead>
+      <tbody>${body||'<tr><td colspan="11" class="dim" style="padding:16px">No units yet.</td></tr>'}</tbody></table></div></div>`;}
+/* Live refrigerant-cycle sketch for one outdoor system. The pipe layout is schematic (one gas trunk,
+   one liquid trunk) — it shows direction, state and the real readings, not the building's piping. */
+function oduDiagram(o){const us=oduUnits(o);if(!us.length)return "";const m=us[0],f=cyFmt();
+  const heat=m.mode==="heat",run=us.some(u=>u.running);
+  const mineAll=units.filter(u=>u.odu===o.addr||(u.odu==null&&ODU.size===1)),idus=mineAll.slice(0,12),more=mineAll.length-idus.length;
+  const hot="#e5484d",warm="#e8955a",cold="#3b8fe0";
+  const gasCol=heat?hot:cold,liqCol=warm;
+  const fl=(col,on)=>`fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round" class="cy-flow ${on?'on':''}"`;
+  const base=d=>`<path d="${d}" fill="none" stroke="var(--border-strong)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>`;
+  const pipe=(d,col,on)=>base(d)+`<path d="${d}" ${fl(col,on)}/>`;               // d is drawn in the direction of flow
+  const colW=176,x0=500,rows=Math.max(1,Math.ceil(idus.length/3)),H=Math.max(400,170+rows*104),W=x0+3*colW+40;
+  const yL=64,yG=H-44,xA=200,xB=290,yC=H-128;                                    // liquid trunk, gas trunk, compressor positions
+  const lbl=(x,y,t,v,col)=>`<g transform="translate(${x} ${y})"><rect x="-5" y="-14" rx="7" width="${(t.length+1)*6+String(v).length*7.3+16}" height="21" fill="var(--surface)" stroke="${col||'var(--border)'}"/><text class="cy-dl" x="3" y="1">${t} <tspan class="cy-dv" fill="${col||'var(--text)'}">${v}</tspan></text></g>`;
+  const comp=(x,hz,n,side)=>`<g transform="translate(${x} ${yC})"><circle r="26" fill="var(--surface)" stroke="${hz?hot:'var(--border-strong)'}" stroke-width="2.5"/><g class="${hz?'cy-spin':''}"><path d="M-14 0A14 14 0 0 1 14 0" fill="none" stroke="${hz?hot:'var(--text-faint)'}" stroke-width="4" stroke-linecap="round"/><circle r="3.4" fill="${hz?hot:'var(--text-faint)'}"/></g>
+      <text class="cy-dl" text-anchor="${side<0?'end':'start'}" x="${side*34}" y="-2">INV ${n}</text><text class="cy-dv" text-anchor="${side<0?'end':'start'}" x="${side*34}" y="13" fill="${hz?hot:'var(--text-dim)'}">${hz} Hz</text></g>`;
+  const col=i=>x0+88+(i%3)*colW, rowY=i=>122+Math.floor(i/3)*104;
+  const xEnd=x0+88+2*colW+78;
+  // one liquid riser (left of each column) and one gas riser (right of each column), with a stub into every unit
+  let risers="";for(let c=0;c<Math.min(3,idus.length);c++){const cx=col(c),n=idus.filter((_,i)=>i%3===c).length,yLast=122+(n-1)*104;
+    const anyOn=run&&idus.some((u,i)=>i%3===c&&u.on&&!u.offline);
+    risers+=pipe(heat?`M${cx-78} ${yLast}V${yL}`:`M${cx-78} ${yL}V${yLast}`,liqCol,anyOn)+pipe(heat?`M${cx+78} ${yG}V${rowY(c)}`:`M${cx+78} ${rowY(c)}V${yG}`,gasCol,anyOn);}
+  const iduG=idus.map((u,i)=>{const cx=col(i),cy=rowY(i);const on=u.on&&!u.offline;const c=u.offline?"var(--warn)":u.err?"var(--err)":on?modeColor(u):"var(--border-strong)";
+    const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
+    return `<g>${pipe(heat?`M${cx-66} ${cy}H${cx-78}`:`M${cx-78} ${cy}H${cx-66}`,liqCol,run&&on)}${pipe(heat?`M${cx+78} ${cy}H${cx+66}`:`M${cx+66} ${cy}H${cx+78}`,gasCol,run&&on)}
+      <rect x="${cx-66}" y="${cy-32}" width="132" height="64" rx="10" fill="var(--surface)" stroke="${c}" stroke-width="${on?2:1.3}"/>
+      <text class="cy-dn" x="${cx-57}" y="${cy-14}">${ue(dispName(u)).slice(0,17)}</text>
+      <text class="cy-dl" x="${cx-57}" y="${cy+3}">room <tspan class="cy-dv">${t(u.room)}</tspan> · EEV <tspan class="cy-dv">${u.eev!=null?u.eev:"—"}</tspan></text>
+      <text class="cy-dl" x="${cx-57}" y="${cy+20}">in <tspan class="cy-dv" fill="${liqCol}">${t(u.pipeIn)}</tspan> · out <tspan class="cy-dv" fill="${gasCol}">${t(u.pipeOut)}</tspan></text></g>`;}).join("");
+  return `<div class="cy-card">${oduHead(o,m)}
+   <div style="overflow:auto"><svg viewBox="0 0 ${W} ${H}" class="cy-svg" style="min-width:820px;max-width:${W*1.25}px">
+    <rect x="14" y="14" width="406" height="${H-24}" rx="16" fill="var(--surface-2)" stroke="var(--border)" stroke-dasharray="5 5"/>
+    <text class="cy-dn" x="30" y="38">OUTDOOR UNIT ${hx(o.addr)} · ${ue(m.mode).toUpperCase()}${run?"":" · IDLE"}</text>
+    ${pipe(heat?`M${xEnd} ${yL}H360V86`:`M360 86V${yL}H${xEnd}`,liqCol,run)}
+    ${pipe(heat?`M${xA} ${yG}H${xEnd}`:`M${xEnd} ${yG}H${xA}`,gasCol,run)}
+    ${heat
+      ?pipe(`M${xA} ${yC+26}V${yG}`,hot,run&&m.inv1Hz)+pipe(`M${xB} ${yC+26}V${yG}`,hot,run&&m.inv2Hz)+pipe(`M${xA} 114V${yC-26}`,cold,run&&m.inv1Hz)+pipe(`M${xA} ${yC-62}H${xB}V${yC-26}`,cold,run&&m.inv2Hz)
+      :pipe(`M${xA} ${yG}V${yC+26}`,cold,run&&m.inv1Hz)+pipe(`M${xB} ${yG}V${yC+26}`,cold,run&&m.inv2Hz)+pipe(`M${xA} ${yC-26}V114`,hot,run&&m.inv1Hz)+pipe(`M${xB} ${yC-26}V${yC-62}H${xA}`,hot,run&&m.inv2Hz)}
+    <rect x="150" y="72" width="230" height="42" rx="9" fill="var(--surface)" stroke="${heat?cold:warm}" stroke-width="2"/>
+    ${Array.from({length:10},(_,i)=>`<line x1="${168+i*21.5}" y1="79" x2="${168+i*21.5}" y2="107" stroke="${heat?cold:warm}" stroke-width="2" opacity=".45"/>`).join("")}
+    <text class="cy-dl" x="150" y="62">${heat?"evaporator":"condenser"} · air <tspan class="cy-dv">${f.tt(m.air)}</tspan> · fans <tspan class="cy-dv">${m.fan1}/${m.fan2}</tspan></text>
+    ${comp(xA,m.inv1Hz,1,-1)}${comp(xB,m.inv2Hz,2,1)}
+    <text class="cy-dl" x="30" y="${yC-118}" style="letter-spacing:.08em">HIGH SIDE</text>
+    ${lbl(34,yC-96,"pressure",f.pr(m.hp)+" "+f.pu,hot)}${lbl(34,yC-70,"discharge",f.tt(m.disch1)+" / "+f.tt(m.disch2),hot)}${lbl(34,yC-44,"condensing",f.tt(m.cond),warm)}
+    <text class="cy-dl" x="30" y="${yC+50}" style="letter-spacing:.08em">LOW SIDE</text>
+    ${lbl(34,yC+72,"pressure",f.pr(m.lp)+" "+f.pu,cold)}${H>=420?"":""}
+    ${lbl(34,yC+98,"superheat",f.dt(m.sh),cold)}
+    ${lbl(430,yL-22,"liquid",f.tt(m.liq)+" · subcool "+f.dt(m.sc),warm)}
+    ${lbl(430,yG+26,heat?"hot gas":"suction",(heat?f.tt(m.disch1):f.tt(m.suct))+" · evap "+f.tt(m.evap),gasCol)}
+    <text class="cy-dl" x="${xEnd}" y="${yL-12}" text-anchor="end">LIQUID LINE ${heat?"◀":"▶"}</text>
+    <text class="cy-dl" x="${xEnd}" y="${yG+22}" text-anchor="end">GAS LINE ${heat?"▶":"◀"}</text>
+    ${risers}${iduG}
+    ${!idus.length?`<text class="cy-dl" x="${x0+20}" y="${(yL+yG)/2}">Indoor units for this outdoor unit aren’t known yet — use “Group by outdoor unit” in the Data view.</text>`:""}
+    ${more>0?`<text class="cy-dl" x="${xEnd}" y="${H-6}" text-anchor="end">+${more} more indoor unit${more>1?"s":""} — see the Data view</text>`:""}
+   </svg></div></div>`;}
+function oduDiagrams(list){const d=list.map(oduDiagram).join("");
+  return d||`<div class="cyc-note" style="margin-top:14px">The diagram draws itself from outdoor-unit data, and none has been read yet.</div>`;}
+/* ---- which indoor units belong to which outdoor unit ----
+   An outdoor unit keeps its own list of indoor units and serves it on monitor pages 0x30–0x32 as
+   (type, address) pairs, with the count in byte 11 (outside reference, graded "likely" — so the result
+   is always shown for confirmation before anything is regrouped by hand). This replaces the old
+   grouping by reply byte 14, which is a load value that drifts during a sweep. */
+function decodeOduInventory(pages){const count=pages[0][11],list=[];
+  for(const f of pages){for(let i=16;i+1<=59&&list.length<count;i+=2)list.push({type:f[i],addr:f[i+1]});}
+  return {count,list};}
+async function masterOduInventory(addr){
+  const p=await masterOduPage(addr,0x30);if(!p)return null;
+  const pages=[p],count=p[11];if(!count||count>64)return {count,list:[]};
+  for(let k=1;k<3&&count>22*k;k++){await sleep(700);const q=await masterOduPage(addr,0x30+k);if(!q)break;pages.push(q);}
+  return decodeOduInventory(pages);}
+const ODU_GROUP=a=>"Outdoor unit "+hx(a).replace(/^0x/i,"");
+function oduApplyPlan(plan,regroup){let n=0;
+  plan.forEach(pl=>{if(!pl.inv)return;pl.inv.list.forEach(e=>{const u=units.find(x=>x.addr===e.addr);if(!u)return;
+    u.odu=pl.odu;u.system=hx(pl.odu);if(regroup)u.grp=ODU_GROUP(pl.odu);n++;});});
+  if(n){saveUnits();renderAll();renderGroupNav();}return n;}
+async function oduReadPlan(){const plan=[];
+  for(const a of oduAddrs()){if(!isMaster())break;const inv=await busExclusive(()=>masterOduInventory(a));plan.push({odu:a,inv});await sleep(300);}
+  return plan;}
+function oduPlanSane(plan){   // every outdoor unit answered, the lists are complete, and they point at units Cortex knows
+  const ok=plan.filter(p=>p.inv&&p.inv.count>0&&p.inv.list.length===p.inv.count);
+  const seen=new Set();let dup=false,hit=0;
+  ok.forEach(p=>p.inv.list.forEach(e=>{if(seen.has(e.addr))dup=true;seen.add(e.addr);if(units.some(u=>u.addr===e.addr))hit++;}));
+  return ok.length===plan.length&&plan.length>0&&!dup&&hit>0&&hit>=Math.ceil(seen.size*0.6);}
+async function oduGroupClick(auto){
+  if(!isMaster()){if(!auto)toast("Grouping by outdoor unit needs Cortex to be the bus master");return 0;}
+  if(!oduAddrs().length){if(!auto)toast("Find the outdoor units first");return 0;}
+  if(oduBusy)return 0;oduBusy=true;let plan;
+  if(!auto)toast("Asking each outdoor unit for its indoor units…");
+  try{plan=await oduReadPlan();}finally{oduBusy=false;}
+  const sane=oduPlanSane(plan);
+  if(auto){   // during guided setup: only when the answer is clean, and only for units still in a default group
+    if(!sane){mlog("ℹ outdoor-unit inventory was not clean — leaving groups alone (use Outdoor / cycle ▸ Group by outdoor unit)");return 0;}
+    let n=0;plan.forEach(pl=>pl.inv.list.forEach(e=>{const u=units.find(x=>x.addr===e.addr);if(!u)return;u.odu=pl.odu;u.system=hx(pl.odu);
+      if(/^(New units|System \S+|Outdoor unit \S+)$/.test(grpOf(u))){u.grp=ODU_GROUP(pl.odu);}n++;}));
+    if(n){saveUnits();renderAll();renderGroupNav();mlog("✓ grouped "+n+" indoor unit(s) by outdoor unit");}return n;}
+  const claimed=new Set();plan.forEach(p=>p.inv&&p.inv.list.forEach(e=>claimed.add(e.addr)));
+  const orphans=units.filter(u=>!claimed.has(u.addr));
+  modal(head("Group by outdoor unit")+`<div class="modal-body">
+    ${sane?"":`<div class="note-box warn">The answers don’t line up cleanly (an outdoor unit didn’t answer, a list was incomplete, or the addresses don’t match your units). Check the lists below before applying.</div>`}
+    ${plan.map(p=>`<div class="cy-plan"><b>Outdoor unit ${hx(p.odu)}</b> ${p.inv?`<span class="dim">reports ${p.inv.count} indoor unit${p.inv.count!==1?"s":""}</span>`:'<span style="color:var(--warn)">no answer</span>'}
+      <div>${p.inv&&p.inv.list.length?p.inv.list.map(e=>{const u=units.find(x=>x.addr===e.addr);return `<span class="tagchip" style="${u?"":"opacity:.55"}" title="type 0x${e.type.toString(16)}">${hx(e.addr)}${u?" · "+ue(dispName(u)):" · not in Cortex"}</span>`;}).join(" "):'<span class="dim">—</span>'}</div></div>`).join("")}
+    ${orphans.length?`<div class="cy-plan"><b>Not claimed by any outdoor unit</b><div>${orphans.map(u=>`<span class="tagchip">${hx(u.addr)} · ${ue(dispName(u))}</span>`).join(" ")}</div></div>`:""}
+    <label style="display:flex;gap:8px;align-items:center;margin:14px 0 4px;font-size:13.5px"><input type="checkbox" id="og-move" checked> Move each unit into a group named after its outdoor unit${tip("Replaces the unit’s current top-level group with “Outdoor unit NN”. Subgroups, names and tags are kept. Leave this off to only record which outdoor unit each indoor unit belongs to.")}</label>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="og-go">Apply</button></div></div>`,true);
+  document.getElementById("og-go").onclick=()=>{const n=oduApplyPlan(plan,document.getElementById("og-move").checked);closeModal();toast(n?`Matched ${n} indoor unit${n!==1?"s":""} to their outdoor unit`:"Nothing matched — no change");if(view==="cycle")renderCycle();};
+  return 0;}
 // Stop whatever is currently driving the bus (a sweep or the poll loop) and wait for the in-flight
 // poll to drain, so the next action starts clean. The bumped seq makes any still-running old loop
 // exit and refuse to write results. There is only ever ONE master on the wire.
@@ -1555,7 +1822,7 @@ function masterNewUnit(p){
   document.getElementById("nu-skip").onclick=closeModal;
   document.getElementById("nu-add").onclick=()=>{
     const nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1;
-    const u=makeDiscoveredUnit(p.addr,"System #"+p.group,nextId);u.grp="System "+p.group;units.push(u);ignoreAddr(p.addr,false);
+    const u=makeDiscoveredUnit(p.addr,"New units",nextId);units.push(u);ignoreAddr(p.addr,false);
     applyReplyToUnit(p);saveUnits();renderAll();renderGroupNav();closeModal();toast("Added unit "+hx(p.addr));};}
 function masterStop(){busAuto(false);MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;if(view==="busscan")renderBusScan();fillLiveBanner();
   setTimeout(()=>{MASTER.abort=false;},MASTER.turnaround+MASTER.timeout+80);}
@@ -1564,7 +1831,7 @@ function masterGuided(){
   if(!bus.port){toast("Connect the adapter first");return;}
   modal(head("Guided master setup")+`<div class="modal-body">
     <div class="note-box" style="margin-bottom:12px"><b>First, disconnect the real LG central controller (ACP / AC Smart) from this ODU.</b> Cortex is about to become the bus master. If the LG central is still on the bus, the two masters collide and you'll fight its polling.</div>
-    <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px">When you continue, Cortex will, in order: ① find every unit on the bus, ② import them, ③ start live polling. You can stop any time.</div>
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px">When you continue, Cortex will, in order: ① find every indoor unit on the bus, ② import them, ③ start live polling, then ④ find the outdoor units and group the indoor units under the outdoor unit they belong to. You can stop any time.</div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn" id="g-cancel">Cancel</button>
       <button class="btn primary" id="g-go">The central is disconnected — continue</button>
@@ -1576,6 +1843,8 @@ function masterGuided(){
     if(!n){toast("No units answered — check A/B polarity and that you're on the ODU terminals.");return;}
     masterImport();toast(`② Imported ${n} unit${n>1?"s":""} · ③ starting live polling…`);
     masterLoopRun();
+    // ④ in the background: find the outdoor units, ask each which indoor units it owns, and group by that
+    setTimeout(async()=>{if(!isMaster())return;await oduFindClick();if(isMaster())await oduGroupClick(true);},5000);
   };
 }
 // Copy a decoded reply onto the matching saved unit (live state). Room/pipe temps are stored in °F
@@ -1633,7 +1902,7 @@ function fillLiveBanner(){const el=document.getElementById("livebanner");if(!el)
   el.innerHTML=`<div class="note-box warn" style="margin-bottom:12px">${msg}</div>`;}
 function masterImport(){let n=0,nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1;
   for(const [a,r] of MASTER.found){const p=r&&r.parsed;let u=units.find(x=>x.addr===a);
-    if(!u){u=makeDiscoveredUnit(a,"System "+(p?("#"+p.group):"?"),nextId++);u.grp="System "+(p?p.group:1);units.push(u);n++;ignoreAddr(a,false);}
+    if(!u){u=makeDiscoveredUnit(a,"New units",nextId++);units.push(u);n++;ignoreAddr(a,false);}
     applyReplyToUnit(p);}
   saveUnits();renderAll();renderGroupNav();toast(n?("Imported "+n+" unit(s)"):"Units updated — live readings refreshed");if(view==="busscan")renderBusScan();}
 function masterCaptureText(){return MASTER.log.slice().reverse().join("\n");}
@@ -1691,6 +1960,46 @@ function updateBusHealth(){
   if(lbl)lbl.innerHTML=txt+(ser?`<span class="mono" style="color:var(--text-faint)">${ser}</span>`:"");
 }
 setInterval(updateBusHealth,1000);
+/* Click the bus light: technicians get a live peek at the bus; everyone else gets a plain
+   explanation of what the light means and what to do about it. */
+let busPopT=null;
+function busPopClose(){const p=document.getElementById("buspop");if(p)p.remove();clearInterval(busPopT);busPopT=null;}
+function busPopFill(){const p=document.getElementById("buspop");if(!p)return;
+  const h=busHealth(),tech=isTechView();
+  const why=h==="off"?"Cortex isn’t connected to the equipment right now. You can still see the last known readings, but changes can’t be sent."
+    :h==="bad"?"Cortex is connected to the adapter but the equipment isn’t answering properly."
+    :h==="via"?"Another Cortex screen is connected to the equipment. What you see is live, and your changes are sent through it."
+    :(MASTER.running?"Connected and talking to the equipment. Readings are live.":"Connected to the adapter. Live updates haven’t been started yet.");
+  if(!tech){
+    const todo=(h==="off"||h==="bad")?`<div style="margin-top:8px;color:var(--text-dim)">${(session.admin?"Ask your technician to":"Let the site admin or your technician know — they can")} reconnect it from <b>Bus scan ▸ Connect adapter</b>. Check that the controller and the USB adapter are plugged in.</div>`:"";
+    p.className="buspop";p.innerHTML=`<div style="font-weight:650;margin-bottom:5px">${h==="off"?"Bus offline":h==="bad"?"Bus problem":"Bus online"}</div><div>${why}</div>${todo}`;return;}
+  const es=bus.scanning?effSerial():null;
+  const rows=bus.log.slice(0,9).map(busLogRow).join("");
+  const body=p.querySelector(".labbody");const html=`
+      <div class="buspop-grid">
+        <div><small>link</small><b>${bus.port?(bus.scanning?"adapter open":"adapter idle"):(SRV.masterAlive?"via another screen":"closed")}</b></div>
+        <div><small>serial</small><b>${es?`${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"—"}</b></div>
+        <div><small>master</small><b>${MASTER.running?"polling "+MASTER.found.size:(MASTER.discovering?"scanning":"stopped")}</b></div>
+        <div><small>pass</small><b>${MASTER.cycleMs?(MASTER.cycleMs/1000).toFixed(1)+" s":"—"}</b></div>
+        <div><small>frames</small><b>${bus.raw.length}</b></div>
+        <div><small>bytes</small><b>${bus.bytes}</b></div>
+      </div>
+      ${bus.err?`<div class="warnband">⚠ ${ue(String(bus.err).replace(/<[^>]*>/g,""))}</div>`:""}
+      <div class="lab-feed" style="max-height:210px">${rows||`<div style="padding:10px 12px;font-size:12px;color:#5f8a84">${bus.port?"Waiting for frames…":(SRV.masterAlive?"Frames are shown on the screen that holds the adapter.":"Adapter closed — "+why)}</div>`}</div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary" id="buspop-go">Open bus scan</button><button class="btn" id="buspop-x">Close</button></div>`;
+  if(!body){p.className="buspop lab";p.innerHTML=`<div class="labhead"><span class="dot ${h==="ok"||h==="via"?"":"idle"}"></span><b>Bus</b> · live</div><div class="labbody">${html}</div>`;}
+  else body.innerHTML=html;
+  const go=document.getElementById("buspop-go");if(go)go.onclick=()=>{busPopClose();view="busscan";document.querySelectorAll(".nav-item[data-view]").forEach(x=>x.classList.toggle("active",x.dataset.view==="busscan"));renderAll();};
+  const x=document.getElementById("buspop-x");if(x)x.onclick=busPopClose;}
+function busPopToggle(e){if(e)e.stopPropagation();
+  if(document.getElementById("buspop")){busPopClose();return;}
+  const el=document.getElementById("bus-health"),r=el.getBoundingClientRect();
+  const p=document.createElement("div");p.id="buspop";p.style.left=Math.max(8,Math.min(window.innerWidth-388,r.left))+"px";p.style.top=(r.bottom+10)+"px";
+  p.onclick=ev=>ev.stopPropagation();document.body.appendChild(p);busPopFill();
+  busPopT=setInterval(busPopFill,1000);}
+document.addEventListener("click",()=>{if(document.getElementById("buspop"))busPopClose();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")busPopClose();});
+{const bh=document.getElementById("bus-health");if(bh){bh.onclick=busPopToggle;bh.title="Bus status — click for details";}}
 async function busConnect(){
   // Appliance mode: when Cortex is SERVED over http(s) by the local backend, the backend
   // owns the real serial port and we bridge over a WebSocket. On a bare file:// page we
@@ -1717,7 +2026,9 @@ async function busConnect(){
 /* Remember that this screen is "the one connected to the equipment". After a reload, an update, a
    controller restart or a network blip it reconnects and resumes polling on its own — nobody has to
    walk back to Bus scan and press Connect. Pressing Disconnect or Stop polling turns that off. */
-function busAuto(on){try{if(on)localStorage.setItem("airow_bus_auto","1");else localStorage.removeItem("airow_bus_auto");}catch(e){}}
+function busAuto(on){try{if(on)localStorage.setItem("airow_bus_auto","1");else localStorage.removeItem("airow_bus_auto");}catch(e){}
+  // tell the controller whether Cortex is the bus master here — it only runs schedules on its own when it is
+  if(location.protocol!=="file:")fetch('/api/master-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({on:!!on})}).catch(()=>{});}
 function busAutoWanted(){try{return localStorage.getItem("airow_bus_auto")==="1";}catch(e){return false;}}
 let busRetryT=null,busRetryN=0;
 function busAutoStart(){
@@ -1975,7 +2286,7 @@ function busClear(){busReset();renderBusScan();}
 /* Build a unit record for a freshly-discovered bus address (full current model). */
 function makeDiscoveredUnit(addr,odu,id){const a=bus.addrs.get(addr);const s=(a&&a.last&&a.last.type==="cmd")?a.last:null;const modeOk=s&&["auto","cool","heat"].includes(s.mode);
   return {id,addr,name:"AC_UNIT_"+addr.toString(16).padStart(2,"0").toUpperCase(),label:"Addr 0x"+addr.toString(16).padStart(2,"0").toUpperCase(),
-    ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",kind:"wall",
+    ch:"CH1",system:odu,floor:odu,suite:"",group:odu,grp:odu,subgrp:"",kind:"fcu",
     on:s?s.power==="on":false,mode:modeOk?s.mode:"cool",fan:(s&&FANHI[s.fan]!=null)?s.fan:"low",swing:false,sp:72,coolC:24,heatC:20,twoset:false,modeLock:false,fanLock:false,tempLock:false,hardLock:false,rangeLock:false,
     room:null,err:false,code:null,d5:s?s.b5:0x33,d6:s?s.b6:0x06,b0:s?s.b0:0x80,pipeIn:null,pipeOut:null,discovered:true};}
 function busImport(){
@@ -2058,6 +2369,8 @@ function renderBusScan(){
   const p=PROTOCOLS[bus.proto];const isLG=bus.proto==="lg";
   const addrSel=(sel)=>`<option value="">Target address…</option>`+[...new Set([...bus.addrs.keys(),...units.map(u=>u.addr)])].sort((a,b)=>a-b).map(a=>{const u=units.find(x=>x.addr===a);return `<option value="${a}" ${sel===a?"selected":""}>${hx(a)}${u?" · "+dispName(u):""}</option>`;}).join("");
   const connbar=`
+    <div class="cyhead"><span class="cyt">BUS&nbsp;SCAN</span><span class="cys">// ${ue(p.label)} · ${ue(p.phys||"RS485")} · ${conn?"LINK UP":"LINK DOWN"}</span><span class="cyr mono">${units.length} unit${units.length!==1?"s":""} · ${oduAddrs().length} outdoor</span></div>
+    <div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="dot ${conn?'':'idle'}"></span><b>Adapter link</b></div><div class="labbody">
     <div class="connbar">
       <select class="sel-box" id="bus-proto" ${conn?"disabled":""} style="min-width:140px">${opts.map(k=>`<option value="${k}" ${k===bus.proto?"selected":""}>${PROTOCOLS[k].label}</option>`).join("")}</select>
       ${session.tech?(()=>{const e=effSerial();return `<span style="display:flex;gap:4px;align-items:center" title="serial settings — adjust for other buses (e.g. Multi V 5)">
@@ -2068,8 +2381,9 @@ function renderBusScan(){
       ${conn?`<button class="btn danger" id="bus-dis">■ Disconnect</button>`:`<button class="btn primary" id="bus-con">▶ Connect adapter</button>`}
       <div class="stat"><span class="pulse ${conn?'':'off'}"></span><span id="bus-count">${conn?'reading…':'idle'}</span></div>
     </div>
+    ${bus.err?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${bus.err}</span></div>`:""}
+    </div></div>
     ${p.phys!=="RS485"?`<div class="note-box" style="margin-bottom:12px;font-size:12.5px">${p.note} <b>Note:</b> not plain RS485 — needs the adapter noted above.</div>`:''}
-    ${bus.err?`<div class="note-box" style="color:var(--warn);margin-bottom:12px">${bus.err}</div>`:""}
     ${!supported?`<div class="note-box" style="margin-bottom:12px">This hosted copy can't open the serial port. Open your <b>local</b> Cortex in Chrome to Connect — or paste a capture in Debug.</div>`:""}
     <div id="scanbanner"></div>`;
   /* ---- LG view: one place — discover/import, live monitoring, Master/CC, and capture ---- */
@@ -2078,25 +2392,25 @@ function renderBusScan(){
       <span>👁 <b>Watching ${foc.length} unit${foc.length>1?"s":""}:</b> ${foc.map(a=>hx(a)+(units.find(u=>u.addr===a)?" · "+ue(dispName(units.find(u=>u.addr===a))):"")).join(" · ")} — the activity feed and saved capture show only these.</span>
       <div style="flex:1"></div><button class="btn sm" id="foc-clear">Show all units</button></div>`:'';
   const lgHTML=`
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+    <div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="dot ${bus.addrs.size?'':'idle'}"></span><b>Units on the bus</b>${tip("Scan adds only <b>new</b> addresses — units already in Cortex stay put, even one that is offline or in a comm error. To drop a dead or ghost unit, open it and use <b>Remove unit</b>. Tick <b>Import</b> to add a unit; tick <b>Watch</b> to follow just that unit in the activity feed and the saved capture.")}</div><div class="labbody">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
       <input class="inp" id="bus-odu" placeholder="Outdoor unit name" value="Outdoor unit 1" style="width:170px;margin:0">
       <button class="btn primary" id="bus-scan">🔍 Scan for new units</button>
       <button class="btn" id="bus-import">⬇ Import ticked</button>
     </div>
-    <div style="font-size:11.5px;color:var(--text-faint);margin:0 2px 12px">Scan adds only <b>new</b> addresses — units already in Cortex stay put, even one that's offline or in a comm error. To drop a dead/ghost unit, open it and use <b>Remove unit</b> (one at a time). Tick <b>Import</b> to add a unit; tick <b>Watch</b> to monitor just that unit's traffic below.</div>
     ${focBanner}
-    <div class="lbl" style="margin-bottom:6px">Units on the bus</div>
-    <div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-bottom:16px">
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:10px">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:var(--surface-2);text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
         <th style="padding:8px" title="Tick to import this address as a unit"><input type="checkbox" id="bus-all"> Import</th><th style="padding:8px">Addr</th><th style="padding:8px">Status</th><th style="padding:8px">Frames</th><th style="padding:8px">Types</th><th style="padding:8px">Last seen</th><th style="padding:8px" title="Tick to watch only this unit in the feed and capture">👁 Watch</th></tr></thead>
       <tbody id="bus-table"></tbody></table></div>
-    <div class="lbl" style="margin-bottom:6px">Live activity${foc.length?` · watching ${foc.map(hx).join(", ")}`:''}</div>
-    <div id="bus-log" class="feed" style="margin-bottom:16px"></div>
+    </div></div>
+    <div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="dot ${conn?'':'idle'}"></span><b>Live activity</b>${foc.length?` · watching ${foc.map(hx).join(", ")}`:''}</div>
+      <div class="labbody"><div id="bus-log" class="feed"></div></div></div>
     <div class="lab" style="margin-bottom:14px">
-      <div class="labhead"><span class="dot ${MASTER.running?'':'idle'}"></span><b>Master / CC mode</b> · Cortex as bus master <span style="color:#6fe3c6">beta</span></div>
+      <div class="labhead"><span class="dot ${MASTER.running?'':'idle'}"></span><b>Master / CC mode</b> · Cortex as bus master${tip(`Cortex becomes the controller: it sweeps safe cmd0 reads and decodes the 16-byte reply (checksum-verified → mode/fan/setpoint/room/error, grouped by ODU). <b>Never run this while a real LG central (ACP/AC Smart) is on the bus</b> — two masters collide and you'll fight its polls, so pull the central off this ODU first. Discovery sends read-only frames and never touches 0xFF (the ODU broadcast). Query bytes are editable (AA = the address byte); the default <span class="mono">80 00 A0 AA 00 00 00</span> is a safe cmd0 read. Every frame is logged — hit "save capture" to export${foc.length?" (just the watched unit"+(foc.length>1?"s":"")+")":""}.`)}</div>
       <div class="labbody">
-        <div class="labsub">Cortex becomes the controller: it sweeps safe cmd0 reads and decodes the 16-byte reply (checksum-verified → mode/fan/setpoint/room/error, grouped by ODU). <b>Never run this while a real LG central (ACP/AC Smart) is on the bus</b> — two masters collide and you'll fight its polls, so pull the central off this ODU first. Discovery sends read-only frames and never touches 0xFF (the ODU broadcast). Query bytes are editable (AA = the address byte); the default <span class="mono">80 00 A0 AA 00 00 00</span> is a safe cmd0 read. Every frame is logged — hit "save capture" to export${foc.length?" (just the watched unit"+(foc.length>1?"s":"")+")":""}.</div>
+        
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0">
           <label style="font-size:11.5px;color:#5f8a84">scan <input id="m-lo" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.lo)}"> .. <input id="m-hi" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.hi)}"></label>
           <label style="font-size:11.5px;color:#5f8a84">turnaround <input id="m-ta" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.turnaround}">ms</label>
@@ -2187,35 +2501,32 @@ function renderUart(){renderGroupNav();
     <iframe title="UART tool" src="uart-sniffer.html" allow="serial" style="width:100%;height:calc(100vh - 230px);min-height:560px;border:1px solid var(--border);border-radius:12px;background:var(--bg)"></iframe>`;
   const h=document.getElementById("uart-help"),b=document.getElementById("uart-help-box");
   if(h)h.onclick=()=>b.classList.toggle("hide");}
+let cycView="data";
 function renderCycle(){renderGroupNav();
-  const us=units.filter(u=>groupFilter==="all"||catVals(u,gdim()).includes(groupFilter));
-  const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
-  const row=u=>{const R=rt(u.addr);return `<tr style="border-top:1px solid var(--border)">
-    <td style="padding:7px 8px">${ue(dispName(u))}</td>
-    <td class="mono" style="padding:7px 8px;color:var(--text-dim)">${hx(u.addr)}</td>
-    <td class="mono" style="padding:7px 8px">${u.offline?'<span style="color:var(--warn)">no reply</span>':(u.err?`<span style="color:var(--err)">${ue(u.code)}</span>`:'<span style="color:var(--ok)">0</span>')}</td>
-    <td class="mono" style="padding:7px 8px">${t(u.room)}</td>
-    <td class="mono" style="padding:7px 8px">${t(u.pipeIn)}</td>
-    <td class="mono" style="padding:7px 8px">${t(u.pipeOut)}</td>
-    <td class="mono" style="padding:7px 8px">${u.eev!=null?u.eev:"—"}</td>
-    <td class="mono" style="padding:7px 8px">${u.capK?u.capK+"k":"—"}</td>
-    <td style="padding:7px 8px;color:var(--text-dim);font-size:12px">${u.seen?ago(u.seen):"not yet"}</td></tr>`;};
   const live=liveState()==="live";
-  main.innerHTML=`<div class="cyc-note">⚙ Technician view · what each indoor unit reports in its 16-byte reply: room temperature, refrigerant pipe-in / pipe-out temperatures and error code (°${settings.unit}). ${live?"Updating live.":"<b>Not live right now</b> — these are the last readings received."} Outdoor-unit pressures and compressor data are in the Outdoor units section below.</div>
-    <div class="gauges"><div class="gauge"><div class="gv mono">${units.filter(u=>u.on).length}<small> on</small></div><div class="gl">Units running</div></div>
-      <div class="gauge"><div class="gv mono">${units.filter(u=>u.err).length}<small> err</small></div><div class="gl">Reporting an error</div></div>
-      <div class="gauge"><div class="gv mono">${units.filter(u=>u.offline).length}<small> silent</small></div><div class="gl">Not responding</div></div>
-      ${isMaster()&&MASTER.cycleMs?`<div class="gauge"><div class="gv mono">${(MASTER.cycleMs/1000).toFixed(1)}<small> s</small></div><div class="gl">Time for one full pass</div></div>`:''}</div>
-    <div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-top:14px">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="background:var(--surface-2);text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
-        <th style="padding:8px">Unit</th><th style="padding:8px">Addr</th><th style="padding:8px">Err</th><th style="padding:8px">Room</th><th style="padding:8px">Pipe in</th><th style="padding:8px">Pipe out</th><th style="padding:8px" title="Indoor expansion valve position, pulses (about 40 = closed)">EEV</th><th style="padding:8px" title="Unit capacity, kBtu/h">Cap</th><th style="padding:8px">Last heard</th></tr></thead>
-      <tbody>${us.map(row).join("")||'<tr><td colspan="9" style="padding:16px;color:var(--text-faint)">No units yet.</td></tr>'}</tbody></table></div>
-    <button class="btn" id="odutrend" style="width:100%;justify-content:center;margin-top:14px">📈 Pipe-out temperature trend (first 10 units)</button>
-    ${oduSection()}`;
-  const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(us.map(u=>u.id).slice(0,10),{odu:true});
+  const list=[...ODU.values()].sort((a,b)=>a.addr-b.addr);
+  main.innerHTML=`<div class="cy-top">
+      <div class="gauges" style="flex:1">
+        <div class="gauge cy-g"><div class="gv mono">${list.length}<small> outdoor</small></div><div class="gl">Outdoor units read</div></div>
+        <div class="gauge cy-g"><div class="gv mono" style="color:var(--ok)">${units.filter(u=>u.on).length}<small> on</small></div><div class="gl">Indoor units running</div></div>
+        <div class="gauge cy-g"><div class="gv mono" style="${units.some(u=>u.err)?'color:var(--err)':''}">${units.filter(u=>u.err).length}<small> err</small></div><div class="gl">Reporting an error</div></div>
+        <div class="gauge cy-g"><div class="gv mono" style="${units.some(u=>u.offline)?'color:var(--warn)':''}">${units.filter(u=>u.offline).length}<small> silent</small></div><div class="gl">Not responding</div></div>
+        ${isMaster()&&MASTER.cycleMs?`<div class="gauge cy-g"><div class="gv mono">${(MASTER.cycleMs/1000).toFixed(1)}<small> s</small></div><div class="gl">One full pass</div></div>`:''}
+      </div></div>
+    <div class="cy-bar">
+      <div class="segmented"><button class="${cycView==='data'?'on':''}" data-cyv="data">Data</button><button class="${cycView==='diagram'?'on':''}" data-cyv="diagram">Refrigerant diagram</button></div>
+      <span class="cy-live ${live?'on':''}">${live?'● live':'○ last known readings'}</span>
+      ${tip("Everything here is <b>real data read from the equipment</b>, not a simulation. Outdoor values come from each outdoor unit's monitor pages (re-read about once a minute while Cortex is polling); indoor values come from each unit's status reply on every pass. Tables are for Multi V IV — treat values on other families as approximate. Heat-recovery box (HRU) data is not carried on this bus; it is only on the outdoor unit's service port (see the UART page).")}
+      <div style="flex:1"></div>
+      ${oduControls()}
+    </div>
+    ${cycView==="diagram"?oduDiagrams(list):oduCards(list)}
+    ${cycView==="data"?iduSection():""}`;
+  document.querySelectorAll("[data-cyv]").forEach(b=>b.onclick=()=>{cycView=b.dataset.cyv;renderCycle();});
+  const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(units.map(u=>u.id).slice(0,10),{odu:true});
   const orr=document.getElementById("odu-read");if(orr)orr.onclick=oduReadClick;
-  const off=document.getElementById("odu-find");if(off)off.onclick=oduFindClick;}
+  const off=document.getElementById("odu-find");if(off)off.onclick=oduFindClick;
+  const og=document.getElementById("odu-group");if(og)og.onclick=()=>oduGroupClick(false);}
 /* ---- schedules ---- */
 const DAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
 function schedules(){if(CFG&&!CFG.schedules)CFG.schedules=[];return (CFG&&CFG.schedules)||[];}
@@ -2237,13 +2548,24 @@ function schCard(s){return `<div class="sch ${s.enabled?'':'soff'}">
     <button class="linklike" data-sedit="${s.id}">Edit</button><button class="linklike" style="color:var(--err)" data-sdel="${s.id}">Delete</button></div></div>`;}
 function renderSchedule(){renderGroupNav();const list=schedules();
   main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <div style="font-size:13.5px;color:var(--text-dim)">Schedules send real commands. They are run by the Cortex screen that is connected to the equipment, so keep that screen open — if it was closed at the scheduled time, the schedule still runs when it comes back within ${Math.round(SCH_GRACE/60000)} minutes.</div>
+    <div style="font-size:13.5px;color:var(--text-dim)">Schedules run on the controller${tip("Schedules send real commands and are run by the Cortex controller itself — no browser needs to be open. Times are in the site's time zone ("+ue((CFG&&CFG.site&&CFG.site.tz)||"set when settings are next saved")+"). If the controller was busy or restarting at the scheduled minute, the run still happens within 10 minutes.")}<span id="sch-status" style="margin-left:10px;font-size:12.5px"></span></div>
     <button class="btn primary" id="newsch">+ New schedule</button></div>
+    <div id="sch-hist"></div>
     ${list.length?list.map(schCard).join(""):'<div class="cyc-note">No schedules yet. Create one to automate on/off, mode, fan, and temperature by time and day.</div>'}`;
   document.getElementById("newsch").onclick=()=>scheduleEditor(null);
+  schedStatus();
   document.querySelectorAll("[data-sedit]").forEach(b=>b.onclick=()=>scheduleEditor(b.dataset.sedit));
   document.querySelectorAll("[data-sdel]").forEach(b=>b.onclick=()=>{CFG.schedules=schedules().filter(s=>s.id!==b.dataset.sdel);saveCfg(CFG);renderSchedule();});
   document.querySelectorAll("[data-stog]").forEach(b=>b.onclick=()=>{const s=schedules().find(x=>x.id===b.dataset.stog);s.enabled=!s.enabled;saveCfg(CFG);renderSchedule();});}
+const SCH_RESULT={sent:"sent to the units",queued:"handed to the connected screen","skipped-not-master":"skipped — Cortex is not running the bus","no-units":"no matching units",error:"failed"};
+async function schedStatus(){
+  const st=document.getElementById("sch-status"),hi=document.getElementById("sch-hist");if(!st)return;
+  if(location.protocol==="file:"){st.innerHTML='<span style="color:var(--text-faint)">demo copy — runs while this page is open</span>';return;}
+  try{const r=await fetch('/api/sched',{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json();
+    const ready=j.masterAlive||j.masterMode;
+    st.innerHTML=ready?'<span style="color:var(--ok)">● ready</span>':`<span style="color:var(--warn)">● waiting</span>${tip("Schedules will not send anything until Cortex is running the bus. A technician starts that once on the Bus scan page (guided setup); after that the controller keeps running schedules on its own, even with every browser closed.")}`;
+    if(hi&&j.history&&j.history.length)hi.innerHTML=`<div class="cyc-note" style="display:block;font-size:12.5px"><b>Recent runs</b>${j.history.slice(0,5).map(h=>`<div style="margin-top:4px">${ue(new Date(h.at).toLocaleString())} · ${ue(h.name||h.id)} · ${ue(SCH_RESULT[h.result]||h.result)}${h.units?` (${h.units} unit${h.units>1?"s":""})`:""}</div>`).join("")}</div>`;
+  }catch(e){st.innerHTML='';}}
 function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().find(x=>x.id===id))):
   {id:"s"+Date.now(),name:"",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"",fan:"",sp:null},time:"18:00",days:[1,2,3,4,5],nth:"every",cond:{op:"",temp:null}};
   const grpNames=[...new Set(units.map(grpOf))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
@@ -2260,7 +2582,7 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <select id="s-power" class="sel-box"><option value="" ${!s.action.power?"selected":""}>Power: no change</option><option value="on" ${s.action.power==="on"?"selected":""}>Turn on</option><option value="off" ${s.action.power==="off"?"selected":""}>Turn off</option></select>
       <select id="s-mode" class="sel-box"><option value="">Mode: no change</option>${MODES.map(m=>`<option value="${m[0]}" ${s.action.mode===m[0]?"selected":""}>${m[1]}</option>`).join("")}</select>
-      <select id="s-fan" class="sel-box"><option value="">Fan: no change</option>${FANS_SEL.map(f=>`<option value="${f[0]}" ${s.action.fan===f[0]?"selected":""}>${f[1]}</option>`).join("")}</select>
+      <select id="s-fan" class="sel-box"><option value="">Fan: no change</option>${fansFor().map(f=>`<option value="${f[0]}" ${s.action.fan===f[0]?"selected":""}>${f[1]}</option>`).join("")}</select>
       <input id="s-sp" class="inp" style="width:140px;margin:0" type="number" min="60" max="86" placeholder="Setpoint °${settings.unit}" value="${s.action.sp!=null?s.action.sp:""}"></div>
     <div class="mini-lbl">When</div>
     <input id="s-time" class="inp" style="width:140px" type="time" value="${s.time}">
@@ -2289,6 +2611,7 @@ function scheduleEditor(id){const s=id?JSON.parse(JSON.stringify(schedules().fin
     s.time=document.getElementById("s-time").value||"18:00";
     s.days=[...document.querySelectorAll("#s-days [data-day].on")].map(b=>+b.dataset.day);
     s.cond.op=document.getElementById("s-cop").value;const ct=document.getElementById("s-ctemp").value;s.cond.temp=ct===""?null:+ct;
+    s.unit=settings.unit==="C"?"C":"F";                         // the controller needs to know which scale the numbers are in
     if(!CFG.schedules)CFG.schedules=[];const idx=CFG.schedules.findIndex(x=>x.id===s.id);
     if(idx>=0)CFG.schedules[idx]=s;else CFG.schedules.push(s);
     // saved a few minutes AFTER today's run time? then its first run is the next matching day, not "right now"
@@ -2328,7 +2651,7 @@ function schDue(s,now){const m=/^(\d\d):(\d\d)$/.exec(s.time||"");if(!m)return n
 function schKey(s,now){return now.toDateString()+" "+s.time;}
 function schTick(){if(!CFG||!CFG.schedules||!CFG.schedules.length)return;
   // Only the screen connected to the equipment runs schedules; other screens just display them.
-  if(location.protocol!=="file:"&&!liveTx())return;
+  if(location.protocol!=="file:")return;                        // served by a controller: the controller runs schedules itself (appliance/scheduler.js)
   const now=new Date(),fired=loadFired();let dirty=false;
   CFG.schedules.forEach(s=>{
     if(!s.enabled)return;
@@ -2461,7 +2784,7 @@ function drawDrawer(u){
   const svc=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service)||{inService:false,note:"",history:[]};
   if(!pend)pend=snap(u);const p=pend;
   const role=currentUser?currentUser.role:"customer";
-  const isTech=session.tech, canService=session.tech||session.admin;
+  const isTech=session.tech, canService=session.tech;
   const viewOnly=role==="customer"&&CFG&&CFG.custCtl===false;   // site-wide "customers can look but not change"
   const locked=(svc.inService&&role==="customer")||viewOnly;
   const dirty=pendDirty(u);
@@ -2488,14 +2811,14 @@ function drawDrawer(u){
     ${locked?`<div class="note-box" style="color:var(--warn);margin-bottom:14px">${viewOnly?"👁 View only — changing units is turned off for this login. Ask the site admin if you need control.":"🔧 In service — controls are locked. A technician can clear the In-service lock to re-enable customer control."}</div>`:""}
     <div class="field"><div class="lbl">Power ${stg('on')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="pon" class="${p.on?'on-sel':''}" ${dis} style="${p.on&&stg('on')?STG:''}">On</button><button id="poff" class="${p.on?'':'off-sel'}" ${dis} style="${!p.on&&stg('on')?STG:''}">Off</button></div></div>
     <div class="field"><div class="lbl">Mode ${stg('mode')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${MODES.map(m=>`<button class="opt ${MC[m[0]]} ${p.mode===m[0]?'sel':''}" data-mode="${m[0]}" ${dis} style="${p.mode===m[0]&&stg('mode')?STG:''}">${m[2]} ${m[1]}</button>`).join("")}</div></div>
-    <div class="field"><div class="lbl">Fan speed ${stg('fan')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${FANS_SEL.map(f=>`<button class="opt ${p.fan===f[0]?'sel':''}" data-fan="${f[0]}" ${dis} style="${p.fan===f[0]&&stg('fan')?STG:''}">${f[1]}</button>`).join("")}${p.fan==="auto"?`<span class="chip" title="The unit reports automatic fan speed. Pick a speed to change it.">Auto (set at the unit)</span>`:''}</div></div>
+    <div class="field"><div class="lbl">Fan speed${genNote()?tip(genNote()):''} ${stg('fan')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="opts">${fansFor().map(f=>`<button class="opt ${p.fan===f[0]?'sel':''}" data-fan="${f[0]}" ${dis} style="${p.fan===f[0]&&stg('fan')?STG:''}">${f[1]}</button>`).join("")}${p.fan==="auto"?`<span class="chip" title="The unit reports automatic fan speed. Pick a speed to change it.">Auto (set at the unit)</span>`:''}</div></div>
     <div class="field"><div class="lbl">Swing ${stg('swing')?'<span style="color:var(--warn)">• staged</span>':''}</div><div class="pwr"><button id="swon" class="${p.swing?'on-sel':''}" ${dis} style="${p.swing&&stg('swing')?STG:''}">On</button><button id="swoff" class="${p.swing?'':'off-sel'}" ${dis} style="${!p.swing&&stg('swing')?STG:''}">Off</button></div></div>
     <div class="field"><div class="lbl">Setpoint${isDual(p)?" · cool / heat":""} ${(stg('coolC')||stg('heatC'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       ${isDual(p)?`<div class="dualset">
         <div class="dsrow"><div class="dslbl" style="color:var(--cool)">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
         <div class="dsrow"><div class="dslbl" style="color:var(--heat)">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
-    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('rangeLock')||(p.rangeLock&&(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)))||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
+    <div class="field"><div class="lbl">Locks${tip("<b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat. <b>Temp</b> blocks every temperature change. <b>Hard</b> locks the whole wall controller. <b>Temp range</b>: when locked, the thermostat can only be set between the two temperatures; unlocked, there is no range limit.")} ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('rangeLock')||(p.rangeLock&&(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)))||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button><button class="opt ${p.hardLock?'sel':''}" id="lk-hard" ${dis}>${p.hardLock?'🔒':'🔓'} Hard</button></div>
       <div style="margin-top:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2503,11 +2826,11 @@ function drawDrawer(u){
           <input class="inp mono" id="lim-lo" type="number" ${p.rangeLock?'':'disabled'} ${dis} min="${settings.unit==="C"?18:64}" max="${settings.unit==="C"?30:86}" step="1" value="${spDisp(p.limLo)}" style="width:72px;margin:0"> <span style="color:var(--text-faint)">to</span>
           <input class="inp mono" id="lim-hi" type="number" ${p.rangeLock?'':'disabled'} ${dis} min="${settings.unit==="C"?18:64}" max="${settings.unit==="C"?30:86}" step="1" value="${spDisp(p.limHi)}" style="width:72px;margin:0"> <span style="color:var(--text-faint)">°${settings.unit}</span>
         </div>
-        <div style="font-size:11.5px;color:var(--text-faint);margin-top:7px">When <b>Temp range</b> is locked, the wall thermostat can only be set between these two temperatures. Unlocked, there is no range limit.${p.rangeLock&&p.tempLock?' <span style="color:var(--warn)">Temp lock is also on, so no changes are allowed at all right now.</span>':''}</div>
+        ${p.rangeLock&&p.tempLock?'<div style="font-size:11.5px;color:var(--warn);margin-top:7px">Temp lock is also on, so no temperature changes are allowed at all right now.</div>':''}
       </div>
       ${(()=>{const A=rt(u.addr).lockAck;if(!A)return "";const want=(u.tempLock?2:0)|(u.fanLock?4:0)|(u.modeLock?8:0),ok=(A.b4&0x0E)===want;
         return `<div style="font-size:11.5px;margin-top:6px;color:${ok?'var(--ok)':'var(--warn)'}">${ok?"✓ Outdoor unit confirmed these locks":"Outdoor unit last confirmed different locks"} · ${ago(A.at)}</div>`;})()}
-      <div style="font-size:11px;color:var(--text-faint);margin-top:6px"><b>Temp lock</b> blocks every temperature change at the wall; <b>Mode</b>/<b>Fan</b> lock those; <b>Hard lock</b> locks the whole wall controller.${!locked?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>${p.mode==="auto"&&!p.twoset?' <span style="color:var(--text-faint)">· auto uses one setpoint on Multi V</span>':''}`:''}</div></div>
+      ${(!locked&&(siteCaps().dualAuto||p.twoset))?`<div style="font-size:12px;margin-top:8px"><span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat setpoints'}</span></div>`:''}</div>
     <div class="field">
       <button class="btn ${live&&isTech?'danger live':'primary'}" id="sendcmd" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${locked?';opacity:.5':''}" ${locked?'disabled':''}>${sendTxt}</button>
       ${live?(isTech
@@ -2548,11 +2871,11 @@ function drawDrawer(u){
       <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Use this for a unit that was physically removed or re-addressed (e.g. a CH242 ghost). Removes <b>only this one</b> — everything else stays.</div></div>
     `:''}
     <div class="field"><div class="lbl">Service${canService?'':' <span style="color:var(--text-faint);font-size:11px">(technician)</span>'}</div>
-      ${canService?`<div class="setrow" style="padding-top:0;border:none"><div><div class="sl">In-service lock</div><div class="sd">Locks out customer control while you work</div></div>${tog("svc",svc.inService)}</div>
+      ${canService?`<div class="setrow" style="padding-top:0;border:none"><div><div class="sl">In-service lock${tip("Locks out customer control of this unit while you work on it. Technicians only.")}</div></div>${tog("svc",svc.inService)}</div>
       <input id="svc-note" class="inp" style="margin:6px 0" value="${ue(svc.note||'')}" placeholder="Work order / note">
       <button class="btn" id="svc-log" style="width:100%;justify-content:center">Log service entry</button>
       ${svc.history&&svc.history.length?`<div style="margin-top:8px">${svc.history.slice(-4).reverse().map(h=>`<div style="font-size:12px;color:var(--text-dim);border-top:1px solid var(--border);padding:6px 0">${ue(h.when)} — ${ue(h.note)}</div>`).join("")}</div>`:""}`
-      :`<div style="font-size:13px;color:var(--text-dim)">${svc.inService?'🔧 This unit is flagged in service.':'Not in service.'} Service controls require technician access.</div>`}</div>
+      :`<div style="font-size:13px;color:var(--text-dim)">${svc.inService?'🔧 This unit is flagged in service.':'Not in service.'} Only a technician can change this.</div>`}</div>
     <div class="field"><div class="lbl">Organize</div><button class="btn" id="organize" style="width:100%;justify-content:center">Name &amp; tags</button></div>
    </div>`;
   document.getElementById("dclose").onclick=closeDrawer;
@@ -2759,7 +3082,10 @@ async function loadSettingsUpdates(){
     try{await fetch('/api/update/keep-beta',{method:"POST"});}catch(e){}
     toast("Staying on this beta — you’ll only be notified about new stable releases");loadSettingsUpdates();};
 }
-function row(label,desc,control){return `<div class="setrow"><div><div class="sl">${label}</div>${desc?`<div class="sd">${desc}</div>`:""}</div>${control}</div>`;}
+/* Long explanations live behind a small "i" so screens stay calm; short status text stays inline. */
+function tip(html){return html?`<span class="ii" tabindex="0" role="button" aria-label="More information" data-tip="${ue(html)}">i</span>`:"";}
+function row(label,desc,control){const long=desc&&String(desc).replace(/<[^>]*>/g,"").length>56&&!/<(button|select|input|a)\b/i.test(desc);
+  return `<div class="setrow"><div><div class="sl">${label}${long?tip(desc):""}</div>${desc&&!long?`<div class="sd">${desc}</div>`:""}</div>${control}</div>`;}
 function tog(id,on){return `<button class="toggle ${on?'on':''}" data-tog="${id}"></button>`;}
 function displayTab(){return `
   <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Appearance</div>
@@ -2801,6 +3127,7 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   ${row("Technician access code",(CFG&&CFG.techPin)?"Set — unlocks the technician tools for someone signed in without technician rights":"Not set — only technician logins can open the technician tools",`<button class="linklike" onclick="changePin('tech')">${(CFG&&CFG.techPin)?"Change":"Set"}</button>`)}
   ${row("Auto sign-out","Sign out after this long with no activity. A refresh within the window stays signed in.",`<select class="sel-box" onchange="setSessionTimeout(this.value)">${[[15,"15 min"],[30,"30 min"],[60,"1 hour"],[120,"2 hours"],[240,"4 hours"],[480,"8 hours"],[0,"Never"]].map(o=>`<option value="${o[0]}" ${((CFG&&CFG.sessionTimeoutMin!=null?CFG.sessionTimeoutMin:60)===o[0])?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Location &amp; weather</div>
+  ${row("Equipment generation","Decides which thermostat features Cortex offers. Generation 4 (Multi V IV and older): no automatic fan speed, one setpoint in Auto. Generation 5 and newer adds both. Detected now: generation "+siteGen()+" — "+ue(siteGenWhy())+".",`<select class="sel-box" onchange="CFG.statGen=this.value===''?null:+this.value;saveCfg(CFG);drawSettings();renderAll();"><option value="" ${!(CFG&&CFG.statGen)?"selected":""}>Detect (gen ${siteGen()})</option><option value="4" ${CFG&&CFG.statGen===4?"selected":""}>Generation 4</option><option value="5" ${CFG&&CFG.statGen===5?"selected":""}>Generation 5+</option></select>`)}
   ${row("Site location",(CFG&&CFG.site&&CFG.site.lat!=null)?`${CFG.site.lat}, ${CFG.site.lon} · weather live`:"Not set — weather won't load until set","<button class=\"linklike\" onclick=\"detectLocation()\">Use my location</button> <button class=\"linklike\" onclick=\"setManualLocation()\" style=\"margin-left:10px\">Enter manually</button>")}
   ${row("Outdoor temp override","For testing weather schedules. Forces the outdoor temp; blank = live weather.",`<input class="inp" style="width:84px;margin:0" type="number" placeholder="live" value="${(CFG&&CFG.wxOverride!=null)?CFG.wxOverride:''}" onchange="setWxOverride(this.value)">`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Comfort limits</div>
@@ -2969,6 +3296,18 @@ function askPin(kind){const want=kind==="admin"?(CFG&&CFG.adminPin):(CFG&&CFG.te
 /* ---- fun + alerts + extra views ---- */
 let toastT;function toast(msg){let t=document.getElementById("toast");if(!t){t=document.createElement("div");t.id="toast";t.className="toast";document.body.appendChild(t);}
   t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2600);}
+(function(){let box=null,cur=null;
+  const show=el=>{if(!box){box=document.createElement("div");box.id="tipbox";document.body.appendChild(box);}
+    cur=el;box.innerHTML=el.dataset.tip;box.classList.add("show");
+    const r=el.getBoundingClientRect(),bw=box.offsetWidth,bh=box.offsetHeight;
+    let x=Math.min(window.innerWidth-bw-8,Math.max(8,r.left+r.width/2-bw/2)),y=r.bottom+8;if(y+bh>window.innerHeight-8)y=Math.max(8,r.top-bh-8);
+    box.style.left=x+"px";box.style.top=y+"px";};
+  const hide=()=>{cur=null;if(box)box.classList.remove("show");};
+  document.addEventListener("mouseover",e=>{const t=e.target.closest&&e.target.closest(".ii");if(t)show(t);else if(cur)hide();});
+  document.addEventListener("focusin",e=>{const t=e.target.closest&&e.target.closest(".ii");if(t)show(t);});
+  document.addEventListener("focusout",hide);
+  document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest(".ii");if(t){e.stopPropagation();e.preventDefault();if(cur===t&&box&&box.classList.contains("show")&&e.detail===0)hide();else show(t);}else hide();},true);
+  window.addEventListener("scroll",hide,true);})();
 function snowBurst(icon){let l=document.getElementById("fxlayer");if(!l){l=document.createElement("div");l.id="fxlayer";document.body.appendChild(l);}
   l.innerHTML="";for(let i=0;i<44;i++){const f=document.createElement("div");f.className="flake";f.textContent=icon;
     f.style.left=Math.random()*100+"vw";f.style.fontSize=(10+Math.random()*16)+"px";f.style.animationDuration=(3+Math.random()*3)+"s";f.style.animationDelay=(Math.random()*1.5)+"s";l.appendChild(f);}
@@ -3005,11 +3344,11 @@ function openAlerts(){const a=buildAlerts(),sc={info:"info",low:"ok",medium:"war
   </div>`);
   mroot.querySelectorAll("[data-ac]").forEach(r=>r.onclick=()=>openError(r.dataset.ac));}
 
-const KINDS={wall:"Wall mount",cassette4:"4-way cassette",cassette1:"1-way cassette",ducted:"Ducted",floor:"Floor standing",ceiling:"Ceiling suspended"};
+const KINDS={fcu:"Fan coil unit",wall:"Wall mount",cassette4:"4-way cassette",cassette1:"1-way cassette",ducted:"Ducted",floor:"Floor standing",ceiling:"Ceiling suspended"};
 /* top-down airflow directions per indoor-unit type (N/E/S/W, viewed from the ceiling) */
 const KIND_DIRS={wall:["S"],cassette4:["N","E","S","W"],cassette1:["S"],ducted:["S"],ceiling:["E","W"],floor:["N"]};
 /* top-down body box [x,y,w,h] in the 96x96 viewBox */
-const KIND_BOX={wall:[16,11,64,15],cassette4:[27,27,42,42],cassette1:[21,30,54,30],ducted:[19,24,58,20],ceiling:[12,40,72,16],floor:[34,54,28,30]};
+const KIND_BOX={fcu:[19,24,58,20],wall:[16,11,64,15],cassette4:[27,27,42,42],cassette1:[21,30,54,30],ducted:[19,24,58,20],ceiling:[12,40,72,16],floor:[34,54,28,30]};
 function modeColor(u){if(!u.on)return "var(--stopped,#8a94a6)";return ({heat:"#f5713b",cool:"#2f8ff5",dry:"#13b6c8",fan:"#9aa3b2"})[u.mode]||"#2fbf71";}
 /* one animated airflow "puff" leaving a body edge in direction d */
 function ugPuff(d,bx,by,bw,bh,off,reach,dur,begin,col){
@@ -3025,7 +3364,7 @@ function ugPuff(d,bx,by,bw,bh,off,reach,dur,begin,col){
 }
 /* top-down SVG of an indoor unit that animates its live state. lite = fewer streams (cards) */
 function unitGraphic(u,cls,lite){
-  const kind=KINDS[u.kind]?u.kind:"wall";const on=!!u.on;const col=on?modeColor(u):"#8a94a6";
+  const kind=u.kind==="fcu"?"ducted":(KINDS[u.kind]?u.kind:"wall");const on=!!u.on;const col=on?modeColor(u):"#8a94a6";
   const [bx,by,bw,bh]=KIND_BOX[kind];const cx=bx+bw/2,cy=by+bh/2;
   const dur=({low:2.4,med:1.5,high:.85})[u.fan]||1.5;
   const panel='fill="rgba(130,138,150,.16)" stroke="rgba(130,138,150,.55)" stroke-width="1.4"';
@@ -3343,7 +3682,9 @@ function loadCfg(){try{const c=JSON.parse(localStorage.getItem("airow_cfg"));if(
    schedule made on one computer shows up on the others without a reload. */
 let cfgBusy=false,cfgAgain=false,cfgDirty=false;
 function cfgStore(){try{localStorage.setItem("airow_cfg",JSON.stringify(CFG));}catch(e){}}
-function saveCfg(c){if(c&&c!==CFG)CFG=c;cfgStore();if(location.protocol!=="file:")cfgPush();}
+function saveCfg(c){if(c&&c!==CFG)CFG=c;
+  try{if(CFG&&CFG.site&&!CFG.site.tz)CFG.site.tz=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(e){}   // schedules run on the controller in the SITE's time zone
+  cfgStore();if(location.protocol!=="file:")cfgPush();}
 async function cfgPush(){
   if(cfgBusy){cfgAgain=true;return;}cfgBusy=true;
   try{do{cfgAgain=false;if(!CFG)break;
@@ -3410,7 +3751,7 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   view=(settings.landing&&["units","map","schedule","device"].includes(settings.landing))?settings.landing:"units";
   if(view==="device"&&!isStaff())view="units";
   renderAll();loadWeather();}
-function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(msg);}
+function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
 function factoryReset(){
   if(!canAdmin()){toast("Admins only");return;}
   modal(head("Factory reset?")+`<div class="modal-body">
