@@ -2733,6 +2733,12 @@ async function loadSettingsUpdates(){
         <button class="btn" id="upd-skip">${st.latest===_skipVer?"Un-skip":"Skip this version"}</button></div>`;
   } else if(st.configured===false){
     h+='<div class="note-box" style="margin-top:10px">Automatic updates aren\'t turned on for this controller yet.</div>';
+  } else if(st.revertStable){
+    h+=`<div class="note-box warn" style="margin-top:10px">Beta testing is off, but this controller is still running a <b>pre-release</b> build (<span class="mono">v${ue(cur)}</span>). The latest stable release is <b>v${ue(st.revertStable)}</b>.</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn primary" id="rev-stable">⬇ Go back to stable v${ue(st.revertStable)}</button>
+        <button class="btn" id="rev-keep">Stay on this beta</button></div>
+      <div class="sd" style="margin-top:7px">“Go back to stable” reinstalls v${ue(st.revertStable)} (a downgrade, verified with auto-rollback). “Stay on this beta” keeps this build — you won’t be notified about new betas, only about new <b>stable</b> releases.</div>`;
   } else if(st.error){
     h+='<div class="note-box" style="margin-top:10px">'+ue(st.error)+"</div>";
   } else {
@@ -2746,6 +2752,12 @@ async function loadSettingsUpdates(){
     if(st.latest===_skipVer){try{localStorage.removeItem("airow_skipver");}catch(e){}_skipVer=null;}
     else{try{localStorage.setItem("airow_skipver",st.latest);}catch(e){}_skipVer=st.latest;}
     loadSettingsUpdates();};
+  const revS=document.getElementById("rev-stable");if(revS)revS.onclick=async()=>{revS.disabled=true;revS.textContent="Starting…";
+    try{await fetch('/api/update/revert',{method:"POST"});}catch(e){}
+    el.innerHTML='<div class="note-box">Reverting to stable — the controller will download, install, and restart. This page reconnects in a minute or two, and it rolls back on its own if anything goes wrong.</div>';};
+  const revK=document.getElementById("rev-keep");if(revK)revK.onclick=async()=>{revK.disabled=true;
+    try{await fetch('/api/update/keep-beta',{method:"POST"});}catch(e){}
+    toast("Staying on this beta — you’ll only be notified about new stable releases");loadSettingsUpdates();};
 }
 function row(label,desc,control){return `<div class="setrow"><div><div class="sl">${label}</div>${desc?`<div class="sd">${desc}</div>`:""}</div>${control}</div>`;}
 function tog(id,on){return `<button class="toggle ${on?'on':''}" data-tog="${id}"></button>`;}

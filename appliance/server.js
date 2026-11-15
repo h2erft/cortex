@@ -306,8 +306,17 @@ app.get('/api/update/check', async (req, res) => {
     } else {
       return res.json({ current, channel, configured: false, updateAvailable: false });
     }
+    // Revert-to-stable: when the box is on the stable channel but running a pre-release that is
+    // AHEAD of the latest stable (e.g. left the beta channel after testing a beta), offer to move
+    // back to that stable build. Suppressed once the user has chosen to keep the beta (dismissal
+    // records the version they kept); a genuinely newer stable still notifies via updateAvailable.
+    let revertStable = null;
+    if (channel === 'stable' && latest && /-/.test(current) && cmpVer(latest, current) < 0) {
+      let dismissed = ''; try { dismissed = fs.readFileSync(path.join(DATA,'revert-dismissed'),'utf8').trim(); } catch(_){}
+      if (dismissed !== current) revertStable = latest;
+    }
     const body = { current, latest, channel, prerelease, configured: true, updateAvailable: isNewer(current, latest),
-                   notes, checkedAt: new Date().toISOString() };
+                   revertStable, notes, checkedAt: new Date().toISOString() };
     updCache = { key, at: Date.now(), body };
     res.json(body);
   } catch (e) {
@@ -558,6 +567,30 @@ app.post('/api/update/apply', (_req, res) => {
       if (err) console.error('update apply failed:', err.message);
     });
   }, 300);
+});
+// Leave the beta channel and move back to the latest stable, even though it is "older" than the
+// running pre-release. Switches the channel to stable and drops a one-shot flag the updater honors.
+app.post('/api/update/revert', (_req, res) => {
+  cors(res);
+  try {
+    fs.writeFileSync(CHANFILE, 'stable\n');
+    fs.writeFileSync(path.join(DATA, 'revert-to-stable'), new Date().toISOString() + '\n');
+    try { fs.unlinkSync(path.join(DATA, 'revert-dismissed')); } catch(_){}
+    updCache = null;
+  } catch (e) { return res.status(500).json({ err: e.message }); }
+  res.json({ ok: true, started: true });
+  setTimeout(() => {
+    execFile('sudo', ['-n', 'systemctl', 'start', 'cortex-updater.service'], (err) => {
+      if (err) console.error('update revert failed:', err.message);
+    });
+  }, 300);
+});
+// Keep the current beta build: stay on the stable channel (so no more beta notifications) but stop
+// prompting to revert. Records the version kept; a newer STABLE than this still notifies normally.
+app.post('/api/update/keep-beta', (_req, res) => {
+  cors(res);
+  try { fs.writeFileSync(path.join(DATA, 'revert-dismissed'), readVersion() + '\n'); updCache = null; res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ err: e.message }); }
 });
 
 // --- first-run redirect -------------------------------------------------------

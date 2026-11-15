@@ -2,6 +2,21 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.1 — 2026-11-15 (UART track resumes · fix leaving the beta channel)
+
+_Beta — publish as a GitHub **pre-release**. First build of the 1.7.0 line, on top of 1.6.0 stable._
+
+- **Experimental UART service-port page is back** (it appears in pre-release builds only, hidden in
+  stable). Read an outdoor unit's LGMV service port over USB or the Wi-Fi module + bridge — see
+  `docs/UART_SERVICE_PORT.md`.
+- **Leaving the beta channel now does something.** Before, turning Beta testing off while running a
+  newer pre-release silently showed "up to date" and never went back. Now Settings → Updates offers:
+  - **Go back to stable vX** — a verified downgrade to the latest stable (auto-rollback like any update), or
+  - **Stay on this beta** — keep the current build; you’re then notified only about new **stable**
+    releases, never betas.
+  New endpoints `/api/update/revert` and `/api/update/keep-beta`; `/api/update/check` reports
+  `revertStable`; the updater honors a one-shot revert flag and permits that single downgrade.
+
 ## v1.6.0 — 2026-11-15 (first stable release)
 
 **Cortex is a working, field-validated drop-in replacement for LG's ACP / AC Smart central

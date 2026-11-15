@@ -60,6 +60,16 @@ if [ -r "$DATA/update-channel" ]; then
 fi
 [ "$CHAN" = "beta" ] || CHAN="stable"
 
+# One-shot "revert to latest stable" request from the UI (POST /api/update/revert writes this file).
+# It forces the stable channel and permits a DOWNGRADE for this single run, then clears itself, so a
+# user leaving the beta channel can move back to the newest stable even though it is "older".
+ALLOW_DOWNGRADE=""
+if [ -f "$DATA/revert-to-stable" ]; then
+  CHAN="stable"; ALLOW_DOWNGRADE=1; CORTEX_UPDATE_FORCE=1
+  rm -f "$DATA/revert-to-stable" 2>/dev/null || true
+  log "revert-to-stable requested — moving to the latest stable even if older than $CUR"
+fi
+
 # ACCEPT_OCTET makes the GitHub asset API return the file bytes (not JSON metadata).
 ACCEPT_OCTET=()
 if [ -n "${CORTEX_UPDATE_REPO:-}" ]; then
@@ -117,8 +127,12 @@ if [ "$REL_CMP" = "same" ]; then
   exit 0
 fi
 if [ "$REL_CMP" = "older" ]; then
-  log "running $CUR is newer than available $NEW — not downgrading"
-  exit 0
+  if [ -n "$ALLOW_DOWNGRADE" ]; then
+    log "revert: installing stable $NEW over newer $CUR (user left the beta channel)"
+  else
+    log "running $CUR is newer than available $NEW — not downgrading"
+    exit 0
+  fi
 fi
 # --- don't retry a build that already failed here -------------------------------
 # If $NEW was installed before and did not come up healthy, we rolled back. Without this check the
