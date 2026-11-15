@@ -2,6 +2,26 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.7 — 2026-11-15 (outdoor-unit service port decoder)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.6. Only `uart-sniffer.html` and
+docs changed; Cortex itself (`cortex.html`, `server.js`) is identical to beta.6._
+
+- **The UART Sniffer now understands the outdoor unit's service port** (the plug LG's LGMV uses):
+  2400 baud, and it decodes the unit's ID record (model code, firmware, indoor/HR-box counts), the
+  outdoor main and sub units (pressures, every temperature sensor, superheat/subcooling, compressor
+  Hz, fans, all EEVs, voltages/currents), every indoor unit (state, EEV, room/pipe temps, error,
+  central address) and every heat-recovery box (pipe modes, subcool EEV, temps, which indoor units
+  are on which port). Multi V IV layouts; °F/psi or °C/kPa.
+- **Optional "Ask the outdoor unit for live data".** Off by default. When ticked (with a confirm) it
+  sends the same two monitoring requests LGMV sends — hello, then "next round" — and nothing else.
+  Without it the page only listens.
+- Default baud is now 2400 (the old page guessed 38400).
+- Fixed: adding a marker during a recording threw an error and did nothing.
+- New `docs/UART_SERVICE_PORT.md`: what to plug in, step by step, and the byte map.
+- Decoder checked byte-for-byte against an independent reference decoder (`node tests/uart.test.js`).
+  **Not yet run on a real outdoor unit.**
+
 ## v1.6.0-beta.6 — 2026-11-14 (reads what the units say, outdoor-unit data, protocol fixes)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.5._

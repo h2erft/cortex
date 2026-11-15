@@ -9,8 +9,14 @@
   Runs in Chrome/Edge via the Web Serial API. Open this file on a laptop (file://),
   plug a USB-to-TTL adapter into the bus (RX + GND only), hit Connect, pick the port.
 
-  READ-ONLY BY DESIGN: this page never opens the serial port's writable stream, so it
-  can only listen — it cannot transmit onto the bus. Safe to leave connected.
+  LISTEN-ONLY BY DEFAULT: the page only opens the port's writable stream if you tick
+  "Ask the outdoor unit for live data". With that ticked it sends exactly two fixed 14-byte
+  frames — the same "hello" and "next cycle" monitoring requests LG's own LGMV sends — and
+  nothing else. It has no code path that can send any other bytes.
+
+  The LG outdoor-unit service port ("LGMV port") is 2400 baud 8N1, frames 02 <len> <type> … <crc>.
+  The decoder below is for the Multi V IV family; layouts come from an outside field-verified
+  reference (see docs/KIT_FINDINGS.md and docs/UART_SERVICE_PORT.md in the Cortex repo).
 
   Web Serial needs a "secure context": works from file:// (local) or https, NOT plain
   http://cortex.local. If navigator.serial is missing you'll see a notice below.
@@ -50,6 +56,10 @@ select:focus,input:focus{outline:none;border-color:var(--accent)}
 .dot.rx{background:var(--accent)}
 .mono{font-family:var(--mono)}
 #mon{font-family:var(--mono);font-size:12px;background:#05090d;border:1px solid var(--border);border-radius:9px;padding:10px;height:340px;overflow:auto;white-space:pre;color:#bfe6c9;line-height:1.5}
+.dt{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0 10px}
+.dt th{text-align:left;color:var(--text-faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:6px 8px;border-bottom:1px solid var(--border)}
+.dt td{padding:5px 8px;border-bottom:1px solid var(--border);color:var(--text-dim)}
+.dt td.v{font-family:var(--mono);color:var(--text)}
 .sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px}
 .sum{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px}
 .sum .k{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px}
@@ -79,12 +89,12 @@ h3.s{font-size:12px;color:var(--text-dim);margin:14px 0 6px;text-transform:upper
 </div>
 
 <div class="card">
-  <h2>Connection <span class="hint">RX + GND only · baud is unknown on the LG ODU UART, so try a few</span></h2>
+  <h2>Connection <span class="hint">LG outdoor-unit service (LGMV) port = 2400 baud, 8 data, no parity, 1 stop</span></h2>
   <div class="row">
     <label class="fld">Baud
       <select id="baud">
-        <option>9600</option><option>19200</option><option selected>38400</option><option>57600</option>
-        <option>115200</option><option>4800</option><option>2400</option><option value="custom">custom…</option>
+        <option selected>2400</option><option>1200</option><option>4800</option><option>9600</option><option>19200</option>
+        <option>38400</option><option>57600</option><option>115200</option><option value="custom">custom…</option>
       </select></label>
     <input id="baudc" type="number" placeholder="custom baud" style="width:110px;display:none">
     <label class="fld">Data<select id="bits"><option selected>8</option><option>7</option></select></label>
@@ -102,6 +112,17 @@ h3.s{font-size:12px;color:var(--text-dim);margin:14px 0 6px;text-transform:upper
     <button class="btn sm" id="pause">Pause view</button>
     <button class="btn sm" id="clear">Clear view</button>
   </div>
+</div>
+
+<div class="card">
+  <h2>Outdoor unit — decoded <span class="hint">LG service port · Multi V IV layouts · beta</span></h2>
+  <div class="row" style="margin-bottom:10px">
+    <label class="stat" style="cursor:pointer"><input type="checkbox" id="poll" disabled> Ask the outdoor unit for live data</label>
+    <span class="muted" id="pollnote">Listening only. Without this you will only see the unit's ID beacon (unless LGMV is polling at the same time).</span>
+    <div style="flex:1"></div>
+    <label class="stat" style="cursor:pointer"><input type="checkbox" id="metric"> °C / kPa</label>
+  </div>
+  <div id="dec"><div class="muted">Nothing decoded yet. Connect at 2400 baud — a healthy unit repeats a short ID frame about four times a second.</div></div>
 </div>
 
 <div class="card">
@@ -138,15 +159,15 @@ h3.s{font-size:12px;color:var(--text-dim);margin:14px 0 6px;text-transform:upper
   <h2>How to connect (read first)</h2>
   <div class="note" style="margin-bottom:8px"><b>Safety:</b> measure the signal voltage with a multimeter before wiring — LG service UART is likely 5V or 3.3V TTL. Use an adapter that matches (or a level shifter). Connect <b>GND first</b>, then the adapter's <b>RX</b> to the bus <b>TX</b>. For a pure sniff, leave the adapter's TX disconnected and don't connect VCC.</div>
   <div class="muted" style="line-height:1.7">
-    1 · Plug in your USB-to-TTL adapter (a CP2102 one matches what LGMV uses).<br>
-    2 · Pick the baud (LG's ODU UART baud isn't published — start at 38400, then try 115200, 57600, 19200, 9600). The <b>Structure helper</b> tells you when a baud looks right.<br>
+    1 · Plug in LG's USB LGMV cable/module (it is isolated — the safest choice) or an <b>isolated</b> USB-to-TTL adapter.<br>
+    2 · Leave the baud at <b>2400</b> (8 data bits, no parity, 1 stop bit). The <b>Structure helper</b> tells you if a baud looks wrong.<br>
     3 · Click <b>Connect</b> and choose the adapter's COM port.<br>
     4 · To decode fields later: run LG's LGMV at the same time, hit <b>Start recording</b> here, and drop a <b>Marker</b> each time you change something (turn an IDU on, change setpoint). Afterward, line the markers up against LGMV's exported CSV.
   </div>
 </div>
 
 <div class="foot">
-  Cortex UART Sniffer — read-only. It never writes to the bus.<br>
+  Cortex UART Sniffer — listens only, unless you tick "Ask the outdoor unit for live data" (then it sends LGMV's two monitoring requests and nothing else).<br>
   Capturing a proprietary bus is for your own diagnostics; decoding is a reverse-engineering effort, one ODU family at a time.
 </div>
 </div>
@@ -161,6 +182,7 @@ let port=null, reader=null, keepReading=false, paused=false;
 let recording=false, recChunks=[], recBytes=0, recStart=0, markers=[];
 
 function hx(b){return b.toString(16).toUpperCase().padStart(2,"0");}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);}   // was missing: adding a marker used to throw
 
 /* ---- ingest: the ONLY entry point for bytes (also used by tests) ---- */
 function ingest(bytes){            // bytes: Uint8Array
@@ -168,6 +190,7 @@ function ingest(bytes){            // bytes: Uint8Array
   total+=bytes.length; winBytes+=bytes.length;
   if(recording){ recChunks.push({t:performance.now()-recStart, data:bytes.slice()}); recBytes+=bytes.length; }
   pendingView=true;
+  lgmvFeed(bytes);
 }
 function recentBytes(n){            // last n bytes in order, as a plain array
   n=Math.min(n,filled); const out=new Array(n);
@@ -211,6 +234,126 @@ function renderAnalysis(a){
   function sum(k,v){return `<div class="sum"><div class="k">${k}</div><div class="v" style="font-size:16px">${v}</div></div>`;}
 }
 
+
+/* =====================================================================================
+   LG outdoor-unit service port ("module link" / LGMV port) decoder — Multi V IV family
+   Frame: 02 <total length> <type> <payload…> <check>
+     check = CRC-16/XMODEM (big-endian, 2 bytes) for types 0x65/0x66, CRC-8 (reflected poly 0x85, init 0) for the rest.
+   Unpolled, the ODU repeats type 0x64 (product record) ~4×/s. Polled, one cycle is:
+     0x65 main ODU · 0x66 sub ODU · 0x69 summary · 0x6A one per indoor unit · 0x6E one per HR box · 0x6B end of cycle.
+   Byte maps and tables: outside field-verified LGAP/LGMV reference (docs/KIT_FINDINGS.md §4).
+   ===================================================================================== */
+const T={air:[2200,2144,1771,1578,1449,1355,1280,1219,1168,1123,1084,1049,1017,989,963,938,916,895,876,857,840,823,808,793,779,765,752,740,728,717,706,695,685,675,665,655,646,637,629,620,612,604,596,589,581,574,567,560,553,547,540,534,527,521,515,509,503,497,492,486,481,475,470,464,459,454,449,444,439,434,429,425,420,415,411,406,402,397,393,388,384,380,375,371,367,363,359,355,351,347,343,339,335,331,327,323,320,316,312,308,305,301,297,294,290,286,283,279,276,272,269,265,262,258,255,251,248,244,241,238,234,231,228,224,221,218,214,211,208,204,201,198,194,191,188,185,181,178,175,172,168,165,162,159,155,152,149,146,142,139,136,133,130,126,123,120,116,113,110,107,103,100,97,94,90,87,84,80,77,74,70,67,63,60,57,53,50,46,43,39,36,32,29,25,21,18,14,11,7,3,-1,-4,-8,-12,-16,-20,-24,-28,-32,-36,-40,-44,-48,-52,-56,-61,-65,-69,-74,-78,-83,-88,-92,-97,-102,-107,-112,-117,-122,-128,-133,-138,-144,-150,-156,-162,-168,-174,-181,-187,-194,-201,-209,-216,-224,-232,-240,-249,-258,-268,-278,-289,-300,-312,-325,-339,-354,-371,-389,-410,-435,-463,-499,-548,-626,-1000],pipe:[2200,2249,1847,1640,1503,1403,1324,1259,1204,1157,1116,1079,1046,1015,988,962,939,917,896,877,859,842,825,810,795,781,767,754,742,730,718,707,696,686,676,666,656,647,638,629,621,612,604,596,589,581,574,566,559,552,546,539,532,526,519,513,507,501,495,489,484,478,472,467,461,456,451,446,441,435,430,425,421,416,411,406,402,397,392,388,383,379,374,370,366,361,357,353,349,345,341,336,332,328,324,320,317,313,309,305,301,297,293,290,286,282,278,275,271,267,264,260,257,253,249,246,242,239,235,232,228,225,221,218,214,211,208,204,201,197,194,191,187,184,180,177,174,170,167,164,160,157,154,150,147,143,140,137,133,130,127,123,120,117,113,110,107,103,100,97,93,90,86,83,80,76,73,69,66,62,59,55,52,48,45,41,38,34,31,27,23,20,16,12,9,5,1,-2,-6,-10,-14,-18,-22,-26,-30,-34,-38,-42,-46,-50,-54,-58,-63,-67,-71,-76,-80,-85,-89,-94,-99,-103,-108,-113,-118,-123,-128,-133,-139,-144,-150,-155,-161,-167,-173,-179,-185,-192,-199,-205,-212,-220,-227,-235,-243,-251,-260,-269,-278,-288,-298,-309,-321,-333,-346,-360,-376,-393,-412,-433,-458,-487,-523,-573,-652,-1000],disch:[300,300,300,300,300,300,300,300,292,281,273,266,260,253,248,243,238,233,230,226,223,219,216,213,210,208,205,202,200,198,196,194,192,190,188,186,184,182,181,179,177,176,174,173,171,170,168,167,166,164,163,162,161,159,158,157,156,155,154,153,152,151,150,149,148,147,146,145,144,143,142,141,140,139,138,138,137,136,135,134,133,133,132,131,130,129,129,128,127,126,126,125,124,123,123,122,121,121,120,119,119,118,117,116,116,115,114,114,113,112,112,111,111,110,109,109,108,107,107,106,106,105,104,104,103,103,102,101,101,100,100,99,98,98,97,97,96,95,95,94,94,93,92,92,91,91,90,90,89,88,88,87,87,86,85,85,84,84,83,83,82,81,81,80,80,79,78,78,77,77,76,75,75,74,74,73,72,72,71,71,70,69,69,68,67,67,66,65,65,64,64,63,62,62,61,60,60,59,58,57,57,56,55,55,54,53,52,52,51,50,49,48,48,47,46,45,44,43,42,41,41,40,39,38,37,36,34,33,32,31,30,29,27,26,25,23,22,20,19,17,15,13,11,9,7,5,3,0,-1,-3,-5,-8,-10,-13,-16,-18],suct:[2000,1864,1520,1340,1221,1133,1064,1007,959,918,881,849,819,793,768,746,725,705,687,670,654,638,624,610,597,584,572,561,549,539,528,518,509,499,490,481,473,465,457,449,441,434,426,419,412,405,399,392,386,380,374,368,362,356,350,345,339,334,328,323,318,313,308,303,298,293,288,284,279,274,270,265,261,257,252,248,244,240,236,231,227,223,219,215,212,208,204,200,196,193,189,185,181,178,174,171,167,163,160,156,153,150,146,143,139,136,133,129,126,123,119,116,113,109,106,103,100,97,93,90,87,84,81,78,74,71,68,65,62,59,56,53,50,47,44,40,37,34,31,28,25,22,19,16,13,10,7,4,1,-2,-5,-8,-11,-14,-17,-21,-24,-27,-30,-33,-36,-39,-42,-45,-48,-51,-55,-58,-61,-64,-67,-70,-73,-77,-80,-83,-86,-90,-93,-96,-100,-103,-106,-110,-113,-116,-120,-123,-127,-130,-134,-137,-141,-144,-148,-152,-155,-159,-163,-171,-175,-179,-183,-187,-191,-195,-199,-203,-208,-212,-216,-221,-225,-230,-234,-239,-244,-248,-253,-258,-264,-269,-274,-280,-285,-291,-297,-303,-309,-315,-322,-328,-335,-342,-350,-358,-366,-374,-383,-392,-401,-411,-422,-434,-446,-459,-474,-489,-507,-527,-550,-577,-611,-658,-732,-1000],hp:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,49,82,114,147,180,212,245,278,310,343,376,408,441,474,507,539,572,605,637,670,703,735,768,801,833,866,899,931,964,997,1029,1062,1095,1127,1160,1193,1225,1258,1291,1324,1356,1389,1422,1454,1487,1520,1552,1585,1618,1650,1683,1716,1748,1781,1814,1846,1879,1912,1944,1977,2010,2042,2075,2108,2141,2173,2206,2239,2271,2304,2337,2369,2402,2435,2467,2500,2533,2565,2598,2631,2663,2696,2729,2761,2794,2827,2859,2892,2925,2958,2990,3023,3056,3088,3121,3154,3186,3219,3252,3284,3317,3350,3382,3415,3448,3480,3513,3546,3578,3611,3644,3676,3709,3742,3775,3807,3840,3873,3905,3938,3971,4003,4036,4069,4101,4134,4167,4199,4232,4265,4297,4330,4363,4395,4428,4461,4493,4526,4559,4592,4624,4657,4690,4722,4755,4788,4820,4853,4886,4918,4951,4984,5016,5049,5082,5114,5147,5180,5212,5245,5278,5310,5343,5376,5408,5441,5474,5507,5539,5572,5605,5637,5670,5703,5735,5768,5801,5833,5866,5899,5931,5964,5997,6029,6062,6095,6127,6160,6193,6225,6258,6291,6324,6356,6389,6422,6454,6487,6520,6552,6585,6618,6650,6683,6716,6748,6781,6814,6846,6879,6912,6944,6977,7010,7042,7075,7108,7141,7173,7206,7239,7271,7304,7337,7369,7402,7435,7467,7500],lp:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,20,33,46,59,72,85,98,111,124,137,150,163,176,190,203,216,229,242,255,268,281,294,307,320,333,346,359,373,386,399,412,425,438,451,464,477,490,503,516,529,542,556,569,582,595,608,621,634,647,660,673,686,699,712,725,739,752,765,778,791,804,817,830,843,856,869,882,895,908,922,935,948,961,974,987,1000,1013,1026,1039,1052,1065,1078,1092,1105,1118,1131,1144,1157,1170,1183,1196,1209,1222,1235,1248,1261,1275,1288,1301,1314,1327,1340,1353,1366,1379,1392,1405,1418,1431,1444,1458,1471,1484,1497,1510,1523,1536,1549,1562,1575,1588,1601,1614,1627,1641,1654,1667,1680,1693,1706,1719,1732,1745,1758,1771,1784,1797,1810,1824,1837,1850,1863,1876,1889,1902,1915,1928,1941,1954,1967,1980,1993,2007,2020,2033,2046,2059,2072,2085,2098,2111,2124,2137,2150,2163,2176,2190,2203,2216,2229,2242,2255,2268,2281,2294,2307,2320,2333,2346,2359,2373,2386,2399,2412,2425,2438,2451,2464,2477,2490,2503,2516,2529,2542,2556,2569,2582,2595,2608,2621,2634,2647,2660,2673,2686,2699,2712,2725,2739,2752,2765,2778,2791,2804,2817,2830,2843,2856,2869,2882,2895,2908,2922,2935,2948,2961,2974,2987,3000],cond:[-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-431,-390,-353,-321,-291,-264,-238,-215,-193,-172,-153,-134,-116,-99,-83,-68,-53,-38,-25,-11,2,15,27,39,50,62,73,83,94,104,114,124,133,143,152,161,170,179,187,195,204,212,220,228,235,243,250,258,265,272,279,286,293,300,307,313,320,326,333,339,345,351,357,363,369,375,381,387,392,398,404,409,414,420,425,431,436,441,446,451,456,461,466,471,476,481,486,490,495,500,504,509,513,518,522,527,531,536,540,544,549,553,557,561,565,569,574,578,582,586,590,593,597,601,605,609,613,617,620,624,628,631,635,639,642,646,649,653,656,660,663,667,670,673,677,680,683,687,690,693,696,700,703,706,709,712,715,718,721,724,727,730,733,736,739,741,744,747,749,752,755,757,759,762,764,766,768,770,771,773,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774],evap:[-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-474,-454,-435,-418,-401,-386,-371,-356,-343,-329,-317,-305,-293,-282,-271,-260,-250,-240,-230,-221,-212,-203,-194,-186,-177,-169,-161,-154,-146,-139,-131,-124,-117,-110,-104,-97,-90,-84,-78,-71,-65,-59,-53,-48,-42,-36,-31,-25,-20,-14,-9,-4,2,7,12,17,22,27,31,36,41,45,50,55,59,64,68,72,77,81,85,90,94,98,102,106,110,114,118,122,126,130,133,137,141,145,148,152,156,159,163,167,170,174,177,181,184,187,191,194,197,201,204,207,211,214,217,220,223,226,230,233,236,239,242,245,248,251,254,257,260,263,266,268,271,274,277,280,283,285,288,291,294,296,299,302,304,307,310,312,315,318,320,323,325,328,331,333,336,338,341,343,346,348,351,353,355,358,360,363,365,367,370,372,375,377,379,382,384,386,388,391,393,395,397,400,402,404,406,409,411,413,415,417,419,422,424,426,428,430,432,434,436,438,441,443,445,447,449,451,453,455,457,459,461,463,465,467,469,471,473,475,477,479,480,482,484,486,488,490,492,494,496,498,499,501,503,505,507]};
+function crc8r85(b,n){let c=0;for(let i=0;i<n;i++){c^=b[i];for(let k=0;k<8;k++)c=(c&1)?((c>>1)^0x85):(c>>1);}return c&0xFF;}
+function crc16x(b,n){let c=0;for(let i=0;i<n;i++){c^=b[i]<<8;for(let k=0;k<8;k++)c=((c&0x8000)?((c<<1)^0x1021):(c<<1))&0xFFFF;}return c;}
+function lgmvCrcOk(f){const n=f.length;if(n<4)return false;
+  if(f[2]===0x65||f[2]===0x66||f[2]===0x67||f[2]===0x68)return crc16x(f,n-2)===((f[n-2]<<8)|f[n-1]);
+  return crc8r85(f,n-1)===f[n-1];}
+function lgmvFrame(type,arg){const f=new Uint8Array(14);f[0]=0x02;f[1]=0x0E;f[2]=type;f[3]=arg||0;f[13]=crc8r85(f,13);return f;}
+const LGMV_HELLO=lgmvFrame(0x01), LGMV_POLL=lgmvFrame(0x02);     // the ONLY two frames this page can ever transmit
+const s8=b=>b>127?b-256:b;
+function decodeOduFrame(f){            // 0x65 main / 0x66..0x68 sub units, 67 bytes. Values in °C and kPa.
+  if(f.length<0x43)return null;
+  const d={unit:f[2]===0x65?"main":("sub "+(f[2]-0x65)),mode:(["OFF","COOL","HEAT","?"])[f[3]&3],
+    inv1Target:f[4],inv1Hz:f[5],inv2Hz:f[7],fanTarget:f[8]*10,fan1:f[9]*10,fan2:f[0x0a]*10,
+    eevMain:f[0x14]*8,eevSub:f[0x15]*8,eevSc:f[0x16]*8,eevVi1:f[0x17]*8,eevVi2:f[0x18]*8,eevEq:f[0x19]*8,
+    air:T.air[f[0x1a]]/10,hp:T.hp[f[0x1b]],cond:T.cond[f[0x1b]]/10,lp:T.lp[f[0x1c]],evap:T.evap[f[0x1c]]/10,
+    suct:T.suct[f[0x1d]]/10,disch1:T.disch[f[0x1e]],disch2:T.disch[f[0x1f]],
+    hex:T.pipe[f[0x21]]/10,hexUp:T.pipe[f[0x22]]/10,hexLo:T.pipe[f[0x23]]/10,scIn:T.pipe[f[0x24]]/10,scOut:T.pipe[f[0x25]]/10,
+    liq:T.pipe[f[0x26]]/10,iduPipeInAvg:T.pipe[f[0x27]]/10,
+    inv1A:f[0x2b]/5,inv1V:f[0x2c]*5,inv2V:f[0x2e]*5,inv1PhaseA:f[0x33]/5,inv2PhaseA:f[0x35]/5,fan1A:f[0x37]/10,fan2A:f[0x39]/10,
+    dc1:f[0x3b]*5,dc2:f[0x3c]*5,ipm1:s8(f[0x3d]),ipm2:s8(f[0x3e]),
+    valveSuction:f[0x12]&1,valveHexHigh:(f[0x12]>>3)&1,valveHexLow:(f[0x12]>>4)&1};
+  d.sh=Math.round((d.suct-d.evap)*10)/10;d.sc=Math.round((d.cond-d.liq)*10)/10;
+  d.ratio=Math.round((d.hp+101)/(d.lp+101)*100)/100;
+  return d;}
+function decodeProduct(f){             // 0x64, 31 bytes
+  if(f.length!==31)return null;const units=[];
+  [4,10,16,22].forEach((o,k)=>{if(f[o])units.push({unit:k?("sub "+k):"main",capacity:f[o],fw:f[o+1]+"."+f[o+2],eeprom:k===1?"":[f[o+3],f[o+4],f[o+5]].join(".")});});
+  return {product:f[3],units,idus:f[28],hrs:f[29]};}
+function decodeIdu(f){                 // 0x6A, 17 bytes, one indoor unit
+  if(f.length<16)return null;const b5=f[5],on=(b5>>3)&1;
+  return {index:f[3],type:f[4]&0x0F,lock:(f[4]>>7)&1,on,mode:on?(b5&7):0,fan:on?((b5>>4)&3):0,capacity:f[6],eev:f[7]|(f[8]<<8),
+    room:T.air[f[9]]/10,pipeIn:T.pipe[f[0x0a]]/10,pipeOut:T.pipe[f[0x0b]]/10,err:f[0x0c],addr:f[0x0e]};}
+const PIPE_MODE=["OFF","COOL","HEAT","FAN"];
+function decodeHr(f){                  // 0x6E, 22 bytes, one heat-recovery box (one of four port pages per frame)
+  if(f.length!==22)return null;const four=b=>[6,4,2,0].map(s=>PIPE_MODE[(b>>s)&3]);
+  return {box:f[3]-0x40,page:f[5]>>6,setIdus:f[4]&0x0F,foundIdus:f[5]&0x3F,eevSc:f[6]*8,pipes:four(f[7]),
+    liqIn:T.pipe[f[8]]/10,scIn:T.pipe[f[9]]/10,scOut:T.pipe[f[10]]/10,
+    idus:[...f.slice(11,19)].map(x=>x&0x7F).filter(x=>x),ctrl:four(f[19]),zoning:f[20]&1};}
+function decodeStep(f){                // 0x6B, 14 bytes, end of cycle
+  if(f.length!==14)return null;return {comp:f[3],fan:f[4],eev:f[5],scEev:f[6],flags:f[7],dischTargetC:f[8],lpSlope:s8(f[9])};}
+
+const LG={buf:[],frames:0,bad:0,census:{},product:null,odu:{},idu:{},hr:{},step:null,summary:null,lastCycle:0,lastFrame:0,dirty:false};
+function lgmvReset(){LG.buf=[];LG.frames=0;LG.bad=0;LG.census={};LG.product=null;LG.odu={};LG.idu={};LG.hr={};LG.step=null;LG.summary=null;LG.lastCycle=0;LG.dirty=true;}
+function lgmvFeed(bytes){
+  const b=LG.buf;for(let i=0;i<bytes.length;i++)b.push(bytes[i]);
+  while(b.length>=2){
+    const n=b[1];
+    if(b[0]!==0x02||n<4||n>80){b.shift();continue;}          // resync on the next 02
+    if(b.length<n)break;
+    const f=b.slice(0,n);
+    if(!lgmvCrcOk(f)){LG.bad++;b.shift();continue;}           // bad check: slide one byte and look again
+    b.splice(0,n);lgmvHandle(f);}
+  if(b.length>400)b.splice(0,b.length-80);}
+function lgmvHandle(f){
+  const t=f[2];LG.frames++;LG.lastFrame=Date.now();LG.dirty=true;
+  const key=t.toString(16).toUpperCase().padStart(2,"0");LG.census[key]=(LG.census[key]||0)+1;
+  if(t===0x64)LG.product=decodeProduct(f);
+  else if(t>=0x65&&t<=0x68){const d=decodeOduFrame(f);if(d)LG.odu[t]=d;}
+  else if(t===0x69)LG.summary=f.slice();
+  else if(t===0x6A){const d=decodeIdu(f);if(d)LG.idu[d.index]=d;}
+  else if(t===0x6E){const d=decodeHr(f);if(d){const B=LG.hr[d.box]||(LG.hr[d.box]={ports:{}});Object.assign(B,d);B.ports[d.page+1]=d.idus;}}
+  else if(t===0x6B){LG.step=decodeStep(f);LG.lastCycle=Date.now();if(typeof onCycleEnd==="function")onCycleEnd();}}
+
+function renderDecoded(){
+  if(!LG.dirty)return;LG.dirty=false;
+  const M=$("metric").checked;
+  const tt=c=>(c==null||!isFinite(c))?"—":(M?(Math.round(c*10)/10)+" °C":Math.round(c*1.8+32)+" °F");
+  const dt=k=>(k==null||!isFinite(k))?"—":(M?(Math.round(k*10)/10)+" K":(Math.round(k*18)/10)+" °F");
+  const pr=k=>(k==null||!isFinite(k))?"—":(M?k+" kPa":Math.round(k*0.145038)+" psi");
+  let h="";
+  const P=LG.product;
+  if(P)h+=`<div class="muted" style="margin-bottom:8px">Product code <span class="pill">0x${hx(P.product)}</span> · ${P.units.map(u=>`${u.unit}: capacity ${u.capacity}, firmware ${u.fw}${u.eeprom?", EEPROM "+u.eeprom:""}`).join(" · ")} · ${P.idus} indoor unit${P.idus!==1?"s":""} · ${P.hrs} HR box${P.hrs!==1?"es":""}</div>`;
+  const us=Object.keys(LG.odu).sort().map(k=>LG.odu[k]);
+  if(us.length){
+    const rows=[["Mode",u=>u.mode],["High pressure",u=>pr(u.hp)],["Low pressure",u=>pr(u.lp)],["Condensing temp",u=>tt(u.cond)],["Evaporating temp",u=>tt(u.evap)],
+      ["Suction temp",u=>tt(u.suct)],["Superheat",u=>dt(u.sh)],["Liquid temp",u=>tt(u.liq)],["Subcooling",u=>dt(u.sc)],
+      ["Discharge 1 / 2",u=>tt(u.disch1)+" / "+tt(u.disch2)],["Outdoor air",u=>tt(u.air)],["Heat exchanger / upper / lower",u=>tt(u.hex)+" / "+tt(u.hexUp)+" / "+tt(u.hexLo)],
+      ["Subcooler in / out",u=>tt(u.scIn)+" / "+tt(u.scOut)],["Compressor 1 target → actual",u=>u.inv1Target+" → "+u.inv1Hz+" Hz"],["Compressor 2",u=>u.inv2Hz+" Hz"],
+      ["Fan target / 1 / 2",u=>u.fanTarget+" / "+u.fan1+" / "+u.fan2+" rpm"],["EEV main / sub / subcool",u=>u.eevMain+" / "+u.eevSub+" / "+u.eevSc+" pls"],
+      ["EEV VI1 / VI2 / EQ",u=>u.eevVi1+" / "+u.eevVi2+" / "+u.eevEq+" pls"],["Compression ratio",u=>u.ratio],
+      ["Inverter 1 input",u=>u.inv1V+" V · "+u.inv1A+" A"],["Inverter 1 phase current",u=>u.inv1PhaseA+" A"],["DC link 1 / 2",u=>u.dc1+" / "+u.dc2+" V"],
+      ["IPM temp 1 / 2",u=>tt(u.ipm1)+" / "+tt(u.ipm2)]];
+    h+=`<table class="dt"><thead><tr><th>Outdoor unit</th>${us.map(u=>`<th>${u.unit}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td>${us.map(u=>`<td class="v">${r[1](u)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    if(LG.step)h+=`<div class="muted" style="margin:6px 0 10px">Control steps — compressor ${LG.step.comp} · fan ${LG.step.fan} · EEV ${LG.step.eev} · subcool EEV ${LG.step.scEev} · discharge target ${tt(LG.step.dischTargetC)}</div>`;
+  }
+  const ids=Object.keys(LG.idu).map(Number).sort((a,b)=>a-b);
+  if(ids.length)h+=`<table class="dt"><thead><tr><th>Indoor #</th><th>Central addr</th><th>State</th><th>Fan step</th><th>Capacity</th><th>EEV</th><th>Room</th><th>Pipe in</th><th>Pipe out</th><th>Error</th></tr></thead><tbody>${ids.map(i=>{const u=LG.idu[i];
+    return `<tr><td>${u.index}</td><td class="v">${hx(u.addr)}</td><td>${u.on?"on":"off"}${u.lock?" 🔒":""}</td><td class="v">${u.fan||"—"}</td><td class="v">${u.capacity}k</td><td class="v">${u.eev}</td><td class="v">${tt(u.room)}</td><td class="v">${tt(u.pipeIn)}</td><td class="v">${tt(u.pipeOut)}</td><td class="v">${u.err||"—"}</td></tr>`;}).join("")}</tbody></table>`;
+  const bx=Object.keys(LG.hr).map(Number).sort((a,b)=>a-b);
+  if(bx.length)h+=`<table class="dt"><thead><tr><th>HR box</th><th>Pipes 1–4</th><th>Subcool EEV</th><th>Liquid in</th><th>SC in</th><th>SC out</th><th>Ports → indoor #</th></tr></thead><tbody>${bx.map(n=>{const B=LG.hr[n];
+    return `<tr><td>${n}</td><td class="v">${B.pipes.join(" / ")}</td><td class="v">${B.eevSc}</td><td class="v">${tt(B.liqIn)}</td><td class="v">${tt(B.scIn)}</td><td class="v">${tt(B.scOut)}</td><td class="v">${Object.keys(B.ports).sort().map(p=>"p"+p+": "+(B.ports[p].join(",")||"—")).join(" · ")}</td></tr>`;}).join("")}</tbody></table>`;
+  h+=`<div class="muted" style="margin-top:8px">${LG.frames} good frame${LG.frames!==1?"s":""}${LG.bad?" · "+LG.bad+" failed check (normal while syncing; a steady count means wrong baud or wiring)":""} · types ${Object.keys(LG.census).sort().map(k=>k+"×"+LG.census[k]).join(" ")||"—"}${us.length?"":" · only the ID beacon so far — tick “Ask the outdoor unit for live data” (or run LGMV alongside) to get the cycle data"}</div>`;
+  $("dec").innerHTML=LG.frames?h:'<div class="muted">Nothing decoded yet. Connect at 2400 baud — a healthy unit repeats a short ID frame about four times a second.</div>';}
+setInterval(renderDecoded,500);
+
+/* ---- optional polling: the same two requests LGMV sends, nothing else ---- */
+let pollOn=false,pollTimer=null,lastPollAt=0;
+async function txFixed(frame){          // refuses anything but the two constant monitoring requests
+  if(frame!==LGMV_HELLO&&frame!==LGMV_POLL)return;
+  if(!port||!port.writable)return;
+  const w=port.writable.getWriter();try{await w.write(frame);}catch(e){setErr("Write error: "+e.message);}finally{try{w.releaseLock();}catch(_){}}
+  lastPollAt=Date.now();}
+function onCycleEnd(){if(pollOn)setTimeout(()=>{if(pollOn)txFixed(LGMV_POLL);},300);}   // LGMV asks for the next cycle after each 0x6B
+async function setPolling(on){
+  pollOn=on;clearInterval(pollTimer);pollTimer=null;
+  $("pollnote").textContent=on?"Polling: sending LGMV's hello once, then “next cycle” after each cycle (about every 7 s).":"Listening only. Without this you will only see the unit's ID beacon (unless LGMV is polling at the same time).";
+  if(!on)return;
+  await txFixed(LGMV_HELLO);
+  setTimeout(()=>{if(pollOn)txFixed(LGMV_POLL);},500);
+  pollTimer=setInterval(()=>{if(pollOn&&Date.now()-Math.max(lastPollAt,LG.lastCycle)>10000)txFixed(LGMV_POLL);},2000);}   // nudge if a cycle went missing
+
 /* ---- live hex view (throttled) ---- */
 let pendingView=false;
 function renderView(){
@@ -239,7 +382,7 @@ async function connect(){
     port=await navigator.serial.requestPort();
     await port.open(serialCfg());
     keepReading=true; setLink(true);
-    $("connect").disabled=true; $("disconnect").disabled=false; $("mark").disabled=false;
+    $("connect").disabled=true; $("disconnect").disabled=false; $("mark").disabled=false; $("poll").disabled=false;
     readLoop();
   }catch(e){ if(e&&e.name!=="NotFoundError") setErr("Couldn't open port: "+e.message); }
 }
@@ -252,7 +395,7 @@ async function readLoop(){
   }
 }
 async function disconnect(){
-  keepReading=false;
+  keepReading=false; $("poll").checked=false; $("poll").disabled=true; setPolling(false);
   try{ if(reader) await reader.cancel(); }catch(_){}
   try{ if(port) await port.close(); }catch(_){}
   port=null; setLink(false);
@@ -269,9 +412,13 @@ function stamp(){ return new Date().toISOString().replace(/[:.]/g,"-").slice(0,1
 /* ---- wire up UI ---- */
 $("baud").onchange=e=>{ $("baudc").style.display = e.target.value==="custom"?"inline-block":"none"; };
 $("connect").onclick=connect;
+$("metric").onchange=()=>{LG.dirty=true;renderDecoded();};
+$("poll").onchange=e=>{
+  if(e.target.checked&&!confirm("This will TRANSMIT on the service port: LGMV's own “hello” and “next cycle” monitoring requests (14 bytes each), nothing else.\n\nOnly do this if:\n • LGMV is NOT connected to this outdoor unit at the same time, and\n • your adapter's TX wire is connected and the adapter is isolated (LG's own USB module is).\n\nStart polling?")){e.target.checked=false;return;}
+  setPolling(e.target.checked);};
 $("disconnect").onclick=disconnect;
 $("pause").onclick=()=>{ paused=!paused; $("pause").textContent=paused?"Resume view":"Pause view"; pendingView=true; };
-$("clear").onclick=()=>{ head=0; filled=0; $("mon").textContent=""; };
+$("clear").onclick=()=>{ head=0; filled=0; $("mon").textContent=""; lgmvReset(); };
 $("analyze").onclick=()=>renderAnalysis(analyze(recentBytes(4096)));
 $("rec").onclick=()=>{
   recording=!recording;
@@ -302,7 +449,8 @@ if(!("serial" in navigator)){ $("nosupport").style.display="block"; $("connect")
 renderMarks();
 window.addEventListener("beforeunload",()=>{ try{disconnect();}catch(_){} });
 // expose pure logic for tests
-window.__sniff={ingest,analyze,recentBytes,get total(){return total;},reset(){head=0;filled=0;total=0;}};
+window.__sniff={ingest,analyze,recentBytes,get total(){return total;},reset(){head=0;filled=0;total=0;lgmvReset();},
+  LG,lgmvFeed,lgmvCrcOk,crc8r85,crc16x,decodeOduFrame,decodeIdu,decodeHr,decodeProduct,decodeStep,LGMV_HELLO,LGMV_POLL,renderDecoded};
 </script>
 </body>
 </html>

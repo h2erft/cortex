@@ -148,8 +148,8 @@ says which chassis (1 main, 2 first sub…).
   requests (`02 0E 01…` hello, `02 0E 02…` "next cycle"); the ODU answers a cycle about every
   6.5 s: 0x65 main ODU, 0x66 sub ODU, 0x69 summary, 0x6A one per indoor unit, 0x6E one per HR box,
   0x6B end. Unpolled, it beacons a product frame 0x64. The kit maps these and ships the same
-  lookup tables. **This answers most of our "UART frontier" question** — `uart-sniffer.html` could
-  grow a real decoder from ch.02 without the paired LGMV capture we thought we needed.
+  lookup tables. **This answered our "UART frontier" question** — `uart-sniffer.html` got a real decoder
+  from it in v1.6.0-beta.7 (see `docs/UART_SERVICE_PORT.md`), tested against the kit's own decoder.
   LGMV's "IDU Control" Start/Stop writes a byte for *every* indoor unit — never press it on a live
   site. ODU-control frames (compressor/fan/EEV overrides) have no release frame: bench only.
 - **Indoor A/B bus (ch.03).** The only place HR-box data, the real dimension-lock readback (key

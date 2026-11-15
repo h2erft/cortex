@@ -1,6 +1,6 @@
 # Taking over Cortex — start here
 
-*Written 2026-11-14 at v1.6.0-beta.6, for the next agent or person picking this up cold.*
+*Written 2026-11-14, updated 2026-11-15 at v1.6.0-beta.7, for the next agent or person picking this up cold.*
 
 Read this page fully before touching anything. Then skim `docs/KIT_FINDINGS.md` (protocol facts)
 and the CURRENT STATE block at the top of `docs/HANDOFF.md` (history). `LGAP_reference.md` is the
@@ -43,6 +43,7 @@ L=$(grep -n "</script>" cortex.html | head -1 | cut -d: -f1)
 sed -n "498,$((L-1))p" cortex.html > /tmp/c.js && node --check /tmp/c.js
 node --check appliance/server.js
 node tests/protocol.test.js              # must print "all passed"
+node tests/uart.test.js                  # service-port decoder, must print "all passed"
 # 3. version + notes
 printf '1.6.0-beta.N\n' > appliance/VERSION
 #    add a section at the top of CHANGELOG.md
@@ -158,10 +159,12 @@ First thing to do on the next site visit — the beta.6 checklist, one item at a
 9. **Multi-channel support** (the operator asked): one appliance, several adapters, one bus object
    per channel. Today `bus` and `MASTER` are singletons and `server.js` bridges one serial port.
    Central addresses are unique across an ACP's channels, so units need only a `ch` field (exists).
-10. **LGMV-port decoder in `uart-sniffer.html`.** The outside kit documents the service-UART framing
-    completely (KIT_FINDINGS §4). Turn the raw sniffer into a decoder: 2400 8N1, `02 len type`,
-    CRC-8 (reflected 0x85), types 0x64–0x6E, same lookup tables as `ODU_T`. Listening needs no
-    transmit; polling needs the two documented request frames and his explicit go-ahead.
+10. **LGMV-port decoder — built in beta.7, needs its first live run.** `uart-sniffer.html` now
+    decodes the service port (product record, outdoor main/sub, indoor units, HR boxes) and can
+    optionally send LGMV's two monitoring requests. `docs/UART_SERVICE_PORT.md` has the operator's
+    step-by-step and the byte map. Next: get his recorded hex log from a real unit, fix whatever
+    disagrees with LGMV/gauges, then bring the data into Cortex itself (the appliance would need a
+    second serial port bridged the same way `/bus` is; the browser-side decoder can be lifted as-is).
 11. **cmd5 / dual setpoint.** The frame layout is settled from the ACP's own builder (KIT_FINDINGS
     §7). What is missing is a 2-set-capable unit to try it on: one unit, operator watching, via the
     armed debug tool, then read the cmd5 reply (`10 28 A0 …`, kit ch.04 §6.4) — Cortex does not
@@ -196,10 +199,22 @@ back to see what was OR-ed in and which "ON"/"OFF" comparison guards it. Fields 
 struct sit 8 bytes apart in SELECT-column order; anchor on a debug `printf` that names a column.
 State every claim as *proven* (you can point at the instruction) or *guess*.
 
-The operator asked for the open-source "REA" (Reverse Engineer Anything) agent toolkit to be used
-for this. Installing it was blocked by this session's permission policy on 2026-11-14, so the work
-above was done with capstone directly. If a later session is allowed to run it, the same `eng.elf`
-is the target; nothing else here needs it.
+**REA / Ghidra on LGMV-Business.exe.** A separate session prepared a finished Ghidra 12.2 project
+for LG's LGMV-Business.exe (32-bit Qt program) and a handoff note, `LGMV-REA-HANDOFF.md`, in a folder
+named `LGMV-business` on **one of the operator's PCs**. The note has the exact 5-minute rebuild
+(stage the two Ghidra zip parts + project zip + exe, install Java 25, `npm i -g rea-agents`, point
+`REA_GHIDRA_PROJECT_PATH` at the project, query with the `rea` CLI). Status on 2026-11-15:
+- The chat was linked to a *different* PC that has no such folder, so nothing could be staged. Ask
+  him to open the chat from the PC that holds the folder (the handoff calls it the one with REA
+  registered) and to add the folder with the app's Add-folder button.
+- On 2026-11-14 `npm install rea-agents` was refused by the session's permission policy. If it is
+  refused again, do not work around it; Ghidra's own `analyzeHeadless` with a small export script
+  can dump the decompiled parser functions without REA.
+- What it is worth doing there, in order: `Sync4ProtocolParser::initTableInfo` (confirm every
+  0x65/0x66 offset and find the unmapped ones), the 0x69 summary parser, `IDU4ProtocolParser`
+  (bytes 12–13 and 15 of 0x6A), `Super4ProtocolParser` (heat pump differences). The serial settings,
+  CRCs, framing and poll frames are already known from the outside kit — don't spend time there.
+The firmware-engine reading earlier in this section was done with capstone, no REA needed.
 
 ## 9. Things that will bite you
 

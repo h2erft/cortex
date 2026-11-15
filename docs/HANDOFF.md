@@ -45,7 +45,10 @@ facts live in `LGAP_reference.md`; where the two disagree, the reference wins.
   - Appliance + OTA in production on his N95 box (hostname cortex), on the beta channel.
   - Shared state lives on the appliance (units.json / appconfig.json / history/) and mirrors to
     every browser; the connected "master" screen runs the poll loop + schedules.
-  - Tools: uart-sniffer.html (read-only Web Serial listener, now shipped in the appliance build),
+  - beta.7 (2026-11-15): uart-sniffer.html became a decoder for the ODU service (LGMV) port —
+    2400 8N1, product record + outdoor/indoor/HR-box tables, optional polling with LGMV's own two
+    monitoring requests. Offline-tested only. Operator steps: docs/UART_SERVICE_PORT.md.
+  - Tools: uart-sniffer.html (Web Serial; listen-only unless polling is ticked; shipped in the appliance build),
     tools/armdis.py (ARM disassembly helper for the ACP engine image), tests/protocol.test.js.
 
   WHAT CORTEX IS
