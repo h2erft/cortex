@@ -437,3 +437,51 @@ A8-marked).
 
 *Derived from static analysis of an LG central-control engine image and live-bus captures.
 Corrections and additions welcome.*
+
+
+## 10. Additions and corrections — 2026-11-14
+
+Cross-checked three ways: live captures beside an ACP IV, an outside field-verified LGAP reference,
+and a read of the ACP's own frame builders. Where this section disagrees with an earlier one, this
+section wins. The working digest is `docs/KIT_FINDINGS.md`.
+
+**Command number** lives in byte 0 bits 3–6 (`80` cmd0, `A0` cmd4, `A8` cmd5, `C8` cmd9, `F0` cmd14).
+Byte 2 is always `A0` and is not the command.
+
+**cmd0 byte 5** — bits 0–2 mode · **bit 3 swing** · bits 4–6 fan · **bit 7 filter-sign reset
+(one-shot; keep 0)**. Fan codes: 1 low, 2 med, 3 high, **4 auto**, 5 super-low/quiet, 6
+super-high/power (5 and 6 are model-dependent). Mode codes 0 cool, 1 dry, 2 fan, 3 auto, 4 heat;
+a unit *reports* 7 while Auto is working on its heating side.
+**cmd0 byte 4** — bit 0 power · bit 1 EXE (set = write) · **bit 2 remote-controller lock** (the
+"hard lock").
+
+**16-byte reply** — byte 1: bit 0 power, bit 1 connected, bit 2 remote lock, bit 7 +0.5 °C ·
+byte 6 bit 3 swing · bytes 11–12 indoor EEV pulses (little-endian) · byte 13 capacity in kBtu/h ·
+byte 14 a system-load value shared by all units of one outdoor system within a sweep.
+The reply is the outdoor unit's cached view; verify a write from a read at least 15 s later.
+
+**cmd4** (`A0 00 A0 addr b4 b5 b6 ck`) — byte 4: **bit 0 always 1**, bit 1 temp lock, bit 2 fan
+lock, bit 3 mode lock, high nibble louver direction · byte 5 = `0x80 | (lower limit °C − 15)` ·
+byte 6 = `upper limit °C − 15` · header `A4` instead of `A0` = address-lock flag.
+Reply is 9 bytes: `09 20 A0 type addr r5 r6 r7 ck` (r5 = byte 4 with bit 0 cleared, r6 = byte 5 low
+7 bits, r7 = byte 6). **Every cmd4 is a write** — there is no read form — and the lock state cannot
+be read back on this bus.
+
+**cmd5** (`A8 00 A0 addr 10 b5 … b15`) — b5 bit 0 2-set-auto flag, bit 7 commit strobe for the
+limits · b6–b9 cool upper, cool lower, heat upper, heat lower (bit 7 = +0.5) · b10 cool setpoint
+with bit 7 = commit strobe for the setpoints · b11 heat setpoint with bit 7 = occupied · b12 tenths
+(cool high nibble, heat low) · b14 checksum of 0–13 · b15 checksum of 0–14 plus 1.
+This supersedes the byte-5 "power" reading in §4b. Never yet observed on a wire.
+
+**cmd14 — outdoor-unit pages** (`F0 C0 A0 odu page 00 00 ck` → 64 bytes `40 70 A0 C0 odu page …`).
+Bytes 5–6 of the request must be 0; never address `FF`. Page 0 main unit, 2–4 sub units, 5 fault
+table, 0x30–0x3C indoor-unit inventory. Multi V IV byte map: 8/9 firmware · 10 error · 15 mode and
+sub-unit count · 16–19 inverter Hz · 22 outdoor air · 23/24 high/low pressure · 25 suction ·
+26/27 discharge · 28 liquid pipe · 34–39 EEVs (×8 pulses) · 53 connected indoor units. Sensor bytes
+index 256-entry tables (in `cortex.html` as `ODU_T`).
+
+**A real central's rhythm** — cmd0 then cmd4 to each indoor address about every 90 s; ODU pages
+every few minutes. A quiet bus is normal, not data loss.
+
+**Never-send list** — cmd5/cmd7/cmd9, the 13-byte `0D` frame, cmd14 with non-zero bytes 5–6, any
+frame to address `FF`; and nothing at all while another master is on the pair.

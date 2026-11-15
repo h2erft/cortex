@@ -496,10 +496,11 @@ svg.ug{width:100%;height:100%;display:block}
 
 <script>
 const MODES=[["cool","Cool","❄"],["heat","Heat","☀"],["auto","Auto","⇅"],["dry","Dry","💧"],["fan","Fan","✦"]];
-const FANS=[["low","Low"],["med","Med"],["high","High"],["auto","Auto"]];
-// Speeds you can CHOOSE. "Auto" is shown when a unit reports it, but it is not offered as a command:
-// its code on the bus is not confirmed, and picking it used to send the unit's last-seen speed instead.
-const FANS_SEL=FANS.filter(f=>f[0]!=="auto");
+const FANS=[["low","Low"],["med","Med"],["high","High"],["auto","Auto"],["quiet","Quiet"],["power","Power"]];
+// Speeds you can CHOOSE. Auto is fan code 4 on the bus (field-verified in the LGAP reference kit, ch.05 §1.1),
+// so it is now a real command. Quiet (5) and Power (6) are shown when a unit reports them but are not offered:
+// whether a unit accepts them is model-dependent, so Cortex only re-sends them unchanged.
+const FANS_SEL=FANS.filter(f=>f[0]!=="quiet"&&f[0]!=="power");
 const MC={cool:"cool",heat:"heat",auto:"auto",dry:"dry",fan:"fan"};
 
 /* ---- LG Multi V error code reference (verify against the unit's service manual) ---- */
@@ -710,7 +711,7 @@ function loadSettings(){try{const s=JSON.parse(localStorage.getItem(settingsKey(
 function saveSettings(){try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(e){}}
 function temp(f){if(f==null||!isFinite(f))return "--";return settings.unit==="C"?Math.round((f-32)*5/9)+"°C":f+"°F";}
 function cksum(b){let s=0;for(let i=0;i<7;i++)s=(s+b[i])&0xff;return s^0x55;}
-function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,0];b[7]=cksum(b);
+function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,(u.d5||0)&0x7F,u.d6,0];b[7]=cksum(b);   // &0x7F: byte5 bit7 is a one-shot filter-sign RESET — never replay it
   return b.map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ");}
 /* ===== LGAP — decoded from the ACP's OWN firmware 2026-11-07 (see HANDOFF NOTES) =====
    Checksum (confirmed, code + wire): (sum of all bytes except the last) XOR 0x55.
@@ -745,11 +746,12 @@ function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,u.d5,u.d6,
        (reply byte1 bit2 echoes it). So Cortex sends the hard lock on the cmd0 control frame it
        already uses, and the three dimension locks on this cmd4 frame. */
 const MODELO={cool:0,dry:1,fan:2,auto:3,heat:4};  // ALL CONFIRMED 2026-11-08 from firmware mode→code converter (strcmp chain @0x380c8)
-const FANHI={low:1,med:2,high:3};       // low + med confirmed on wire; high by LG convention
+const FANHI={low:1,med:2,high:3,auto:4};   // 1-4 field-verified (kit ch.05 §1.1). 5 quiet / 6 power are display-only (FANCODE)
+const FANCODE={1:"low",2:"med",3:"high",4:"auto",5:"quiet",6:"power"};   // what a unit REPORTS in reply byte6 bits4-6
 const SP_CONFIRMED=true;                // cmd0 basic frame b6 = °C-15 (community-confirmed, checksum-verified)
 function spByte(o){const c=Math.round((o.sp-32)*5/9);return Math.max(0,Math.min(31,c-13));} // legacy, unused
 /* setpoint helpers — source of truth is °C (coolC/heatC); display in the user's unit */
-const SP_MINC=16,SP_MAXC=30;
+const SP_MINC=18,SP_MAXC=30;             // indoor units enforce 18–30°C; a lower value is echoed once by the ODU cache then corrected (kit ch.04 §3.3)
 function spMinC(){const f=CFG&&CFG.spMinF;return f!=null?(f-32)*5/9:SP_MINC;}   // site setpoint floor (stored °F)
 function spMaxC(){const f=CFG&&CFG.spMaxF;return f!=null?(f-32)*5/9:SP_MAXC;}   // site setpoint ceiling (stored °F)
 function clampC(c){return Math.max(spMinC(),Math.min(spMaxC(),Math.round(c*2)/2));}
@@ -769,10 +771,10 @@ function partsTemp(iByte,nib){return (iByte&0x7f)+Math.min(9,nib&0xf)*0.1;}
 function fToC(f){return (f-32)*5/9;} function cToF(c){return c*9/5+32;}
 /* (A) basic power/mode/fan command (8-byte) */
 function cmdBytesFor(addr,o,change){
-  const seen5=(o.d5!=null?o.d5:0x33);
-  const fanN=FANHI[o.fan]!=null?FANHI[o.fan]:((o.fanRaw!=null?o.fanRaw:(seen5>>4))&7);   // unknown fan (e.g. auto) -> keep exactly what the unit reported
-  const modeN=MODELO[o.mode]!=null?MODELO[o.mode]:(seen5&0x0f);
-  const b5=(fanN<<4)|modeN;
+  const seen5=(o.d5!=null?o.d5:0x33)&0x7F;                    // bit7 = filter-sign reset (one-shot) — never carried over from a last-seen byte
+  const fanN=FANHI[o.fan]!=null?FANHI[o.fan]:((o.fanRaw!=null?o.fanRaw:(seen5>>4))&7);   // quiet/power/unknown -> keep exactly what the unit reported
+  const modeN=MODELO[o.mode]!=null?MODELO[o.mode]:(seen5&0x07);
+  const b5=(fanN<<4)|(o.swing?0x08:0)|modeN;                  // byte5: bits0-2 mode · bit3 SWING · bits4-6 fan · bit7 filter reset (kept 0) [kit ch.04 §6.1]
   // b6 = setpoint in whole °C minus 15 (cmd0 write — community-confirmed: 22°C -> 0x07, frame
   // 80 00 A0 31 03 30 07 DE checksum-validates). Half-degree rides b0 bit2 (0x04). When no
   // setpoint is supplied, preserve the last-seen b6 so a power/mode/fan-only write doesn't move it.
@@ -793,26 +795,32 @@ function cmdFrameFor(addr,o){return toHexBytes(cmdBytesFor(addr,o));}
 function cmdFrame(u){return cmdFrameFor(u.addr,u);}
 /* (B) 16-byte setpoint (cmd5): decode is certain; encode reuses a last-seen template header */
 function decodeCmd5(b){ if(!b||b.length<16) return null;
-  return {addr:b[3], coolC:partsTemp(b[10],b[12]>>4), heatC:partsTemp(b[11],b[12]&0xf),
+  return {addr:b[3], coolC:partsTemp(b[10]&0x7f,b[12]>>4), heatC:partsTemp(b[11]&0x7f,b[12]&0xf),
+          twoset:!!(b[5]&1), commitLimits:!!(b[5]&0x80), commitSetpoints:!!(b[10]&0x80), occupied:!!(b[11]&0x80),
           limits:[6,7,8,9].map(i=>(b[i]&0x7f)+((b[i]>>7)?0.5:0))}; }
+/* cmd5 (0xA8, 16 bytes) — dual setpoint + limits. RECONCILED 2026-11-14: rebuilt instruction-by-instruction from the
+   operator's own ACP control-engine binary (FindAcExeCmd5SendData) and it matches the outside LGAP reference exactly.
+     b4 = 0x10
+     b5 = bit0 "2-set auto" flag · bit7 = COMMIT strobe for the limits group (b6..b9)
+     b6..b9 = cool UPPER, cool LOWER, heat UPPER, heat LOWER limit: whole °C in bits0-6, bit7 = +0.5
+     b10 = cool setpoint whole °C · bit7 = COMMIT strobe for the setpoint group (b10..b12)
+     b11 = heat setpoint whole °C · bit7 = occupied
+     b12 = tenths: cool in the high nibble, heat in the low nibble · b13 = 0
+     b14 = checksum(0..13) · b15 = checksum(0..14)+1
+   Without a strobe the unit stages nothing. Still NEVER captured on a wire or sent to real equipment, and every unit
+   seen so far reports 2-set as unavailable — so it stays behind the armed debug tool. Do not wire it into normal Send. */
 function cmd5SetpointBytes(addr,coolC,heatC,opt){
   opt=opt||{};
   const b=new Array(16).fill(0);
-  b[0]=opt.marker!=null?opt.marker:0xA8;   // firmware constant (mvn #0x57)
-  b[1]=0x00;
-  b[2]=0xA0;
-  b[3]=addr;
-  b[4]=opt.cmd!=null?opt.cmd:0x10;          // cmd5 sub-id
-  // byte5 flags: bit0 = power on; keep any extra mode/lock bits the caller supplies
-  let flags=(opt.flags!=null?opt.flags:0)&0xff;
-  if(opt.on===false) flags&=~0x01; else flags|=0x01;
-  b[5]=flags&0xff;
-  // bytes 6-9 limits (cool lo/hi, heat lo/hi): (whole & 0x7F) | (half ? 0x80 : 0)
-  const lim=opt.limits||[coolC-2,coolC+2,heatC-2,heatC+2];
+  b[0]=opt.marker!=null?opt.marker:0xA8;b[1]=0x00;b[2]=0xA0;b[3]=addr;b[4]=opt.cmd!=null?opt.cmd:0x10;
+  b[5]=((opt.flags||0)&0x7E)|(opt.twoset?0x01:0)|(opt.commitLimits?0x80:0);
+  const L=opt.limits||{};const lim=[L.coolHi!=null?L.coolHi:37.5,L.coolLo!=null?L.coolLo:10,L.heatHi!=null?L.heatHi:32,L.heatLo!=null?L.heatLo:4];   // the ACP database defaults
   for(let k=0;k<4;k++){const v=lim[k]||0;const w=Math.max(0,Math.min(0x7f,Math.floor(v)));b[6+k]=(w&0x7f)|(((v-w)>=0.5)?0x80:0);}
   const c=tempParts(coolC),h=tempParts(heatC);
-  b[10]=c.i&0x7f; b[11]=h.i&0x7f; b[12]=((c.d&0xf)<<4)|(h.d&0xf);
-  b[13]=opt.reserved!=null?opt.reserved:0;  // reserved/mode
+  b[10]=(c.i&0x7f)|(opt.commitSetpoints===false?0:0x80);
+  b[11]=(h.i&0x7f)|(opt.occupied===false?0:0x80);
+  b[12]=((c.d&0xf)<<4)|(h.d&0xf);
+  b[13]=0;
   b[14]=lgapCk(b,14);                        // checksum over bytes 0..13
   b[15]=(lgapCk(b,15)+1)&0xff;               // checksum over bytes 0..14, +1
   return b; }
@@ -1149,14 +1157,14 @@ let bus={port:null,reader:null,scanning:false,proto:"lg",addrs:new Map(),log:[],
 /* byte5 LOW nibble = mode, HIGH nibble = fan — from controlled changes at the real CC
    on 2026-11-07 (A7 cool/low = 0x10, A6 heat/med = 0x24). The older "mode in high nibble"
    read was wrong: that nibble is fan. dry/fan mode codes are LG-convention guesses. */
-const BMODE={0:"cool",1:"dry?",2:"fan?",3:"auto",4:"heat"};
-const BFAN={1:"low",2:"med",3:"high"};
+const BMODE={0:"cool",1:"dry",2:"fan",3:"auto",4:"heat",7:"auto"};   // 7 = auto reported on its HEATING side (3 = cooling side) — same command
+const BFAN=FANCODE;
 function spTxt(d){return d.setF!=null?d.setF+"°F":"sp? b6="+hx(d.b6!=null?d.b6:0);}
 function validFrame(f){return f[2]===0xA0 && cksum(f)===f[7];}
 function frameType(f){
   if(f[0]===0x80&&f[1]===0x00)return "cmd";
   if(f[0]===0x84&&f[1]===0x00)return "cmd";
-  if(f[0]===0xA0&&f[1]===0x00)return "cmd4";     // cmd4 (0xA0): carries the wall-controller LOCKS in byte4 (live-decoded 2026-11-13)
+  if((f[0]===0xA0||f[0]===0xA4)&&f[1]===0x00)return "cmd4";     // cmd4 (0xA0): carries the wall-controller LOCKS in byte4 (live-decoded 2026-11-13)
   if(f[0]===0x80&&(f[1]===0xB0||f[1]===0xB2))return "poll";
   if((f[0]===0xF0||f[0]===0xC8)&&f[1]===0xC0)return "scan";
   return "other";}
@@ -1164,11 +1172,11 @@ function decodeFrame(f){
   const t=frameType(f),d={addr:f[3],type:t,hex:[...f].map(x=>x.toString(16).padStart(2,"0").toUpperCase()).join(" ")};
   if(t==="cmd"){d.power=(f[4]&0x01)?"on":"off";d.writing=!!(f[4]&0x02);
     d.change=!!(f[4]&0x02);d.remoteLock=!!(f[4]&0x04);d.locked=d.remoteLock;d.b0=f[0];d.b5=f[5];d.b6=f[6];  // cmd0 byte4 bit2 = remote-controller (hard) lock [kit §6.1, field-verified]; dimension locks are cmd4
-    d.mode=BMODE[f[5]&0x0f]||("m"+(f[5]&0x0f));d.fan=BFAN[f[5]>>4]||("f"+(f[5]>>4));
+    d.mode=BMODE[f[5]&0x07]||("m"+(f[5]&0x07));d.fan=BFAN[(f[5]>>4)&7]||("f"+((f[5]>>4)&7));d.swing=!!(f[5]&0x08);d.filterReset=!!(f[5]&0x80);
     d.setC=f[6]+15+((f[0]&0x04)?0.5:0);                       // b6 = °C-15; header bit2 = +0.5°C
     d.setF=SP_CONFIRMED?Math.round(d.setC*9/5+32):null;}
   else if(t==="cmd4"){                                          // byte4: bit0 power · bit1 temp-lock · bit2 fan-lock · bit3 mode-lock
-    d.power=(f[4]&0x01)?"on":"off";
+    d.addrLock=f[0]===0xA4;d.louver=f[4]>>4;                    // header bit2 = address lock · byte4 high nibble = louver direction (ACP firmware)
     d.tempLock=!!(f[4]&0x02);d.fanLock=!!(f[4]&0x04);d.modeLock=!!(f[4]&0x08);
     d.locked=d.tempLock||d.fanLock||d.modeLock;
     d.c4b4=f[4];d.c4b5=f[5];d.c4b6=f[6];}                      // b5/b6 = this unit's static cmd4 payload (replayed verbatim when we send locks)
@@ -1273,15 +1281,156 @@ function masterRecordAddr(p){
 // into the ACP's PARSED struct, not the wire. Cortex reads the wire, so we use the layout above.
 const tC=code=>Math.round((192-code)/3*10)/10;                // community temp table: C = (192-code)/3
 function parseReply(f){
-  const modeName=Object.keys(MODELO).find(k=>MODELO[k]===(f[6]&7))||("mode"+(f[6]&7));
-  const fanName=Object.keys(FANHI).find(k=>FANHI[k]===((f[6]>>4)&7))||("fan"+((f[6]>>4)&7));
+  const mraw=f[6]&7, modeName=mraw===7?"auto":(Object.keys(MODELO).find(k=>MODELO[k]===mraw)||("mode"+mraw));   // 7 = auto, heating side
+  const fanName=FANCODE[(f[6]>>4)&7]||("fan"+((f[6]>>4)&7));
   const set=15+(f[7]&0x0f)+((f[1]&0x80)?0.5:0);
   // a missing sensor reads as an absurd code (0x00 / 0xFF) — report "no reading" rather than 147°F
   const inR=(raw,lo,hi)=>{const v=tC(raw);return (raw!==0xFF&&isFinite(v)&&v>=lo&&v<=hi)?v:null;};   // 0xFF = sensor not fitted
   const err=f[5], room=inR(f[8],-10,50), pin=inR(f[9],-40,90), pout=inR(f[10],-40,90), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1, remoteLock=(f[1]&0x04)===0x04;  // reply byte1 bit2 = remote lock [kit §3.2]
   return {addr:f[4],mode:modeName,fan:fanName,modeRaw:f[6]&7,fanRaw:(f[6]>>4)&7,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,remoteLock,
+    swing:(f[6]&0x08)!==0,autoSide:mraw===7?"heat":(mraw===3?"cool":null),cap:f[13],utype:f[3],
     roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
     text:`${modeName} · fan ${fanName} · set ${set}°C · room ${room==null?"—":room+"°C"}${err?" · ERR "+err:""} · sys ${group}`};}
+/* ===== cmd4: wall-controller dimension locks + the setpoint-limit band =====
+   A0 00 A0 addr b4 b5 b6 ck · b4 = power|temp 0x02|fan 0x04|mode 0x08 · b5 = 0x80|(lower°C-15) · b6 = upper°C-15.
+   (LGAP reference kit ch.04 §6.2, field-verified; matches Cortex's own live decode of 2026-11-13.)
+   There is NO read-only cmd4 — every cmd4 overwrites the ODU's staged lock/limit bytes for that unit —
+   so Cortex only ever sends it as the sole bus master, never while a real LG central is on the line. */
+function bandLo(u){return u.c4b5!=null?((u.c4b5&0x0F)+15):15;}
+function bandHi(u){return u.c4b6!=null?((u.c4b6&0x0F)+15):30;}
+function bandKnown(u){return u.c4b5!=null&&u.c4b6!=null;}
+function cmd4BytesFor(addr,o){
+  const lo=Math.max(15,Math.min(30,o.limLo!=null?o.limLo:bandLo(o)));
+  const hi=Math.max(lo,Math.min(30,o.limHi!=null?o.limHi:bandHi(o)));
+  // byte4 bit0 is ALWAYS 1 in the ACP's own builder (FindAcCmd4SendData: "orr #1") — it is not the power bit.
+  // High nibble = louver direction (0 = leave); header 0xA4 instead of 0xA0 = "address lock" flag. Cortex sends neither.
+  const b4=0x01|(o.tempLock?0x02:0)|(o.fanLock?0x04:0)|(o.modeLock?0x08:0);
+  const b=[0xA0,0x00,0xA0,addr,b4,0x80|(lo-15),(hi-15)&0x0F,0];b[7]=cksum(b);return b;}
+/* The ODU answers every cmd4 with 9 bytes: 09 20 A0 type addr r5 r6 r7 ck (r5 = b4 with bit0 cleared,
+   r6 = b5 low 7 bits, r7 = b6). It is the ODU confirming what it STAGED for the unit — proof the lock
+   command landed, though not that the indoor unit has applied it yet (the ODU forwards it within ~1 s). */
+function handleCmd4Reply(f){
+  const addr=f[4],R=rt(addr);R.lockAck={b4:f[5],b5:f[6],b6:f[7],at:Date.now()};
+  const lk=[(f[5]&0x08)?"mode":"",(f[5]&0x04)?"fan":"",(f[5]&0x02)?"temp":""].filter(Boolean);
+  const d={addr,type:"lockack",hex:f.map(mhex).join(" "),label:`ODU staged locks: ${lk.join("+")||"none"} · limits ${(f[6]&0x0F)+15}–${(f[7]&0x0F)+15}°C`};
+  bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push(d.hex);if(bus.raw.length>8000)bus.raw.shift();bus.dirty=true;}
+/* A 16-byte indoor-unit reply heard on the wire while Cortex is only LISTENING (a real LG central is doing
+   the polling). Until v1.6.0-beta.6 these were ignored, so a passive Cortex showed the central's view of a
+   unit but never its real room temperature, error code or wall-thermostat changes. Master-mode polls
+   handle their own reply (MASTER.tap is set while one is in flight), so this never double-counts. */
+let passiveDirty=false;
+function handleReply16(f){
+  if(MASTER.tap)return;
+  const p=parseReply(f),R=rt(p.addr);R.seen=Date.now();R.miss=0;R.ok++;R.lastRx=f.map(mhex).join(" ");
+  const a=bus.addrs.get(p.addr)||{addr:p.addr,count:0,cmd:0,types:new Set()};
+  a.count++;a.types.add("reply");a.reply=p;a.seen=Date.now();bus.addrs.set(p.addr,a);
+  if(applyReplyToUnit(p))passiveDirty=true;
+  const d={addr:p.addr,type:"reply",hex:R.lastRx,label:p.text};
+  bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push(d.hex);if(bus.raw.length>8000)bus.raw.shift();bus.dirty=true;}
+setInterval(()=>{if(passiveDirty){passiveDirty=false;saveUnits();liveRefresh();}},3000);
+/* ===== Outdoor unit (ODU) pages — cmd14 =====
+   Request  F0 C0 A0 <odu> <page> 00 00 ck   (bytes 5-6 MUST stay 0: non-zero is an action/oil-return write;
+   address 0xFF is a broadcast to every ODU and is refused). Reply = 64 bytes: 40 70 A0 C0 <odu> <page> …
+   Page 0 = main unit, 2..4 = sub units, 5 = fault table. Sensor bytes are codes looked up in ODU_T
+   (R410A tables from the LGAP reference kit, Multi V IV family 0x0E; pressures are kPa gauge).
+   Heard passively whenever a real LG central polls its ODUs, or read on demand when Cortex is master. */
+const ODU_T={hp:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,49,82,114,147,180,212,245,278,310,343,376,408,441,474,507,539,572,605,637,670,703,735,768,801,833,866,899,931,964,997,1029,1062,1095,1127,1160,1193,1225,1258,1291,1324,1356,1389,1422,1454,1487,1520,1552,1585,1618,1650,1683,1716,1748,1781,1814,1846,1879,1912,1944,1977,2010,2042,2075,2108,2141,2173,2206,2239,2271,2304,2337,2369,2402,2435,2467,2500,2533,2565,2598,2631,2663,2696,2729,2761,2794,2827,2859,2892,2925,2958,2990,3023,3056,3088,3121,3154,3186,3219,3252,3284,3317,3350,3382,3415,3448,3480,3513,3546,3578,3611,3644,3676,3709,3742,3775,3807,3840,3873,3905,3938,3971,4003,4036,4069,4101,4134,4167,4199,4232,4265,4297,4330,4363,4395,4428,4461,4493,4526,4559,4592,4624,4657,4690,4722,4755,4788,4820,4853,4886,4918,4951,4984,5016,5049,5082,5114,5147,5180,5212,5245,5278,5310,5343,5376,5408,5441,5474,5507,5539,5572,5605,5637,5670,5703,5735,5768,5801,5833,5866,5899,5931,5964,5997,6029,6062,6095,6127,6160,6193,6225,6258,6291,6324,6356,6389,6422,6454,6487,6520,6552,6585,6618,6650,6683,6716,6748,6781,6814,6846,6879,6912,6944,6977,7010,7042,7075,7108,7141,7173,7206,7239,7271,7304,7337,7369,7402,7435,7467,7500],lp:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,20,33,46,59,72,85,98,111,124,137,150,163,176,190,203,216,229,242,255,268,281,294,307,320,333,346,359,373,386,399,412,425,438,451,464,477,490,503,516,529,542,556,569,582,595,608,621,634,647,660,673,686,699,712,725,739,752,765,778,791,804,817,830,843,856,869,882,895,908,922,935,948,961,974,987,1000,1013,1026,1039,1052,1065,1078,1092,1105,1118,1131,1144,1157,1170,1183,1196,1209,1222,1235,1248,1261,1275,1288,1301,1314,1327,1340,1353,1366,1379,1392,1405,1418,1431,1444,1458,1471,1484,1497,1510,1523,1536,1549,1562,1575,1588,1601,1614,1627,1641,1654,1667,1680,1693,1706,1719,1732,1745,1758,1771,1784,1797,1810,1824,1837,1850,1863,1876,1889,1902,1915,1928,1941,1954,1967,1980,1993,2007,2020,2033,2046,2059,2072,2085,2098,2111,2124,2137,2150,2163,2176,2190,2203,2216,2229,2242,2255,2268,2281,2294,2307,2320,2333,2346,2359,2373,2386,2399,2412,2425,2438,2451,2464,2477,2490,2503,2516,2529,2542,2556,2569,2582,2595,2608,2621,2634,2647,2660,2673,2686,2699,2712,2725,2739,2752,2765,2778,2791,2804,2817,2830,2843,2856,2869,2882,2895,2908,2922,2935,2948,2961,2974,2987,3000],cond:[-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-431,-390,-353,-321,-291,-264,-238,-215,-193,-172,-153,-134,-116,-99,-83,-68,-53,-38,-25,-11,2,15,27,39,50,62,73,83,94,104,114,124,133,143,152,161,170,179,187,195,204,212,220,228,235,243,250,258,265,272,279,286,293,300,307,313,320,326,333,339,345,351,357,363,369,375,381,387,392,398,404,409,414,420,425,431,436,441,446,451,456,461,466,471,476,481,486,490,495,500,504,509,513,518,522,527,531,536,540,544,549,553,557,561,565,569,574,578,582,586,590,593,597,601,605,609,613,617,620,624,628,631,635,639,642,646,649,653,656,660,663,667,670,673,677,680,683,687,690,693,696,700,703,706,709,712,715,718,721,724,727,730,733,736,739,741,744,747,749,752,755,757,759,762,764,766,768,770,771,773,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774],evap:[-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-474,-454,-435,-418,-401,-386,-371,-356,-343,-329,-317,-305,-293,-282,-271,-260,-250,-240,-230,-221,-212,-203,-194,-186,-177,-169,-161,-154,-146,-139,-131,-124,-117,-110,-104,-97,-90,-84,-78,-71,-65,-59,-53,-48,-42,-36,-31,-25,-20,-14,-9,-4,2,7,12,17,22,27,31,36,41,45,50,55,59,64,68,72,77,81,85,90,94,98,102,106,110,114,118,122,126,130,133,137,141,145,148,152,156,159,163,167,170,174,177,181,184,187,191,194,197,201,204,207,211,214,217,220,223,226,230,233,236,239,242,245,248,251,254,257,260,263,266,268,271,274,277,280,283,285,288,291,294,296,299,302,304,307,310,312,315,318,320,323,325,328,331,333,336,338,341,343,346,348,351,353,355,358,360,363,365,367,370,372,375,377,379,382,384,386,388,391,393,395,397,400,402,404,406,409,411,413,415,417,419,422,424,426,428,430,432,434,436,438,441,443,445,447,449,451,453,455,457,459,461,463,465,467,469,471,473,475,477,479,480,482,484,486,488,490,492,494,496,498,499,501,503,505,507],suct:[2000,1864,1520,1340,1221,1133,1064,1007,959,918,881,849,819,793,768,746,725,705,687,670,654,638,624,610,597,584,572,561,549,539,528,518,509,499,490,481,473,465,457,449,441,434,426,419,412,405,399,392,386,380,374,368,362,356,350,345,339,334,328,323,318,313,308,303,298,293,288,284,279,274,270,265,261,257,252,248,244,240,236,231,227,223,219,215,212,208,204,200,196,193,189,185,181,178,174,171,167,163,160,156,153,150,146,143,139,136,133,129,126,123,119,116,113,109,106,103,100,97,93,90,87,84,81,78,74,71,68,65,62,59,56,53,50,47,44,40,37,34,31,28,25,22,19,16,13,10,7,4,1,-2,-5,-8,-11,-14,-17,-21,-24,-27,-30,-33,-36,-39,-42,-45,-48,-51,-55,-58,-61,-64,-67,-70,-73,-77,-80,-83,-86,-90,-93,-96,-100,-103,-106,-110,-113,-116,-120,-123,-127,-130,-134,-137,-141,-144,-148,-152,-155,-159,-163,-171,-175,-179,-183,-187,-191,-195,-199,-203,-208,-212,-216,-221,-225,-230,-234,-239,-244,-248,-253,-258,-264,-269,-274,-280,-285,-291,-297,-303,-309,-315,-322,-328,-335,-342,-350,-358,-366,-374,-383,-392,-401,-411,-422,-434,-446,-459,-474,-489,-507,-527,-550,-577,-611,-658,-732,-1000],disch:[300,300,300,300,300,300,300,300,292,281,273,266,260,253,248,243,238,233,230,226,223,219,216,213,210,208,205,202,200,198,196,194,192,190,188,186,184,182,181,179,177,176,174,173,171,170,168,167,166,164,163,162,161,159,158,157,156,155,154,153,152,151,150,149,148,147,146,145,144,143,142,141,140,139,138,138,137,136,135,134,133,133,132,131,130,129,129,128,127,126,126,125,124,123,123,122,121,121,120,119,119,118,117,116,116,115,114,114,113,112,112,111,111,110,109,109,108,107,107,106,106,105,104,104,103,103,102,101,101,100,100,99,98,98,97,97,96,95,95,94,94,93,92,92,91,91,90,90,89,88,88,87,87,86,85,85,84,84,83,83,82,81,81,80,80,79,78,78,77,77,76,75,75,74,74,73,72,72,71,71,70,69,69,68,67,67,66,65,65,64,64,63,62,62,61,60,60,59,58,57,57,56,55,55,54,53,52,52,51,50,49,48,48,47,46,45,44,43,42,41,41,40,39,38,37,36,34,33,32,31,30,29,27,26,25,23,22,20,19,17,15,13,11,9,7,5,3,0,-1,-3,-5,-8,-10,-13,-16,-18],air:[2200,2144,1771,1578,1449,1355,1280,1219,1168,1123,1084,1049,1017,989,963,938,916,895,876,857,840,823,808,793,779,765,752,740,728,717,706,695,685,675,665,655,646,637,629,620,612,604,596,589,581,574,567,560,553,547,540,534,527,521,515,509,503,497,492,486,481,475,470,464,459,454,449,444,439,434,429,425,420,415,411,406,402,397,393,388,384,380,375,371,367,363,359,355,351,347,343,339,335,331,327,323,320,316,312,308,305,301,297,294,290,286,283,279,276,272,269,265,262,258,255,251,248,244,241,238,234,231,228,224,221,218,214,211,208,204,201,198,194,191,188,185,181,178,175,172,168,165,162,159,155,152,149,146,142,139,136,133,130,126,123,120,116,113,110,107,103,100,97,94,90,87,84,80,77,74,70,67,63,60,57,53,50,46,43,39,36,32,29,25,21,18,14,11,7,3,-1,-4,-8,-12,-16,-20,-24,-28,-32,-36,-40,-44,-48,-52,-56,-61,-65,-69,-74,-78,-83,-88,-92,-97,-102,-107,-112,-117,-122,-128,-133,-138,-144,-150,-156,-162,-168,-174,-181,-187,-194,-201,-209,-216,-224,-232,-240,-249,-258,-268,-278,-289,-300,-312,-325,-339,-354,-371,-389,-410,-435,-463,-499,-548,-626,-1000],pipe:[2200,2249,1847,1640,1503,1403,1324,1259,1204,1157,1116,1079,1046,1015,988,962,939,917,896,877,859,842,825,810,795,781,767,754,742,730,718,707,696,686,676,666,656,647,638,629,621,612,604,596,589,581,574,566,559,552,546,539,532,526,519,513,507,501,495,489,484,478,472,467,461,456,451,446,441,435,430,425,421,416,411,406,402,397,392,388,383,379,374,370,366,361,357,353,349,345,341,336,332,328,324,320,317,313,309,305,301,297,293,290,286,282,278,275,271,267,264,260,257,253,249,246,242,239,235,232,228,225,221,218,214,211,208,204,201,197,194,191,187,184,180,177,174,170,167,164,160,157,154,150,147,143,140,137,133,130,127,123,120,117,113,110,107,103,100,97,93,90,86,83,80,76,73,69,66,62,59,55,52,48,45,41,38,34,31,27,23,20,16,12,9,5,1,-2,-6,-10,-14,-18,-22,-26,-30,-34,-38,-42,-46,-50,-54,-58,-63,-67,-71,-76,-80,-85,-89,-94,-99,-103,-108,-113,-118,-123,-128,-133,-139,-144,-150,-155,-161,-167,-173,-179,-185,-192,-199,-205,-212,-220,-227,-235,-243,-251,-260,-269,-278,-288,-298,-309,-321,-333,-346,-360,-376,-393,-412,-433,-458,-487,-523,-573,-652,-1000]};
+const ODU=new Map();                                            // odu address -> {addr,pages:{replyPage:{f,at}},at}
+let oduDirty=false;
+function oduAddrs(){return (CFG&&Array.isArray(CFG.oduAddrs))?CFG.oduAddrs:[];}
+function oduRemember(a,on){if(!CFG)return;const s=new Set(oduAddrs());const had=s.has(a);if(on)s.add(a);else s.delete(a);
+  if(had!==s.has(a)){CFG.oduAddrs=[...s].sort((x,y)=>x-y);saveCfg(CFG);}}
+function oduStore(f){const addr=f[4];let o=ODU.get(addr);if(!o){o={addr,pages:{}};ODU.set(addr,o);}
+  o.pages[f[5]]={f:Array.from(f),at:Date.now()};o.at=Date.now();oduDirty=true;bus.dirty=true;
+  if(!oduAddrs().includes(addr))oduRemember(addr,true);}
+setInterval(()=>{if(oduDirty){oduDirty=false;if(view==="cycle"&&currentUser&&!(document.activeElement&&document.activeElement.id==="odu-addr"))renderCycle();}},2500);
+function decodeOduPage(f){
+  const T=ODU_T,s8=b=>b>127?b-256:b,t10=(tb,b)=>Math.round(tb[b])/10;
+  const d={addr:f[4],page:f[5],unit:f[5]<2?"main":("sub "+(f[5]-1)),product:({0:"heat pump",1:"cooling only",2:"heat recovery"})[f[6]&0x0F]||("class "+(f[6]&0x0F)),
+    family:f[7],fw:f[8]+"."+f[9],err:f[10],mode:(["stop","cool","heat","cool"])[f[15]&3],errUnit:((f[15]>>2)&3)+1,subs:f[15]>>5,
+    hpTarget:T.hp[f[11]],lpTarget:T.lp[f[12]],shTarget:f[13]/10,scTarget:f[14]/10,
+    inv1Target:f[16],inv1Hz:s8(f[17]),inv2Target:f[18],inv2Hz:s8(f[19]),fan1:f[20]*10,fan2:f[21]*10,
+    air:t10(T.air,f[22]),hp:T.hp[f[23]],lp:T.lp[f[24]],cond:t10(T.cond,f[23]),evap:t10(T.evap,f[24]),suct:t10(T.suct,f[25]),
+    disch1:T.disch[f[26]],disch2:T.disch[f[27]],liq:t10(T.pipe,f[28]),hex:t10(T.pipe,f[29]),scIn:t10(T.pipe,f[32]),scOut:t10(T.pipe,f[33]),
+    eev1:f[34]*8,eev2:f[35]*8,eevSc:f[36]*8,inv1A:f[40]/5,inv1V:f[41]*5,inv2A:f[42]/5,inv2V:f[43]*5,dc1:f[44]*5,dc2:f[45]*5,
+    idus:f[53],defrost:!!(f[58]&0x10),oilReturn:!!(f[58]&0x40),fourWay:!!(f[59]&0x80)};
+  d.running=!!(f[17]||f[19]);
+  d.sh=Math.round((d.suct-d.evap)*10)/10;d.sc=Math.round((d.cond-d.liq)*10)/10;
+  d.ratio=(d.lp+101)?Math.round((d.hp+101)/(d.lp+101)*100)/100:null;
+  if(d.disch1===-16)d.disch1=null;if(d.disch2===-16)d.disch2=null;   // -16 = sensor not fitted
+  return d;}
+function oduUnits(o){const p0=o.pages[0];if(!p0)return [];const m=decodeOduPage(p0.f);const out=[m];
+  for(let p=2;p<m.subs+2&&p<=4;p++){if(o.pages[p])out.push(decodeOduPage(o.pages[p].f));}return out;}
+function findOduPage(rx,addr){for(let i=0;i+64<=rx.length;i++){if(rx[i]===0x40&&rx[i+1]===0x70&&rx[i+2]===0xA0&&rx[i+4]===addr){const f=rx.slice(i,i+64);if(lgapCk(f,63)===f[63])return f;}}return null;}
+// One cmd14 page read. Read-only form only (bytes 5-6 zero, single ODU address).
+async function masterOduPage(addr,page,timeout){
+  if(addr===0xFF||addr<0||addr>0xFE){mlog("⚠ refusing ODU address "+hx(addr&0xFF));return null;}
+  if(!bus.port||!bus.port.writable)return null;
+  MASTER.inPoll=true;
+  try{const rx=[];let hit=null,wake=null;
+    MASTER.tap=(bytes)=>{for(const x of bytes)rx.push(x);if(!hit&&rx.length>=64){hit=findOduPage(rx,addr);if(hit&&wake)wake();}};
+    const q=[0xF0,0xC0,0xA0,addr,page&0xFF,0x00,0x00];q.push(lgapCk(q,7));
+    mlog("TX ODU "+hx(addr)+" page "+page+"  "+q.map(mhex).join(" "));masterWrite(q);
+    await new Promise(r=>{wake=r;later(r,MASTER.turnaround+(timeout||MASTER.timeout));});
+    MASTER.tap=null;
+    if(hit){mlog("RX ODU "+hx(addr)+" page "+hit[5]+" ("+hit.length+" bytes)");await sleep(Math.max(MASTER.turnaround,300));}
+    return hit;
+  }finally{MASTER.inPoll=false;MASTER.tap=null;}}
+// Main page, then each sub unit the main reports, then the fault page — the same set a real central reads.
+async function masterOduRead(addr){
+  const p0=await masterOduPage(addr,0);if(!p0)return 0;let n=1;
+  const subs=Math.min(3,p0[15]>>5);
+  for(let p=2;p<subs+2;p++){await sleep(700);if(await masterOduPage(addr,p))n++;}
+  await sleep(700);if(await masterOduPage(addr,5))n++;
+  return n;}
+let oduBusy=false;
+async function oduReadClick(){
+  const el=document.getElementById("odu-addr");const a=parseInt(((el&&el.value)||"").trim().replace(/^0x/i,""),16);
+  if(!Number.isFinite(a)||a<0||a>0xFE){toast("Enter the outdoor unit's central address in hex (00–FE)");return;}
+  if(!isMaster()){toast("Reading an outdoor unit needs Cortex to be the bus master");return;}
+  if(oduBusy)return;oduBusy=true;toast("Reading outdoor unit "+hx(a)+"…");
+  try{const n=await busExclusive(()=>masterOduRead(a));
+    toast(n?("Outdoor unit "+hx(a)+" answered ("+n+" page"+(n!==1?"s":"")+")"):("No answer from "+hx(a)+" — is that the ODU's central-control address?"));}
+  finally{oduBusy=false;if(view==="cycle")renderCycle();}}
+async function oduFindClick(){
+  if(!isMaster()){toast("Finding outdoor units needs Cortex to be the bus master");return;}
+  if(oduBusy)return;oduBusy=true;let found=0;toast("Searching addresses 00–FE for outdoor units (about 2 minutes)…");
+  try{for(let a=0;a<=0xFE&&isMaster();a++){
+      const f=await busExclusive(()=>masterOduPage(a,0,350));
+      if(f){found++;mlog("  ✓ outdoor unit at "+hx(a));}}
+    toast(found?("Found "+found+" outdoor unit"+(found!==1?"s":"")):"No outdoor unit answered");}
+  finally{oduBusy=false;if(view==="cycle")renderCycle();}}
+function oduSection(){
+  const F=settings.unit!=="C";
+  const tt=c=>(c==null||!isFinite(c))?"—":(F?Math.round(c*9/5+32):Math.round(c*10)/10)+"°";
+  const dt=k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*9/5*10)/10:k)+"°";            // a temperature DIFFERENCE (superheat/subcool)
+  const pr=k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*0.145038)+" psi":k+" kPa");
+  const list=[...ODU.values()].sort((a,b)=>a.addr-b.addr);
+  const tables=list.map(o=>{const us=oduUnits(o);if(!us.length)return "";const m=us[0];
+    const rows=[["High pressure",u=>pr(u.hp)],["Low pressure",u=>pr(u.lp)],["Condensing temp",u=>tt(u.cond)],["Evaporating temp",u=>tt(u.evap)],
+      ["Suction temp",u=>tt(u.suct)],["Superheat",u=>dt(u.sh)],["Liquid pipe temp",u=>tt(u.liq)],["Subcooling",u=>dt(u.sc)],
+      ["Discharge temp 1 / 2",u=>tt(u.disch1)+" / "+tt(u.disch2)],["Outdoor air",u=>tt(u.air)],
+      ["Compressor 1 (target → actual)",u=>u.inv1Target+" → "+u.inv1Hz+" Hz"],["Compressor 2 (target → actual)",u=>u.inv2Target+" → "+u.inv2Hz+" Hz"],
+      ["Fan 1 / 2",u=>u.fan1+" / "+u.fan2],["EEV main 1 / main 2 / subcool",u=>u.eev1+" / "+u.eev2+" / "+u.eevSc+" pls"],
+      ["Compression ratio",u=>u.ratio==null?"—":u.ratio],["Inverter 1 input",u=>u.inv1V+" V · "+u.inv1A+" A"],["DC link 1 / 2",u=>u.dc1+" / "+u.dc2+" V"],
+      ["Defrost · oil return · 4-way",u=>(u.defrost?"defrost":"—")+" · "+(u.oilReturn?"oil return":"—")+" · "+(u.fourWay?"heat":"cool")],
+      ["Firmware",u=>u.fw]];
+    const flt=o.pages[5]&&o.pages[5].f.slice(8,38).some(x=>x);
+    return `<div style="border:1px solid var(--border);border-radius:12px;margin-top:12px;overflow:auto">
+      <div style="padding:10px 12px;background:var(--surface-2);font-size:13px"><b>Outdoor unit ${hx(o.addr)}</b> · ${ue(m.product)} · ${m.mode} · ${m.idus} indoor unit${m.idus!==1?"s":""} ·
+        ${m.err?`<span style="color:var(--err)">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span style="color:var(--ok)">no error</span>'}${flt?' · <span style="color:var(--warn)">fault table has entries</span>':''}
+        <span style="color:var(--text-faint);float:right">${ago(o.at)}</span></div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
+        <th style="padding:7px 8px"></th>${us.map(u=>`<th style="padding:7px 8px">${ue(u.unit)}${u.running?' · running':' · idle'}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map(r=>`<tr style="border-top:1px solid var(--border)"><td style="padding:6px 8px;color:var(--text-dim)">${r[0]}</td>${us.map(u=>`<td class="mono" style="padding:6px 8px">${r[1](u)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;}).join("");
+  const ctl=isMaster()?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <input class="inp" id="odu-addr" placeholder="ODU address (hex)" style="width:150px;margin:0" maxlength="4">
+      <button class="btn" id="odu-read">Read outdoor unit</button><button class="btn" id="odu-find">Find outdoor units</button>
+      ${oduAddrs().length?`<span style="font-size:12px;color:var(--text-dim)">known: ${oduAddrs().map(a=>hx(a)).join(", ")} · refreshed about once a minute</span>`:""}</div>`
+    :`<div style="font-size:12px;color:var(--text-faint);margin-top:8px">${liveTx()?"Fills in by itself as the LG central polls its outdoor units (every few minutes).":"Connect to the bus to see outdoor-unit data."}</div>`;
+  return `<div style="margin-top:22px"><div style="font-weight:600">Outdoor units <span style="color:#6fe3c6;font-size:12px;font-weight:400">beta</span></div>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:3px">Pressures, temperatures and compressor data from the outdoor unit's monitor pages (Multi V IV tables — treat values on other families as approximate).</div>
+    ${ctl}${tables||(list.length?"":'<div style="font-size:13px;color:var(--text-faint);margin-top:10px">No outdoor-unit data received yet.</div>')}</div>`;}
 // Stop whatever is currently driving the bus (a sweep or the poll loop) and wait for the in-flight
 // poll to drain, so the next action starts clean. The bumped seq makes any still-running old loop
 // exit and refuse to write results. There is only ever ONE master on the wire.
@@ -1338,6 +1487,9 @@ async function masterLoopRun(opts){
     else if(Date.now()-lastUnitsPushAt>30000)queueUnitsPush();  // nothing changed for a while: still refresh "last heard" for the other screens and the trend log
     // 2) commands sent from OTHER screens (they are not connected to the equipment — this one is)
     await relayDrain(myseq);
+    // 2b) outdoor units we know about: re-read their monitor pages about once a minute (read-only cmd14)
+    if(mine()&&oduAddrs().length&&Date.now()-(MASTER.oduAt||0)>60000){MASTER.oduAt=Date.now();
+      for(const oa of oduAddrs()){while(MASTER.hold>0&&mine())await sleep(25);if(!mine())break;await masterOduRead(oa);await pause();}}
     // 3) background re-discovery: probe a few UNKNOWN addresses each cycle so a unit added later
     //    (e.g. after a remodel) is found on its own — no full re-scan needed.
     if(MASTER.rediscover&&mine()){
@@ -1370,7 +1522,7 @@ async function relayDrain(myseq){
   const list=[];
   for(const c of cmds){const u=units.find(x=>x.addr===c.addr);if(!u||!c.state)continue;
     holdUnits([u]);
-    ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock"].forEach(k=>{if(c.state[k]!==undefined)u[k]=c.state[k];});
+    ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","c4b5","c4b6"].forEach(k=>{if(c.state[k]!==undefined&&c.state[k]!==null)u[k]=c.state[k];});
     u.coolC=clampC(u.coolC);u.heatC=clampC(u.heatC);u.sp=Math.round(activeC(u)*9/5+32);
     mlog("⇢ command from another screen → "+hx(u.addr));list.push(u);}
   if(!list.length||MASTER.seq!==myseq)return;
@@ -1417,15 +1569,16 @@ function masterGuided(){
 }
 // Copy a decoded reply onto the matching saved unit (live state). Room/pipe temps are stored in °F
 // (the display layer assumes °F); the reply decodes them in °C, so convert here.
-function liveSig(u){return [u.on,u.mode,u.fan,u.coolC,u.heatC,u.room,u.err,u.code,!!u.offline,u.pipeIn,u.pipeOut].join("|");}
+function liveSig(u){return [u.on,u.mode,u.fan,u.coolC,u.heatC,u.room,u.err,u.code,!!u.offline,u.pipeIn,u.pipeOut,!!u.swing,!!u.hardLock,u.autoSide].join("|");}
 let drawerStale=false;
 function applyReplyToUnit(p){if(!p)return false;const u=units.find(x=>x.addr===p.addr);if(!u)return false;
   const R=rt(p.addr),before=liveSig(u),wasClean=(openId===u.id&&pend)?!pendDirty(u):false;
   if(Date.now()>=R.hold){                                      // right after a command, ignore control fields until the unit has caught up
     u.mode=p.mode;u.on=!!p.on;
-    u.fan=(FANHI[p.fan]!=null)?p.fan:"auto";u.fanRaw=p.fanRaw;  // a code that isn't low/med/high shows as Auto and is re-sent unchanged
+    u.fan=FANCODE[p.fanRaw]||"auto";u.fanRaw=p.fanRaw;          // quiet/power show by name and are re-sent unchanged (fanRaw)
+    u.swing=!!p.swing;                                          // reply byte6 bit3 — so a Send no longer silently turns swing off
     if(p.settemp!=null){u.coolC=p.settemp;u.heatC=p.settemp;}
-    if(p.modeRaw!=null&&p.fanRaw!=null)u.d5=(p.fanRaw<<4)|p.modeRaw;
+    if(p.modeRaw!=null&&p.fanRaw!=null)u.d5=(p.fanRaw<<4)|(p.swing?0x08:0)|p.modeRaw;
     if(p.remoteLock!=null)u.hardLock=!!p.remoteLock;}                      // hard lock set at the wall/ACP reflects here
   u.room=(p.room!=null)?Math.round(p.room*9/5+32):null;
   if(p.pipeIn!=null)u.pipeIn=Math.round(p.pipeIn*9/5+32);
@@ -1433,6 +1586,7 @@ function applyReplyToUnit(p){if(!p)return false;const u=units.find(x=>x.addr===p
   const oldCode=u.err?u.code:null;
   u.err=!!p.err;u.code=p.err?("CH"+p.err):null;
   if(u.code!==oldCode)logErr(u,oldCode);
+  u.eev=p.eev;u.capK=p.cap;u.sysLoad=p.group;u.autoSide=p.autoSide;   // EEV pulses, capacity (kBtu/h), system-load byte, which side Auto is working on
   u.offline=false;u.seen=Date.now();
   if(wasClean&&pend)Object.assign(pend,snap(u));               // nothing staged in the open drawer → it follows the live unit (same object: the drawer's buttons hold a reference to it)
   const ch=liveSig(u)!==before;if(ch&&openId===u.id)drawerStale=true;return ch;}
@@ -1450,7 +1604,7 @@ function liveRefresh(force){
   if(!currentUser)return;
   if(view==="units"){if(document.getElementById("listwrap")){renderBody();updateTiles();fillLiveBanner();}else renderAll();}
   else if(view==="map"){if(!mapEdit)renderMap();}
-  else if(view==="cycle")renderCycle();
+  else if(view==="cycle"){if(!(document.activeElement&&document.activeElement.id==="odu-addr"))renderCycle();}   // don't repaint under someone typing an ODU address
   else if(force&&view!=="busscan"&&!mroot.innerHTML)renderAll();
   updateBell();
   if(openId!=null&&drawerStale){drawerStale=false;const u=units.find(x=>x.id===openId);
@@ -1483,8 +1637,17 @@ function ingestBytes(bytes){
     for(const x of bytes)bus.hexdump.push(x.toString(16).padStart(2,"0").toUpperCase());
     if(bus.hexdump.length>40000)bus.hexdump=bus.hexdump.slice(-16000);
     const b=new Uint8Array(bus.buf.length+bytes.length);b.set(bus.buf);b.set(bytes,bus.buf.length);
-    let i=0;while(i+8<=b.length){const f=b.subarray(i,i+8);if(validFrame(f)){handleDecoded(decodeFrame(f));i+=8;}else i++;}
-    bus.buf=b.slice(i);if(bus.buf.length>512)bus.buf=bus.buf.slice(-16);
+    // Frames have no delimiters — the checksum is what finds them. Replies are tried first by their fixed
+    // header (16-byte IDU status 10 xx A0, 9-byte cmd4 reply 09 20 A0, 64-byte ODU page 40 70 A0), then the
+    // 8-byte master frame. A header that matches but is not complete yet waits for the rest of its bytes.
+    let i=0;
+    while(i+8<=b.length){
+      const h0=b[i],h1=b[i+1],h2=b[i+2];
+      if(h2===0xA0&&h0===0x10){if(i+16>b.length)break;const f=b.subarray(i,i+16);if(lgapCk(f,15)===f[15]){handleReply16(Array.from(f));i+=16;continue;}}
+      else if(h2===0xA0&&h0===0x09&&h1===0x20){if(i+9>b.length)break;const f=b.subarray(i,i+9);if(lgapCk(f,8)===f[8]){handleCmd4Reply(Array.from(f));i+=9;continue;}}
+      else if(h2===0xA0&&h0===0x40&&h1===0x70){if(i+64>b.length)break;const f=b.subarray(i,i+64);if(lgapCk(f,63)===f[63]){oduStore(f);i+=64;continue;}}
+      const f=b.subarray(i,i+8);if(validFrame(f)){handleDecoded(decodeFrame(f));i+=8;}else i++;}
+    bus.buf=b.slice(i);if(bus.buf.length>512)bus.buf=bus.buf.slice(-80);
   }else{ // capture mode: no verified decoder yet for this protocol — buffer raw bytes
     for(const x of bytes)bus.hexdump.push(x.toString(16).padStart(2,"0").toUpperCase());
     if(bus.hexdump.length>20000)bus.hexdump=bus.hexdump.slice(-8000);
@@ -1493,7 +1656,7 @@ function ingestBytes(bytes){
 function handleDecoded(d){
   const a=bus.addrs.get(d.addr)||{addr:d.addr,count:0,cmd:0,types:new Set()};
   a.count++;if(d.type==="cmd")a.cmd++;a.types.add(d.type);a.last=d;a.seen=Date.now();bus.addrs.set(d.addr,a);
-  if(d.type==="cmd"){const u=units.find(x=>x.addr===d.addr);if(u){u.d5=d.b5;u.d6=d.b6;u.b0=d.b0;}} // keep last-seen bytes for safe re-send
+  if(d.type==="cmd"){const u=units.find(x=>x.addr===d.addr);if(u){u.d5=d.b5&0x7F;u.d6=d.b6;u.b0=d.b0;}} // keep last-seen bytes for safe re-send (never the filter-reset bit)
   if(d.type==="cmd4"){const u=units.find(x=>x.addr===d.addr);if(u){
     u.c4b5=d.c4b5;u.c4b6=d.c4b6;                               // learn this unit's cmd4 template — required to send locks safely (never blind)
     if(rt(u.addr).hold<=Date.now()){u.tempLock=d.tempLock;u.fanLock=d.fanLock;u.modeLock=d.modeLock;}  // reflect locks changed at the wall/ACP
@@ -1629,11 +1792,8 @@ async function txUnitRaw(u){
   // (lower=(b5&0x0F)+15, upper=b6+15, b5 bit7 always set) [kit §6.2]. Use each unit's learned band when we've
   // seen the ACP set it; otherwise default to the full 15–30°C range (no restriction). Cortex transmits only
   // as the sole bus master (no ACP present to clobber), so it is authoritative — safe to assert locks + band.
-  const haveBand=(u.c4b5!=null&&u.c4b6!=null);
-  const b5c4=haveBand?u.c4b5:0x80, b6c4=haveBand?u.c4b6:0x0F;   // default band 15–30°C: b5=0x80 (lower 15, bit7 set), b6=0x0F (upper 30)
-  const b4c4=(u.on?0x01:0)|(u.tempLock?0x02:0)|(u.fanLock?0x04:0)|(u.modeLock?0x08:0);
-  const lock=[0xA0,0x00,0xA0,u.addr,b4c4,b5c4,b6c4,0];lock[7]=cksum(lock);   // always sent, so a stale lock can be CLEARED (b4 dimension bits 0)
-  if(!haveBand&&u.tempLock)mlog("ℹ "+hx(u.addr)+": temp lock using default 15–30°C band (no learned band yet)");
+  const lock=cmd4BytesFor(u.addr,u);                           // always sent, so a stale lock can be CLEARED (b4 dimension bits 0)
+  if(!bandKnown(u)&&u.tempLock)mlog("ℹ "+hx(u.addr)+": temp lock using the default 15–30°C limits (set them in the unit's Locks section)");
   const R=rt(u.addr);R.hold=Date.now()+8000;R.lastTx=toHexBytes(basic);R.txAt=Date.now();
   const w=bus.port.writable.getWriter();
   try{
@@ -1664,7 +1824,7 @@ async function sendUnits(list){
   if(relayOk()){let n=0;
     for(const u of list){try{
       const r=await fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock}})});
+        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock,c4b5:u.c4b5,c4b6:u.c4b6}})});
       if(r.ok){const j=await r.json();SRV.masterAlive=!!j.masterAlive;if(j.masterAlive){rt(u.addr).hold=Date.now()+12000;n++;}}
     }catch(e){}}
     return n;}
@@ -1706,11 +1866,11 @@ async function busSend(){
    never used for probing and never auto-sent — only here, behind the armed two-step confirm. For
    normal control use the cmd0 path (power/mode/fan/setpoint in one 8-byte frame). cmd5 is only for
    the dual cool/heat (2-point) case + 0.5° precision; watch the reply to verify what the unit took. ===== */
-let tx5={addr:null,dual:false,coolC:24,heatC:20,single:24,cmdId:0x10,flags:0x01,repeat:5,armed:false};
+let tx5={addr:null,dual:false,coolC:24,heatC:20,single:24,cmdId:0x10,flags:0x00,repeat:5,armed:false};
 function tx5Bytes(){
   const addr=tx5.addr==null?0:tx5.addr;
   const cool=tx5.dual?tx5.coolC:tx5.single, heat=tx5.dual?tx5.heatC:tx5.single;
-  return cmd5SetpointBytes(addr,cool,heat,{cmd:tx5.cmdId&0xff,flags:tx5.flags&0xff,on:true});}
+  return cmd5SetpointBytes(addr,cool,heat,{cmd:tx5.cmdId&0xff,flags:tx5.flags&0xff,twoset:!!tx5.dual});}
 async function busSend5(){
   if(!session.tech){toast("Tech mode only");return;}
   if(tx5.addr==null){toast("Pick a target address first");return;}
@@ -1832,6 +1992,7 @@ function busLogRow(d){
   let ds,tag=d.type;
   if(d.type==="cmd"){ds=`${d.change?"<b>CHANGE</b> · ":""}${d.power} · ${d.mode} · fan ${d.fan}${d.remoteLock?" · 🔒hard":""}`;tag=d.change?"command":"state";}
   else if(d.type==="cmd4"){const lk=[d.modeLock?"mode":"",d.fanLock?"fan":"",d.tempLock?"temp":""].filter(Boolean);ds=`locks: ${lk.length?"🔒 "+lk.join("+"):"🔓 none"}`;tag="lock";}
+  else if(d.type==="reply"||d.type==="lockack"){ds=ue(d.label);tag=d.type==="reply"?"unit reply":"lock ack";}
   else if(isTx){ds=`TX → ${d.label!=null?d.label:`${d.power} · ${d.mode}${d.setF!=null?" · "+d.setF+"°":""}`}`;tag="sent";}
   else{ds=d.type;tag=d.type;}
   return `<div class="fr ${isTx?"tx":""}"><span class="ad">${hx(d.addr)}</span><span class="hx mono">${d.hex}</span><span class="ds">${ds}</span><span class="tag">${tag}</span></div>`;}
@@ -2007,9 +2168,11 @@ function renderCycle(){renderGroupNav();
     <td class="mono" style="padding:7px 8px">${t(u.room)}</td>
     <td class="mono" style="padding:7px 8px">${t(u.pipeIn)}</td>
     <td class="mono" style="padding:7px 8px">${t(u.pipeOut)}</td>
+    <td class="mono" style="padding:7px 8px">${u.eev!=null?u.eev:"—"}</td>
+    <td class="mono" style="padding:7px 8px">${u.capK?u.capK+"k":"—"}</td>
     <td style="padding:7px 8px;color:var(--text-dim);font-size:12px">${u.seen?ago(u.seen):"not yet"}</td></tr>`;};
   const live=liveState()==="live";
-  main.innerHTML=`<div class="cyc-note">⚙ Technician view · what each indoor unit reports in its 16-byte reply: room temperature, refrigerant pipe-in / pipe-out temperatures and error code (°${settings.unit}). ${live?"Updating live.":"<b>Not live right now</b> — these are the last readings received."} Outdoor-unit pressures and compressor data are not on this bus.</div>
+  main.innerHTML=`<div class="cyc-note">⚙ Technician view · what each indoor unit reports in its 16-byte reply: room temperature, refrigerant pipe-in / pipe-out temperatures and error code (°${settings.unit}). ${live?"Updating live.":"<b>Not live right now</b> — these are the last readings received."} Outdoor-unit pressures and compressor data are in the Outdoor units section below.</div>
     <div class="gauges"><div class="gauge"><div class="gv mono">${units.filter(u=>u.on).length}<small> on</small></div><div class="gl">Units running</div></div>
       <div class="gauge"><div class="gv mono">${units.filter(u=>u.err).length}<small> err</small></div><div class="gl">Reporting an error</div></div>
       <div class="gauge"><div class="gv mono">${units.filter(u=>u.offline).length}<small> silent</small></div><div class="gl">Not responding</div></div>
@@ -2017,10 +2180,13 @@ function renderCycle(){renderGroupNav();
     <div style="overflow:auto;border:1px solid var(--border);border-radius:12px;margin-top:14px">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:var(--surface-2);text-align:left;color:var(--text-dim);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px">
-        <th style="padding:8px">Unit</th><th style="padding:8px">Addr</th><th style="padding:8px">Err</th><th style="padding:8px">Room</th><th style="padding:8px">Pipe in</th><th style="padding:8px">Pipe out</th><th style="padding:8px">Last heard</th></tr></thead>
-      <tbody>${us.map(row).join("")||'<tr><td colspan="7" style="padding:16px;color:var(--text-faint)">No units yet.</td></tr>'}</tbody></table></div>
-    <button class="btn" id="odutrend" style="width:100%;justify-content:center;margin-top:14px">📈 Pipe-out temperature trend (first 10 units)</button>`;
-  const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(us.map(u=>u.id).slice(0,10),{odu:true});}
+        <th style="padding:8px">Unit</th><th style="padding:8px">Addr</th><th style="padding:8px">Err</th><th style="padding:8px">Room</th><th style="padding:8px">Pipe in</th><th style="padding:8px">Pipe out</th><th style="padding:8px" title="Indoor expansion valve position, pulses (about 40 = closed)">EEV</th><th style="padding:8px" title="Unit capacity, kBtu/h">Cap</th><th style="padding:8px">Last heard</th></tr></thead>
+      <tbody>${us.map(row).join("")||'<tr><td colspan="9" style="padding:16px;color:var(--text-faint)">No units yet.</td></tr>'}</tbody></table></div>
+    <button class="btn" id="odutrend" style="width:100%;justify-content:center;margin-top:14px">📈 Pipe-out temperature trend (first 10 units)</button>
+    ${oduSection()}`;
+  const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(us.map(u=>u.id).slice(0,10),{odu:true});
+  const orr=document.getElementById("odu-read");if(orr)orr.onclick=oduReadClick;
+  const off=document.getElementById("odu-find");if(off)off.onclick=oduFindClick;}
 /* ---- schedules ---- */
 const DAYS=["Su","Mo","Tu","We","Th","Fr","Sa"];
 function schedules(){if(CFG&&!CFG.schedules)CFG.schedules=[];return (CFG&&CFG.schedules)||[];}
@@ -2249,9 +2415,9 @@ function renderAll(){
 const drawer=document.getElementById("drawer"),scrim=document.getElementById("scrim");
 let openId=null;
 let pend=null; // staged (not-yet-sent) command for the open unit
-function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,hardLock:u.hardLock,d5:u.d5,d6:u.d6,b0:u.b0};}
+function snap(u){return {on:u.on,mode:u.mode,fan:u.fan,swing:u.swing,sp:u.sp,coolC:u.coolC,heatC:u.heatC,twoset:u.twoset,modeLock:u.modeLock,fanLock:u.fanLock,tempLock:u.tempLock,hardLock:u.hardLock,limLo:bandLo(u),limHi:bandHi(u),d5:u.d5,d6:u.d6,b0:u.b0,fanRaw:u.fanRaw};}
 function openDrawer(id){openId=id;const u=units.find(x=>x.id===id);pend=snap(u);drawDrawer(u);drawer.classList.add("show");scrim.classList.add("show");}
-function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock||pend.hardLock!==u.hardLock);}
+function pendDirty(u){return pend&&(pend.on!==u.on||pend.mode!==u.mode||pend.fan!==u.fan||pend.swing!==u.swing||pend.coolC!==u.coolC||pend.heatC!==u.heatC||pend.twoset!==u.twoset||pend.modeLock!==u.modeLock||pend.fanLock!==u.fanLock||pend.tempLock!==u.tempLock||pend.hardLock!==u.hardLock||pend.limLo!==bandLo(u)||pend.limHi!==bandHi(u));}
 function closeDrawer(){openId=null;drawerRenderedId=null;drawer.classList.remove("show");scrim.classList.remove("show");
   const fx=document.getElementById("fxlayer");if(fx)fx.innerHTML="";}
 scrim.onclick=closeDrawer;
@@ -2300,8 +2466,14 @@ function drawDrawer(u){
         <div class="dsrow"><div class="dslbl" style="color:var(--cool)">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
         <div class="dsrow"><div class="dslbl" style="color:var(--heat)">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
-    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
+    <div class="field"><div class="lbl">Locks ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||p.limLo!==bandLo(u)||p.limHi!==bandHi(u)||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button><button class="opt ${p.hardLock?'sel':''}" id="lk-hard" ${dis}>${p.hardLock?'🔒':'🔓'} Hard</button></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--text-dim)">Setpoint limits
+        <select class="sel-box" id="lim-lo" ${dis} style="width:auto;margin:0">${Array.from({length:16},(_,k)=>k+15).map(c=>`<option value="${c}" ${p.limLo===c?"selected":""}>${spDisp(c)}°</option>`).join("")}</select> to
+        <select class="sel-box" id="lim-hi" ${dis} style="width:auto;margin:0">${Array.from({length:16},(_,k)=>k+15).map(c=>`<option value="${c}" ${p.limHi===c?"selected":""}>${spDisp(c)}°</option>`).join("")}</select>
+        <span style="color:var(--text-faint)">the range the wall thermostat may use while Temp lock is on</span></div>
+      ${(()=>{const A=rt(u.addr).lockAck;if(!A)return "";const want=(u.tempLock?2:0)|(u.fanLock?4:0)|(u.modeLock?8:0),ok=(A.b4&0x0E)===want;
+        return `<div style="font-size:11.5px;margin-top:6px;color:${ok?'var(--ok)':'var(--warn)'}">${ok?"✓ Outdoor unit confirmed these locks":"Outdoor unit last confirmed different locks"} · ${ago(A.at)}</div>`;})()}
       <div style="font-size:11px;color:var(--text-faint);margin-top:6px">Mode/Fan/Temp lock those dimensions; Hard lock locks the whole wall controller.${!locked?` · <span class="linklike" id="two-toggle">${p.twoset?'Use single setpoint':'Separate cool + heat'}</span>${p.mode==="auto"&&!p.twoset?' <span style="color:var(--text-faint)">· auto uses one setpoint on Multi V</span>':''}`:''}</div></div>
     <div class="field">
       <button class="btn ${live&&isTech?'danger live':'primary'}" id="sendcmd" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${locked?';opacity:.5':''}" ${locked?'disabled':''}>${sendTxt}</button>
@@ -2319,10 +2491,13 @@ function drawDrawer(u){
     <div class="field"><div class="lbl">Command preview (what Send puts on the bus)</div><div class="frame-box">
       <div class="k">basic · ${p.on?"on":"off"} · ${p.mode} · ${p.fan} fan${p.swing?" · swing":""}</div>
       <div class="hex mono">${cmdFrameFor(u.addr,p)}</div>
+      <div class="k" style="margin-top:7px">cmd4 locks · ${[p.modeLock?"mode":"",p.fanLock?"fan":"",p.tempLock?"temp":""].filter(Boolean).join("+")||"none"} · limits ${p.limLo}–${p.limHi}°C (sent after the basic frame)</div>
+      <div class="hex mono">${toHexBytes(cmd4BytesFor(u.addr,p))}</div>
       <div class="k" style="margin-top:7px">cmd5 setpoint · cool ${spDisp(p.coolC)}° / heat ${spDisp(p.heatC)}°</div>
-      <div class="hex mono">${toHexBytes(cmd5SetpointBytes(u.addr,p.coolC,p.heatC,{on:p.on}))}</div></div></div>
+      <div class="hex mono">${toHexBytes(cmd5SetpointBytes(u.addr,p.coolC,p.heatC,{twoset:!!p.twoset}))}</div></div></div>
     <div class="field"><div class="lbl">Live sensors · from the unit's 16-byte reply</div><div class="frame-box" style="line-height:1.9">
       room <b class="mono">${temp(u.room)}</b> · setpoint <b class="mono">${u.on||u.seen?spDisp(activeC(u))+"°"+settings.unit:"--"}</b> · pipe-in <b class="mono">${u.seen?temp(u.pipeIn):"--"}</b> · pipe-out <b class="mono">${u.seen?temp(u.pipeOut):"--"}</b><br>
+      expansion valve <b class="mono">${u.eev!=null?u.eev+" pls":"--"}</b> · capacity <b class="mono">${u.capK?u.capK+" kBtu/h":"--"}</b>${u.mode==="auto"&&u.autoSide?` · auto is on its <b>${u.autoSide==="heat"?"heating":"cooling"}</b> side`:""}${u.swing?" · swing on":""}<br>
       error <b class="mono" style="color:${u.err?'var(--err)':'var(--ok)'}">${u.err?ue(u.code):'none'}</b>
       <div style="font-size:10.5px;color:var(--text-faint);margin-top:4px">${u.seen?("last reply "+ago(u.seen)):"no reply received from this unit yet"}</div></div></div>
     <div class="field"><div class="lbl">Comms &amp; diagnostics</div>
@@ -2369,6 +2544,7 @@ function drawDrawer(u){
     send.dataset.busy="1";send.disabled=true;send.textContent="Sending…";
     holdUnits([u]);
     u.on=p.on;u.mode=p.mode;u.fan=p.fan;u.swing=p.swing;u.coolC=clampC(p.coolC);u.heatC=clampC(p.heatC);u.twoset=p.twoset;u.modeLock=p.modeLock;u.fanLock=p.fanLock;u.tempLock=p.tempLock;u.hardLock=p.hardLock;
+    if(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)||(p.tempLock&&!bandKnown(u))){u.c4b5=0x80|(Math.max(15,Math.min(30,p.limLo))-15);u.c4b6=(Math.max(p.limLo,Math.min(30,p.limHi))-15)&0x0F;}
     u.sp=Math.round(activeC(u)*9/5+32);
     if(canReach())await txUnit(u);
     else toast("Demo mode — saved on this screen (no equipment connected)");
@@ -2394,6 +2570,9 @@ function drawDrawer(u){
     g("lk-fan",()=>{p.fanLock=!p.fanLock;re2();});
     g("lk-temp",()=>{p.tempLock=!p.tempLock;re2();});
     g("lk-hard",()=>{p.hardLock=!p.hardLock;re2();});
+    {const lo=document.getElementById("lim-lo"),hi=document.getElementById("lim-hi");
+      if(lo)lo.onchange=()=>{p.limLo=parseInt(lo.value,10);if(p.limHi<p.limLo)p.limHi=p.limLo;re2();};
+      if(hi)hi.onchange=()=>{p.limHi=parseInt(hi.value,10);if(p.limLo>p.limHi)p.limLo=p.limHi;re2();};}
     g("two-toggle",()=>{p.twoset=!p.twoset;re2();});
   }
 }
@@ -3200,7 +3379,7 @@ function factoryReset(){
     location.reload();};}
 function setSpLimit(which,v){if(!CFG)return;let n=parseInt(v,10);if(!isFinite(n))return;
   n=Math.max(61,Math.min(86,n));                               // the equipment itself accepts 16–30°C (61–86°F)
-  const lo=which==="min"?n:(CFG.spMinF!=null?CFG.spMinF:61),hi=which==="max"?n:(CFG.spMaxF!=null?CFG.spMaxF:86);
+  const lo=which==="min"?n:(CFG.spMinF!=null?CFG.spMinF:64),hi=which==="max"?n:(CFG.spMaxF!=null?CFG.spMaxF:86);
   if(lo>=hi){toast("The lowest setting must be below the highest");drawSettings();return;}
   CFG[which==="min"?"spMinF":"spMaxF"]=n;saveCfg(CFG);drawSettings();toast("Setpoint "+(which==="min"?"lowest":"highest")+": "+n+"°F");}
 function setWxOverride(v){if(!CFG)return;const t=v===""?null:parseInt(v,10);CFG.wxOverride=(t!=null&&isFinite(t))?t:null;saveCfg(CFG);toast(CFG.wxOverride!=null?("Outdoor temp forced to "+CFG.wxOverride+"° (testing)"):"Override cleared — using live weather");if(view==="units")renderAll();}

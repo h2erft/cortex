@@ -450,7 +450,10 @@ app.post('/api/cmd', (req, res) => {
   if (['cool', 'heat', 'auto', 'dry', 'fan'].includes(st.mode)) out.mode = st.mode;
   if (['low', 'med', 'high', 'auto'].includes(st.fan)) out.fan = st.fan;
   for (const k of ['coolC', 'heatC']) if (typeof st[k] === 'number' && isFinite(st[k]) && st[k] >= 10 && st[k] <= 35) out[k] = st[k];
-  for (const k of ['swing', 'twoset', 'modeLock', 'fanLock', 'tempLock']) if (typeof st[k] === 'boolean') out[k] = st[k];
+  for (const k of ['swing', 'twoset', 'modeLock', 'fanLock', 'tempLock', 'hardLock']) if (typeof st[k] === 'boolean') out[k] = st[k];
+  // cmd4 setpoint-limit band bytes (b5 = 0x80|(lower-15), b6 = upper-15) set in a unit's Locks section
+  if (Number.isInteger(st.c4b5) && st.c4b5 >= 0x80 && st.c4b5 <= 0x8F) out.c4b5 = st.c4b5;
+  if (Number.isInteger(st.c4b6) && st.c4b6 >= 0 && st.c4b6 <= 0x0F) out.c4b6 = st.c4b6;
   cmdQueue = cmdQueue.filter(c => Date.now() - c.ts < CMD_TTL && c.addr !== addr);    // newest command per unit wins
   cmdQueue.push({ id: ++cmdSeq, ts: Date.now(), addr, state: out });
   res.json({ ok: true, queued: cmdQueue.length, masterAlive: masterAlive() });

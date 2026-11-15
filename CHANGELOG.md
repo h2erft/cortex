@@ -2,6 +2,48 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.6 — 2026-11-14 (reads what the units say, outdoor-unit data, protocol fixes)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.5._
+
+Everything here came from checking Cortex's encode/decode line by line against an outside,
+field-verified LGAP reference. Offline regression test added: `node tests/protocol.test.js`.
+
+**New**
+- **Cortex now reads the indoor units' own replies while it is only listening.** Tapped beside a
+  real LG central, Cortex used to decode the central's commands but ignored every 16-byte unit
+  reply — so it never showed real room temperature, error codes or changes made at the wall. It
+  now decodes them (and the 9-byte lock reply, and outdoor-unit pages) straight off the wire.
+- **Outdoor-unit data** (technician **Cycle** view, beta): pressures, saturation/suction/discharge/
+  liquid temperatures, superheat, subcooling, compressor Hz, EEV positions, voltages, defrost / oil
+  return, firmware version, per main and sub unit. Fills in by itself when an LG central is polling;
+  when Cortex is the master, enter the outdoor unit's central address (or **Find outdoor units**)
+  and it re-reads about once a minute. Read-only request (cmd14, bytes 5–6 zero, never address FF).
+  Tables are for Multi V IV — treat other families as approximate.
+- **Setpoint limits** in a unit's Locks section — the low/high range the wall thermostat may use
+  while Temp lock is on (cmd4 bytes 5–6). A band learned from an LG central is kept.
+- **Lock confirmation.** The outdoor unit answers every lock command; Cortex now reads that reply
+  and shows "Outdoor unit confirmed these locks" in the unit drawer.
+- **Indoor EEV position and capacity** shown per unit (Cycle table + drawer), and which side
+  (heating/cooling) an Auto unit is working on.
+
+**Fixed**
+- **Swing was never sent.** The Swing switch changed nothing on the bus, and every Send quietly
+  turned swing *off*. It now rides byte 5 bit 3 and is read back from the unit.
+- **Fan "Auto" is a real command now** (code 4). Before, picking Auto re-sent the unit's last
+  speed. Quiet (5) and Power (6) are shown by name and re-sent unchanged.
+- **Auto units no longer show as "mode7".** A unit reports 7 while Auto is on its heating side.
+- **A filter-sign reset can't be replayed by accident** — the one-shot bit (byte 5 bit 7) is
+  stripped from any last-seen byte Cortex re-sends.
+- **Hard lock and setpoint limits now survive the relay** from a phone/second screen (the
+  appliance's command filter was dropping `hardLock`). *This one is a `server.js` change.*
+- **Lock command matches LG's own builder exactly.** Reading the ACP's firmware showed cmd4 byte 4
+  bit 0 is always 1 (Cortex had been copying the unit's power state into it).
+- The dual-setpoint (cmd5) frame in the technician debug tool was rebuilt from the ACP's firmware:
+  correct limit order and the two commit strobes it was missing. Still debug-only, never auto-sent.
+- Setpoint floor default is 18 °C / 64 °F (the units enforce 18–30 °C).
+- The UART sniffer page is now included in the appliance build (its link was a 404 on the box).
+
 ## v1.6.0-beta.5 — 2026-11-14 (dimension locks work without a learned template)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.3/4._

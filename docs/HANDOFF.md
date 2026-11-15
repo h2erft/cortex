@@ -21,16 +21,32 @@ facts live in `LGAP_reference.md`; where the two disagree, the reference wins.
     Claude Opus 5.5, which wrote these notes. Work has continued since across Fable 5.2 and
     Opus 4.8 sessions — the model in use changes; the Co-Authored-By line on commits follows it.
 
-  CURRENT STATE (2026-11-13)
-  - Repo is PUBLIC (github.com/h2erft/cortex). Latest STABLE = v1.5.0. Latest BETA = v1.6.0-beta.1.
-    The operator cuts releases himself (the session credential pushes branches but 403s on tags).
-  - Appliance + OTA in production on his N95 box (hostname cortex). Stable + beta update channels;
-    Settings > Updates > "Beta testing" opts a box into pre-releases.
+  START HERE: docs/NEXT_AGENT_GUIDE.md (how to work, ship, test, and the prioritized backlog) and
+  docs/KIT_FINDINGS.md (protocol facts from the outside reference kit + the ACP firmware).
+  The log below is history; those two files are the current truth.
+
+  CURRENT STATE (2026-11-14, v1.6.0-beta.6)
+  - Repo is PUBLIC (github.com/h2erft/cortex). Latest STABLE = v1.5.0. Latest BETA = v1.6.0-beta.6
+    (pushed to main; the operator publishes the pre-release — the session credential pushes commits
+    but 403s on tags/releases). The `release` GitHub Action builds and attaches the tgz + manifest
+    from the tag by itself; nobody needs to upload files.
+  - Cortex HAS now run on real LG equipment (2026-11-13/14): passive tap beside an ACP IV, then as
+    sole master on a spare channel. Basic control works; hard lock confirmed at the thermostat.
+  - Locks are done on paper and mostly on site: dimension locks = cmd4 (A0) byte4 bits 0x02 temp /
+    0x04 fan / 0x08 mode with bytes 5-6 = setpoint-limit band; hard lock = cmd0 byte4 bit 0x04.
+    Live-decoded, then confirmed by the outside kit AND by the ACP's own cmd4 builder.
+    OPEN: did clearing the old mode lock on unit 0xC9 work after beta.5? (not reported back)
+  - beta.6 = everything found by diffing Cortex against the kit + firmware: passive decode of unit
+    replies, outdoor-unit pages (cmd14), setpoint limits UI, lock ack, swing/fan-auto/mode-7 fixes,
+    server.js relay whitelist fix, cmd5 builder made firmware-exact. Offline-tested only
+    (`node tests/protocol.test.js`); the on-site checklist is in NEXT_AGENT_GUIDE section 6.
+  - CORRECTION: the "appliance bridge drops ~70% of bytes" conclusion from 2026-11-13 was WRONG.
+    A real central visits each unit about every 90 s; the bus is simply quiet. No loss.
+  - Appliance + OTA in production on his N95 box (hostname cortex), on the beta channel.
   - Shared state lives on the appliance (units.json / appconfig.json / history/) and mirrors to
     every browser; the connected "master" screen runs the poll loop + schedules.
-  - NONE of the 1.5/1.6 work has run on a real LG bus/hardware yet — all verified on a simulated
-    LGAP bus + staged appliance (test tooling lives in-session under /home/claude/sim, NOT in repo).
-  - NEW tool: uart-sniffer.html (read-only Web Serial bus listener) — see the 2026-11-11→13 entry.
+  - Tools: uart-sniffer.html (read-only Web Serial listener, now shipped in the appliance build),
+    tools/armdis.py (ARM disassembly helper for the ACP engine image), tests/protocol.test.js.
 
   WHAT CORTEX IS
   - A Raspberry Pi (or laptop + Chrome) replacement for the LG ACP / AC Smart central
@@ -398,6 +414,31 @@ facts live in `LGAP_reference.md`; where the two disagree, the reference wins.
     or (b) at a REAL site, have Cortex TX its firmware-derived cmd5 to ONE unit, CC unplugged,
     and watch the unit obey. One of those closes the header-byte gap for good.
 
+  - 2026-11-13 → 14  ON-SITE LOCK DECODE, v1.6.0-beta.2 … beta.6, OUTSIDE KIT, ACP FIRMWARE READ
+    (Opus 4.8 then Fable 5.2 sessions). Short version of two long days:
+    * Why locks never worked: Cortex only sent cmd0. On site, with Cortex listening beside the ACP,
+      each lock was toggled alone on unit 0x5E and held ~2 min (the ACP re-sends cmd4 per unit only
+      every ~90 s). Result: cmd4 byte4 = 01 none / 03 temp / 05 fan / 09 mode / 0F all; bytes 5-6
+      (85 08) never moved. beta.2 shipped cmd4 send + decode.
+    * The operator then supplied an outside LGAP reference kit (private, NOT in repo). It confirmed
+      the cmd4 bits, explained bytes 5-6 as the setpoint-limit band, and showed the "hard lock" is
+      cmd0 byte4 bit2 — which beta.2 had wrongly dropped as "tracks mode". beta.3 fixed that.
+    * On the ACP-free channel a unit stayed mode-locked: Cortex refused to send cmd4 without a
+      band learned from an ACP. beta.5 always sends cmd4 (default band 15-30 C). As sole master
+      Cortex is the authority, so that is safe.
+    * beta.6: line-by-line diff of Cortex vs the kit, plus a read of the ACP's own frame builders
+      (FindAcCmd4SendData / FindAcExeCmd5SendData / FindAcExeSendData) with tools/armdis.py.
+      Everything is written up in docs/KIT_FINDINGS.md. Headlines: swing was never transmitted;
+      fan Auto = code 4; mode 7 = Auto on its heating side; cmd4 byte4 bit0 is always 1 and its
+      high nibble is louver direction; header A4 = address lock; cmd5 has two commit strobes and
+      the kit's layout is the right one; the ODU's pressures/temps ARE on the central bus (cmd14
+      pages) — the old belief that "cycle data is not on this bus" was wrong.
+    * Lessons: (1) hold a state for two full minutes before deciding a frame is absent;
+      (2) an uncontrolled observation ("b4 went 05 when mode went cool") lost to a controlled one —
+      change ONE thing; (3) appliance/server.js whitelists /api/cmd keys, so a new unit field must
+      be added there too or phones silently can't set it (hardLock was lost that way until beta.6);
+      (4) dimension locks cannot be read back over CEN — only commanded or overheard.
+
   HISTORY / LESSONS
   - The first decode (by the earlier chat) had mode in the HIGH nibble (auto=1, cool=2,
     heat=3) and setpoint = degC-15. That was wrong: the high nibble is FAN. So Cortex's
@@ -419,6 +460,9 @@ facts live in `LGAP_reference.md`; where the two disagree, the reference wins.
   2. Fan high / auto, and dry / fan modes, to fill in the remaining mode/fan GUESS rows.
   3. Wire decodeCmd5()/cmd5SetpointBytes() into the UI (show cool+heat setpoints; send).
   4. Bench test TX on the spare ACP / one unit after hours, CC unplugged.
+  >> SUPERSEDED 2026-11-14: the live backlog is docs/NEXT_AGENT_GUIDE.md section 7. Items 5 and 6
+     below are out of date: ODU data IS on the CC bus (cmd14 pages, shipped in beta.6), and the
+     outside kit documents the ODU service UART completely (KIT_FINDINGS section 4).
   5. Cycle view (outdoor-unit temps/pressures) is NOT on the CC bus as far as the operator knows —
      the LG CC has never been able to show it; it lives on a different bus. Don't assume the
      CC bus can provide it. (The earlier chat knew this; corrected 2026-11-07.) --> this is exactly
