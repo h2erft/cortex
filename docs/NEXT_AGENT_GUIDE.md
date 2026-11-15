@@ -203,17 +203,22 @@ State every claim as *proven* (you can point at the instruction) or *guess*.
 for LG's LGMV-Business.exe (32-bit Qt program) and a handoff note, `LGMV-REA-HANDOFF.md`, in a folder
 named `LGMV-business` on **one of the operator's PCs**. The note has the exact 5-minute rebuild
 (stage the two Ghidra zip parts + project zip + exe, install Java 25, `npm i -g rea-agents`, point
-`REA_GHIDRA_PROJECT_PATH` at the project, query with the `rea` CLI). Status on 2026-11-15:
-- The chat was linked to a *different* PC that has no such folder, so nothing could be staged. Ask
-  him to open the chat from the PC that holds the folder (the handoff calls it the one with REA
-  registered) and to add the folder with the app's Add-folder button.
-- On 2026-11-14 `npm install rea-agents` was refused by the session's permission policy. If it is
-  refused again, do not work around it; Ghidra's own `analyzeHeadless` with a small export script
-  can dump the decompiled parser functions without REA.
-- What it is worth doing there, in order: `Sync4ProtocolParser::initTableInfo` (confirm every
-  0x65/0x66 offset and find the unmapped ones), the 0x69 summary parser, `IDU4ProtocolParser`
-  (bytes 12–13 and 15 of 0x6A), `Super4ProtocolParser` (heat pump differences). The serial settings,
-  CRCs, framing and poll frames are already known from the outside kit — don't spend time there.
+`REA_GHIDRA_PROJECT_PATH` at the project, query with the `rea` CLI). Status on 2026-11-15 — **done once, and here is the way that works:**
+- Stage `ghidra_12.2…zip.part1`, `.part2`, `LGMV-ghidra-project.zip` (and the exe) from that folder
+  with the device file tools (two calls; ~660 MB), `cat` the parts, unzip, `apt-get update &&
+  apt-get install openjdk-25-jdk-headless`, then use `tools/ghidra/*.java` with `analyzeHeadless
+  -process -noanalysis -readOnly` (see `tools/ghidra/README.md`). ~5 minutes to set up, ~10 s a query.
+- Do **not** drive the REA server on his PC through the bridge: every call that touches Ghidra
+  outlives the bridge's 80-second limit and the server restarts. REA itself is not needed.
+- The binary is stripped. Find things through strings (`…ProtocolParser / protocolType`,
+  `…::initTableInfo`, `makeTx…Packet`, `===CRC error===`) and the `X::vftable` symbols.
+  Multi V IV: `Super4ProtocolParser` (heat pump) and `Sync4ProtocolParser` (heat recovery) share
+  page handlers at vtable +0x104 (0x64), +0x108 (0x65–68), +0x10C (0x6B); request builder +0xA0;
+  `IDU4ProtocolParser` +0x34 (0x6A) / +0x38 (0x69); `HRU4ProtocolParser` +0x2C (0x6E).
+- Findings are in `docs/UART_SERVICE_PORT.md` ("What LGMV itself confirmed"). Left to do there:
+  name-check the 0x65 fields (needs the cycle-view grid definitions: the handler files values by
+  row/column id), the 0x6F page, which setting selects the refrigerant table set.
+- Never commit decompiler output or LG's files.
 The firmware-engine reading earlier in this section was done with capstone, no REA needed.
 
 ## 9. Things that will bite you

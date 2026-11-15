@@ -2,7 +2,8 @@
 
 *2026-11-15, v1.6.0-beta.7. Tool: `uart-sniffer.html` (also served by the appliance; link in the Bus Scan
 debug view). Status: the decoder matches an independent reference decoder byte-for-byte on recorded
-frames, but **has not yet been run against a real outdoor unit by us.***
+frames, and its framing, checks, lookup tables and request behaviour were cross-checked against LG's
+own LGMV program — but it **has not yet been run against a real outdoor unit by us.***
 
 ## What this port is, in plain words
 
@@ -16,15 +17,17 @@ How it talks:
 - Speed **2400 baud, 8 data bits, no parity, 1 stop bit**.
 - Left alone, the unit just repeats a short "who I am" message about four times a second
   (model code, firmware version, how many indoor units and HR boxes it has).
-- It only sends the real data when asked. LGMV asks with two tiny fixed messages: a "hello" once,
-  then "send the next round" after each round. A round takes about 7 seconds.
+- It only sends the real data when asked. LGMV asks with two tiny fixed messages, and it never
+  speaks first: each time it hears "who I am" it answers ("hello" the first two times, "send the next
+  round" after that), and each time a round ends it answers "send the next round" again.
+  A round takes about 7 seconds.
 
 So there are two ways to use the Cortex page:
 
 1. **Listen only** (default). You will see the "who I am" message — enough to prove the wiring and
    speed are right. If LGMV is polling at the same time on a splitter, you see everything it sees.
-2. **Ask for live data** (a tick box). Cortex sends the same two messages LGMV sends and shows the
-   answers. The page cannot send anything else.
+2. **Ask for live data** (a tick box). Cortex answers the unit exactly the way LGMV does and shows
+   the data. The page cannot send anything else, and it only sends right after the unit has spoken.
 
 ## What you need
 
@@ -64,11 +67,14 @@ resumes about 30 s after polling stops).
 ## What the page will and will not do
 
 - It sends only `02 0E 01 … B3` (hello) and `02 0E 02 … 26` (next round). Both are what LGMV sends
-  while simply monitoring. The code refuses to write anything else.
+  while simply monitoring. The code refuses to write anything else, and it only sends in reply to a
+  valid 0x64 or 0x6B frame from the unit — a silent or garbled line gets nothing from us.
 - It will **not** send LGMV's "IDU Control", outdoor-unit control or EEV frames. Those are writes
   that touch every indoor unit or override compressor/valves; they are deliberately not implemented.
-- Layouts are for **Multi V IV** (the reference was verified on Multi V IV heat recovery; heat pump
-  shares the frame types). On another family, treat every number as unverified.
+- Layouts are for **Multi V IV**. Heat pump and heat recovery use the *same* outdoor-unit decoder
+  inside LGMV, so both are covered. On another family, treat every number as unverified.
+- Pressures/saturation temperatures assume **R410A**. LGMV carries three more table sets and picks one
+  by refrigerant (by their numbers: R22-class, R32, R134a). Not selectable here yet.
 
 ## Technical map (for whoever maintains the decoder)
 
@@ -95,11 +101,32 @@ Sensor bytes index the same 256-entry tables Cortex uses for the central-bus out
 
 Tests: `node tests/uart.test.js`.
 
+## What LGMV itself confirmed (2026-11-15)
+
+Read from LGMV-Business with Ghidra (helper scripts in `tools/ghidra/`; no decompiled code is kept here):
+
+- **Checks.** A received frame is accepted if *either* the CRC-8 (reflected 0x85) *or* the
+  CRC-16/XMODEM matches; the page now does the same. Requests always use the CRC-8.
+- **Frame types handled** for Multi V IV: 0x64, 0x65–0x68, 0x69, 0x6A, 0x6B, 0x6E, 0x6F, plus
+  0x29, 0x2C, 0x42–0x46 (black-box / history pages we do not decode).
+- **Heat pump = heat recovery.** The two parser classes share the same handlers for 0x64, 0x65–0x68
+  and 0x6B. The HR-box page (0x6E) simply never arrives on a heat pump.
+- **Lookup tables.** LGMV's air, pipe, suction, discharge, high/low pressure and condensing/evaporating
+  tables for the default refrigerant are number-for-number the ones this page uses.
+- **Requests.** Every request is 14 bytes `02 0E <type> <arg> 0…0 <crc8>`. Monitoring uses types 1 and
+  2 only, sent as described above. Other types exist (3 = history page, 0x20 = serial number,
+  0x10/0x11 = another mode) and are **not** implemented.
+- **Indoor frame (0x6A).** Byte 4 low nibble = unit type; byte 5 bits 0–2 mode, bit 3 running,
+  bits 4–5 fan (4–6 on some models); byte 6 capacity; 7–8 EEV; 9 room; 10/11 pipe in/out; 12 error;
+  14 central address (LGMV shows it in hex). LGMV also shows pipe-out minus pipe-in — now a column.
+- **Summary frame (0x69).** One byte per indoor unit, in order, shown by LGMV as a plain number.
+  The page shows it as "Page-69 byte". Guess to test on site: setpoint × 2 (sample: 46, 40, 56).
+
 ## Still open
 
 - Not yet proven on a live unit by us (first on-site run = the checklist above).
-- 0x69 summary frame and several bytes of 0x6A / 0x65 are unmapped.
-- Heat-pump (non-HR) systems: same frame family, not separately verified.
-- LG's own decoder in LGMV-Business.exe (parser classes `Sync4ProtocolParser`, `Super4ProtocolParser`,
-  `IDU4ProtocolParser`, `HRU4ProtocolParser`) would confirm every field and fill the gaps. A prepared
-  Ghidra project for that exists on the operator's other PC — see `docs/NEXT_AGENT_GUIDE.md` §8.
+- What the 0x69 per-unit byte means (see the guess above).
+- Outdoor-frame (0x65) field *names* have not been checked against LGMV one by one. LGMV's handler
+  files values by grid row/column rather than by name, so that needs its cycle-view table definitions
+  too. Offsets 3–0x10 are read in the order the kit lists; nothing contradicted the kit.
+- Refrigerant selection for non-R410A systems; the 0x6F page; black-box pages.

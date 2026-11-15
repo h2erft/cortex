@@ -14,11 +14,17 @@ docs changed; Cortex itself (`cortex.html`, `server.js`) is identical to beta.6.
   central address) and every heat-recovery box (pipe modes, subcool EEV, temps, which indoor units
   are on which port). Multi V IV layouts; °F/psi or °C/kPa.
 - **Optional "Ask the outdoor unit for live data".** Off by default. When ticked (with a confirm) it
-  sends the same two monitoring requests LGMV sends — hello, then "next round" — and nothing else.
-  Without it the page only listens.
+  answers the unit the way LGMV does — "hello" to its first two ID frames, then "next round" — and
+  nothing else. It never transmits unless the unit has just sent a valid frame. Without the tick the
+  page only listens.
+- **Cross-checked against LGMV itself**: frame checks (either CRC is accepted, as LGMV does), the
+  frame types, the request frames and all lookup tables match. Heat pump and heat recovery Multi V IV
+  share one outdoor-unit layout, so both are covered. Indoor table gained "Out − in" and the
+  per-unit byte from the 0x69 page.
 - Default baud is now 2400 (the old page guessed 38400).
 - Fixed: adding a marker during a recording threw an error and did nothing.
 - New `docs/UART_SERVICE_PORT.md`: what to plug in, step by step, and the byte map.
+- `tools/ghidra/`: read-only Ghidra headless helper scripts used for the cross-check.
 - Decoder checked byte-for-byte against an independent reference decoder (`node tests/uart.test.js`).
   **Not yet run on a real outdoor unit.**
 

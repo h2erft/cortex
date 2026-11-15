@@ -38,7 +38,10 @@ const RX = [
       hr: { eev: b.eevSc, pipes: b.pipes.join('/'), liq: r1(b.liqIn), scIn: r1(b.scIn), scOut: r1(b.scOut), ports: JSON.stringify(b.ports), set: b.setIdus },
       step: [S.LG.step.comp, S.LG.step.fan, S.LG.step.eev, S.LG.step.scEev, S.LG.step.dischTargetC].join(','),
       html: document.getElementById('dec').innerHTML.includes('High pressure') && document.getElementById('dec').innerHTML.includes('HR box'),
-      pollDisabled: document.getElementById('poll').disabled,
+      pollDisabled: document.getElementById('poll').disabled, sum: [1, 2, 3, 4].map(i => S.LG.sum[i]).join(','), dT: i1.dT,
+      quiet: [0x64, 0x6b, 0x65].map(t => S.pollReplyFor(t)).join(','),
+      seq: (S.setPolling(true), [0x64, 0x64, 0x64, 0x65, 0x6a, 0x6b, 0x64].map(t => { const r = S.pollReplyFor(t); return r ? r[2] : 0; }).join('')),
+      either: S.lgmvCrcOk(new Uint8Array([0x02, 0x05, 0x10, 0x00, 0x00])) === false,
     };
   }, RX);
   await browser.close();
@@ -50,7 +53,7 @@ const RX = [
     idu1: { addr: 50, on: 1, mode: 5, fan: 1, cap: 24, eev: 140, room: 69.44, pin: 46.4, pout: 44.42, err: 0 },
     idu3: { addr: 60, fan: 3, eev: 156 }, idu2on: 0,
     hr: { eev: 96, pipes: 'COOL/COOL/COOL/COOL', liq: 23.5, scIn: 5.2, scOut: 5.9, ports: '{"1":[1,2,3]}', set: 3 },
-    step: '2,8,1,1,58', html: true, pollDisabled: true,
+    step: '2,8,1,1,58', html: true, pollDisabled: true, sum: '46,40,56,0', dT: -1.1, quiet: ',,', seq: '1120022', either: true,
   };
   let fail = 0;
   for (const k of Object.keys(want)) { const a = JSON.stringify(r[k]), b = JSON.stringify(want[k]); if (a === b) console.log('ok   ' + k); else { fail++; console.log('FAIL ' + k + '\n   got  ' + a + '\n   want ' + b); } }
