@@ -2,6 +2,26 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.6.0-beta.9 — 2026-11-15 (release notes on the update page · experimental UART page · Wi-Fi module support)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.8._
+
+- **The update page now shows the release notes** for an available version (pulled from the GitHub
+  release body), in a scrollable box, on both the main Updates view and Settings → Updates. The
+  appliance reads the release body instead of just the title.
+- **Experimental UART page in Cortex.** A new technician-only nav item, **🔌 UART**, marked
+  **EXPERIMENTAL** next to the title. It embeds the service-port tool so UART work has its own page and
+  the rest of Cortex keeps working as a plain central controller. (The CEN-bus Outdoor / cycle page is
+  unchanged.)
+- **Wi-Fi LGMV module supported.** The outdoor-unit service port can now be read through LG's Wi-Fi
+  module (a TCP bridge at 192.168.1.1:9999 on its own `LGE_MV-…` network) via a new zero-dependency
+  bridge, `tools/uart-wifi-bridge.js`, which also serves the tool page. The UART tool gained a
+  **Connect over Wi-Fi** option alongside **Connect USB…**. Verified end-to-end against a simulated
+  module: frames decode and polling sends LGMV's own two requests through the bridge.
+- Reverse-engineered LG's LGMV-Business to confirm the Wi-Fi/USB connection details (see
+  `docs/UART_SERVICE_PORT.md`); the module is a byte-for-byte transparent bridge, so the beta.7 decoder
+  works over either transport unchanged.
+
 ## v1.6.0-beta.8 — 2026-11-15 (temp-range lock + clearer lock behavior)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.6.0-beta.7. Changes `cortex.html` and

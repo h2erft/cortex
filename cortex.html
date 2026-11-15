@@ -73,6 +73,8 @@ nav{flex:0 0 212px;background:var(--surface);border-right:1px solid var(--border
 .nav-item.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:500}
 .nav-item .count{font-size:12px;color:var(--text-faint);flex:0 0 auto}
 .nav-item .tech-tag{font-size:10px;font-weight:600;color:var(--warn)}
+.nav-item .exp-tag{font-size:9.5px;font-weight:700;color:#1a1205;background:var(--warn);border-radius:4px;padding:1px 4px;letter-spacing:.3px}
+.upd-notes{font-size:12.5px;color:var(--text-dim);margin-top:8px;white-space:pre-wrap;max-height:230px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:9px 11px;line-height:1.5}
 .nav-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
 .nav-item.sub{padding-left:28px;font-size:13px}
 .nav-item.row{cursor:pointer}
@@ -482,6 +484,7 @@ svg.ug{width:100%;height:100%;display:block}
       <button class="nav-item" data-view="schedule"><span>🗓 Schedule</span></button>
       <button class="nav-item hide" id="nav-busscan" data-view="busscan"><span>📡 Bus scan</span><span class="tech-tag">TECH</span></button>
       <button class="nav-item hide" id="nav-cycle" data-view="cycle"><span>⚙ Outdoor / cycle</span><span class="tech-tag">TECH</span></button>
+      <button class="nav-item hide" id="nav-uart" data-view="uart"><span>🔌 UART</span><span class="exp-tag">EXPERIMENTAL</span></button>
     </div>
     <div class="nav-group" id="group-nav"></div>
   </nav>
@@ -874,6 +877,8 @@ function renderWho(){
   document.getElementById("lockbtn").classList.toggle("hide",!over);
   document.getElementById("lockbtn").classList.toggle("lit",over);
   document.getElementById("nav-cycle").classList.toggle("hide",!session.tech);
+  document.getElementById("nav-uart").classList.toggle("hide",!session.tech);
+  if(!session.tech&&view==="uart")view="units";
   document.getElementById("nav-busscan").classList.toggle("hide",!session.tech);
   if(!session.tech&&view==="busscan")view="units";
   const db=document.getElementById("devbtn");if(db){db.classList.toggle("hide",!isStaff());db.classList.toggle("lit",view==="device");}
@@ -2163,6 +2168,24 @@ function renderBusScan(){
   const mi=document.getElementById("m-import");if(mi)mi.onclick=masterImport;
   const mdl=document.getElementById("m-dl");if(mdl)mdl.onclick=downloadMasterLog;
   busUpdate();}
+function renderUart(){renderGroupNav();
+  const main=document.getElementById("main");
+  main.innerHTML=`<div class="cyc-note" style="align-items:flex-start">🔌 <div><b>UART service port — experimental.</b> This reads an outdoor unit's LGMV service port, a <b>different</b> wire from the central-control bus Cortex uses for the thermostats. It's optional and still being tested — nothing here touches the controller or the indoor units. <span class="linklike" id="uart-help">How do I connect?</span></div></div>
+    <div id="uart-help-box" class="note-box hide" style="margin-bottom:14px;white-space:normal;line-height:1.55">
+      <b>Two ways in, depending on your module:</b><br>
+      <b>USB module</b> (shows up as a COM port): plug it into this computer, then use <b>Connect…</b> in the tool below and pick the port. Leave the speed at 2400.<br>
+      <b>Wi-Fi module</b> (the one that makes its own <span class="mono">LGE_MV-…</span> network): a browser can't reach it directly, so run the small bridge first:
+      <ol style="margin:6px 0 2px 18px;padding:0">
+        <li>Close LGMV-Business (the module allows only one connection).</li>
+        <li>Join the module's Wi-Fi (<span class="mono">LGE_MV-…</span>, open network).</li>
+        <li>On that laptop, in the Cortex folder, run <span class="mono">node tools/uart-wifi-bridge.js</span>.</li>
+        <li>Open <span class="mono">http://localhost:8899</span> in your browser — the tool loads there and connects to the module on its own.</li>
+      </ol>
+      You can also use the tool below over Wi-Fi if the bridge is running: pick <b>Connect over Wi-Fi</b> and point it at <span class="mono">ws://localhost:8899</span>.
+    </div>
+    <iframe title="UART tool" src="uart-sniffer.html" allow="serial" style="width:100%;height:calc(100vh - 230px);min-height:560px;border:1px solid var(--border);border-radius:12px;background:var(--bg)"></iframe>`;
+  const h=document.getElementById("uart-help"),b=document.getElementById("uart-help-box");
+  if(h)h.onclick=()=>b.classList.toggle("hide");}
 function renderCycle(){renderGroupNav();
   const us=units.filter(u=>groupFilter==="all"||catVals(u,gdim()).includes(groupFilter));
   const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
@@ -2341,7 +2364,7 @@ function renderUpdates(){renderGroupNav();
   else if(s.updateAvailable){ badge='<span class="badge-new">Update available</span>';
     body=`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
       <div style="font-weight:600">v${ue(s.latest)} is available</div>
-      ${s.notes?`<div style="font-size:13.5px;color:var(--text-dim);margin-top:6px">${ue(s.notes)}</div>`:''}
+      ${updNotes(s.notes)}
       <div class="note-box" style="margin-top:12px">This controller installs updates automatically within about 30 minutes — it verifies the download first and rolls back on its own if anything's wrong. No action needed here.</div></div>`; }
   else if(s.configured===false){ body=`<div class="note-box" style="margin-top:12px">Automatic updates aren't turned on for this controller yet.</div>`; }
   else if(s.error){ body=`<div class="note-box" style="margin-top:12px">Couldn't check for updates: ${ue(s.error)}</div>`; }
@@ -2412,7 +2435,7 @@ function renderAll(){
   if(view==="trends")view="units";
   if(view==="device"&&!isStaff())view="units";
   const _db=document.getElementById("devbtn");if(_db)_db.classList.toggle("lit",view==="device");
-  if(view==="units")renderUnits();else if(view==="cycle")renderCycle();else if(view==="updates")renderUpdates();
+  if(view==="units")renderUnits();else if(view==="cycle")renderCycle();else if(view==="uart")renderUart();else if(view==="updates")renderUpdates();
   else if(view==="device")renderDevice();else if(view==="map")renderMap();else if(view==="busscan")renderBusScan();else renderSchedule();
   updateBell();}
 
@@ -2656,6 +2679,7 @@ function drawSettings(){
   wireSettings();
   if(setTab==="updates")loadSettingsUpdates();
 }
+function updNotes(n){return n?`<div class="upd-notes">${ue(n)}</div>`:'';}
 function updatesTab(){return `<div id="setupd">${brainLoader(56,"Checking for updates…","row")}</div><div id="setchan"></div>`;}
 // The channel toggle reads the FAST local endpoint and renders independently of the (possibly slow,
 // GitHub-dependent) update check, so it never appears frozen.
@@ -2702,7 +2726,7 @@ async function loadSettingsUpdates(){
   else h+='<span class="badge-ok">—</span>';
   h+="</div>";
   if(st.updateAvailable){
-    h+=`<div class="note-box" style="margin-top:10px"><b>v${ue(st.latest)}</b> is available.${st.notes?" "+ue(st.notes):""} Updates verify themselves and roll back automatically if anything goes wrong.</div>
+    h+=`<div class="note-box" style="margin-top:10px"><b>v${ue(st.latest)}</b> is available. Updates verify themselves and roll back automatically if anything goes wrong.</div>${updNotes(st.notes)}
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn primary" id="upd-now">⬇ Download &amp; install now</button>
         <button class="btn" id="upd-skip">${st.latest===_skipVer?"Un-skip":"Skip this version"}</button></div>`;

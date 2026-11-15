@@ -282,12 +282,12 @@ app.get('/api/update/check', async (req, res) => {
         const list = (await r.json()).filter(x => x && !x.draft)
           .sort((a, b) => cmpVer((b.tag_name||'').replace(/^v/,''), (a.tag_name||'').replace(/^v/,'')));
         const top = list[0];
-        latest = ((top && top.tag_name) || '').replace(/^v/, ''); notes = (top && top.name) || ''; prerelease = !!(top && top.prerelease);
+        latest = ((top && top.tag_name) || '').replace(/^v/, ''); notes = (top && (top.body || top.name)) || ''; prerelease = !!(top && top.prerelease);
       } else {
         // stable channel: GitHub's "latest" excludes pre-releases automatically
         const r = await ghFetch(`${base}/releases/latest`, { headers: { ...headers, Accept: 'application/vnd.github+json' } });
         if (!r.ok) throw new Error('GitHub API HTTP ' + r.status);
-        latest = ((await r.json()).tag_name || '').replace(/^v/, '');
+        const j = await r.json(); latest = (j.tag_name || '').replace(/^v/, ''); notes = j.body || j.name || '';
       }
     } else if (conf.CORTEX_UPDATE_MANIFEST) {
       const r = await ghFetch(conf.CORTEX_UPDATE_MANIFEST, { headers, redirect: 'follow' });

@@ -29,7 +29,26 @@ So there are two ways to use the Cortex page:
 2. **Ask for live data** (a tick box). Cortex answers the unit exactly the way LGMV does and shows
    the data. The page cannot send anything else, and it only sends right after the unit has spoken.
 
-## What you need
+## Two kinds of module (both carry the exact same frames)
+
+LG makes two interface modules; they are two ways of reaching the same service UART, not two protocols.
+
+- **Wi-Fi module** (model PLGMVW100, "Mobile LGMV"). It makes its own open Wi-Fi network named
+  `LGE_MV-xx-xx-xx` and is a transparent TCP bridge at **192.168.1.1 port 9999**. One connection at a
+  time. A browser can't open a raw TCP socket, so Cortex reaches it through a tiny bridge:
+  1. Close LGMV-Business (the module allows only one connection).
+  2. Join the module's Wi-Fi (`LGE_MV-…`, open network).
+  3. In the Cortex folder on that laptop: `node tools/uart-wifi-bridge.js`
+  4. Open `http://localhost:8899` — the UART tool loads there and connects to the module itself.
+  (The bridge only moves bytes; the browser still transmits nothing unless you tick "Ask the outdoor
+  unit for live data", and then only LGMV's two monitoring requests.)
+- **Wired USB module** (or an isolated USB-TTL adapter). Shows up as a COM port; use **Connect USB…**
+  in the tool and pick the port.
+
+In Cortex itself there is an experimental **UART** page (technician view) with the same tool embedded;
+the USB path works there directly, and the Wi-Fi path works there too if the bridge is running.
+
+## What you need (wired)
 
 - **Best:** LG's own USB LGMV module/cable. It is electrically isolated and shows up as a COM port.
   Set its DIP switch for Multi V II–IV (switch 4 ON, the rest OFF) **with USB unplugged**.
