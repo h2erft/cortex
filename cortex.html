@@ -310,7 +310,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .cy-subc b{font:600 13.5px ui-monospace,Menlo,monospace;display:block}.cy-subc em{font-style:normal;font-size:11.5px;color:var(--text-dim)}
 .cy-subkv{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;margin-top:9px}.cy-subkv b{font:600 13px ui-monospace,Menlo,monospace}.cy-subkv .bad b{color:var(--err)}.cy-subkv .warn b{color:var(--warn)}
 .hr-top{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.hr-grade{flex:none;width:104px;height:104px;border-radius:50%;border:6px solid var(--gc);display:grid;place-content:center;text-align:center}
-.hr-grade b{font-size:40px;line-height:1;color:var(--gc)}.hr-grade span{font-size:11.5px;color:var(--text-dim)}
+.hr-grade b{font-size:40px;line-height:1;color:var(--gc)}.hr-grade span{font-size:11px;color:var(--text-dim);max-width:78px;line-height:1.2}
 .cy-diag{margin:12px 14px 0}.cy-diag-h{font-size:13px;margin-bottom:6px}
 .cy-dx{border:1px solid var(--border);border-left:4px solid var(--warn);border-radius:10px;background:var(--surface);margin-bottom:6px}.cy-dx.likely{border-left-color:var(--err)}
 .cy-dx summary{cursor:pointer;padding:9px 12px;font-size:13.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none}.cy-dx summary::-webkit-details-marker{display:none}
@@ -622,6 +622,9 @@ svg.ug{width:100%;height:100%;display:block}
   .drawer{width:100%;max-width:100%;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
   .setrow{flex-wrap:wrap}
   #buspop{left:8px!important;right:8px;width:auto}
+  .btn.sm{min-height:34px;padding:7px 12px}.linklike{display:inline-block;padding:8px 6px;min-height:34px}
+  .toggle::before{content:"";position:absolute;inset:-10px -6px}            /* bigger tap area, same look */
+  .cy-table th,.cy-table td{padding-left:8px;padding-right:8px}
   .toast{bottom:calc(18px + env(safe-area-inset-bottom))}
 }
 .nav-mob{display:none;border-bottom:1px solid var(--border);margin:-2px 0 12px;padding:0 6px 12px}
@@ -826,7 +829,7 @@ async function getCoords(){
 async function loadWeather(){
   try{
     const c=await getCoords();
-    if(!c){WEATHER.live=false;WEATHER.cond="Set the site location in Settings";if(view==="units")renderAll();return;}
+    if(!c){WEATHER.live=false;WEATHER.cond="Set the site location in Settings ▸ Advanced";if(view==="units")renderAll();return;}
     const unit=settings.unit==="C"?"celsius":"fahrenheit";
     const url=`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&current=temperature_2m,weather_code&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min&temperature_unit=${unit}&timezone=auto&forecast_days=1`;
     const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();
@@ -1848,7 +1851,7 @@ function oduCards(list){
     if(ot)return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[i%CY_SYS_COL.length]}"><div class="cy-head"><div class="cy-badge">${hx(o.addr)}</div><div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)}</div><div class="cy-subt">${ue(ot.name)} · family ${ot.hex}</div></div></div><div class="cy-checks idle">This outdoor unit answers, but its family (${ue(ot.name)}${ot.tag?", LG tag "+ue(ot.tag):""}) packs its data differently from Multi V IV, and Cortex does not have that map yet. Nothing is shown rather than showing wrong numbers. Indoor-unit control and monitoring are not affected.</div></div>`;
     const us=oduUnits(o);if(!us.length)return "";const idus=units.filter(u=>u.odu===o.addr);
     return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[i%CY_SYS_COL.length]}">${oduHead(o,us[0],i,list.length)}${oduChecks(us,idus)}${oduDiagnosis(o)}<div class="cy-units">${us.map((u,k)=>oduUnitPanel(u,k,idus)).join("")}</div></div>`;}).join("");
-  return cards||`<div class="cyc-note" style="margin-top:14px">No outdoor-unit data yet. ${isMaster()?"Use <b>Find outdoor units</b> (or type the outdoor unit's central address and press Read).":"It appears here once an outdoor unit has been read."}</div>`;}
+  return cards||`<div class="cyc-note" style="margin-top:14px;display:block">No outdoor-unit data yet. ${isMaster()?"Use <b>Find outdoor units</b> (or type the outdoor unit's central address and press Read).":"It appears here once an outdoor unit has been read."}</div>`;}
 function iduSection(){
   const us=units.filter(u=>groupFilter==="all"||catVals(u,gdim()).includes(groupFilter));
   const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
@@ -2288,7 +2291,7 @@ function healthHtml(c){const S=healthStats(c.rows),f=cyFmt(),from=Date.now()-c.d
   const drift=(k,l,isT)=>{const a=S.first[k],b=S.second[k];if(a==null||b==null)return "";const d=b-a;if(Math.abs(d)<(isT?3:2))return "";return `<div class="cy-dxs"><div class="hit"><span>▲</span><span>${l} averaged ${f.dt(Math.round(Math.abs(d)*10)/10)} ${d>0?"higher":"lower"} in the second half of this period than in the first.</div></div>`;};
   const top=[...S.flags.values()].sort((a,b)=>b.n-a.n).slice(0,5);
   const row=(l,k,fm)=>`<tr><td>${l}</td><td class="mono">${fm(S.avg(k))}</td><td class="mono dim">${fm(S.min(k))} – ${fm(S.max(k))}</td></tr>`;
-  return `<div class="hr-top"><div class="hr-grade" style="--gc:${col}"><b>${grade}</b><span>${score==null?"not enough running time":score+" / 100"}</span></div>
+  return `<div class="hr-top"><div class="hr-grade" style="--gc:${col}"><b>${grade}</b><span>${score==null?"too little data":score+" / 100"}</span></div>
     <div style="min-width:0;flex:1"><div style="font-size:14px;line-height:1.5">${score==null?"The system barely ran in this period, so there is nothing to grade yet.":`The system ran for <b>${Math.round(S.run/S.n*100)}%</b> of logged readings and was inside LG's typical running ranges for <b>${Math.round(S.clean/S.run*100)}%</b> of that. It logged <b>${faults.length}</b> fault${faults.length===1?"":"s"}, <b>${silent.length}</b> unit drop-out${silent.length===1?"":"s"} and <b>${adv.length}</b> diagnosis advisor${adv.length===1?"y":"ies"}.`}</div>
       <div style="font-size:12.5px;color:var(--text-dim);margin-top:6px">Confidence: <b>${conf[0]}</b>. ${conf[1]} ${tip("The grade is Cortex's own rough guide: 70 points for the share of running time spent inside LG's typical ranges, 30 for a clean record, minus points for each fault and each diagnosis advisory in the period. It measures how the system has been behaving, not what is wrong with it.")}</div></div></div>
     ${S.run?`<div style="overflow:auto;margin-top:12px"><table class="cy-table"><thead><tr><th>While running</th><th>Average</th><th>Range</th></tr></thead><tbody>
@@ -2412,7 +2415,7 @@ async function renderEvents(){renderGroupNav();
         <div class="ev-time mono">${new Date(e.at).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>
         <div style="min-width:0;flex:1"><div class="ev-t">${evTitle(e)}</div><div class="ev-s">${EV_KIND[e.kind]||e.kind}${e.kind!=="silent"&&e.code?" · "+ue(errInfo(e.code).t||""):""} · ${evDur(e)}</div></div>
         <button class="btn sm">View the data</button></div>`).join("")}</div>`).join("")
-      :'<div class="cyc-note" style="margin-top:14px">No faults recorded in the last 30 days. When one happens it appears here with the readings that led up to it.</div>'}`;
+      :'<div class="cyc-note" style="margin-top:14px;display:block">No faults recorded in the last 30 days. When one happens it appears here with the readings that led up to it.</div>'}`;
   main.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>openEvent(b.dataset.ev));eventsAdvisories();}
 async function eventsAdvisories(){let d;try{d=await (await fetch('/api/diag',{cache:'no-store'})).json();}catch(_){return;}
   if(view!=="events"||document.getElementById("ev-adv"))return;const g=main.querySelector(".gauges");if(!g)return;const list=d.advisories||[],st=d.state||{};
@@ -3897,14 +3900,14 @@ async function loadSettingsUpdates(){
   el.innerHTML=h;
   const now=document.getElementById("upd-now");if(now)now.onclick=async()=>{now.disabled=true;now.textContent="Starting…";
     try{await fetch('/api/update/apply',{method:"POST"});}catch(e){}
-    el.innerHTML='<div class="note-box">Update started — the controller will download, install, and restart. This page reconnects in a minute or two, and it rolls back on its own if the new version has a problem.</div>';};
+    el.innerHTML='<div class="note-box">Update started — the controller will download, install, and restart. This page reloads by itself when the new version is running, and the controller rolls back on its own if the new version has a problem.</div>';updFollow("Updating Cortex");};
   const skip=document.getElementById("upd-skip");if(skip)skip.onclick=()=>{
     if(st.latest===_skipVer){try{localStorage.removeItem("airow_skipver");}catch(e){}_skipVer=null;}
     else{try{localStorage.setItem("airow_skipver",st.latest);}catch(e){}_skipVer=st.latest;}
     loadSettingsUpdates();};
   const revS=document.getElementById("rev-stable");if(revS)revS.onclick=async()=>{revS.disabled=true;revS.textContent="Starting…";
     try{await fetch('/api/update/revert',{method:"POST"});}catch(e){}
-    el.innerHTML='<div class="note-box">Reverting to stable — the controller will download, install, and restart. This page reconnects in a minute or two, and it rolls back on its own if anything goes wrong.</div>';};
+    el.innerHTML='<div class="note-box">Reverting to stable — the controller will download, install, and restart. This page reloads by itself when it is done, and the controller rolls back on its own if anything goes wrong.</div>';updFollow("Going back to the stable version");};
   const revK=document.getElementById("rev-keep");if(revK)revK.onclick=async()=>{revK.disabled=true;
     try{await fetch('/api/update/keep-beta',{method:"POST"});}catch(e){}
     toast("Staying on this beta — you’ll only be notified about new stable releases");loadSettingsUpdates();};
@@ -4199,7 +4202,7 @@ function openAlerts(){const a=buildAlerts(),sc={info:"info",low:"ok",medium:"war
   modal(head("Alerts"+(a.length?` · ${a.length}`:""))+`<div class="modal-body">
     ${a.length?a.map(x=>`<div class="alert-row" ${x.code?`data-ac="${x.code}"`:""}><span class="alert-dot" style="background:var(--${sc[x.sev]||'warn'})"></span>
       <div><div style="font-weight:500">${ue(x.title)}</div><div style="font-size:12.5px;color:var(--text-dim)">${ue(x.sub)}</div></div></div>`).join(""):'<div style="color:var(--text-dim);padding:10px 0">No active alerts. Everything looks healthy.</div>'}
-    <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Alerts show here while Cortex is open. Phone and email notifications are not available yet.</div>
+    <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Alerts show here while Cortex is open. To hear about them with Cortex closed, turn on <b>Alerts on this device</b> in Settings ▸ Display.</div>
   </div>`);
   mroot.querySelectorAll("[data-ac]").forEach(r=>r.onclick=()=>openError(r.dataset.ac));}
 
@@ -4366,7 +4369,7 @@ function fpMarker(u,x,y,rot){const c=u.offline?"var(--warn)":u.err?"var(--err)":
 function renderMap(){renderGroupNav();
   if(fpDrag)return;                                            // never rebuild the map under a finger mid-drag
   if(!isStaff())mapEdit=false;
-  if(!units.length){main.innerHTML=`<div class="cyc-note">No units yet${isTechView()?" — add them from Bus scan (discover → import)":" — your installer adds them when the system is set up"}.</div>`;return;}
+  if(!units.length){main.innerHTML=`<div class="cyc-note" style="display:block">No units yet${isTechView()?" — add them from Bus scan (discover → import)":" — your installer adds them when the system is set up"}.</div>`;return;}
   const sel=(groupFilter==="all")?units.slice():units.filter(u=>catVals(u,"location").includes(groupFilter));
   const leaves=[...new Set(sel.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const enc=encodeURIComponent;
@@ -4387,7 +4390,7 @@ function renderMap(){renderGroupNav();
         else if(loose.length)inner+=`<div class="mini-lbl">Not on the plan yet</div><div class="ummap">${loose.map(mapTile).join("")}</div>`;
       }else inner=`<div class="ummap">${us.map(mapTile).join("")}</div>`;
       return `<div class="floor-wrap" style="margin-bottom:16px" data-leaf="${enc(leaf)}"><div class="fphead"><span class="ft">${ue(leaf)}</span><span class="fc">${us.length} unit${us.length!==1?"s":""}</span>${tools}</div><div class="fpslot">${inner}</div></div>`;}).join("")+
-    `<div class="cyc-note" style="margin-top:4px">${isStaff()
+    `<div class="cyc-note" style="margin-top:4px;display:block">${isStaff()
       ?`Set each unit's type (wall, cassette, ducted…) from its control panel so its picture matches. ${mapEdit?"Tap <b>Done editing</b> when the layout looks right.":"Tap <b>Edit layout</b> to add a floor-plan picture for a group and place its units on it."}`
       :`Each picture matches the kind of unit in that room. Tap a unit to change its settings.`}</div>`;
   const me=document.getElementById("mapedit");if(me)me.onclick=()=>{mapEdit=!mapEdit;renderMap();};
@@ -4584,10 +4587,31 @@ async function versionWatch(){
     if(LOADED_VER===null){LOADED_VER=j.version;return;}
     if(j.version===LOADED_VER)return;
     const busy=!!mroot.innerHTML||openId!=null||MASTER.discovering||fpDrag||mapEdit||(WZ&&document.getElementById("screen-setup").classList.contains("show"));
-    if(busy){toast("Cortex was updated to v"+j.version+" — this screen will refresh when you’re done here");return;}
-    location.reload();
+    if(busy&&!UPD){toast("Cortex was updated to v"+j.version+" — this screen will refresh when you’re done here");return;}
+    updReload(j.version);
   }catch(e){}}
 setInterval(versionWatch,45000);
+/* Following an update someone started from this screen: say what is happening, look for the new version
+   every few seconds, and reload the moment it answers, so "is it done?" has an obvious answer. */
+let UPD=null;
+function updBanner(html,done){let b=document.getElementById("upd-banner");if(!html){if(b)b.remove();return;}
+  if(!b){b=document.createElement("div");b.id="upd-banner";b.style.cssText="position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top));z-index:400;max-width:min(560px,calc(100vw - 20px));background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:11px 14px;font-size:13.5px;display:flex;gap:10px;align-items:center";document.body.appendChild(b);}
+  b.innerHTML=(done?"":'<span class="upd-spin" style="flex:none;width:14px;height:14px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:updspin .9s linear infinite"></span>')+"<span>"+html+"</span>"+(done?'<button class="btn sm" style="margin-left:auto" onclick="updBanner()">OK</button>':"");
+  if(!document.getElementById("upd-kf")){const st=document.createElement("style");st.id="upd-kf";st.textContent="@keyframes updspin{to{transform:rotate(360deg)}}";document.head.appendChild(st);}}
+function updReload(ver){try{sessionStorage.setItem("airow_updated",ver);}catch(e){}UPD=null;updBanner("Updated to v"+ue(ver)+" — reloading…");setTimeout(()=>location.reload(),900);}
+function updFollow(what){if(location.protocol==="file:"||UPD)return;UPD={from:LOADED_VER,at:Date.now(),down:false,what:what||"Updating"};
+  const tick=async()=>{if(!UPD)return;const mins=(Date.now()-UPD.at)/60000;let v=null;
+    try{const r=await fetch('/version',{cache:'no-store',signal:AbortSignal.timeout(2500)});if(r.ok)v=(await r.json()).version;}catch(e){}
+    if(!UPD)return;
+    if(v==null){UPD.miss=(UPD.miss||0)+1;if(UPD.miss<2){setTimeout(tick,3000);return;}UPD.down=true;updBanner(UPD.what+" — the controller is restarting. This page reloads by itself when it is back.");}
+    else if((UPD.miss=0)||UPD.from==null){UPD.from=v;}
+    else if(v!==UPD.from){updReload(v);return;}
+    else if(UPD.down&&mins>1){const f=UPD.from;UPD=null;updBanner("The controller restarted but is still on v"+ue(f)+". The new version did not pass its start-up check and was rolled back, or there was nothing newer to install. Nothing was lost.",true);return;}
+    else updBanner(UPD.what+" — downloading and installing (usually one to three minutes). You can keep using Cortex; this page reloads by itself when it is done.");
+    if(mins>10){const f=UPD.from;UPD=null;updBanner("The update has not finished after ten minutes; the controller is still on v"+ue(f||"?")+". Check Settings ▸ Updates.",true);return;}
+    setTimeout(tick,3000);};
+  tick();}
+setTimeout(()=>{try{const v=sessionStorage.getItem("airow_updated");if(v){sessionStorage.removeItem("airow_updated");updBanner("Cortex is now on v"+ue(v)+". Units, schedules, trends and fault history were kept.",true);}}catch(e){}},1500);
 function roleCaps(r){return{admin:r==="admin"||r==="owner",tech:r==="technician"||r==="owner"};}
 function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};session.admin=b.admin||elev.admin;session.tech=b.tech||elev.tech;}
 function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}

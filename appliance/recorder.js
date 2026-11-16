@@ -31,9 +31,33 @@ function createRecorder(opts) {
   const now = opts.now || (() => Date.now());
   const odu = new Map();                        // addr -> { pages: {page: {hex, at}}, at }
   let ring = [], lastSample = 0, lastOduLog = 0, lastPrune = 0;
+  const started = { units: new Set(), odu: new Set() };   // addresses already reconciled since start
   let prev = null;                              // { units: Map(addr -> {code, offline}), odu: Map(addr -> err) }
   let index = (() => { try { const j = JSON.parse(fs.readFileSync(INDEX, 'utf8')); return Array.isArray(j) ? j : []; } catch (_) { return []; } })();
   const open = new Map();                       // event id -> { doc, until }
+  /* What lives only in memory is written to disk when the controller stops (an update restarts it) and
+     every few minutes, then read back at start: the last outdoor pages, with their real read times, and
+     the last ten minutes of samples that a new fault's "before" data comes from. */
+  const STATE = path.join(DATA, 'recorder-state.json'); let lastState = 0;
+  function saveState() { try { fs.mkdirSync(DATA, { recursive: true }); const o = {}; for (const [a, v] of odu) o[a] = v;
+    fs.writeFileSync(STATE + '.tmp', JSON.stringify({ at: now(), odu: o, ring })); fs.renameSync(STATE + '.tmp', STATE); } catch (e) { if (opts.log) opts.log('state save failed: ' + e.message); } }
+  try { const j = JSON.parse(fs.readFileSync(STATE, 'utf8')), t = now();
+    for (const a of Object.keys(j.odu || {})) { const v = j.odu[a]; if (v && v.pages && typeof v.pages === 'object') odu.set(+a, { pages: v.pages, at: +v.at || 0 }); }
+    if (Array.isArray(j.ring)) ring = j.ring.filter(x => x && typeof x.t === 'number' && x.t <= t && t - x.t <= RING_MS);
+  } catch (_) {}
+  const openFor = (kind, addr) => index.find(m => !m.cleared && m.kind === kind && m.addr === addr);
+  /* First look at a unit or outdoor unit since start: bring the fault list in line with what is true now.
+     Without this a fault that cleared while the controller was restarting stayed "active" for ever, and
+     one that appeared during the restart was never recorded. */
+  function reconcileUnit(a, c, t) {
+    const e = openFor('unit', a); if (e && e.code !== c.code) clearEvents('unit', a, t);
+    if (c.code && !(e && e.code === c.code)) openEvent('unit', a, c.code, c.name, t);
+    const q = openFor('silent', a); if (q && !c.offline) clearEvents('silent', a, t); if (!q && c.offline) openEvent('silent', a, null, c.name, t);
+  }
+  function reconcileOdu(a, err, t) {
+    const code = err ? 'CH' + err : null, e = openFor('odu', a); if (e && e.code !== code) clearEvents('odu', a, t);
+    if (code && !(e && e.code === code)) openEvent('odu', a, code, 'Outdoor unit', t);
+  }
   const saveIndex = () => { try { fs.mkdirSync(EVDIR, { recursive: true }); fs.writeFileSync(INDEX + '.tmp', JSON.stringify(index)); fs.renameSync(INDEX + '.tmp', INDEX); } catch (e) { if (opts.log) opts.log('event index save failed: ' + e.message); } };
   const saveDoc = (doc) => { try { fs.mkdirSync(EVDIR, { recursive: true }); fs.writeFileSync(path.join(EVDIR, doc.id + '.json'), JSON.stringify(doc)); } catch (e) { if (opts.log) opts.log('event save failed: ' + e.message); } };
 
@@ -72,16 +96,16 @@ function createRecorder(opts) {
     // --- fault edges (compared with the previous sample) ---
     const cur = { units: new Map(live.map(u => [u.addr, { code: (u.err && u.code) ? String(u.code) : null, offline: !!u.offline, name: u.label || u.name || '' }])), odu: new Map() };
     for (const a of Object.keys(s.o)) { const p0 = s.o[a]['0']; if (p0) cur.odu.set(+a, parseInt(p0.substr(20, 2), 16)); }   // main page byte 10 = error
-    if (prev) {
-      for (const [a, c] of cur.units) { const p = prev.units.get(a); if (!p) continue;
-        if (c.code && c.code !== p.code) openEvent('unit', a, c.code, c.name, t);
-        if (!c.code && p.code) clearEvents('unit', a, t);
-        if (c.offline && !p.offline) openEvent('silent', a, null, c.name, t);
-        if (!c.offline && p.offline) clearEvents('silent', a, t); }
-      for (const [a, e] of cur.odu) { const p = prev.odu.get(a); if (p === undefined) continue;
-        if (e && e !== p) openEvent('odu', a, 'CH' + e, 'Outdoor unit', t);
-        if (!e && p) clearEvents('odu', a, t); }
-    }
+    const seen = prev || { units: new Map(), odu: new Map() };
+    for (const [a, c] of cur.units) { const p = seen.units.get(a); if (!p) { if (!started.units.has(a)) { started.units.add(a); reconcileUnit(a, c, t); } continue; }
+      if (c.code && c.code !== p.code) openEvent('unit', a, c.code, c.name, t);
+      if (!c.code && p.code) clearEvents('unit', a, t);
+      if (c.offline && !p.offline) openEvent('silent', a, null, c.name, t);
+      if (!c.offline && p.offline) clearEvents('silent', a, t); }
+    for (const [a, e] of cur.odu) { const p = seen.odu.get(a); if (p === undefined) { if (!started.odu.has(a)) { started.odu.add(a); reconcileOdu(a, e, t); } continue; }
+      if (e && e !== p) openEvent('odu', a, 'CH' + e, 'Outdoor unit', t);
+      if (!e && p) clearEvents('odu', a, t); }
+    if (prev) for (const [a, p] of prev.odu) if (!cur.odu.has(a)) cur.odu.set(a, p);      // outdoor page went stale for a moment: remember its last error so its return is not a "new" fault
     prev = cur;
     ring.push(s); while (ring.length && t - ring[0].t > RING_MS) ring.shift();
     // --- keep recording after a fault, then finish the file ---
@@ -90,6 +114,7 @@ function createRecorder(opts) {
     if (t - lastOduLog >= ODU_EVERY && Object.keys(s.o).length) { lastOduLog = t;
       try { fs.mkdirSync(HIST, { recursive: true }); fs.appendFileSync(path.join(HIST, 'odu-' + new Date(t).toISOString().slice(0, 10) + '.ndjson'), JSON.stringify({ t, o: s.o }) + '\n'); } catch (e) { if (opts.log) opts.log('outdoor trend append failed: ' + e.message); } }
     if (t - lastPrune > 6 * 3600000) { lastPrune = t; prune(t); }
+    if (t - lastState > 5 * 60000) { lastState = t; saveState(); }
     return true;
   }
   function prune(t) {
@@ -114,7 +139,7 @@ function createRecorder(opts) {
     }
     return rows;
   }
-  function flush() { for (const o of open.values()) saveDoc(o.doc); }
+  function flush() { for (const o of open.values()) saveDoc(o.doc); saveState(); }
   return { onOdu, oduSnapshot, oduState, sample, events, event, oduHistory, flush, ring: () => ring };
 }
 

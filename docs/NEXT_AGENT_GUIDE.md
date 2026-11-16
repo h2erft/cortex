@@ -355,3 +355,18 @@ The firmware-engine reading earlier in this section was done with capstone, no R
 - Command's phone CSS is the last block in its `<style>`, same rule as Cortex.
 - `node tests/fleetwatch.test.js` must print "all passed".
 
+## 1.7.0-beta.12 addendum (2026-11-15) — restarts and updates
+
+- An update is a restart. Anything that must survive one has to be on disk under `data/`; the release
+  folder is replaced. `recorder.js` writes `data/recorder-state.json` (last outdoor pages with their own
+  timestamps, and the pre-fault ring) on `flush()` and every five minutes. Add new in-memory state there
+  or accept that it is lost, and say which in the changelog.
+- `recorder.sample()` reconciles the fault index the first time it sees each unit or outdoor unit after
+  a start (`reconcileUnit`, `reconcileOdu`). Do not go back to "skip the first sample": that is what left
+  cleared faults active for ever.
+- `updFollow()` in `cortex.html` is the update banner; `versionWatch()` still handles updates started
+  elsewhere. Both end in `updReload()`.
+- The sweep scripts used this pass were throwaway Playwright scripts (every view and dialog at 1400 px
+  and 390 px, checking for page errors, clipped elements, the words undefined/NaN/null, and tap targets
+  under 26 px). Worth rebuilding as a real test.
+

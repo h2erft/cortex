@@ -74,5 +74,21 @@ function fakeBus(world) {
   rec.sample(U(null, true));
   t('unit that stops answering', rec.events()[0].kind, 'silent');
   t('outdoor trend rows logged', rec.oduHistory(0xC0, 1).length >= 3, true);
+  // --- a restart (which is what an update is) must not lose or invent anything ---
+  const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'cxrec2-')); let c2 = 2e12; const n2 = [];
+  const mk = () => R.createRecorder({ dataDir: dir2, now: () => c2, notify: e => n2.push(e.kind + ':' + (e.code || '')) });
+  let r1 = mk(); for (let i = 0; i < 30; i++) { r1.onOdu(page(0)); r1.sample(U(null)); c2 += 15000; }
+  r1.sample(U('CH05')); c2 += 15000; r1.flush();
+  t('before the restart: one fault, outdoor data present', [r1.events().length, Object.keys(r1.oduState()).length, n2.join()], [1, 1, 'unit:CH05']);
+  let r2 = mk();                                                  // restart, fault still there
+  t('outdoor pages are back straight away, with their real age', [Object.keys(r2.oduState()).length, r2.ring().length >= 25], [1, true]);
+  r2.sample(U('CH05')); c2 += 15000;
+  t('a fault that is still there is not reported twice', [r2.events().length, n2.length], [1, 1]);
+  r2.flush(); let r3 = mk(); r3.sample(U(null)); c2 += 15000;     // restart, fault cleared meanwhile
+  t('a fault that cleared during the restart is closed', r3.events()[0].cleared > 0, true);
+  r3.flush(); let r4 = mk(); r4.sample(U('CH104')); c2 += 15000;  // restart, new fault appeared meanwhile
+  t('a fault that appeared during the restart is recorded, with the earlier samples', [r4.events().length, r4.events()[0].code, r4.event(r4.events()[0].id).pre.length > 10], [2, 'CH104', true]);
+  r4.flush(); c2 += 3600000; let r5 = mk();
+  t('samples older than ten minutes are not carried over', r5.ring().length, 0);
   console.log(fail ? `\n${fail} FAILED` : '\nall passed'); process.exit(fail ? 1 : 0);
 })();

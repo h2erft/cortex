@@ -2,6 +2,46 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.12 — 2026-11-15 (updates you can see finish, nothing lost across one, screen sweep)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.11. Changes `cortex.html`,
+`appliance/recorder.js`._
+
+**Added**
+- **The page reloads itself when an update is done.** Press Update (or Revert to stable) and a small
+  banner follows it: downloading and installing, then "the controller is restarting", then the page
+  reloads on the new version and says so. Before, an open Settings dialog blocked the reload, so the
+  screen never showed the update had finished. If the new version fails its start-up check and the
+  controller rolls back, the banner says that instead.
+- **Outdoor data is back straight after a restart.** The controller now saves the last outdoor pages
+  (with the time each was really read) when it stops and every five minutes, and loads them at start.
+  The Cycle page used to be empty until the first new read.
+- **The ten minutes before a fault survive a restart.** A fault's record includes the ten minutes of
+  readings before it. That buffer lived only in memory, so a fault soon after an update had almost no
+  "before" data. It is now saved and reloaded.
+
+**Fixed**
+- **Fault list after a restart.** A fault that cleared while the controller was restarting stayed
+  "active" for ever, and a fault that appeared during the restart was never recorded. On the first look
+  at each unit after a start, the list is now brought in line with what is true; a fault that is simply
+  still there is not reported a second time.
+- Screen sweep (every view and dialog, desktop and phone):
+  - Building map, "no units", "no outdoor data" and "no faults" notes broke a sentence into columns
+    wherever it contained bold text.
+  - The Alerts dialog still said phone notifications were not available.
+  - "Not enough running time" spilled out of the health ring.
+  - The weather card pointed at a Settings tab that does not exist (it is Settings ▸ Advanced).
+  - On a phone, small buttons, text links and switches were about 24 px tall; they now have a
+    finger-sized tap area.
+
+**What an update keeps (checked this pass)**
+- On the controller's disk, outside the part an update replaces: units and their names and groups,
+  settings and users, schedules, per-user preferences, indoor trend history, outdoor trend history,
+  fault records, diagnosis advisories, floor plans, notification subscriptions, Command's building list.
+- In each browser: sign-in, theme and that device's choices.
+- Not kept, on purpose: a command that was queued but not yet sent when the controller stopped (send it
+  again), and the count toward a ten-minute diagnosis advisory (it starts counting again).
+
 ## v1.7.0-beta.11 — 2026-11-15 (Cortex Command on a phone, alerts while it is closed)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.10. Changes `command-center.html`,
