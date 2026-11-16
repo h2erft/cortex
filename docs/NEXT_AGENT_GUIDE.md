@@ -312,3 +312,18 @@ The firmware-engine reading earlier in this section was done with capstone, no R
 - Ideas not done: run `cycleDiagnose` on the controller so findings raise alerts and land in Fault
   history; a printable service report; tune thresholds against recorded site data; show HR box valve
   states once the service-port path works.
+
+## 1.7.0-beta.7 addendum (2026-11-15)
+
+- **One copy of the diagnosis rules.** `appliance/diagwatch.js` slices `cortex.html` from `const ODU_T=`
+  to `function oduDiagrams(` and runs it in a `vm` sandbox. Anything added inside that slice must be safe
+  to evaluate without a DOM (declarations are fine; top-level calls need a stand-in in `loadRules`).
+  `tests/diagwatch.test.js` fails loudly if the slice stops loading.
+- `appliance/push.js`: Web Push on Node crypto. `docs/NOTIFICATIONS.md` has the https steps.
+- `alertOut(kind, text, ev, url)` in `server.js` is the single fan-out (webhook + push). Kinds: `fault`,
+  `silent`, `diag`.
+- New endpoints: `/api/push*`, `/api/prefs`, `/api/diag`, `/sw.js`.
+- New appliance files must be in BOTH `release.yml` and `release.sh` copy lists (done for these two).
+- LG parks a satisfied indoor unit's EEV near 40 pulses (owner's field knowledge, 2026-11-15). Treat
+  ≤ 60 pulses as "closed by the controller", never as a fault sign on its own.
+- Cortex Command reads `/health`, `/api/units`, `/api/events`, `/api/diag` from each site; nothing is stored.

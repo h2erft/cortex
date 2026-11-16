@@ -58,6 +58,7 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 .pill.ok{background:var(--ok-soft);color:var(--ok)}
 .pill.off{background:var(--surface-2);color:var(--text-faint)}
 .pill.err{background:var(--err-soft);color:var(--err)}
+.pill.warn{background:var(--warn-soft,#fbf0d5);color:var(--warn,#b7791f)}
 .pdot{width:7px;height:7px;border-radius:50%;background:currentColor}
 .stat-row{display:flex;gap:16px;font-size:12.5px;color:var(--text-dim)}
 .stat-row b{color:var(--text);font-weight:650}
@@ -159,12 +160,15 @@ function genRecovery(name){const base=(name||"CMD").toUpperCase().replace(/[^A-Z
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 let DB=load()||seed();
 /* per-user preferences (scoped to the signed-in owner account) */
-const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites"};
+const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites",idleMin:15,accent:"slate",textSize:"normal",showHealth:true,popAlerts:true};
 let PREFS=loadPrefs();
 function prefsKey(){return "cortex_cmd_prefs_"+OWNER.user;}
-function loadPrefs(){try{return Object.assign({},PREF_DEFAULTS,JSON.parse(localStorage.getItem("cortex_cmd_prefs_owner"))||{});}catch(e){return Object.assign({},PREF_DEFAULTS);}}
-function savePrefs(){try{localStorage.setItem("cortex_cmd_prefs_owner",JSON.stringify(PREFS));}catch(e){}}
-function applyTheme(){if(PREFS.theme==="auto"){if(matchMedia("(prefers-color-scheme:dark)").matches)document.documentElement.setAttribute("data-theme","dark");else document.documentElement.removeAttribute("data-theme");}else document.documentElement.setAttribute("data-theme",PREFS.theme);}
+function loadPrefs(){try{return Object.assign({},PREF_DEFAULTS,JSON.parse(localStorage.getItem(prefsKey())||localStorage.getItem("cortex_cmd_prefs_owner"))||{});}catch(e){return Object.assign({},PREF_DEFAULTS);}}
+function savePrefs(){try{localStorage.setItem(prefsKey(),JSON.stringify(PREFS));}catch(e){}}
+function applyTheme(){if(PREFS.theme==="auto"){if(matchMedia("(prefers-color-scheme:dark)").matches)document.documentElement.setAttribute("data-theme","dark");else document.documentElement.removeAttribute("data-theme");}else document.documentElement.setAttribute("data-theme",PREFS.theme);
+  const dark=document.documentElement.getAttribute("data-theme")==="dark",a=CMD_ACCENTS[PREFS.accent]||CMD_ACCENTS.slate,v=dark?a.d:a.l,r=document.documentElement.style;r.setProperty("--accent",v[0]);r.setProperty("--accent-ink",v[1]);r.setProperty("--accent-soft",v[2]);
+  if(document.body)document.body.style.zoom=PREFS.textSize==="large"?"1.12":"";}
+const CMD_ACCENTS={slate:{n:"Slate",l:["#0e7c66","#0b5f4e","#d9efe9"],d:["#2fb79a","#8fe6d4","#143029"]},arctic:{n:"Arctic",l:["#1f74c4","#15568f","#e2eefb"],d:["#5aa6e8","#bcd8f5","#13263a"]},ember:{n:"Ember",l:["#d2652a","#9a4718","#faeadf"],d:["#e8955a","#f4c7a6","#33251a"]},violet:{n:"Violet",l:["#6b4fd0","#4c359c","#ebe6fb"],d:["#9d86ee","#d3c8fa","#231c3d"]}};
 function seed(){
   // Real deployments start empty — add each building by its Cortex appliance address.
   return {sites:[],techs:[],grants:[],audit:[{t:Date.now(),m:"Fleet console provisioned"}]};
@@ -173,15 +177,30 @@ function seed(){
 function siteUrl(s){let u=(s&&(s.addr||s.url)||"").trim();if(!u)return "";if(!/^https?:\/\//i.test(u))u="http://"+u;return u.replace(/\/+$/,"");}
 /* poll each building's Cortex appliance /health to set online + version live */
 let healthTimer=null;
+async function getJ(url,ms){const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),ms||4000);try{const r=await fetch(url,{signal:ctl.signal,cache:"no-store"});return await r.json();}finally{clearTimeout(to);}}
+const LIVE={};                       // site id -> what its controller reports right now (never saved)
 async function pollSite(s){const base=siteUrl(s);if(!base){s.online=false;return;}
-  const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),3000);
-  try{const r=await fetch(base+"/health",{signal:ctl.signal,cache:"no-store"});const j=await r.json();
-    s.online=!!j.ok;if(j.version)s.ver=j.version;}
-  catch(e){s.online=false;}finally{clearTimeout(to);}}
-async function pollAllSites(){if(!DB.sites.length)return;const before=DB.sites.map(s=>s.online);
+  try{const j=await getJ(base+"/health",3000);s.online=!!j.ok;if(j.version)s.ver=j.version;}catch(e){s.online=false;}
+  if(!s.online){delete LIVE[s.id];return;}
+  const L=LIVE[s.id]||(LIVE[s.id]={});
+  try{const u=(await getJ(base+"/api/units")).units||[];L.units=u.length;L.on=u.filter(x=>x.on&&!x.offline).length;L.offline=u.filter(x=>x.offline).length;
+    L.errs=u.filter(x=>x.err||x.code).map(x=>({name:x.name||("0x"+Number(x.addr).toString(16).toUpperCase()),code:x.code||("CH"+x.err)}));s.units=L.units;s.err=L.errs.length;}catch(e){}
+  try{L.events=(await getJ(base+"/api/events")).events||[];}catch(e){L.events=L.events||null;}
+  try{const d=await getJ(base+"/api/diag");L.adv=(d.advisories||[]).filter(a=>!a.cleared);const hs=Object.values(d.health||{}).filter(h=>Date.now()-h.at<600000).map(h=>h.score);L.health=hs.length?Math.min(...hs):null;}catch(e){L.adv=L.adv||null;L.health=null;}
+  L.at=Date.now();}
+function siteSig(s){const L=LIVE[s.id]||{};return [s.online,s.err||0,(L.adv||[]).length,L.offline||0].join("|");}
+function fleetNotice(before){const msgs=[];DB.sites.forEach((s,i)=>{const b=before[i].split("|"),a=siteSig(s).split("|");
+    if(b[0]==="true"&&a[0]==="false")msgs.push(s.name+" went offline");else if(+a[1]>+b[1])msgs.push(s.name+": "+(+a[1])+" unit"+(+a[1]>1?"s":"")+" in error");else if(+a[2]>+b[2])msgs.push(s.name+": new diagnosis advisory");else if(+a[3]>+b[3])msgs.push(s.name+": a unit stopped answering");});
+  if(!msgs.length||!fleetPrimed)return;if(PREFS.popAlerts!==false)toast(msgs[0]+(msgs.length>1?" (+"+(msgs.length-1)+" more)":""));
+  if(PREFS.soundAlerts){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.frequency.value=880;g.gain.value=.06;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.18);}catch(e){}}
+  if(document.hidden){document.title="("+msgs.length+") Cortex Command · AIROW";}
+  msgs.forEach(m=>log("Alert: "+m));}
+let fleetPrimed=false;document.addEventListener("visibilitychange",()=>{if(!document.hidden)document.title="Cortex Command · AIROW";});
+async function pollAllSites(){if(!DB.sites.length)return;const before=DB.sites.map(siteSig);
   await Promise.all(DB.sites.map(pollSite));
-  if(DB.sites.some((s,i)=>s.online!==before[i])){save();if(tab==="sites")renderSites();renderKpis();renderAlerts();}}
-function startHealthPolling(){if(healthTimer)clearInterval(healthTimer);pollAllSites();healthTimer=setInterval(pollAllSites,15000);}
+  const changed=DB.sites.some((s,i)=>siteSig(s)!==before[i]);fleetNotice(before);fleetPrimed=true;
+  if(changed)save();if(!$("scrim").classList.contains("show")){if(tab==="sites"&&document.activeElement!==$("site-search"))renderSites();renderKpis();if(tab==="alerts")renderAlerts();if(changed)renderAudit();}}
+function startHealthPolling(){if(healthTimer)clearInterval(healthTimer);pollAllSites();healthTimer=setInterval(()=>{if(PREFS.autorefresh!==false)pollAllSites();},20000);}
 function load(){try{return JSON.parse(localStorage.getItem("cortex_command"));}catch(e){return null;}}
 function save(){try{localStorage.setItem("cortex_command",JSON.stringify(DB));}catch(e){}}
 function log(m){DB.audit.unshift({t:Date.now(),m});DB.audit=DB.audit.slice(0,60);save();}
@@ -207,11 +226,15 @@ function orderedSites(){
   let list=DB.sites.slice();
   if(siteSort==="alpha")list.sort((a,b)=>a.name.localeCompare(b.name));
   else if(siteSort==="status")list.sort((a,b)=>(b.err-a.err)||((a.online?1:0)-(b.online?1:0)));
-  else list.sort((a,b)=>PREFS.siteOrder.indexOf(a.id)-PREFS.siteOrder.indexOf(b.id));
+  else{if(!PREFS.siteOrder||PREFS.siteOrder.length!==DB.sites.length)PREFS.siteOrder=DB.sites.map(x=>x.id);list.sort((a,b)=>PREFS.siteOrder.indexOf(a.id)-PREFS.siteOrder.indexOf(b.id));}
   if(siteQuery)list=list.filter(s=>(s.name+" "+(s.loc||"")+" "+(s.addr||"")).toLowerCase().includes(siteQuery.toLowerCase()));
   return list;}
 /* deterministic 30-day error history per site (sample) */
-function siteErrHist(s){const h=[];for(let i=29;i>=0;i--){const base=(s.id.charCodeAt(1)+i*7)%11;h.push(Math.max(0,(base>8?base-8:0)+(i<2?(s.err||0):0)));}return h;}
+function siteErrHist(s){const h=new Array(30).fill(0),ev=(LIVE[s.id]||{}).events;if(!ev)return null;const now=Date.now();
+  ev.forEach(e=>{if(e.kind==="silent")return;const d=Math.floor((now-e.at)/86400000);if(d>=0&&d<30)h[29-d]++;});return h;}
+function siteLive(s){const L=LIVE[s.id];if(!s.online||!L||L.units==null)return "";
+  const hp=PREFS.showHealth!==false&&L.health!=null?`<span class="pill ${L.health>=85?'ok':L.health>=65?'warn':'err'}" title="Lowest system health score at this building, from its controller">health ${L.health}</span>`:"";
+  return `<div class="stat-row" style="gap:8px;flex-wrap:wrap"><div><b>${L.on}</b> of ${L.units} on</div>${L.errs&&L.errs.length?`<div style="color:var(--err)"><b>${L.errs.length}</b> in error</div>`:""}${L.offline?`<div style="color:var(--warn)"><b>${L.offline}</b> silent</div>`:""}${L.adv&&L.adv.length?`<div style="color:var(--warn)"><b>${L.adv.length}</b> advisor${L.adv.length>1?"ies":"y"}</div>`:""}${hp}</div>`;}
 function render(){renderKpis();renderSites();renderAlerts();renderTechs();renderAudit();}
 function renderKpis(){
   const online=DB.sites.filter(s=>s.online).length;
@@ -246,7 +269,7 @@ function renderSites(){
     const pad=PREFS.density==="compact"?"12px":"16px";
     inner=`<div class="sites">`+list.map(s=>`<div class="site" style="padding:${pad}${canDrag?';cursor:grab':''}" ${canDrag?`draggable="true"`:''} data-drag="${s.id}">
       <div class="h"><div><div class="nm">${canDrag?'⠿ ':''}${s.name}</div><div class="lo">${s.loc||''}</div></div>${sitePill(s)}</div>
-      <div class="stat-row"><div>${siteAddr(s)}</div>${s.ver?`<div>v${s.ver}</div>`:''}</div>
+      <div class="stat-row"><div>${siteAddr(s)}</div>${s.ver?`<div>v${s.ver}</div>`:''}</div>${siteLive(s)}
       <div class="foot"><button class="btn primary grow sm" data-open="${s.id}">Open dashboard ↗</button>
         <button class="btn sm" data-assign="${s.id}">Assign</button>
         <button class="btn sm" data-edit="${s.id}">Edit</button></div></div>`).join("")+`</div>`;
@@ -270,17 +293,21 @@ function renderSites(){
   });
 }
 function renderAlerts(){
-  const problems=DB.sites.filter(s=>!s.online||s.err>0);
-  const rows=problems.length?problems.map(s=>`<div class="trow">
-    <span class="pill ${s.online?'err':'off'}"><span class="pdot"></span>${s.online?s.err+' error'+(s.err>1?'s':''):'Offline'}</span>
-    <div class="tinfo"><div class="tname">${s.name}</div><div class="tsub">${s.loc}</div></div>
-    <button class="btn primary sm" data-open="${s.id}" ${s.online?'':'disabled style="opacity:.5"'}>Open</button></div>`).join(""):'<div class="trow"><div class="tsub">✓ No active alerts across the fleet.</div></div>';
-  const spark=h=>{const mx=Math.max(1,...h);return `<svg width="150" height="26" viewBox="0 0 150 26">${h.map((v,i)=>`<rect x="${i*5}" y="${26-v/mx*24}" width="4" height="${v/mx*24}" fill="${v>0?'var(--err)':'var(--border)'}" rx="1"/>`).join("")}</svg>`;};
+  const when=t=>fmtTime(t),items=[];
+  DB.sites.forEach(s=>{const L=LIVE[s.id]||{};
+    if(siteUrl(s)&&!s.online)items.push({s,cls:"off",tag:"Offline",t:"Controller is not answering",sub:"Check the site's internet / Tailscale link and that the controller has power.",w:0});
+    (L.events||[]).filter(e=>!e.cleared).forEach(e=>items.push({s,cls:e.kind==="silent"?"warn":"err",tag:e.kind==="silent"?"Silent":(e.code||"Error"),t:(e.kind==="odu"?"Outdoor unit":(e.name||"Unit"))+" 0x"+Number(e.addr).toString(16).toUpperCase()+(e.kind==="silent"?" stopped answering":" in error"),sub:"since "+when(e.at),w:e.at}));
+    (L.adv||[]).forEach(a=>items.push({s,cls:"warn",tag:a.lvl==="likely"?"Likely":"Possible",t:a.title,sub:"diagnosis advisory since "+when(a.at)+" · "+a.hit+" of "+a.total+" signs",w:a.at}));});
+  items.sort((a,b)=>b.w-a.w);
+  const rows=items.length?items.map(i=>`<div class="trow"><span class="pill ${i.cls}"><span class="pdot"></span>${esc(i.tag)}</span>
+    <div class="tinfo"><div class="tname">${esc(i.s.name)} · ${esc(i.t)}</div><div class="tsub">${esc(i.sub)}</div></div>
+    <button class="btn primary sm" data-open="${i.s.id}" ${i.s.online?'':'disabled style="opacity:.5"'}>Open ↗</button></div>`).join(""):'<div class="trow"><div class="tsub">✓ No active alerts across the fleet.</div></div>';
+  const spark=h=>{const mx=Math.max(1,...h);return `<svg width="150" height="26" viewBox="0 0 150 26">${h.map((v,i)=>`<rect x="${i*5}" y="${26-Math.max(v/mx*24,v?3:1)}" width="4" height="${Math.max(v/mx*24,v?3:1)}" fill="${v>0?'var(--err)':'var(--border)'}" rx="1"/>`).join("")}</svg>`;};
   $("tab-alerts").innerHTML=`<h2 class="sec" style="margin-top:4px">Active alerts</h2><div class="panel">${rows}</div>
-    <h2 class="sec">Error trends · last 30 days</h2><div class="panel">${DB.sites.map(s=>{const h=siteErrHist(s),tot=h.reduce((a,b)=>a+b,0);
-      return `<div class="trow"><div class="tinfo"><div class="tname">${s.name}</div><div class="tsub">${tot} error events in 30 days</div></div>${spark(h)}</div>`;}).join("")}</div>
-    <div class="note" style="margin-top:12px">Alerts and error trends roll up what each building's controller reports. Sample data until sites are live-reporting over the tunnel.</div>`;
-  document.querySelectorAll("#tab-alerts [data-open]").forEach(b=>b.onclick=()=>{const s=DB.sites.find(x=>x.id===b.dataset.open);log(`Opened ${s.name} dashboard (remote)`);toast("Opening "+s.name+"…");renderAudit();});
+    <h2 class="sec">Faults · last 30 days</h2><div class="panel">${DB.sites.length?DB.sites.map(s=>{const h=siteErrHist(s);
+      return `<div class="trow"><div class="tinfo"><div class="tname">${esc(s.name)}</div><div class="tsub">${h?h.reduce((a,b)=>a+b,0)+" fault"+(h.reduce((a,b)=>a+b,0)===1?"":"s")+" recorded in 30 days":(s.online?"This controller does not report fault history (needs Cortex 1.7.0-beta.3 or newer)":"No data while offline")}</div></div>${h?spark(h):""}</div>`;}).join(""):'<div class="trow"><div class="tsub">No buildings yet.</div></div>'}</div>
+    <div class="note" style="margin-top:12px">Everything here is read live from each building's Cortex controller: active faults and the 30-day history from its fault recorder, advisories from its cycle diagnosis. Nothing is stored in Cortex Command.</div>`;
+  document.querySelectorAll("#tab-alerts [data-open]").forEach(b=>b.onclick=()=>{const s=DB.sites.find(x=>x.id===b.dataset.open),u=siteUrl(s);if(!u)return;window.open(u,"_blank","noopener");log(`Opened ${s.name} from an alert`);renderAudit();});
 }
 function renderTechs(){
   $("tab-techs").innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px"><button class="btn sm" id="addtech">+ Add technician</button><button class="btn primary sm" id="newgrant">+ Grant temporary access</button></div>
@@ -420,23 +447,36 @@ function openSettings(){
       <div class="seg" id="st-density">${[["comfortable","Comfortable"],["compact","Compact"]].map(d=>`<button data-d="${d[0]}" class="${PREFS.density===d[0]?'on':''}">${d[1]}</button>`).join("")}</div>
       <label class="flabel">Default landing tab</label>
       <div class="seg" id="st-land">${[["sites","Buildings"],["alerts","Alerts"],["techs","Techs"]].map(l=>`<button data-land="${l[0]}" class="${PREFS.landing===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
+      <label class="flabel">Colour</label>
+      <div class="seg" id="st-accent">${Object.entries(CMD_ACCENTS).map(([k,a])=>`<button data-ac="${k}" class="${PREFS.accent===k?'on':''}">${a.n}</button>`).join("")}</div>
+      <label class="flabel">Text size</label>
+      <div class="seg" id="st-text">${[["normal","Normal"],["large","Large"]].map(l=>`<button data-tx="${l[0]}" class="${PREFS.textSize===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
+      <label class="flabel">Sign out after no activity</label>
+      <div class="seg" id="st-idle">${[[5,"5 min"],[15,"15 min"],[30,"30 min"],[60,"1 hour"],[0,"Never"]].map(l=>`<button data-idle="${l[0]}" class="${(+PREFS.idleMin||0)===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
       <label class="flabel">More</label>
-      <div>${mt("showOffline","Show offline buildings")}${mt("autorefresh","Auto-refresh fleet status")}${mt("clock24","24-hour clock")}${mt("confirmOpen","Confirm before opening a site remotely")}${mt("compactNums","Compact large numbers")}${mt("soundAlerts","Sound on new alert")}</div>
+      <div>${mt("showOffline","Show offline buildings")}${mt("autorefresh","Auto-refresh fleet status")}${mt("clock24","24-hour clock")}${mt("confirmOpen","Confirm before opening a site remotely")}${mt("compactNums","Compact large numbers")}${mt("showHealth","Show health score on buildings")}${mt("popAlerts","Pop up a message when a building raises an alert")}${mt("soundAlerts","Sound on new alert")}</div>
       <div class="note" style="margin-top:14px">These preferences are saved to your account (<b>${OWNER.user}</b>). Each person who logs in keeps their own theme and layout.</div>
       <div class="mf"><button class="btn primary" onclick="closeModal()">Done</button></div>
     </div>`);
   document.querySelectorAll("#st-theme button").forEach(b=>b.onclick=()=>{PREFS.theme=b.dataset.t;savePrefs();applyTheme();openSettings();});
   document.querySelectorAll("#st-layout button").forEach(b=>b.onclick=()=>{PREFS.layout=b.dataset.l;savePrefs();renderSites();openSettings();});
   document.querySelectorAll("#st-density button").forEach(b=>b.onclick=()=>{PREFS.density=b.dataset.d;savePrefs();renderSites();openSettings();});
+  document.querySelectorAll("#st-accent button").forEach(b=>b.onclick=()=>{PREFS.accent=b.dataset.ac;savePrefs();applyTheme();openSettings();});
+  document.querySelectorAll("#st-text button").forEach(b=>b.onclick=()=>{PREFS.textSize=b.dataset.tx;savePrefs();applyTheme();openSettings();});
+  document.querySelectorAll("#st-idle button").forEach(b=>b.onclick=()=>{PREFS.idleMin=+b.dataset.idle;savePrefs();openSettings();});
   document.querySelectorAll("#st-land button").forEach(b=>b.onclick=()=>{PREFS.landing=b.dataset.land;savePrefs();openSettings();});
   document.querySelectorAll("[data-mt]").forEach(b=>b.onclick=()=>{const k=b.dataset.mt;PREFS[k]=!PREFS[k];savePrefs();renderSites();openSettings();});
 }
-$("logout").onclick=()=>{sessionStorage.removeItem("cortex_cmd_in");$("app").classList.add("hide");$("login").style.display="flex";showSignin();};
+function signOut(msg){sessionStorage.removeItem("cortex_cmd_in");if(healthTimer){clearInterval(healthTimer);healthTimer=null;}closeModal();$("app").classList.add("hide");$("login").style.display="flex";showSignin(msg);}
+$("logout").onclick=()=>signOut();
+/* sign out after a period with no mouse, key or touch activity (per-user setting) */
+let lastTouch=Date.now();["pointerdown","keydown","wheel","touchstart"].forEach(ev=>document.addEventListener(ev,()=>{lastTouch=Date.now();try{sessionStorage.setItem("cortex_cmd_touch",String(lastTouch));}catch(e){}},{passive:true}));
+setInterval(()=>{if(!sessionStorage.getItem("cortex_cmd_in"))return;const m=+PREFS.idleMin||0;if(m&&Date.now()-lastTouch>m*60000)signOut("Signed out after "+m+" minutes without activity.");},15000);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 
 /* ---------- auth: first-run setup wizard, sign-in, recovery ---------- */
 function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";render();setTab();if(tab==="techs")tickCountdowns();startHealthPolling();pollAllSites();}
-function signedIn(acct){OWNER.user=acct.user;OWNER.name=acct.name;sessionStorage.setItem("cortex_cmd_in","1");enter();}
+function signedIn(acct){OWNER.user=acct.user;OWNER.name=acct.name;sessionStorage.setItem("cortex_cmd_in","1");PREFS=loadPrefs();siteSort=PREFS.siteSort||"custom";applyTheme();lastTouch=Date.now();fleetPrimed=false;enter();}
 const CARD=()=>$("login-card");
 function head(title,sub){return `<div class="login-logo">${LOGO_SVG}Cortex Command</div><div class="login-sub">${esc(sub||"Fleet console")}</div>${title?`<h2 style="margin:4px 0 14px;font-size:18px">${esc(title)}</h2>`:""}`;}
 
@@ -521,7 +561,7 @@ function showRecovery(){
 (function(){
   const acct=loadAcct();
   if(!acct){showSetup();}
-  else if(sessionStorage.getItem("cortex_cmd_in")==="1"){OWNER.user=acct.user;OWNER.name=acct.name;enter();}
+  else if(sessionStorage.getItem("cortex_cmd_in")==="1"){OWNER.user=acct.user;OWNER.name=acct.name;PREFS=loadPrefs();applyTheme();lastTouch=+sessionStorage.getItem("cortex_cmd_touch")||Date.now();enter();}
   else {showSignin();}
 })();
 </script>

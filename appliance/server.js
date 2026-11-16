@@ -775,23 +775,54 @@ const schedRunner = scheduler.createRunner({
   saveFired: (f) => { try { writeFileAtomic(FIREDF, JSON.stringify(f)); } catch (_) {} },
   log: (e) => console.log('schedule:', JSON.stringify(e)),
 });
+// --- alerts: one place that fans a message out to the webhook and to subscribed browsers / phones ---
+const { createPush, SW_JS } = require('./push');
+const push = createPush({ dataDir: DATA, log: (t) => console.log(t) });
+function alertOut(kind, text, ev, url) {
+  const cfg = readJsonSafe(APPCFG) || {};
+  const site = (cfg.site && cfg.site.name) || readConfig().name || 'Cortex';
+  const hook = cfg.alertUrl;
+  if (typeof hook === 'string' && /^https?:\/\//i.test(hook)) {     // optional webhook (Home Assistant, ntfy, anything that takes a POST)
+    fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Title': 'Cortex alert' },
+      body: JSON.stringify({ site, kind, text: site + ': ' + text, message: site + ': ' + text, title: 'Cortex alert', event: ev }), signal: AbortSignal.timeout(8000) }).catch(e => console.error('alert webhook failed:', e.message));
+  }
+  if (push.count()) push.send({ title: site, body: text, tag: kind + ':' + (ev && (ev.key || ev.addr) != null ? (ev.key || ev.addr) : ''), url: url || '/' }, kind).catch(e => console.error('push failed:', e.message));
+}
+app.get('/sw.js', (_req, res) => { res.set('Cache-Control', 'no-cache').type('application/javascript').send(SW_JS); });
+app.get('/api/push', (req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ key: push.publicKey(), devices: push.count(), subscribed: req.query.endpoint ? push.has(String(req.query.endpoint)) : undefined }); });
+app.post('/api/push/subscribe', (req, res) => { cors(res); const b = req.body || {}; if (!push.subscribe(b.subscription, b.user, b.kinds)) return res.status(400).json({ err: 'bad subscription' }); res.json({ ok: true, devices: push.count() }); });
+app.post('/api/push/unsubscribe', (req, res) => { cors(res); push.unsubscribe(String((req.body || {}).endpoint || '')); res.json({ ok: true, devices: push.count() }); });
+app.post('/api/push/test', async (req, res) => { cors(res); const ep = String((req.body || {}).endpoint || ''); if (!ep || !push.has(ep)) return res.status(400).json({ err: 'this device is not subscribed' });
+  const cfg = readJsonSafe(APPCFG) || {}; const site = (cfg.site && cfg.site.name) || readConfig().name || 'Cortex';
+  res.json(await push.send({ title: site, body: 'Test notification from Cortex. Alerts will look like this.', tag: 'test', url: '/' }, 'test', ep)); });
+// --- per-user preferences, kept on the controller so they follow the person to any device ---------
+const PREFSF = path.join(DATA, 'prefs.json');
+let prefsDoc = readJsonSafe(PREFSF) || {};
+const prefKey = (u) => String(u || '').toLowerCase().replace(/[^a-z0-9_.@-]/g, '').slice(0, 64);
+app.get('/api/prefs', (req, res) => { cors(res); res.set('Cache-Control', 'no-store'); const k = prefKey(req.query.user); res.json(k && prefsDoc[k] ? prefsDoc[k] : { ts: 0, prefs: null }); });
+app.post('/api/prefs', (req, res) => { cors(res); const b = req.body || {}, k = prefKey(b.user);
+  if (!k || !b.prefs || typeof b.prefs !== 'object' || JSON.stringify(b.prefs).length > 20000) return res.status(400).json({ err: 'bad prefs' });
+  prefsDoc[k] = { ts: Date.now(), prefs: b.prefs }; try { writeFileAtomic(PREFSF, JSON.stringify(prefsDoc)); } catch (e) { return res.status(500).json({ err: e.message }); }
+  res.json({ ok: true, ts: prefsDoc[k].ts }); });
 // --- recorder: rolling buffer, fault events with the 10 minutes before, outdoor trends ----------
 const { createRecorder } = require('./recorder');
 const recorder = createRecorder({ dataDir: DATA, log: (t) => console.log('recorder:', t),
-  notify: (ev) => {                                           // optional alert webhook (Home Assistant, ntfy, anything that takes a POST)
-    const cfg = readJsonSafe(APPCFG) || {}; const url = cfg.alertUrl;
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
-    const site = (cfg.site && cfg.site.name) || readConfig().name || 'Cortex';
+  notify: (ev) => {
     const what = ev.kind === 'silent' ? 'stopped responding' : ('error ' + ev.code);
-    const text = `${site}: ${ev.kind === 'odu' ? 'Outdoor unit' : (ev.name || 'Unit')} 0x${ev.addr.toString(16).toUpperCase()} ${what}`;
-    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Title': 'Cortex alert' },
-      body: JSON.stringify({ site, text, message: text, title: 'Cortex alert', event: ev }), signal: AbortSignal.timeout(8000) }).catch(e => console.error('alert webhook failed:', e.message));
+    alertOut(ev.kind === 'silent' ? 'silent' : 'fault', `${ev.kind === 'odu' ? 'Outdoor unit' : (ev.name || 'Unit')} 0x${ev.addr.toString(16).toUpperCase()} ${what}`, ev, '/#events');
   } });
 app.post('/api/odu', (req, res) => { cors(res);                // pages read by the dashboard that holds the adapter
   const pages = (req.body && Array.isArray(req.body.pages)) ? req.body.pages.slice(0, 16) : [];
   for (const h of pages) if (typeof h === 'string' && /^[0-9a-f]{128}$/i.test(h)) recorder.onOdu(Buffer.from(h, 'hex'));
   res.json({ ok: true }); });
 app.get('/api/odu', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ odu: recorder.oduState(), poller: pollerInfo() }); });
+// --- cycle diagnosis on the controller: persistent findings become advisories ------------------------
+const { createDiagWatch } = require('./diagwatch');
+const diagWatch = createDiagWatch({ dataDir: DATA, htmlPath: fs.existsSync(path.join(DIR, 'cortex.html')) ? path.join(DIR, 'cortex.html') : path.join(DIR, '..', 'cortex.html'), log: (t) => console.log('diagnosis:', t),
+  getUnits: () => unitsDoc.units, getOdu: () => recorder.oduState(),
+  notify: (a) => alertOut('diag', `${a.lvl === 'likely' ? 'Likely' : 'Possible'}: ${a.title} (outdoor unit 0x${a.addr.toString(16).toUpperCase()}, ${a.hit} of ${a.total} signs)`, a, '/#events') });
+diagWatch.start();
+app.get('/api/diag', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ advisories: diagWatch.list(), health: diagWatch.health(), state: diagWatch.state() }); });
 app.get('/api/events', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ events: recorder.events() }); });
 app.get('/api/events/:id', (req, res) => { cors(res); const d = recorder.event(req.params.id); if (!d) return res.status(404).json({ err: 'no such event' }); res.json(d); });
 app.get('/api/history/odu', (req, res) => { cors(res); res.set('Cache-Control', 'no-store');

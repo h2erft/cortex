@@ -2,6 +2,43 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.7 — 2026-11-15 (notifications · controller-side diagnosis · health report · Command)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.6. Changes `cortex.html`,
+`command-center.html`, `appliance/server.js`; adds `appliance/push.js` and `appliance/diagwatch.js`._
+
+**Fixed**
+- Cycle diagnosis: an opened finding closed by itself after a few seconds (the page re-renders when new
+  outdoor readings arrive). Open findings now stay open.
+- Cycle diagnosis: a unit that is satisfied parks its EEV near 40 pulses with room-temperature pipes; that
+  was being reported as "EEV fully blocked". The rule now needs the unit to be calling for cooling with
+  its valve driven open (above 60 pulses), and parked units are left out of the charge averages.
+
+**New**
+- **Diagnosis runs on the controller.** `diagwatch.js` lifts the rule block out of `cortex.html` (one
+  copy of the rules) and runs it once a minute. A pattern present for ten checks becomes an advisory in
+  Fault history, raises an alert, and clears after ten checks without it.
+- **Push notifications** to browsers and phones (`push.js`, no dependencies), chosen per person and per
+  device in Settings ▸ Notifications: error codes, units that stop answering, diagnosis advisories.
+  Needs https with a trusted certificate — see `docs/NOTIFICATIONS.md`. The webhook still works without it.
+- **System health report** per outdoor unit from the recorded log (24 h / 7 d / 30 d): grade, share of
+  running time inside LG's ranges, averages and ranges, most common out-of-range readings, drift, faults
+  and advisories, with a stated confidence that grows with the amount of data.
+- **Refrigerant diagram:** sub frames are drawn as summary cards (compressors, discharge, fans, pressures,
+  superheat, EEVs, coil) instead of a line of text; clicking an indoor unit opens its controls.
+- **Preferences follow the person.** Per-user settings are mirrored to the controller (`/api/prefs`) and
+  picked up on any device. New: text size, animations on/off, which view Outdoor / cycle opens on, more
+  start pages.
+- **Cortex Command:** building cards and the Alerts tab now show live data from each controller (units
+  on / in error / silent, active faults, diagnosis advisories, health score, real 30-day fault history);
+  a pop-up and optional beep when a building raises an alert; sign-out after inactivity; accent colour and
+  text size; preferences are now really per user (they were being saved under one shared key).
+
+**Not done / unverified**
+- Push has not been delivered to a real phone yet. Controller-side diagnosis is tested offline only.
+- Thresholds are still LG's published numbers.
+- The kit files and the ACP engine were not re-read in this pass.
+
 ## v1.7.0-beta.6 — 2026-11-15 (diagnosis: guided checks · cycle diagnosis · more outdoor data)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.5. Changes `cortex.html` only._

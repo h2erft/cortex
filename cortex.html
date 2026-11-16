@@ -303,6 +303,14 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 @keyframes cyorbit{0%{transform:translate(1.7px,0)}12.5%{transform:translate(1.2px,1.2px)}25%{transform:translate(0,1.7px)}37.5%{transform:translate(-1.2px,1.2px)}50%{transform:translate(-1.7px,0)}62.5%{transform:translate(-1.2px,-1.2px)}75%{transform:translate(0,-1.7px)}87.5%{transform:translate(1.2px,-1.2px)}100%{transform:translate(1.7px,0)}}
 .cy-fanico{vertical-align:-4px;margin-right:6px;fill:var(--text-faint)}.cy-fanico.run{fill:var(--accent)}.cy-fanico.run g{animation:cyspin 1s linear infinite;transform-origin:0 0}.cy-fanring{fill:none;stroke:currentColor;stroke-width:1;opacity:.35}.cy-fanico{color:var(--text-faint)}.cy-fanico.run{color:var(--accent)}
 .cy-ti{cursor:help;outline:none}
+.no-motion .cy-flow.on,.no-motion .cy-fanico.run g,.no-motion .cy-orb{animation:none!important}
+.cy-subfs{padding:0 14px 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:10px}.cy-subfs .cy-dnote{grid-column:1/-1}
+.cy-subf{border:1px solid var(--border);border-top:3px solid var(--uc);border-radius:12px;padding:10px 12px;background:var(--surface)}
+.cy-subrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}.cy-subc{display:flex;gap:7px;align-items:center}.cy-subc small,.cy-subkv small{display:block;font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em}
+.cy-subc b{font:600 13.5px ui-monospace,Menlo,monospace;display:block}.cy-subc em{font-style:normal;font-size:11.5px;color:var(--text-dim)}
+.cy-subkv{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;margin-top:9px}.cy-subkv b{font:600 13px ui-monospace,Menlo,monospace}.cy-subkv .bad b{color:var(--err)}.cy-subkv .warn b{color:var(--warn)}
+.hr-top{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.hr-grade{flex:none;width:104px;height:104px;border-radius:50%;border:6px solid var(--gc);display:grid;place-content:center;text-align:center}
+.hr-grade b{font-size:40px;line-height:1;color:var(--gc)}.hr-grade span{font-size:11.5px;color:var(--text-dim)}
 .cy-diag{margin:12px 14px 0}.cy-diag-h{font-size:13px;margin-bottom:6px}
 .cy-dx{border:1px solid var(--border);border-left:4px solid var(--warn);border-radius:10px;background:var(--surface);margin-bottom:6px}.cy-dx.likely{border-left-color:var(--err)}
 .cy-dx summary{cursor:pointer;padding:9px 12px;font-size:13.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none}.cy-dx summary::-webkit-details-marker{display:none}
@@ -792,7 +800,7 @@ const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
 
 /* ---- state ---- */
 const DEF_SETTINGS={view:"grid",density:"comfortable",unit:"F",theme:"auto",accent:"slate",defaultGroup:0,clock24:false,landing:"units",
-  groupBy:"location",showTiles:true,showWeather:true,notif:{push:true,email:false},
+  groupBy:"location",showTiles:true,showWeather:true,notif:{fault:true,silent:true,diag:true},motion:true,textSize:"normal",cycleView:"data",
   show:{mode:true,room:true,fan:false,tags:true}};
 const ACCENTS={
   slate:{n:"Slate",c:"#0e7c66",l:["#0e7c66","#0b5f4e","#d9efe9"],d:["#2fb79a","#8fe6d4","#143029"]},
@@ -956,7 +964,7 @@ function unitsInCat(cat,dim){return units.filter(u=>catVals(u,dim).includes(cat)
 let settingsUser=null; // per-user preferences are scoped to the signed-in user
 function settingsKey(){return "airow_settings"+(settingsUser?("__"+settingsUser):"");}
 function loadSettings(){try{const s=JSON.parse(localStorage.getItem(settingsKey()));return Object.assign({},DEF_SETTINGS,s||{},{show:Object.assign({},DEF_SETTINGS.show,(s&&s.show)||{})});}catch(e){return JSON.parse(JSON.stringify(DEF_SETTINGS));}}
-function saveSettings(){try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(e){}}
+function saveSettings(){try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(e){}if(typeof prefsPush==="function")prefsPush();}
 function temp(f){if(f==null||!isFinite(f))return "--";return settings.unit==="C"?Math.round((f-32)*5/9)+"°C":f+"°F";}
 function cksum(b){let s=0;for(let i=0;i<7;i++)s=(s+b[i])&0xff;return s^0x55;}
 function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,(u.d5||0)&0x7F,u.d6,0];b[7]=cksum(b);   // &0x7F: byte5 bit7 is a one-shot filter-sign RESET — never replay it
@@ -1103,6 +1111,7 @@ const main=document.getElementById("main");
 
 function applyTheme(){const r=document.documentElement;
   if(settings.theme==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",settings.theme);
+  document.body.classList.toggle("no-motion",settings.motion===false);document.body.style.zoom=settings.textSize==="large"?"1.12":"";
   applyAccent();}
 function applyAccent(){const a=ACCENTS[settings.accent]||ACCENTS.slate;
   const dm=document.documentElement.getAttribute("data-theme")==="dark"||(settings.theme==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);
@@ -1799,7 +1808,7 @@ function oduHead(o,m,i,n){const flt=o.pages[5]&&o.pages[5].f.slice(8,38).some(x=
     <div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)} <span class="cy-pill ${m.mode==='heat'?'heat':m.mode==='cool'?'cool':''}">${ue(m.mode)}</span></div>
       <div class="cy-subt">${ue(m.product)} · family 0x${m.family.toString(16).toUpperCase().padStart(2,"0")} · ${m.idus} indoor unit${m.idus!==1?"s":""}${mine?` · ${mine} matched in Cortex`:""}${m.subs?` · main + ${m.subs} sub`:""}</div></div>
     <div style="margin-left:auto;text-align:right;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-      <button class="btn sm" data-ocharge="${o.addr}">🧪 Charge check</button><button class="btn sm" data-otrend="${o.addr}">📈 Trends</button>
+      <button class="btn sm" data-ohealth="${o.addr}">🩺 Health</button><button class="btn sm" data-ocharge="${o.addr}">🧪 Charge check</button><button class="btn sm" data-otrend="${o.addr}">📈 Trends</button>
       <div>${(h=>h==null?"":`<span class="cy-pill ${h>=85?"run":h>=65?"warn":"bad"}" title="Cortex health score: starts at 100 and loses points for readings outside LG's ranges, matched fault patterns, errors and silent units. A rough guide only.">health ${h}</span>`)(sysHealth(o))}${m.err?`<span class="cy-pill bad">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span class="cy-pill run">no error</span>'}${flt?' <span class="cy-pill warn">fault table has entries</span>':''}
       <div style="font-size:11.5px;color:var(--text-faint);margin-top:4px">read ${ago(o.at)}</div></div></div></div>`;}
 function oduChecks(us,idus){const all=[];us.forEach((u,k)=>oduAdvice(u,k===0?idus:null).forEach(a=>all.push(Object.assign({who:k===0?"Main":"Sub "+k},a))));
@@ -1878,7 +1887,7 @@ function oduDiagram(o,sysI,sysN){const us=oduUnits(o);if(!us.length)return "";co
   const coil=y=>`<rect x="${coilL}" y="${y-13}" width="${coilR-coilL}" height="26" rx="7" fill="var(--surface)" stroke="${coilCol}" stroke-width="2"/>`
      +Array.from({length:9},(_,i)=>`<line x1="${coilL+17+i*17}" y1="${y-8}" x2="${coilL+17+i*17}" y2="${y+8}" stroke="${coilCol}" stroke-width="2" opacity=".45"/>`).join("");
   const flags=[m.defrost&&"defrost",m.oilReturn&&"oil return",m.hotGas&&"hot gas bypass",m.sucInj&&"injection",m.snow&&"snow removal"].filter(Boolean);
-  const subs=us.slice(1).map((u,k)=>`<text class="cy-dl" x="336" y="${220+k*16}">SUB ${k+1} · <tspan class="cy-dv" fill="${u.running?hot:'var(--text-dim)'}">${u.inv1Hz}/${u.inv2Hz} Hz</tspan> · ${f.pr(u.hp)}/${f.pr(u.lp)} ${f.pu} · disch ${f.tt(Math.max(u.disch1==null?-99:u.disch1,u.disch2==null?-99:u.disch2))}</text>`).join("");
+  const subs="";
   const oduG=`<rect x="14" y="14" width="636" height="${H-24}" rx="16" fill="var(--surface-2)" stroke="var(--border)" stroke-dasharray="5 5"/>
     <text class="cy-dn" x="30" y="38">OUTDOOR UNIT ${hx(o.addr)} · ${ue(m.mode).toUpperCase()}${run?"":" · IDLE"}${hr?" · HEAT RECOVERY":""}</text>
     ${p}${coil(yU)}${coil(yLo)}
@@ -1906,7 +1915,7 @@ function oduDiagram(o,sysI,sysN){const us=oduUnits(o);if(!us.length)return "";co
     const gas=hr?pipe(`M${cx+80} ${cy-10}H${cx+66}`,hot,a&&uh,4)+pipe(`M${cx+66} ${cy+10}H${cx+94}`,cold,a&&!uh,4)
         +`<circle cx="${cx+73}" cy="${cy-10}" r="3.2" fill="${a&&uh?hot:'var(--surface)'}" stroke="var(--text-dim)"/><circle cx="${cx+73}" cy="${cy+10}" r="3.2" fill="${a&&!uh?cold:'var(--surface)'}" stroke="var(--text-dim)"/>`
       :pipe(uh?`M${cx+80} ${cy}H${cx+66}`:`M${cx+66} ${cy}H${cx+80}`,gasCol,a);
-    return `<g>${pipe(uh?`M${cx-66} ${cy}H${cx-80}`:`M${cx-80} ${cy}H${cx-66}`,warm,a)}${gas}
+    return `<g data-uid="${u.id}" style="cursor:pointer"><title>Open controls for ${ue(dispName(u))}</title>${pipe(uh?`M${cx-66} ${cy}H${cx-80}`:`M${cx-80} ${cy}H${cx-66}`,warm,a)}${gas}
       <rect x="${cx-66}" y="${cy-32}" width="132" height="64" rx="10" fill="var(--surface)" stroke="${c}" stroke-width="${on?2:1.3}"/>${dxIdu.has(u.id)?`<g><circle cx="${cx+58}" cy="${cy-24}" r="8" fill="var(--warn)"/><text x="${cx+58}" y="${cy-20}" text-anchor="middle" style="font:700 11px system-ui;fill:#fff">!</text></g>`:""}
       <text class="cy-dn" x="${cx-57}" y="${cy-14}">${ue(dispName(u)).slice(0,17)}</text>
       <text class="cy-dl" x="${cx-57}" y="${cy+3}">room <tspan class="cy-dv">${t(u.room)}</tspan> · EEV <tspan class="cy-dv">${u.eev!=null?u.eev:"—"}</tspan></text>
@@ -1921,7 +1930,8 @@ function oduDiagram(o,sysI,sysN){const us=oduUnits(o);if(!us.length)return "";co
     ${!idus.length?`<text class="cy-dl" x="${x0+20}" y="${(yL+yG)/2}">Indoor units for this outdoor unit aren’t known yet — use “Group by outdoor unit” in the Data view.</text>`:""}
     ${more>0?`<text class="cy-dl" x="${W-12}" y="${H-6}" text-anchor="end">+${more} more indoor unit${more>1?"s":""} — see the Data view</text>`:""}
    </svg></div>
-   <div class="cy-dnote">Schematic of the main outdoor unit, not to scale. Hover or tap a part for what it does and its normal values.${hr?" Heat-recovery boxes can’t be read on this bus, so each indoor unit’s pipes are coloured from that unit’s own mode.":""}</div></div>`;}
+   ${oduSubFrames(us)}
+   <div class="cy-dnote">Schematic of the main outdoor unit, not to scale. Hover or tap a part for what it does and its normal values; click an indoor unit to open its controls.${hr?" Heat-recovery boxes can’t be read on this bus, so each indoor unit’s pipes are coloured from that unit’s own mode.":""}</div></div>`;}
 /* ---- LG charge check: expected readings by outdoor temperature ----
    From LG's "Refrigerant Charge Determination" table (psig / °F). Test condition: every indoor unit
    running the same mode on high fan, system settled. Used as a comparison, never as a verdict. */
@@ -1983,12 +1993,14 @@ function cycleDiagnose(o){const us=oduUnits(o);if(!us.length)return {state:"noda
   const run=us.some(u=>u.running),mode=m.mode;if(!run||(mode!=="cool"&&mode!=="heat"))return {state:"idle",list:[]};
   const on=units.filter(u=>u.odu===o.addr&&u.on&&!u.offline&&u.room!=null&&u.pipeIn!=null&&u.pipeOut!=null);
   const cooling=on.filter(u=>u.mode!=="heat"),heating=on.filter(u=>u.mode==="heat"),mixed=cooling.length&&heating.length;
+  // LG parks the EEV of a unit that is satisfied (thermo-off) near 40 pulses: that is "closed", not blocked.
+  const flowing=u=>u.eev==null||u.eev>60,callCool=u=>u.coolC!=null&&u.room-u.coolC>=1;
   const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null,r1=x=>x==null?null:Math.round(x*10)/10,f=cyFmt();
   const dOn=[m.inv1Hz>0?m.disch1:null,m.inv2Hz>0?m.disch2:null].filter(x=>x!=null),dMax=dOn.length?Math.max(...dOn):null,dMin=dOn.length?Math.min(...dOn):null;
   const dsh=dMax!=null&&m.cond!=null?dMax-m.cond:null,list=[];
   const rule=(id,title,part,signs,need,what,todo,who)=>{const hit=signs.filter(s=>s.hit).length;if((need[2]||[]).some(i=>!signs[i].hit))return;if(hit>=need[0])list.push({id,title,part,who,signs,hit,total:signs.length,lvl:hit>=need[1]?"likely":"possible",what,todo});};
   const S=(t,hit,now)=>({t,hit:!!hit,now});
-  if(mode==="cool"){const idu=cooling,sup=idu.map(u=>u.pipeOut-u.pipeIn),aE=avg(idu.filter(u=>u.eev!=null).map(u=>u.eev)),aS=avg(sup);
+  if(mode==="cool"){const idu=cooling.filter(flowing),sup=idu.map(u=>u.pipeOut-u.pipeIn),aE=avg(idu.filter(u=>u.eev!=null).map(u=>u.eev)),aS=avg(sup);
     const near=idu.filter(u=>Math.abs(u.room-u.pipeIn)<3&&Math.abs(u.room-u.pipeOut)<3).length;
     if(!mixed)rule("short","Low refrigerant charge (cooling)","charge",[
       S("Discharge temperature is high (above "+f.tt(95)+")",dMax!=null&&dMax>95,f.tt(dMax)),
@@ -2014,12 +2026,16 @@ function cycleDiagnose(o){const us=oduUnits(o);if(!us.length)return {state:"noda
         S("Its pipe-out is warmer than the others",others.length&&u.pipeOut>avg(others.map(x=>x.pipeOut))+3,f.tt(u.pipeOut))],[2,3,[0]],
         "Refrigerant is not getting through this unit's expansion valve freely, so its coil runs starved while the valve keeps opening.",
         "Cut power to this indoor unit at its breaker for 1 minute, restore it for 3 minutes, and repeat 5 to 10 times. The EEV re-homes on every power-up, which can free a stuck valve. Stopping the unit from a controller is not enough. If that fails, compare the liquid pipe temperature entering this unit with a neighbour: more than about 9 °F (5 °C) colder points to a kinked or blocked pipe instead.",u.id);
+      });
+    cooling.forEach(u=>{const others=cooling.filter(x=>x!==u&&flowing(x));
       rule("eevf:"+u.id,"Indoor EEV fully blocked — "+ue(dispName(u)),"idu",[
+        S("It is calling for cooling (room at least "+f.dt(1)+" above its setpoint)",callCool(u),u.coolC==null?"setpoint unknown":f.tt(u.room)+" vs "+f.tt(u.coolC)),
+        S("Its EEV is being driven open (above 60 pls), so the unit is not just satisfied",u.eev!=null&&u.eev>60,(u.eev==null?"—":u.eev)+" pls"),
         S("Pipe-in is within "+f.dt(3)+" of room temperature",Math.abs(u.room-u.pipeIn)<3,f.tt(u.pipeIn)+" vs "+f.tt(u.room)),
         S("Pipe-out is within "+f.dt(3)+" of room temperature",Math.abs(u.room-u.pipeOut)<3,f.tt(u.pipeOut)+" vs "+f.tt(u.room)),
         S("Other units on this system are cooling normally",others.some(x=>x.room-x.pipeIn>6),""),
-        S("Its EEV reads under 110 pls",u.eev!=null&&u.eev<110,(u.eev==null?"—":u.eev)+" pls")],[3,4,[0,1]],
-        "No refrigerant is flowing through this unit even though it is calling. A kinked or crushed pipe gives exactly the same picture.",
+        S("Its EEV has been throttled back under 110 pls",u.eev!=null&&u.eev<110,(u.eev==null?"—":u.eev)+" pls")],[4,5,[0,1,2,3]],
+        "No refrigerant is flowing through this unit even though it is calling and its valve is being driven open. A unit that is satisfied parks its EEV near 40 pulses with room-temperature pipes, which is normal and is not counted here. A kinked or crushed pipe gives exactly the same picture as a blocked valve.",
         "Same power-cycle reset as a partial blockage (breaker off 1 minute, on 3 minutes, 5 to 10 times). Then check the incoming liquid pipe temperature against a working unit. If neither helps, replace the EEV assembly.",u.id);});
     const wx=(WEATHER&&WEATHER.live&&WEATHER.now!=null)?(settings.unit!=="C"?(WEATHER.now-32)*5/9:WEATHER.now):null;
     if(!mixed)rule("recirc","Outdoor unit is re-breathing its own hot air","air",[
@@ -2052,12 +2068,13 @@ function sysHealth(o){const us=oduUnits(o);if(!us.length||!us.some(u=>u.running)
   let s=100;us.forEach((u,k)=>oduAdvice(u,k===0?idus:null).forEach(a=>s-=a.sev==="bad"?10:4));
   cycleDiagnose(o).list.forEach(x=>s-=x.lvl==="likely"?15:7);if(us[0].err)s-=25;s-=Math.min(20,idus.filter(u=>u.err).length*6+idus.filter(u=>u.offline).length*6);
   return Math.max(0,Math.min(100,Math.round(s)));}
+const cyDxOpen=new Set();
 function oduDiagnosis(o){const d=cycleDiagnose(o);
   const note=tip("Cortex counts how many of the signs LG's cycle-diagnosis guides look for are present right now. <b>It is a pointer, not a verdict.</b> It only means something after 10–20 minutes of steady running with every running unit in the same mode, and several different faults share the same signs.");
   if(d.state==="nodata"||d.state==="idle")return "";
   if(d.state==="mixed"&&!d.list.length)return `<div class="cy-checks idle">Charge patterns are paused while units heat and cool at the same time (they only hold with every running unit in one mode). Indoor EEV and sensor checks are still running and found nothing.${note}</div>`;
   if(!d.list.length)return `<div class="cy-checks ok">✓ No fault pattern matches the current readings (${d.n} running unit${d.n===1?"":"s"} checked).${note}</div>`;
-  return `<div class="cy-diag"><div class="cy-diag-h"><b>Cycle diagnosis</b>${note}</div>${d.list.map(x=>`<details class="cy-dx ${x.lvl}"><summary><span class="cy-pill ${x.lvl==="likely"?"bad":"warn"}">${x.lvl}</span><b>${x.title}</b><span class="cy-dxn">${x.hit} of ${x.total} signs</span></summary>
+  return `<div class="cy-diag"><div class="cy-diag-h"><b>Cycle diagnosis</b>${note}</div>${d.list.map(x=>`<details class="cy-dx ${x.lvl}" data-dx="${o.addr}:${x.id}" ${cyDxOpen.has(o.addr+":"+x.id)?"open":""}><summary><span class="cy-pill ${x.lvl==="likely"?"bad":"warn"}">${x.lvl}</span><b>${x.title}</b><span class="cy-dxn">${x.hit} of ${x.total} signs</span></summary>
       <div class="cy-dxb"><div class="cy-dxs">${x.signs.map(s=>`<div class="${s.hit?"hit":""}"><span>${s.hit?"●":"○"}</span><span>${s.t}${s.now?` <i>(${s.now})</i>`:""}</span></div>`).join("")}</div>
       <p><b>What it means:</b> ${x.what}</p><p><b>What to do:</b> ${x.todo}</p></div></details>`).join("")}</div>`;}
 
@@ -2194,6 +2211,92 @@ function rtLookup(kind,c){const t=NTC_RT[kind];if(c<=t[0][0])return t[0][1];if(c
 function rtDraw(){const el=document.getElementById("rt-out"),inp=document.getElementById("rt-t");if(!el||!inp)return;const F=settings.unit!=="C",v=parseFloat(inp.value);
   if(!isFinite(v)){el.innerHTML="";return;}const c=F?(v-32)*5/9:v,fmt=r=>r>=100?Math.round(r)+" kΩ":r>=10?r.toFixed(1)+" kΩ":r.toFixed(2)+" kΩ";
   el.innerHTML=`<span>Pipe <b>${fmt(rtLookup("pipe",c))}</b></span><span>Air <b>${fmt(rtLookup("air",c))}</b></span><span>Discharge <b>${fmt(rtLookup("disch",c))}</b></span>`;}
+/* ---- compact cards for sub frames on the diagram view ---- */
+function oduSubFrames(us){if(us.length<2)return "";const f=cyFmt();
+  return `<div class="cy-subfs">${us.slice(1).map((u,k)=>{const fl=[u.defrost&&"defrost",u.oilReturn&&"oil return",u.hotGas&&"hot gas",u.sucInj&&"injection"].filter(Boolean);
+    const c=(n,hz,d)=>`<div class="cy-subc">${scrollSvg(hz,34)}<div><small>INV ${n}</small><b style="color:${hz?'#e5484d':'var(--text-dim)'}">${hz} Hz</b><em>${f.tt(d)}</em></div></div>`;
+    const kv=(l,v,tone)=>`<div class="${tone||""}"><small>${l}</small><b>${v}</b></div>`;
+    return `<div class="cy-subf" style="--uc:${CY_UNIT_COL[(k+1)%CY_UNIT_COL.length]}"><div class="cy-uhead"><span class="cy-utag">SUB ${k+1}</span><span class="cy-pill ${u.running?'run':''}">${u.running?"running":"idle"}</span>${fl.map(x=>`<span class="cy-pill warn">${x}</span>`).join("")}</div>
+      <div class="cy-subrow">${c(1,u.inv1Hz,u.disch1)}${c(2,u.inv2Hz,u.disch2)}<div class="cy-subc">${fanSvg(u.fan1,20)}${fanSvg(u.fan2,20)}<div><small>fans</small><b>${u.fan1} / ${u.fan2}</b></div></div></div>
+      <div class="cy-subkv">${kv("High",f.pr(u.hp)+" "+f.pu,cyTone("hp",u))}${kv("Low",f.pr(u.lp)+" "+f.pu,cyTone("lp",u))}${kv("Superheat",f.dt(u.sh),cyTone("sh",u))}${kv("Subcool",f.dt(u.sc))}${kv("Main EEV",u.eev1+" / "+u.eev2)}${kv("Coil",f.tt(u.hexUp)+" / "+f.tt(u.hexLo))}</div></div>`;}).join("")}
+    <div class="cy-dnote" style="padding:6px 2px 0">Sub frames are piped in parallel with the main frame and share its pipes, so they are shown as summary cards. Full readings for every frame are in the Data view.</div></div>`;}
+/* ---- system health from recorded history ---- */
+let healthCtx=null;
+function openHealthReport(addr){healthCtx={addr,days:7,rows:null,events:[],adv:[]};
+  modal(head("System health · outdoor unit "+hx(addr))+`<div class="modal-body"><div class="segmented" style="margin-bottom:12px">${[[1,"24 hours"],[7,"7 days"],[30,"30 days"]].map(([d,l])=>`<button data-hd="${d}" class="${d===7?'on':''}">${l}</button>`).join("")}</div><div id="hr-body">${brainLoader(36,"Reading the log…")}</div></div>`,true);
+  mroot.querySelectorAll("[data-hd]").forEach(b=>b.onclick=()=>{healthCtx.days=+b.dataset.hd;mroot.querySelectorAll("[data-hd]").forEach(x=>x.classList.toggle("on",x===b));healthLoad();});healthLoad();}
+async function healthLoad(){const c=healthCtx,el=document.getElementById("hr-body");if(!c||!el)return;
+  if(location.protocol==="file:"){el.innerHTML='<div class="note-box">The health report reads the controller\'s log. This copy was opened as a file, so there is no log.</div>';return;}
+  el.innerHTML=brainLoader(36,"Reading the log…");
+  try{const [h,e,d]=await Promise.all([fetch(`/api/history/odu?addr=${c.addr}&days=${c.days}`,{cache:"no-store"}).then(r=>r.json()),fetch('/api/events',{cache:"no-store"}).then(r=>r.json()).catch(()=>({})),fetch('/api/diag',{cache:"no-store"}).then(r=>r.json()).catch(()=>({}))]);
+    c.rows=h.rows||[];c.events=e.events||[];c.adv=d.advisories||[];}catch(_){el.innerHTML='<div class="note-box">Couldn’t reach the controller.</div>';return;}
+  if(healthCtx===c)el.innerHTML=healthHtml(c);}
+function healthStats(rows){const hexToF=h=>{const f=[];for(let i=0;i<128;i+=2)f.push(parseInt(h.substr(i,2),16));return f;};
+  const S={n:0,run:0,clean:0,flags:new Map(),v:{},first:{},second:{}},keys=["hp","lp","sh","dsh","disch","hz"];keys.forEach(k=>{S.v[k]=[];});
+  const runRows=[];rows.forEach(r=>{const h=r[1]&&r[1]["0"];if(!h||h.length!==128)return;let u;try{u=decodeOduPage(hexToF(h));}catch(_){return;}S.n++;if(!u.running)return;S.run++;
+    const adv=oduAdvice(u,null);if(!adv.length)S.clean++;adv.forEach(a=>{const k=a.t.replace(/<[^>]+>/g,"").replace(/[\d.,]+\s?(°[FC]?|psi|kPa|pls|Hz|%)?/g,"").replace(/\s+/g," ").replace(/\(\s*\)/g,"").trim().slice(0,90);const e=S.flags.get(k)||{n:0,t:a.t};e.n++;S.flags.set(k,e);});
+    const d=Math.max(u.inv1Hz>0&&u.disch1!=null?u.disch1:-99,u.inv2Hz>0&&u.disch2!=null?u.disch2:-99);
+    const x={hp:u.hp,lp:u.lp,sh:u.sh,dsh:d>0&&u.cond!=null?d-u.cond:null,disch:d>0?d:null,hz:u.inv1Hz+u.inv2Hz};runRows.push(x);keys.forEach(k=>{if(x[k]!=null&&isFinite(x[k]))S.v[k].push(x[k]);});});
+  const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null,half=Math.floor(runRows.length/2);
+  ["sh","dsh","disch"].forEach(k=>{S.first[k]=avg(runRows.slice(0,half).map(x=>x[k]).filter(x=>x!=null));S.second[k]=avg(runRows.slice(half).map(x=>x[k]).filter(x=>x!=null));});
+  S.avg=k=>avg(S.v[k]);S.min=k=>S.v[k].length?Math.min(...S.v[k]):null;S.max=k=>S.v[k].length?Math.max(...S.v[k]):null;return S;}
+function healthScore(S,faults,adv){if(S.run<5)return null;let s=70*(S.clean/S.run)+30;s-=Math.min(30,faults*6);s-=Math.min(20,adv*5);return Math.max(0,Math.min(100,Math.round(s)));}
+function healthHtml(c){const S=healthStats(c.rows),f=cyFmt(),from=Date.now()-c.days*86400000;
+  const mine=new Set(units.filter(u=>u.odu===c.addr).map(u=>u.addr));
+  const ev=c.events.filter(e=>e.at>=from&&((e.kind==="odu"&&e.addr===c.addr)||(e.kind!=="odu"&&mine.has(e.addr)))),faults=ev.filter(e=>e.kind!=="silent"),silent=ev.filter(e=>e.kind==="silent");
+  const adv=c.adv.filter(a=>a.addr===c.addr&&a.at>=from),score=healthScore(S,faults.length,adv.length);
+  if(!S.n)return `<div class="note-box">No outdoor readings are logged for this period yet. The controller saves one every 5 minutes while it is polling, so this fills in by itself.</div>`;
+  const conf=S.run<60?["low","There are only "+S.run+" running readings so far, so one odd afternoon can swing this."]:S.run<600?["fair","Based on "+S.run+" running readings. It steadies as more are logged."]:["good","Based on "+S.run+" running readings."];
+  const grade=score==null?"—":score>=90?"A":score>=80?"B":score>=65?"C":score>=50?"D":"F",col=score==null?"var(--text-dim)":score>=80?"var(--ok)":score>=65?"var(--warn)":"var(--err)";
+  const drift=(k,l,isT)=>{const a=S.first[k],b=S.second[k];if(a==null||b==null)return "";const d=b-a;if(Math.abs(d)<(isT?3:2))return "";return `<div class="cy-dxs"><div class="hit"><span>▲</span><span>${l} averaged ${f.dt(Math.round(Math.abs(d)*10)/10)} ${d>0?"higher":"lower"} in the second half of this period than in the first.</div></div>`;};
+  const top=[...S.flags.values()].sort((a,b)=>b.n-a.n).slice(0,5);
+  const row=(l,k,fm)=>`<tr><td>${l}</td><td class="mono">${fm(S.avg(k))}</td><td class="mono dim">${fm(S.min(k))} – ${fm(S.max(k))}</td></tr>`;
+  return `<div class="hr-top"><div class="hr-grade" style="--gc:${col}"><b>${grade}</b><span>${score==null?"not enough running time":score+" / 100"}</span></div>
+    <div style="min-width:0;flex:1"><div style="font-size:14px;line-height:1.5">${score==null?"The system barely ran in this period, so there is nothing to grade yet.":`The system ran for <b>${Math.round(S.run/S.n*100)}%</b> of logged readings and was inside LG's typical running ranges for <b>${Math.round(S.clean/S.run*100)}%</b> of that. It logged <b>${faults.length}</b> fault${faults.length===1?"":"s"}, <b>${silent.length}</b> unit drop-out${silent.length===1?"":"s"} and <b>${adv.length}</b> diagnosis advisor${adv.length===1?"y":"ies"}.`}</div>
+      <div style="font-size:12.5px;color:var(--text-dim);margin-top:6px">Confidence: <b>${conf[0]}</b>. ${conf[1]} ${tip("The grade is Cortex's own rough guide: 70 points for the share of running time spent inside LG's typical ranges, 30 for a clean record, minus points for each fault and each diagnosis advisory in the period. It measures how the system has been behaving, not what is wrong with it.")}</div></div></div>
+    ${S.run?`<div style="overflow:auto;margin-top:12px"><table class="cy-table"><thead><tr><th>While running</th><th>Average</th><th>Range</th></tr></thead><tbody>
+      ${row("High pressure ("+f.pu+")","hp",f.pr)}${row("Low pressure ("+f.pu+")","lp",f.pr)}${row("Hottest discharge","disch",f.tt)}${row("Suction superheat","sh",v=>f.dt(v==null?null:Math.round(v*10)/10))}${row("Discharge superheat","dsh",v=>f.dt(v==null?null:Math.round(v*10)/10))}${row("Compressor speed (Hz, both)","hz",v=>v==null?"—":Math.round(v))}</tbody></table></div>`:""}
+    ${top.length?`<div style="margin-top:14px;font-weight:650;font-size:13.5px">Most common out-of-range readings</div><div class="cy-dxs" style="margin-top:4px">${top.map(e=>`<div class="hit"><span>●</span><span>${e.t} <i>(${Math.round(e.n/S.run*100)}% of running readings; wording from the latest one)</i></span></div>`).join("")}</div>`:""}
+    ${(drift("disch","Discharge temperature",true)+drift("sh","Suction superheat")+drift("dsh","Discharge superheat"))?`<div style="margin-top:14px;font-weight:650;font-size:13.5px">Drift inside this period</div>${drift("disch","Discharge temperature",true)}${drift("sh","Suction superheat")}${drift("dsh","Discharge superheat")}<div style="font-size:12px;color:var(--text-faint);margin-top:4px">Weather and load change these too, so read drift alongside the outdoor temperature in Trends.</div>`:""}
+    ${adv.length?`<div style="margin-top:14px;font-weight:650;font-size:13.5px">Diagnosis advisories</div><div class="cy-dxs" style="margin-top:4px">${adv.slice(0,8).map(a=>`<div class="hit"><span>●</span><span>${ue(a.title)} <i>(${new Date(a.at).toLocaleDateString()}${a.cleared?", cleared":", still present"})</i></span></div>`).join("")}</div>`:""}`;}
+/* ---- notifications on this device (Web Push) ---- */
+const pushOk=()=>("serviceWorker" in navigator)&&("PushManager" in window)&&window.isSecureContext&&location.protocol!=="file:";
+async function pushState(){if(!pushOk())return {ok:false};try{const reg=await navigator.serviceWorker.getRegistration("/");const sub=reg?await reg.pushManager.getSubscription():null;return {ok:true,sub,perm:Notification.permission};}catch(e){return {ok:true,sub:null,perm:Notification.permission,err:e.message};}}
+function pushKinds(){const n=settings.notif||{};return ["fault","silent","diag"].filter(k=>n[k]!==false);}
+async function pushEnable(){try{if(!pushOk())throw new Error("not available on this page");
+    const perm=await Notification.requestPermission();if(perm!=="granted")throw new Error(perm==="denied"?"notifications are blocked for this site in the browser's settings":"permission was not given");
+    const reg=await navigator.serviceWorker.register("/sw.js",{scope:"/"});await navigator.serviceWorker.ready;
+    const key=(await (await fetch("/api/push",{cache:"no-store"})).json()).key,raw=Uint8Array.from(atob(key.replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0));
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:raw});
+    const r=await fetch("/api/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub.toJSON(),user:settingsUser,kinds:pushKinds()})});if(!r.ok)throw new Error("the controller refused the subscription");
+    toast("Notifications are on for this device");}catch(e){toast("Couldn’t turn notifications on: "+e.message);}
+  drawPushRow();}
+async function pushDisable(){try{const st=await pushState();if(st.sub){await fetch("/api/push/unsubscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:st.sub.endpoint})});await st.sub.unsubscribe();}toast("Notifications are off for this device");}catch(e){toast("Couldn’t turn them off: "+e.message);}drawPushRow();}
+async function pushTest(){const st=await pushState();if(!st.sub){toast("Turn notifications on first");return;}
+  try{const r=await (await fetch("/api/push/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:st.sub.endpoint})})).json();toast(r.sent?"Test sent — it should appear in a few seconds":"The push service did not accept it"+(r.errors&&r.errors[0]?" ("+r.errors[0]+")":""));}catch(e){toast("Couldn’t reach the controller");}}
+async function pushResync(){const st=await pushState();if(st.sub)fetch("/api/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:st.sub.toJSON(),user:settingsUser,kinds:pushKinds()})}).catch(()=>{});}
+async function drawPushRow(){const el=document.getElementById("push-row");if(!el)return;
+  if(location.protocol==="file:"){el.innerHTML='<span class="sd">Opened as a file — notifications come from the controller.</span>';return;}
+  if(!pushOk()){const ios=/iPhone|iPad/.test(navigator.userAgent);el.innerHTML=`<span class="sd" style="max-width:340px;display:block">${!window.isSecureContext?"Browsers only allow notifications on a secure (https) page. Open Cortex through its https address to turn them on.":ios?"On iPhone and iPad, add Cortex to the Home Screen first and open it from that icon.":"This browser does not support notifications."} <button class="linklike" onclick="pushHelp()">How</button></span>`;return;}
+  const st=await pushState();
+  el.innerHTML=st.sub?`<span class="cy-pill run" style="margin:0 8px 0 0">on for this device</span><button class="btn sm" onclick="pushTest()">Send a test</button> <button class="btn sm" onclick="pushDisable()">Turn off</button>`
+    :`<button class="btn primary sm" onclick="pushEnable()">Turn on for this device</button>${st.perm==="denied"?'<div class="sd" style="margin-top:4px">Blocked in this browser\'s site settings.</div>':""}`;}
+function pushHelp(){modal(head("Notifications on your phone or computer")+`<div class="modal-body" style="font-size:14px;line-height:1.55">
+  <p style="margin:0 0 10px">Cortex can send alerts straight to a browser or phone, with no app store and no cloud account. Browsers have one rule: <b>the page must be opened over https with a certificate they trust.</b></p>
+  <p style="margin:0 0 6px"><b>Step 1.</b> Give the controller a trusted certificate. With Tailscale, on the controller run <span class="mono">tailscale cert &lt;its-name&gt;.ts.net</span>, copy the two files it makes to <span class="mono">data/tls/cert.pem</span> and <span class="mono">data/tls/key.pem</span>, put <span class="mono">CORTEX_HTTPS=1</span> in <span class="mono">data/appliance.env</span>, and restart Cortex.</p>
+  <p style="margin:0 0 6px"><b>Step 2.</b> Open Cortex at <span class="mono">https://&lt;its-name&gt;.ts.net:8443</span> (Device health shows the exact port).</p>
+  <p style="margin:0 0 6px"><b>Step 3.</b> iPhone / iPad only: Share → Add to Home Screen, then open Cortex from that icon.</p>
+  <p style="margin:0 0 10px"><b>Step 4.</b> Settings → Notifications → Turn on for this device, then Send a test.</p>
+  <p style="margin:0;color:var(--text-dim);font-size:13px">The controller needs internet access to reach the phone makers' push services. If that is not possible on this site, use Settings ▸ Fault alerts with a webhook instead.</p></div>`);}
+/* ---- per-user preferences follow the person: mirrored to the controller ---- */
+let prefPushT=null;
+function prefsPush(){if(location.protocol==="file:"||!settingsUser)return;clearTimeout(prefPushT);prefPushT=setTimeout(()=>{settings._ts=Date.now();try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(_){}
+  fetch("/api/prefs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:settingsUser,prefs:settings})}).catch(()=>{});},800);}
+async function prefsPull(){if(location.protocol==="file:"||!settingsUser)return;const who=settingsUser;
+  try{const d=await (await fetch("/api/prefs?user="+encodeURIComponent(who),{cache:"no-store"})).json();
+    if(who!==settingsUser||!d||!d.prefs)return;if((d.prefs._ts||d.ts||0)<=(settings._ts||0))return;
+    settings=Object.assign({},DEF_SETTINGS,d.prefs,{show:Object.assign({},DEF_SETTINGS.show,d.prefs.show||{})});try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(_){}
+    applyTheme();if(settings.cycleView)cycView=settings.cycleView;renderAll();}catch(_){}}
 function oduDiagrams(list){const d=list.map((o,i)=>oduDiagram(o,i,list.length)).join("");
   return d||`<div class="cyc-note" style="margin-top:14px">The diagram draws itself from outdoor-unit data, and none has been read yet.</div>`;}
 /* ---- small line chart (events + outdoor trends) ---- */
@@ -2273,7 +2376,14 @@ async function renderEvents(){renderGroupNav();
         <div style="min-width:0;flex:1"><div class="ev-t">${evTitle(e)}</div><div class="ev-s">${EV_KIND[e.kind]||e.kind}${e.kind!=="silent"&&e.code?" · "+ue(errInfo(e.code).t||""):""} · ${evDur(e)}</div></div>
         <button class="btn sm">View the data</button></div>`).join("")}</div>`).join("")
       :'<div class="cyc-note" style="margin-top:14px">No faults recorded in the last 30 days. When one happens it appears here with the readings that led up to it.</div>'}`;
-  main.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>openEvent(b.dataset.ev));}
+  main.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>openEvent(b.dataset.ev));eventsAdvisories();}
+async function eventsAdvisories(){let d;try{d=await (await fetch('/api/diag',{cache:'no-store'})).json();}catch(_){return;}
+  if(view!=="events"||document.getElementById("ev-adv"))return;const g=main.querySelector(".gauges");if(!g)return;const list=d.advisories||[],st=d.state||{};
+  const when=t=>new Date(t).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  g.insertAdjacentHTML("afterend",`<div class="cy-card" id="ev-adv" style="margin-bottom:12px;padding:12px 14px"><div style="font-weight:650;font-size:14px">Diagnosis advisories ${tip("The controller runs the cycle-diagnosis rules once a minute, with or without a screen open. A pattern has to be present for about ten minutes before it is listed here, and absent for ten before it clears. Pointers for where to look, not verdicts.")}
+    <span style="font-weight:400;font-size:12px;color:var(--text-faint);margin-left:6px">${st.enabled?(st.lastRun?"last checked "+when(st.lastRun):"waiting for outdoor readings"):"not running"+(st.error?": "+ue(st.error):"")}</span></div>
+    ${list.length?list.slice(0,40).map(a=>`<details class="cy-dx ${a.lvl}" style="margin:8px 0 0"><summary><span class="cy-pill ${a.cleared?"":a.lvl==="likely"?"bad":"warn"}">${a.cleared?"cleared":a.lvl}</span><b>${ue(a.title)}</b><span class="cy-dxn">${hx(a.addr)} · ${when(a.at)}${a.cleared?" → "+when(a.cleared):" · still present"}</span></summary>
+      <div class="cy-dxb"><div class="cy-dxs">${(a.signs||[]).map(x=>`<div class="hit"><span>●</span><span>${ue(x)}</span></div>`).join("")}</div><p><b>What it means:</b> ${ue(a.what)}</p><p><b>What to do:</b> ${ue(a.todo)}</p></div></details>`).join(""):'<div style="font-size:13px;color:var(--text-dim);margin-top:6px">None in the last 30 days.</div>'}</div>`);}
 async function openEvent(id){
   modal(head("Fault record")+`<div class="modal-body" id="ev-body">${brainLoader(60,"Loading the recording…")}</div>`,true);
   let d;try{const r=await fetch('/api/events/'+encodeURIComponent(id),{cache:'no-store'});if(!r.ok)throw 0;d=await r.json();}catch(e){const el=document.getElementById("ev-body");if(el)el.innerHTML='<div class="note-box">This recording is no longer available.</div>';return;}
@@ -3182,6 +3292,9 @@ function renderCycle(){renderGroupNav();
   const off=document.getElementById("odu-find");if(off)off.onclick=oduFindClick;
   const og=document.getElementById("odu-group");if(og)og.onclick=()=>oduGroupClick(false);
   main.querySelectorAll("[data-otrend]").forEach(b=>b.onclick=()=>openOduTrends(+b.dataset.otrend));
+  main.querySelectorAll("details.cy-dx").forEach(d=>d.ontoggle=()=>{d.open?cyDxOpen.add(d.dataset.dx):cyDxOpen.delete(d.dataset.dx);});
+  main.querySelectorAll("[data-uid]").forEach(g=>g.onclick=()=>{const u=units.find(x=>String(x.id)===g.dataset.uid);if(u)openDrawer(u.id);});
+  main.querySelectorAll("[data-ohealth]").forEach(b=>b.onclick=()=>openHealthReport(+b.dataset.ohealth));
   main.querySelectorAll("[data-ocharge]").forEach(b=>b.onclick=()=>openChargeCheck(+b.dataset.ocharge));
   const fr=document.getElementById("cy-fieldref");if(fr)fr.onclick=openFieldRef;
   if(!cycPulled){cycPulled=true;oduPull().then(()=>{if(oduDirty&&view==="cycle"){oduDirty=false;renderCycle();}});}}
@@ -3751,8 +3864,14 @@ function tip(html){return html?`<span class="ii" tabindex="0" role="button" aria
 function row(label,desc,control){const long=desc&&String(desc).replace(/<[^>]*>/g,"").length>56&&!/<(button|select|input|a)\b/i.test(desc);
   return `<div class="setrow"><div><div class="sl">${label}${long?tip(desc):""}</div>${desc&&!long?`<div class="sd">${desc}</div>`:""}</div>${control}</div>`;}
 function tog(id,on){return `<button class="toggle ${on?'on':''}" data-tog="${id}"></button>`;}
-function displayTab(){return `
-  <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Appearance</div>
+function displayTab(){setTimeout(drawPushRow,0);const nk=(k,l,d)=>row(l,d,`<button class="toggle ${(settings.notif||{})[k]!==false?'on':''}" onclick="settings.notif=Object.assign({},settings.notif,{${k}:!((settings.notif||{}).${k}!==false)});saveSettings();pushResync();drawSettings();"></button>`);
+  return `
+  <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Notifications · your choices on this device</div>
+  ${row("Alerts on this device","Sent by the controller even when Cortex is closed",`<div id="push-row" style="text-align:right"></div>`)}
+  ${nk("fault","Error codes","An indoor or outdoor unit raises an error")}
+  ${nk("silent","Units that stop answering","")}
+  ${nk("diag","Diagnosis advisories","A fault pattern has been present for about ten minutes")}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Appearance</div>
   ${row("Layout","How units are shown",`<div class="segmented"><button data-set="view" data-val="grid" class="${settings.view==='grid'?'on':''}">Grid</button><button data-set="view" data-val="list" class="${settings.view==='list'?'on':''}">List</button></div>`)}
   ${row("Density","",`<div class="segmented"><button data-set="density" data-val="comfortable" class="${settings.density==='comfortable'?'on':''}">Comfort</button><button data-set="density" data-val="compact" class="${settings.density==='compact'?'on':''}">Compact</button></div>`)}
   ${row("Temperature unit","",`<div class="segmented"><button data-set="unit" data-val="F" class="${settings.unit==='F'?'on':''}">°F</button><button data-set="unit" data-val="C" class="${settings.unit==='C'?'on':''}">°C</button></div>`)}
@@ -3760,7 +3879,10 @@ function displayTab(){return `
   ${row("Color theme","Accent across the app",`<div class="swatches">${Object.entries(ACCENTS).map(([k,a])=>`<button class="swatch ${settings.accent===k?'sel':''}" data-accent="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div>`)}
   ${row("Group units by","Organize the dashboard",`<select class="sel-box" data-set="groupBy">${userDims().map(d=>`<option value="${d[0]}" ${gdim()===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select>`)}
   ${row("Clock format","",`<div class="segmented"><button class="${!settings.clock24?'on':''}" onclick="settings.clock24=false;saveSettings();drawSettings();tick();">12-hour</button><button class="${settings.clock24?'on':''}" onclick="settings.clock24=true;saveSettings();drawSettings();tick();">24-hour</button></div>`)}
-  ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"]].concat(isStaff()?[["device","Device health"]]:[]).map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
+  ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"]].concat(isStaff()?[["events","Fault history"],["device","Device health"]]:[]).concat(session.tech?[["cycle","Outdoor / cycle"]]:[]).map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
+  ${isStaff()?row("Outdoor / cycle opens on","",`<div class="segmented"><button data-set="cycleView" data-val="data" class="${settings.cycleView!=='diagram'?'on':''}">Data</button><button data-set="cycleView" data-val="diagram" class="${settings.cycleView==='diagram'?'on':''}">Diagram</button></div>`):""}
+  ${row("Text size","",`<div class="segmented"><button data-set="textSize" data-val="normal" class="${settings.textSize!=='large'?'on':''}">Normal</button><button data-set="textSize" data-val="large" class="${settings.textSize==='large'?'on':''}">Large</button></div>`)}
+  ${row("Animations","Spinning fans, moving refrigerant, compressors",tog("motion",settings.motion!==false))}
   ${row("Summary tiles","Running / off / errors row",tog("showTiles",settings.showTiles))}
   ${row("Weather card","Local weather for the site",tog("showWeather",settings.showWeather))}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Show on each card</div>
@@ -3911,6 +4033,7 @@ function wireSettings(){fillVersion();
     const k=b.dataset.tog;
     if(["mode","room","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
     else if(["showTiles","showWeather"].includes(k))settings[k]=!settings[k];
+    else if(k==="motion"){settings.motion=settings.motion===false;applyTheme();}
     else if(k==="custctl"||k==="custall"){if(!CFG||!canAdmin())return;const f=k==="custctl"?"custCtl":"custAll";CFG[f]=(CFG[f]===false);saveCfg(CFG);
       toast(k==="custctl"?(CFG.custCtl?"Customers can change units":"Customers are now view-only"):(CFG.custAll?"All on / All off shown to customers":"All on / All off hidden from customers"));}
     saveSettings();b.classList.toggle("on");refreshBackground();});
@@ -4434,7 +4557,7 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   settingsUser=u.username||u.name;settings=loadSettings();applyTheme();
   saveSession(u.username);lastTouch=Date.now();
   elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();
-  view=(settings.landing&&["units","map","schedule","device"].includes(settings.landing))?settings.landing:"units";
+  view=(settings.landing&&["units","map","schedule","device","events","cycle"].includes(settings.landing))?settings.landing:"units";if(settings.cycleView)cycView=settings.cycleView;prefsPull();
   if(view==="device"&&!isStaff())view="units";
   renderAll();loadWeather();}
 function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
