@@ -90,5 +90,11 @@ function fakeBus(world) {
   t('a fault that appeared during the restart is recorded, with the earlier samples', [r4.events().length, r4.events()[0].code, r4.event(r4.events()[0].id).pre.length > 10], [2, 'CH104', true]);
   r4.flush(); c2 += 3600000; let r5 = mk();
   t('samples older than ten minutes are not carried over', r5.ring().length, 0);
+  // --- clear unit data ---
+  const r6 = mk(); r6.onOdu(page(0)); r6.sample(U('CH05')); c2 += 15000;
+  fs.mkdirSync(path.join(dir2, 'history'), { recursive: true }); fs.writeFileSync(path.join(dir2, 'history', 'x.ndjson'), '{}\n');
+  t('clear with nothing ticked keeps outdoor data, faults and trends', [r6.clear({}).length, Object.keys(r6.oduState()).length, r6.events().length > 0, fs.existsSync(path.join(dir2, 'history', 'x.ndjson')), r6.ring().length], [0, 1, true, true, 0]);
+  t('clear with everything ticked empties them', [r6.clear({ odu: true, events: true, history: true }).join(), Object.keys(r6.oduState()).length, r6.events().length, fs.existsSync(path.join(dir2, 'history', 'x.ndjson'))], ['odu,events,history', 0, 0, false]);
+  t('and it stays empty after a restart', [mk().events().length, Object.keys(mk().oduState()).length], [0, 0]);
   console.log(fail ? `\n${fail} FAILED` : '\nall passed'); process.exit(fail ? 1 : 0);
 })();

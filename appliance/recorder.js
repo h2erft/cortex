@@ -140,7 +140,17 @@ function createRecorder(opts) {
     return rows;
   }
   function flush() { for (const o of open.values()) saveDoc(o.doc); saveState(); }
-  return { onOdu, oduSnapshot, oduState, sample, events, event, oduHistory, flush, ring: () => ring };
+  /* Start over without a factory reset. what: { odu, events, history } - each one optional.
+     Always forgets the live picture (previous sample, pre-fault buffer) so nothing old is compared with new units. */
+  function clear(what) {
+    what = what || {}; const done = [];
+    ring = []; prev = null; started.units.clear(); started.odu.clear(); lastSample = 0;
+    if (what.odu) { odu.clear(); lastOduLog = 0; done.push('odu'); }
+    if (what.events) { open.clear(); index.length = 0; try { for (const f of fs.readdirSync(EVDIR)) fs.rmSync(path.join(EVDIR, f), { force: true }); } catch (_) {} done.push('events'); }
+    if (what.history) { try { for (const f of fs.readdirSync(HIST)) if (/\.ndjson$/.test(f)) fs.rmSync(path.join(HIST, f), { force: true }); } catch (_) {} done.push('history'); }
+    saveState(); return done;
+  }
+  return { onOdu, oduSnapshot, oduState, sample, events, event, oduHistory, flush, clear, ring: () => ring };
 }
 
 module.exports = { createRecorder, unitRow, PRE_MS, POST_MS };

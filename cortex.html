@@ -4104,6 +4104,7 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
   ${row("Restart controller","Reboot the device — back online in ~1 min",`<button class="linklike" onclick="powerCtl('reboot')">Restart</button>`)}
   ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}
+  ${row("Clear unit data","Forget every known unit and start the unit list over. Logins and site settings stay.",`<button class="linklike" style="color:var(--err)" onclick="clearUnitData()">Clear…</button>`)}
   ${row("Factory reset","Erase this site's setup — logins, units, names, schedules — and start over with the setup wizard",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset…</button>`)}
   <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Advanced settings affect every user on this controller.</div>`;}
 function setSessionTimeout(v){if(!CFG)return;CFG.sessionTimeoutMin=parseInt(v,10)||0;saveCfg(CFG);touchSession();toast("Auto sign-out: "+(CFG.sessionTimeoutMin?CFG.sessionTimeoutMin+" min":"never"));}
@@ -4761,6 +4762,43 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   if(view==="device"&&!isStaff())view="units";
   renderAll();loadWeather();}
 function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
+/* Clear unit data: start the unit list over without a factory reset. Nothing is sent to the equipment. */
+function clearUnitData(){
+  if(!canAdmin()){toast("Admins only");return;}
+  const n=units.length,ck=(id,label,sub,on)=>`<label style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--border);cursor:pointer"><input type="checkbox" id="${id}" ${on?"checked":""} style="margin-top:3px"><span><b>${label}</b><br><span style="font-size:12.5px;color:var(--text-dim)">${sub}</span></span></label>`;
+  modal(head("Clear unit data?")+`<div class="modal-body">
+    <div class="note-box warn" style="margin-bottom:12px">This forgets <b>${n} unit${n!==1?"s":""}</b>: their addresses, names, groups, types, map positions and service notes, on this controller and on every screen. Run <b>Bus scan</b> afterwards to find the units again.<br><br><b>Not touched:</b> the equipment itself (nothing is sent to it, so units keep running as they are, locks included), logins, site settings, floor-plan pictures, notification devices and update settings.<br><br>Tip: download a backup first (Settings ▸ Advanced ▸ Back up configuration).</div>
+    <div style="font-weight:650;margin-bottom:2px">Also clear</div>
+    ${ck("cu-odu","Outdoor unit data","The outdoor units Cortex has found and their last readings.",true)}
+    ${ck("cu-hist","Trend history","Indoor and outdoor trend logs (about 35 days). Health reports start again from nothing.",true)}
+    ${ck("cu-ev","Fault history and advisories","Recorded faults with their before-and-after data, and diagnosis advisories.",true)}
+    ${ck("cu-sch","Schedules","Leave this off to keep them. A schedule aimed at specific units or groups will need its targets picked again; one aimed at all units keeps working.",false)}
+    <label class="flabel" style="margin-top:14px">Type CLEAR to confirm</label><input id="cu-inp" class="inp mono" autocomplete="off" placeholder="CLEAR">
+    <div class="err-text" id="cu-err"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" id="cu-go">Clear unit data</button></div></div>`);
+  document.getElementById("cu-go").onclick=async()=>{const err=document.getElementById("cu-err"),g=id=>!!document.getElementById(id).checked;
+    if(document.getElementById("cu-inp").value.trim().toUpperCase()!=="CLEAR"){err.textContent="Type CLEAR (in capitals) to confirm.";return;}
+    const opt={odu:g("cu-odu"),history:g("cu-hist"),events:g("cu-ev"),sched:g("cu-sch")};
+    document.getElementById("cu-go").disabled=true;
+    try{await masterHalt();}catch(e){}                              // stop this screen polling the old list
+    let rev=null;
+    if(location.protocol!=="file:"){
+      try{const r=await fetch('/api/clear-units',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:"CLEAR",odu:opt.odu,history:opt.history,events:opt.events})});
+        if(!r.ok)throw new Error("refused");rev=(await r.json()).rev;}
+      catch(e){err.textContent="The controller didn’t accept it, so nothing was cleared. Check the connection (and that the controller is up to date) and try again.";document.getElementById("cu-go").disabled=false;return;}
+    }
+    units=[];try{selSet.clear();}catch(e){}
+    try{MASTER.found.clear();MASTER.prompted.clear();}catch(e){}
+    if(opt.odu){try{ODU.clear();}catch(e){}}
+    if(CFG){CFG.unitMeta={};CFG.ignoreAddrs=[];if(opt.odu)CFG.oduAddrs=[];
+      if(CFG.floorplans&&typeof CFG.floorplans==="object")Object.values(CFG.floorplans).forEach(fp=>{if(fp&&fp.pos)fp.pos={};});
+      if(opt.sched)CFG.schedules=[];
+      saveCfg(CFG);}
+    try{["airow_units","airow_units_prev","airow_sched_fired"].forEach(k=>localStorage.removeItem(k));localStorage.setItem("airow_units","[]");if(rev!=null)localStorage.setItem("airow_units_rev",String(rev));}catch(e){}
+    try{sessionStorage.setItem("airow_cleared",String(n));}catch(e){}
+    for(let i=0;i<40&&(typeof cfgBusy!=="undefined"&&cfgBusy);i++)await sleep(100);   // let the config save reach the controller before reloading
+    await sleep(300);location.reload();};}
+setTimeout(()=>{try{const v=sessionStorage.getItem("airow_cleared");if(v!=null){sessionStorage.removeItem("airow_cleared");toast("Unit data cleared ("+v+" unit"+(v==="1"?"":"s")+" forgotten). Open Bus scan to find units again.");}}catch(e){}},1600);
 function factoryReset(){
   if(!canAdmin()){toast("Admins only");return;}
   modal(head("Factory reset?")+`<div class="modal-body">

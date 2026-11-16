@@ -2,6 +2,23 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.14 — 2026-11-16 (clear unit data without a factory reset)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.13. Changes `cortex.html`,
+`appliance/server.js`, `appliance/recorder.js`, `appliance/diagwatch.js`._
+
+**Added**
+- **Settings ▸ Advanced ▸ Clear unit data.** Forgets every known unit (addresses, names, groups, types,
+  map positions, service notes) on the controller and on every screen, so the unit list can be built
+  again from a Bus scan. Admins only; you type CLEAR to confirm.
+  - Tick boxes for what else goes: outdoor unit data, trend history, fault history and advisories (all
+    on by default), and schedules (off by default).
+  - Kept: logins, site settings, floor-plan pictures, notification devices, update settings, per-user
+    preferences.
+  - Nothing is sent to the equipment. Units keep running as they are, including any locks.
+  - Another screen that still holds the old list cannot put it back: its next save is refused and it
+    picks up the empty list.
+
 ## v1.7.0-beta.13 — 2026-11-16 (reach Cortex on the standard web port)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.12. Changes `appliance/server.js`,

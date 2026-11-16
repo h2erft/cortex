@@ -808,6 +808,24 @@ app.post('/api/fleet', (req, res) => { cors(res); const n = fleetWatch.setSites(
 app.post('/api/fleet/test', async (req, res) => { cors(res); const ep = String((req.body || {}).endpoint || ''); if (!ep || !push.has(ep)) return res.status(400).json({ err: 'this device is not subscribed' });
   res.json(await push.send({ title: 'Cortex Command', body: 'Test alert. Building alerts will look like this, even with Command closed.', tag: 'test', url: '/command-center.html' }, 'test', ep)); });
 app.get('/command.webmanifest', (_req, res) => { const m = pwa.manifest('Cortex Command'); res.type('application/manifest+json').json(Object.assign({}, m, { name: 'Cortex Command', short_name: 'Command', start_url: '/command-center.html', id: '/command-center.html' })); });
+// --- clear unit data: start the unit list over without a factory reset ------------------------------
+// Logins, site settings, schedules, floor-plan pictures, notification devices and update settings are
+// not touched here (the page clears the unit-related parts of its own config). The equipment is not
+// touched either: nothing is sent on the bus. The body must carry confirm:"CLEAR".
+app.post('/api/clear-units', (req, res) => {
+  cors(res);
+  const b = req.body || {};
+  if (b.confirm !== 'CLEAR') return res.status(400).json({ err: 'confirm must be CLEAR' });
+  const had = unitsDoc.units.length;
+  cmdQueue = [];
+  unitsDoc = { rev: unitsDoc.rev + 1, ts: Date.now(), units: [] }; unitsDirty = true; flushUnits();
+  const done = ['units'].concat(recorder.clear({ odu: !!b.odu, events: !!b.events, history: !!b.history }));
+  if (b.history) histLast = 0;
+  if (b.events) { try { diagWatch.clear(); done.push('advisories'); } catch (_) {} }
+  console.log('unit data cleared: ' + done.join(', ') + ' (' + had + ' units removed)');
+  res.json({ ok: true, rev: unitsDoc.rev, removed: had, cleared: done });
+});
+
 // --- per-user preferences, kept on the controller so they follow the person to any device ---------
 const PREFSF = path.join(DATA, 'prefs.json');
 let prefsDoc = readJsonSafe(PREFSF) || {};

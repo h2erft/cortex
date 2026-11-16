@@ -394,3 +394,12 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   without testing the in-app reboot and "install now" (they go through sudo).
 - `cortex-update.sh` adds `ufw allow 80/tcp` only when `8080/tcp ALLOW Anywhere` is present.
 
+## 1.7.0-beta.14 addendum (2026-11-16) — clear unit data
+
+- `POST /api/clear-units` (`confirm:"CLEAR"`, optional `odu`, `history`, `events`) empties `units.json`,
+  bumps its revision (so a stale screen's push gets a 409), drops queued commands, and calls
+  `recorder.clear()` / `diagWatch.clear()`. The page (`clearUnitData()`) clears the unit-related parts
+  of its own config: `unitMeta`, `ignoreAddrs`, `oduAddrs`, floor-plan `pos`, and schedules if asked.
+- It never transmits. Anything new that is keyed by unit and stored on the controller needs adding to
+  this path, or it will outlive a clear.
+

@@ -71,7 +71,8 @@ function createDiagWatch(opts) {
     const n = list.length; list = list.filter(a => t - a.at < KEEP).slice(0, MAX); if (changed || list.length !== n) save();
   }
   function start() { if (!timer && box) { timer = setInterval(() => { try { run(); } catch (e) { err = e.message; } }, EVERY); if (timer.unref) timer.unref(); } }
-  return { run, start, stop: () => { if (timer) clearInterval(timer); timer = null; }, list: () => list, health: () => health,
+  function clear() { list = []; seen.clear(); for (const k of Object.keys(health)) delete health[k]; save(); }
+  return { run, start, clear, stop: () => { if (timer) clearInterval(timer); timer = null; }, list: () => list, health: () => health,
     state: () => ({ enabled: !!box, error: err, lastRun, holdChecks: HOLD, everyMs: EVERY }) };
 }
 module.exports = { createDiagWatch, loadRules, HOLD };
