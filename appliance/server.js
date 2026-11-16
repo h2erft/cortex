@@ -123,7 +123,7 @@ app.use('/api', (req, res, next) => {
 app.get('/health', (_req, res) => {
   const c = readConfig();
   cors(res);
-  res.json({ ok: true, serial: c.serial, port: PORT, version: readVersion(), running: BOOT_VERSION, name: c.name, configured: c.configured });
+  res.json({ ok: true, serial: c.serial, port: PORT, port80: typeof port80 !== 'undefined' ? port80.active : false, version: readVersion(), running: BOOT_VERSION, name: c.name, configured: c.configured });
 });
 app.get('/version', (_req, res) => {
   cors(res);
@@ -888,6 +888,19 @@ app.get('/api/sched', (_req, res) => { cors(res); res.set('Cache-Control', 'no-s
 
 server.listen(PORT, () => console.log(`Cortex appliance listening on :${PORT}  (serial ${resolveSerial()})`));
 
+// Also answer on the standard web port, so the address works without ":8080" and from networks whose
+// firewall only lets ordinary web traffic through (the way an LG ACP is reached). Same app, same bus
+// bridge. Needs the service's CAP_NET_BIND_SERVICE (shipped in the unit file); if the port cannot be
+// opened for any reason the controller carries on exactly as before on CORTEX_PORT.
+const port80 = { want: process.env.CORTEX_HTTP80 !== '0' && PORT !== 80, active: false, error: null };
+if (port80.want) {
+  const plain = http.createServer(app);
+  plain.on('error', (e) => { port80.active = false; port80.error = e.code || e.message; console.log('port 80 not available (' + port80.error + '); still serving on :' + PORT); });
+  // the bus bridge is attached only once the port is really open: attached earlier, a refused port
+  // surfaces as an unhandled error on the bridge and takes the whole controller down
+  plain.listen(80, () => { attachBus(plain); port80.active = true; port80.error = null; console.log('Cortex appliance also listening on :80'); });
+}
+
 // Save the latest unit readings before the service stops (an update or a reboot), and never let a
 // stray promise rejection take the whole controller down.
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { flushUnits(); } catch (_) {} try { recorder.flush(); } catch (_) {} process.exit(0); });
@@ -921,9 +934,8 @@ function startHttps() {
       httpsState.cert = { subject: String(x.subject || '').replace(/\n/g, ', '), validTo: new Date(x.validTo).toISOString(), selfSigned: x.issuer === x.subject };
     } catch (_) {}
     const tls = https.createServer({ cert, key }, app);
-    attachBus(tls);
     tls.on('error', (e) => { httpsState.active = false; httpsState.error = e.message; console.error('HTTPS disabled (http still serving):', e.message); });
-    tls.listen(httpsState.port, () => { httpsState.active = true; httpsState.error = null; console.log(`Cortex appliance also listening on https :${httpsState.port}`); });
+    tls.listen(httpsState.port, () => { attachBus(tls); httpsState.active = true; httpsState.error = null; console.log(`Cortex appliance also listening on https :${httpsState.port}`); });
   } catch (e) {
     httpsState.active = false;
     httpsState.error = (e.code === 'ENOENT' && /openssl/.test(String(e.path || e.message))) ? 'no certificate, and openssl is not installed to make one'

@@ -385,3 +385,12 @@ The firmware-engine reading earlier in this section was done with capstone, no R
 - Known gaps: no wire colours for the indoor fan plug, no physical map of the outdoor main board, no
   HR-box valve drawing, nothing model-specific for Multi V 5.
 
+## 1.7.0-beta.13 addendum (2026-11-16) — port 80
+
+- `server.js` opens a second plain-http listener on port 80 (`port80` object). `attachBus()` is called
+  inside the `listen` callback for both the port 80 and the https listeners: attaching the WebSocket
+  server before a failed `listen` turns the failure into an unhandled error and kills the process.
+- The unit file carries `AmbientCapabilities=CAP_NET_BIND_SERVICE`. Do not add a `CapabilityBoundingSet`
+  without testing the in-app reboot and "install now" (they go through sudo).
+- `cortex-update.sh` adds `ufw allow 80/tcp` only when `8080/tcp ALLOW Anywhere` is present.
+

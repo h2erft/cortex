@@ -2,6 +2,32 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.13 — 2026-11-16 (reach Cortex on the standard web port)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.12. Changes `appliance/server.js`,
+`appliance/cortex-appliance.service`, `appliance/cortex-update.sh`, `appliance/install.sh`._
+
+**Added**
+- **Cortex also answers on port 80**, so `http://<controller address>` works with no `:8080`. This is how
+  an LG ACP is reached, and it matters on sites with two networks where the firewall between them only
+  passes ordinary web traffic. Port 8080 keeps working exactly as before.
+  - The service gets permission to open port 80 without running as root (one line in the unit file,
+    delivered by the update).
+  - The update opens port 80 in the controller's own firewall only where the LAN could already reach
+    8080. A controller that was locked down to Tailscale-only is left alone.
+  - Set `CORTEX_HTTP80=0` in `data/appliance.env` to turn it off.
+  - `/health` reports `port80: true` when it is open.
+
+**Fixed**
+- If the optional https port could not be opened (already in use, say), the whole controller stopped
+  instead of carrying on over http. Found while testing the port 80 listener, which had the same flaw.
+
+**Good to know**
+- `cortex.local` only resolves from the same network as the controller. From another network, use the
+  controller's IP address.
+- Port 80 could not be tested under systemd here. If it does not open after the update, the controller
+  logs "port 80 not available" and keeps serving on 8080.
+
 ## v1.7.0-beta.12 — 2026-11-15 (service drawings, updates you can see finish, nothing lost across one)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.11. Changes `cortex.html`,

@@ -30,6 +30,8 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 ReadWritePaths=/opt/cortex/data
 # the app reads its release dir through the 'current' symlink
 ReadOnlyPaths=/opt/cortex/releases
+# lets the app also answer on port 80 (plain "http://<address>", no :8080) without running as root
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 # the adapter shows up in the 'dialout' group
 SupplementaryGroups=dialout
 

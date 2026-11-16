@@ -210,6 +210,15 @@ for u in cortex-appliance.service cortex-updater.service cortex-updater.timer; d
 done
 [ "$U_CHANGED" = 1 ] && { systemctl daemon-reload 2>/dev/null || true; }
 
+# --- firewall: open port 80 where the LAN can already reach 8080 --------------------------------
+# From 1.7.0-beta.13 the app also answers on port 80. Only add the rule on a box whose firewall still lets
+# the LAN reach 8080; a box that was locked down to Tailscale-only (that rule removed) is left alone.
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then
+  if ufw status 2>/dev/null | grep -Eq '^8080/tcp +ALLOW +Anywhere' && ! ufw status 2>/dev/null | grep -Eq '^80/tcp +ALLOW'; then
+    ufw allow 80/tcp >/dev/null 2>&1 && log "firewall: opened port 80 (LAN already had 8080)" || true
+  fi
+fi
+
 # --- activate: atomic symlink flip + restart ---------------------------------
 PREV="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
 log "activating $NEW (previous: ${PREV:-none})"

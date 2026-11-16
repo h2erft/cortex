@@ -142,6 +142,7 @@ if [ -n "${CORTEX_RESET_FIREWALL:-}" ] || ! ufw status 2>/dev/null | grep -q '^S
   ufw allow 22/tcp                 # SSH on the LAN (tighten/remove once Tailscale SSH is set up)
   ufw allow in on tailscale0 to any port 8080 proto tcp 2>/dev/null || true  # Cortex over Tailscale
   ufw allow 8080/tcp               # Cortex on the LAN during setup; see step 4 below to lock down
+  ufw allow 80/tcp                 # the same page on the standard web port (http://<address>, no :8080)
   # optional https port (nothing listens on it unless CORTEX_HTTPS=1 is set in appliance.env)
   ufw allow in on tailscale0 to any port "$HTTPS_PORT" proto tcp 2>/dev/null || true
   ufw allow "$HTTPS_PORT"/tcp
@@ -162,7 +163,7 @@ echo "   ...or by IP if .local doesn't resolve:   http://<this-device-ip>:8080"
 echo "   First visit walks you through naming the site and picking the adapter."
 echo "2) (your remote access) Join your tailnet:   tailscale up"
 echo "3) OTA updates: auto-configured from your repo. (Private repo? add a token: nano $DATA/update.conf )"
-echo "4) Lock down to Tailscale-only later:  ufw delete allow 8080/tcp ; ufw delete allow $HTTPS_PORT/tcp"
+echo "4) Lock down to Tailscale-only later:  ufw delete allow 8080/tcp ; ufw delete allow 80/tcp ; ufw delete allow $HTTPS_PORT/tcp"
 echo "5) (optional) Secure https access: see README-appliance.md, Part E.  Off by default."
 echo
 echo "Logs:     journalctl -u cortex-appliance -f"
