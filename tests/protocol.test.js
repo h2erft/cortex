@@ -82,6 +82,9 @@ const STREAM = [   // a central controller polling 4 indoor units and one outdoo
       const fr = cmdBytesFor(0x2D, { on: true, mode: 'cool', fan: 'low', setC: 20, filterReset: true }), pl = cmdBytesFor(0x2D, { on: true, mode: 'cool', fan: 'low', setC: 20 });
       return [S.fam.name, S.comps, S.inv2Hz, decodeOduPage(pg(0x0E)).comps, oduUnits(o(0x14)).length, oduUnits(o(0x02)).length, oduOther(o(0x02)).tag, oduOther(o(0x0E)), oduFam(0x15).gen, oduFam(0x77).s4,
         fr[5] & 0x80, pl[5] & 0x80, fr[5] & 0x7F, (fr.slice(0, 7).reduce((x, y) => x + y, 0) & 255 ^ 0x55) === fr[7], cleanUnits.toString().includes('filterReset')].join('|'); })();
+    out.figs = (() => { const ks = Object.keys(FIG), html = ks.map(fig).join(''), cols = k => [...FIG[k].svg().matchAll(/stroke="(#[0-9a-f]{6})" stroke-width="6"/g)].map(m => Object.keys(WIRE).find(w => WIRE[w][0] === m[1])).join('');
+      return [ks.length, ks.every(k => FIG[k].svg().startsWith('<svg') && FIG[k].cap.length > 80), !/undefined|NaN/.test(html), cols('eev6'), cols('eev5'), cols('eevplug'), errFigs('CH21').join(), errFigs('CH10').join(), stepFig(DIAG.CH43[1]), stepFig(DIAG.CH04[0]),
+        Object.keys(DIAG).every(c => DIAG[c].every(s => { const f = stepFig(s); return !f || [].concat(f).every(k => FIG[k]); })), ERR_FIG.every(([cs, fs]) => cs.every(c => ERRORS[c]) && fs.every(f => FIG[f])), !!ERRORS.CH54].join('|'); })();
     out.inv = JSON.stringify(decodeOduInventory([(() => { const f = new Array(64).fill(0); f[11] = 3; [0x40, 0x11, 0x40, 0x12, 0x30, 0x21, 0x99, 0x99].forEach((x, i) => f[16 + i] = x); return f; })()]).list.map(e => e.addr));
     out.logTypes = [...new Set(bus.log.map(d => d.type))].sort().join(',');
     return out;
@@ -102,6 +105,7 @@ const STREAM = [   // a central controller polling 4 indoor units and one outdoo
     oduMain: { fw: '29.0', mode: 'cool', err: 0, hp: 2337, lp: 739, cond: 40.4, evap: 1.7, suct: 14.3, d1: 80, d2: 41, liq: 24.6, air: 34.3, t1: 41, hz1: 41, e1: 32, e2: 1944, esc: 40, idus: 4, sh: 12.6, sc: 15.8, ratio: 2.9, subs: 1, v1: 490, dc1: 660, hpT: 2337, fan1: 260 },
     oduSub: { fw: '29.0', mode: 'cool', err: 0, hp: 2337, lp: 752, cond: 40.4, evap: 2.2, suct: 16.3, d1: 78, d2: 41, liq: 25.7, air: 32.7, t1: 41, hz1: 41, e1: 32, e2: 1944, esc: 48, idus: 6, sh: 14.1, sc: 14.7, ratio: 2.86, subs: 1, v1: 490, dc1: 665, hpT: 0, fan1: 260 },
     fam: 'Multi V S|1|0|2|1|0|SUPER3||5|false|128|0|16|true|true',
+    figs: '10|true|true|WHYLORBLRDBR|WHYLORBLRD|BRRDBLORYLWHBRRDYLORBLWH|ipm,comp|fanidu|press||true|true|true',
     oduPages: '0,2', oduHtml: true, inv: '[17,18,33]', logTypes: 'cmd,cmd4,lockack,reply,scan',
   };
   let fail = 0;

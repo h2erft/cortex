@@ -2,7 +2,7 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.7.0-beta.12 — 2026-11-15 (updates you can see finish, nothing lost across one, screen sweep)
+## v1.7.0-beta.12 — 2026-11-15 (service drawings, updates you can see finish, nothing lost across one)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.11. Changes `cortex.html`,
 `appliance/recorder.js`._
@@ -33,6 +33,40 @@ _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.11. Changes
   - The weather card pointed at a Settings tab that does not exist (it is Settings ▸ Advanced).
   - On a phone, small buttons, text links and switches were about 24 px tall; they now have a
     finger-sized tap area.
+
+**Diagnostics: drawings and an accuracy pass**
+- **Ten service drawings**, drawn for Cortex from the wire colours, pin numbers and readings LG
+  publishes. They appear in the Field reference, on the error page of each code they help with
+  ("Show the drawing"), and inside the step-by-step walkthrough on the step that asks for that
+  measurement. On a phone, tap a drawing to enlarge it.
+  - 6-wire expansion valve coil: white, yellow, orange, blue, red, brown; which pairs read 300 Ω and 150 Ω.
+  - 5-wire expansion valve coil: 104 Ω across, 52 Ω to the red common, and the Multi V S variant.
+  - Indoor valve plug on the board (CN-LEV) in factory wire order, and LG's yellow/blue swap test that
+    tells a stuck valve from a blocked pipe.
+  - Indoor fan motor plug: what each of the seven positions is, its voltage, and the ohm check.
+  - Temperature sensors: resistance at 32, 77 and 185 °F for air, pipe and discharge sensors.
+  - Pressure sensors: red 5 V, white signal, black ground, the volts-to-psi line for each, red plug
+    = high, blue plug = low.
+  - Outdoor control terminal block: SODU, IDU, CEN, dry contact, and where each pair goes.
+  - Inverter power stage: the six readings, lead polarity, 28 kΩ compressor board / 35 kΩ fan board.
+  - Compressor windings and insulation, plus the peak-voltage check with the red, blue and yellow leads.
+  - 4-way valve: which way the hot gas goes in cooling and in heating.
+- **Outdoor main board plug list** (Multi V IV): which CN number each sensor, valve and heater uses.
+- Field reference has a row of jump buttons and new sections: pressure sensors, inverter board,
+  compressor, 4-way valve, board plugs.
+- **Pressure-sensor walkthrough (CH42, CH43) tells you the voltage to expect** from the pressure Cortex
+  is showing right now.
+- **Corrections found by checking every walkthrough against LG's pages:**
+  - CH52: a dark comm LED on the inverter board means check its noise filter and fuse, then the board.
+    Cortex said to reseat the cable first.
+  - CH10: the supply check now names the pins (308 V DC on pin 1, 15 V DC on pin 5, both to pin 4) and
+    the ohm check includes the two readings that must be open.
+  - CH151: coil check now gives LG's insulation figure (over 100 MΩ to the valve body).
+  - Inverter check now carries the actual numbers instead of "per the service manual".
+  - EEPROM step: the chip's notch lines up with the arrow on the socket.
+  - **CH54 (outdoor power phase error) was missing** and is added.
+- Where LG gives no wire colour (the indoor fan motor plug) or no board map (the outdoor main board),
+  Cortex says so and does not guess.
 
 **What an update keeps (checked this pass)**
 - On the controller's disk, outside the part an update replaces: units and their names and groups,

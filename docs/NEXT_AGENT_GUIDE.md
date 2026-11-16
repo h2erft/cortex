@@ -370,3 +370,18 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   and 390 px, checking for page errors, clipped elements, the words undefined/NaN/null, and tap targets
   under 26 px). Worth rebuilding as a real test.
 
+### Service drawings (also beta.12)
+
+- `FIG` in `cortex.html` holds the drawings as functions that return SVG; `fig(key)` wraps one with its
+  title and caption. `ERR_FIG` maps codes to drawings, `STEP_FIG` matches walkthrough questions to
+  drawings by wording (a step can also carry `fig:"key"`). `tests/protocol.test.js` checks the wire
+  colour order of the three valve drawings and that every mapping points at something that exists.
+- Every colour, pin number and value in a drawing came from a page of LG's material: the Multi V
+  service-class deck (valve coil tables, CN-LEV photo, fan motor plug, inverter checks, terminal block,
+  board plug list, thermistor values) and the Multi V S outdoor service manual (valve wiring, pressure
+  sensor wiring and output, diode-mode figures, compressor windings, 185 °F thermistor values, 4-way
+  valve). Add a drawing only with a source page in hand, and write "LG does not give this" where it
+  does not. The drawings are our own; do not paste LG's artwork or photos into the repo.
+- Known gaps: no wire colours for the indoor fan plug, no physical map of the outdoor main board, no
+  HR-box valve drawing, nothing model-specific for Multi V 5.
+
