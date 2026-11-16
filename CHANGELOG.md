@@ -2,6 +2,19 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.4 — 2026-11-15 (phone layout)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.3. Changes `cortex.html` only._
+
+- **Phone layout.** Below 860 px the side menu becomes a slide-out panel behind a ☰ button (before, the
+  menu was simply hidden, so a phone could not change page). The header keeps only menu, bus status,
+  alerts, sign out and settings; site name, signed-in user, theme and device health move into the menu.
+- Dialogs open as bottom sheets, the unit drawer is full-width, summary tiles sit two-up, the
+  outdoor-unit cards and fault timeline no longer run off the right edge, and form fields are 16 px so
+  iOS does not zoom when you tap them. Notch / home-bar safe areas are respected.
+- **Settings ▸ About ▸ Phone app** explains how to add Cortex to a home screen.
+- Not changed: the refrigerant diagram and the bus-scan tables still scroll sideways on a phone.
+
 ## v1.7.0-beta.3 — 2026-11-15 (controller polls by itself · fault recorder · cycle page help)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.2. Adds `appliance/busmaster.js`,

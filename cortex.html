@@ -3,7 +3,8 @@
 <!-- Cortex — local-first LG VRF central controller. Developer notes: docs/HANDOFF.md · protocol: LGAP_reference.md -->
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Cortex</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-256.png">
@@ -245,8 +246,6 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .gauge .gl{font-size:12.5px;color:var(--text-dim);margin-top:3px}.gauge.sample{opacity:.6}
 .cyc-note{background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--radius);padding:12px 15px;color:var(--text-dim);font-size:13.5px;margin-bottom:16px;display:flex;gap:9px;align-items:center}
 
-@media (max-width:860px){nav{display:none}.tiles{grid-template-columns:repeat(2,1fr)}}
-@media (max-width:560px){main{padding:14px}.drawer{width:100%}.lrow{grid-template-columns:14px 1.4fr .8fr .8fr}.lrow .lc-hide{display:none}}
 
 /* login + setup screens */
 #screen-setup,#screen-login{position:fixed;inset:0;z-index:100;background:var(--bg);overflow:auto;display:none}
@@ -289,7 +288,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .cy-pill.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}.cy-pill.bad{background:var(--err-soft);color:var(--err);border-color:transparent}
 .cy-sys{border-left:5px solid var(--sc,var(--accent));margin-top:22px}
 .cy-sys .cy-badge{background:var(--sc,var(--accent));text-align:center;line-height:1.25}.cy-badge small{display:block;font:700 8.5px system-ui;letter-spacing:.14em;opacity:.85}
-.cy-units{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;padding:12px 14px 14px;align-items:start}
+.cy-units{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:12px;padding:12px 14px 14px;align-items:start}
 .cy-unit{border:1px solid var(--border);border-top:4px solid var(--uc,var(--accent));border-radius:12px;padding:4px 12px 12px;background:var(--surface);min-width:0}
 .cy-utag{font:700 11px ui-monospace,Menlo,monospace;letter-spacing:.14em;color:#fff;background:var(--uc,var(--accent));border-radius:6px;padding:3px 8px;margin-right:4px}
 .cy-checks{margin:12px 14px 0;border:1px solid var(--warn);background:var(--warn-soft);border-radius:10px;padding:9px 12px;font-size:13px}
@@ -575,11 +574,42 @@ svg.ug{width:100%;height:100%;display:block}
 .md .md-pre{background:var(--panel-2,rgba(127,127,127,.12));border:1px solid var(--border);border-radius:8px;padding:10px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre}
 .md .md-code{background:rgba(127,127,127,.18);border-radius:4px;padding:1px 5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
 .md .md-hr{border:0;border-top:1px solid var(--border);margin:14px 0}
+@media (max-width:860px){.tiles{grid-template-columns:repeat(2,1fr)}
+  html,body{height:100dvh}
+  header{gap:6px;padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top));padding-left:calc(10px + env(safe-area-inset-left));padding-right:calc(10px + env(safe-area-inset-right))}
+  header .site,header .clock,header .who,header #theme,header #devbtn,.brand-name{display:none!important}
+  #navbtn{display:grid!important}
+  .bus{margin:0;padding:5px 7px;white-space:nowrap;min-width:0}
+  nav{position:fixed;top:0;bottom:0;left:0;z-index:56;width:min(300px,86vw);flex:none;transform:translateX(-104%);transition:transform .2s ease;box-shadow:var(--shadow-lg);padding-top:calc(14px + env(safe-area-inset-top));padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  body.nav-open nav{transform:none}
+  #navscrim{position:fixed;inset:0;z-index:55;background:rgba(10,14,20,.45);display:none}body.nav-open #navscrim{display:block}
+  .nav-mob{display:block!important}
+  .nav-item{padding:11px 12px;font-size:15px}
+  main{padding:14px;padding-bottom:calc(18px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+  .gauges{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.gauge{padding:11px 12px}.gauge .gv{font-size:22px}
+  .cy-units{padding:10px 8px 12px}.cy-comps{grid-template-columns:1fr}.cy-head{flex-wrap:wrap;padding:11px 12px}
+  .ev{flex-wrap:wrap;gap:6px 10px;margin-left:14px}.ev-time{width:auto}
+  .ev-head{flex-wrap:wrap}
+  input,select,textarea,.sel-box{font-size:16px!important}
+  .modal-scrim{padding:0;align-items:flex-end}
+  .modal,.modal.wide{width:100%;max-width:100%;max-height:94dvh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  .drawer{width:100%;max-width:100%;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  .setrow{flex-wrap:wrap}
+  #buspop{left:8px!important;right:8px;width:auto}
+  .toast{bottom:calc(18px + env(safe-area-inset-bottom))}
+}
+.nav-mob{display:none;border-bottom:1px solid var(--border);margin:-2px 0 12px;padding:0 6px 12px}
+.nav-mob .nm-site{font-weight:600;font-size:15px}.nav-mob .nm-who{font-size:13px;color:var(--text-dim);margin-top:2px}
+.nav-mob .nm-row{display:flex;gap:8px;margin-top:10px}.nav-mob .nm-row button{flex:1;border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:8px;padding:8px 6px;font-size:13px}
+#navbtn{display:none}
+@media (hover:none){.btn,.icon-btn,.segmented button{min-height:38px}}
+@media (max-width:560px){.drawer{width:100%}.lrow{grid-template-columns:14px 1.4fr .8fr .8fr}.lrow .lc-hide{display:none}}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand"><span class="logo" id="brandlogo"></span>Cortex</div>
+  <button class="icon-btn" id="navbtn" title="Menu" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <div class="brand"><span class="logo" id="brandlogo"></span><span class="brand-name">Cortex</span></div>
   <div class="site"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg><span id="site-name">Site</span></div>
   <div class="bus off" id="bus-health"><span class="dot"></span><span id="bus-label">Bus offline</span></div>
   <div class="spacer"></div>
@@ -594,6 +624,8 @@ svg.ug{width:100%;height:100%;display:block}
 </header>
 <div class="shell">
   <nav>
+    <div class="nav-mob"><div class="nm-site" id="nm-site">Cortex</div><div class="nm-who" id="nm-who"></div>
+      <div class="nm-row"><button id="nm-theme">◐ Theme</button><button id="nm-dev" class="hide">📈 Health</button></div></div>
     <div class="nav-group"><div class="nav-label">Views</div>
       <button class="nav-item active" data-view="units"><span>❄ Indoor units</span></button>
       <button class="nav-item" data-view="map"><span>🗺 Building map</span></button>
@@ -607,6 +639,7 @@ svg.ug{width:100%;height:100%;display:block}
   </nav>
   <main id="main"></main>
 </div>
+<div id="navscrim"></div>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer"></aside>
 <div id="modal-root"></div>
@@ -3400,12 +3433,21 @@ function lockedTab(msg,kind){return `<div style="text-align:center;padding:28px 
   <div style="font-size:30px">🔒</div><div style="margin:10px 0 4px;font-weight:500">${msg}</div>
   <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Enter the ${kind} passcode to unlock for this session.</div>
   <button class="btn primary" onclick="askPin('${kind}')">Unlock</button></div>`;}
+function phoneAppHelp(){const standalone=window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches||navigator.standalone;
+  modal(head("Cortex on your phone")+`<div class="modal-body">
+  ${standalone?'<div class="note-box">You are already running Cortex as an app on this device.</div>':''}
+  <p style="margin:0 0 10px">Open this same address in your phone's browser, sign in, then:</p>
+  <p style="margin:0 0 8px"><b>iPhone / iPad (Safari):</b> tap <b>Share</b> → <b>Add to Home Screen</b>.</p>
+  <p style="margin:0 0 8px"><b>Android (Chrome):</b> tap <b>⋮</b> → <b>Add to Home screen</b> (or <b>Install app</b>).</p>
+  <p style="margin:0;color:var(--text-dim);font-size:13px">Your phone has to be able to reach the controller: on the building's network, or anywhere through Tailscale. Android only opens it full-screen as an app when the address starts with <span class="mono">https://</span>; over plain <span class="mono">http://</span> it adds a shortcut that opens in the browser.</p>
+  </div>`);}
 function aboutTab(){const isPriv=session.admin||session.tech;return `
   ${row("Product","",`<span style="color:var(--text-dim)">Cortex</span>`)}
   ${row("Made by","Local-first HVAC control",`<span style="color:var(--text-dim)">AIROW</span>`)}
   ${row("Version","",`<span class="mono" id="verline" style="color:var(--text-dim);cursor:default">v0.1.0</span>`)}
   ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${ue((CFG&&CFG.site&&CFG.site.name)||'Site')}</span>`)}
   ${row("Remote access","",`<span style="color:var(--text-dim)">${(CFG&&CFG.remote&&CFG.remote.enabled)?'Tailscale — on':'Off'}</span>`)}
+  ${row("Phone app","Put Cortex on your phone's home screen",`<button class="linklike" onclick="phoneAppHelp()">How</button>`)}
   ${isPriv?row("Protocol reference","The LGAP protocol — everything we've decoded",`<button class="linklike" onclick="viewProtocolDoc()">Open</button>`):""}
   ${canAdmin()&&CFG&&CFG.recovery?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Owner recovery</div>
      <div class="sd" style="margin-bottom:8px">Per-site code to regain owner access if you're locked out. Keep it somewhere safe.</div>
@@ -3522,6 +3564,18 @@ function askPin(kind){const want=kind==="admin"?(CFG&&CFG.adminPin):(CFG&&CFG.te
   document.getElementById("pinok").onclick=submit;inp.onkeydown=e=>{if(e.key==="Enter")submit();};
 }
 
+/* ---- phone layout: the side menu becomes a slide-out panel ---- */
+(function(){const nb=document.getElementById("navbtn"),ns=document.getElementById("navscrim"),nv=document.querySelector("nav");
+  const close=()=>document.body.classList.remove("nav-open");
+  nb.onclick=()=>{const sn=document.getElementById("site-name"),w=document.getElementById("who");
+    document.getElementById("nm-site").textContent=(sn&&sn.textContent)||"Cortex";document.getElementById("nm-who").textContent=w?w.textContent.replace(/\s+/g," ").trim():"";
+    document.getElementById("nm-dev").classList.toggle("hide",document.getElementById("devbtn").classList.contains("hide"));
+    document.body.classList.toggle("nav-open");};
+  ns.onclick=close;
+  nv.addEventListener("click",e=>{if(e.target.closest(".nav-item")&&!e.target.closest(".nav-arrow,.nav-pen"))setTimeout(close,0);});
+  document.getElementById("nm-theme").onclick=()=>document.getElementById("theme").click();
+  document.getElementById("nm-dev").onclick=()=>{close();document.getElementById("devbtn").click();};
+  window.addEventListener("resize",()=>{if(window.innerWidth>860)close();});})();
 /* ---- fun + alerts + extra views ---- */
 let toastT;function toast(msg){let t=document.getElementById("toast");if(!t){t=document.createElement("div");t.id="toast";t.className="toast";document.body.appendChild(t);}
   t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2600);}
