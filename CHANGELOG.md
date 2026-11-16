@@ -2,6 +2,42 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.10 — 2026-11-15 (filter reset, 15-second hold, Multi V S groundwork)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.9. Changes `cortex.html`,
+`appliance/busmaster.js`, `appliance/scheduler.js`, `appliance/server.js`._
+
+**Added**
+- **Filter sign reset.** When an indoor unit raises its clean-filter sign, staff see a "Filter cleaned —
+  reset sign" button in that unit's panel (two taps). It sends one ordinary command to that unit with
+  the unit's current settings plus the reset flag (cmd0 byte 5 bit 7). The flag rides that one send
+  only: it is never stored on the unit, never saved, and no schedule or group command can carry it.
+  Works from a browser that holds the adapter and through the controller.
+- **Outdoor family names.** The outdoor header now says what the unit is (Multi V IV, Multi V S,
+  Multi V 5, …) instead of only "family 0x0E". The table is the LG controller's own list of 22 families.
+- **Multi V S groundwork.** LG's controller reads Multi V S (family 0x14) with the same page map as
+  Multi V IV, so Cortex now does too, and treats it as a one-compressor unit: the diagram, data tiles,
+  sub cards and state chips drop the second compressor. Field reference gains a Multi V S section
+  (protection limits by size, targets, oil return and defrost valve positions) from LG's service manual.
+- **Families Cortex cannot decode say so.** Older Multi V generations and gas heat pumps pack the page
+  differently. Cortex used to decode them with the Multi V IV map, which would have shown wrong numbers;
+  it now shows a short notice and no readings. Indoor control is unaffected.
+- Error pages: when two or more indoor units show the same code of 21 or higher, the page says the code
+  is the outdoor unit's, handed down to indoor units with no fault of their own.
+
+**Changed**
+- **The hold after a command is 15 s (was 8 s)**, in the browser and the controller. For the first
+  seconds after a write the outdoor unit answers from its own copy of the command; the indoor unit's
+  real state follows. A shorter hold could show a setting flip back and forth.
+- A site is treated as "generation 5" (auto fan, two setpoints) when an outdoor unit reports the
+  Multi V 5 family, not only when the bus runs at 9600 baud.
+
+**Not verified**
+- No Multi V S, Multi V 5 or older-generation unit has been on a Cortex bus. Family handling follows
+  LG's controller software and the reference kit; the Cycle-page checks still use Multi V IV numbers.
+- Filter reset has not been sent to a real unit by Cortex yet. The bit is confirmed in the kit on both
+  buses; first use should be on one unit with someone watching it.
+
 ## v1.7.0-beta.9 — 2026-11-15 (re-read of the reference kit)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.8. Changes `cortex.html`,

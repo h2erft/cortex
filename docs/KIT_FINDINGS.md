@@ -322,11 +322,65 @@ source and corrected which byte it uses for the per-page count.
 | Indoor reply bytes 8–10 are the same raw codes as the service-port 0x6A record: room = TBL-AIR, pipes = TBL-PIPE; the straight line is only an approximation | ch.02 §9, ch.04 §3.2 | `(192 − code) / 3` for all three | air / pipe curves (beta.9). LG's controller holds the identical pipe table |
 | Space cmd14 requests by a second or more (Candidate) | ch.04 §4.6 | 0.7 s | 1.1 s |
 | 0x69 = per-unit communication counters | ch.02 §8 | guessed "setpoint × 2" | relabelled |
-| Filter-sign reset = cmd0 byte 5 bit 7 with EXE set and the unit's current settings | ch.05 §1.1 | not offered | **not added** — a new write; needs the owner's go-ahead |
-| A write's immediate reply is the outdoor unit's cache; verify 15 s later | ch.04 §3.3 | 8 s hold after a command | unchanged; consider 15 s if settings appear to flip back |
+| Filter-sign reset = cmd0 byte 5 bit 7 with EXE set and the unit's current settings | ch.05 §1.1 | not offered | **added in beta.10**: staff-only button, shown only while the sign is up, one-shot flag |
+| A write's immediate reply is the outdoor unit's cache; verify 15 s later | ch.04 §3.3 | 8 s hold after a command | **15 s from beta.10** |
 | Pages 0x33–0x3C list indoor addresses in groups of 13 | ch.04 §4.3 | unused | unused (0x30–0x32 is enough) |
 | Page 0 bytes 49–51 look like a power-meter path (Candidate) | ch.06 G2 #9 | not decoded | not decoded |
 | A real central polls each indoor unit about every 90 s, sends cmd4 after every cmd0, and a zero cmd9 burst about every 530 s | ch.04 §7 | Cortex polls faster, sends cmd4 only on a lock change, never cmd9 | unchanged, by design |
 
 Kit open questions the controller-software pass (§8) answered: G2 #2 (reply byte 7 bits 4 and 7) and part
 of #9 (several page-0 flag bits have names in the controller's `odu_demand` table).
+
+## 10. Remaining kit chapters and Multi V S (read 2026-11-15)
+
+Chapters read this pass: 01 (bus overview), 03 (indoor A/B bus), 05 (all of it), 06 (A and G), 07
+(firmware versions), 10 (Multi V 5 records), 02 §5 (product codes, other generations), plus the nine
+firmware-analysis chapters (image formats through reading chips). Chapter 08 (LGMV software) and
+the bridge part of 09 (LGMV modules, §9) were read; the rest of 09 is hardware detail of LG's two modules
+and was skimmed by heading.
+
+### 10.1 What changed in Cortex
+
+| Finding | Source | Cortex |
+|---|---|---|
+| The LG controller keeps a 22-entry outdoor family table (page byte 7) and picks one of three page parsers from it. One parser serves 0x0E Multi V IV, 0x11, 0x12, 0x13 Water IV, 0x14 Multi V S and 0x15 Multi V 5; 0x0F/0x10 gas heat pump has its own; everything else uses an older one | controller `ProcessRxDataFromODU`, `get_odu_type_text`; kit decoder accepts 0x0E, 0x11–0x14 | `ODU_FAMS` / `oduFam()`; other layouts show a notice instead of numbers |
+| Multi V S is one inverter compressor, no sub frames; 024–053 heat pumps have a hot gas bypass valve | LG Multi V S outdoor service manual | `comps:1` hides compressor 2 everywhere on the Cycle page |
+| An indoor unit with no fault of its own shows the outdoor unit's code when that code is 21 or more (A/B key `04B`) | ch.03 §11.3 | hint on the error page when several units share such a code |
+| The outdoor unit parks an idle indoor valve by direct command at 40 pulses (`062 = 4`); LG's manual gives the same 40 for thermo-off units | ch.03 §11.4; Multi V S manual tables 3 and 5 | already the rule since beta.7 (≤60 pulses = closed by the controller) |
+
+### 10.2 Worth knowing, nothing to change
+
+- **Room temperature on the bus is the unit's control sensor**: return air, or the wall remote's sensor
+  when the installer set "Temp Sense Location" that way (A/B key `186` = CEN reply byte 8). A room
+  reading that disagrees with a thermometer at the return grille may be a remote-sensor unit.
+- Auto readback 3 / 7 is frozen while a unit is off, and an auto unit reads as fan for its first
+  25–40 s. Cortex already shows both as Auto.
+- At 100 °C discharge the outdoor unit asks every indoor unit to lower its cooling superheat target by
+  about 2 K (A/B key `042`), releasing below 95 °C. Indoor valves opening together on a hot day is the
+  system protecting the compressor.
+- HR boxes change a pipe from cool to heat by going off first and waiting several minutes.
+- Service port product codes for Multi V S: `0x32` (1200 or 2400 baud), `0x33`, `0x37`, `0x3A`, `0x38`,
+  `0x39`, `0x3B`. Their page layout is a different family from the Multi V IV one the UART page decodes.
+- Outdoor firmware 29.0, 30.0 and 31.0 behave the same on the central bus. Version is page 0 bytes 8–9,
+  which Cortex already shows.
+- Multi V 5 over the service port uses 9600 baud and different records; chapter 10 maps some of them.
+  Nothing there applies to the central bus.
+- **LG's Wi-Fi service module is a plain TCP pipe**: it makes an open network named `LGE_MV-xx-xx-xx`,
+  and the outdoor unit's service stream is at `192.168.1.1:9999`, one client at a time. Without being
+  asked, a healthy module sends the short ID frame about four times a second. The kit's own advice for a
+  weak or far-away module is a small computer beside the outdoor unit that holds that one session and
+  shares it. A Cortex controller with a Wi-Fi radio could be that computer, which would put LGMV-grade
+  data (real pressures, HR boxes) on the Cortex screen with no cable to the service port. Not built.
+- LGMV-Business "IDU Control" Start/Stop sends a byte for **every** indoor unit, ticked or not, with a
+  default of off and 22 °C. Never press it on a live site.
+- LG's Modbus gateways are translators onto this same bus, with the same mode numbers. A Modbus face for
+  Cortex would be a mapping job, not a protocol job.
+
+### 10.3 Still open for Multi V S
+
+- No capture from a real Multi V S. The family byte, the shared page map and the single compressor come
+  from LG's software and manual, not from a wire.
+- Whether the sensor curves (pressure, pipe, discharge) are the same tables as Multi V IV.
+- Thresholds in the Cycle-page checks and the rule-based diagnosis are Multi V IV values.
+- Multi V S heat recovery uses its own HR boxes; nothing about them is visible on the central bus.
+

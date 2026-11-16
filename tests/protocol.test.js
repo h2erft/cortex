@@ -78,6 +78,10 @@ const STREAM = [   // a central controller polling 4 indoor units and one outdoo
     out.charge = [chargeBand('cool', 25).b.hp[0], chargeBand('cool', 25).exact, chargeBand('heat', -10).b.lp[1], chargeBand('cool', 45).exact, ERRORS.CH22.t, !!ERRORS.CH104.lv, fanSvg(500).includes('rotate(270)')].join('|');
     out.dx = [rtLookup('pipe', 25), Math.round(rtLookup('air', 0) * 10) / 10, DIAG.CH104.length > 3, Object.keys(DIAG).every(k => ERRORS[k]), Object.keys(ERRORS).length >= 80, typeof decodeOduPage(new Array(64).fill(0)).hotGas, decodeOduPage((() => { const f = new Array(64).fill(0); f[60] = 0x80; f[38] = 5; return f; })()).eevVi1].join('|');
     out.inv2 = (() => { const f = new Array(64).fill(0x44); f[11] = 2; f[15] = 2; [0x40, 0x11, 0x72, 0x12].forEach((x, i) => f[16 + i] = x); const r = decodeOduInventory([f]); const q = parseReply([0x10, 1, 0xA0, 0x40, 9, 0xAD, 0x21, 0x97, 120, 150, 140, 40, 0, 12, 30, 0]); return [r.list.length, r.list[1].vent, q.err, q.filter, q.oilAlarm, decodeOduFaults(new Array(64).fill(0).map((_, i) => i === 8 ? 1 : i === 10 ? 3 : i === 15 ? 104 : 0)).entries[0].code[0]].join('|'); })();
+    out.fam = (() => { const pg = (fam) => { const f = STREAM[11].slice(); f[7] = fam; return f; }; const S = decodeOduPage(pg(0x14)), o = fam => ({ addr: 1, pages: { 0: { f: pg(fam) } } });
+      const fr = cmdBytesFor(0x2D, { on: true, mode: 'cool', fan: 'low', setC: 20, filterReset: true }), pl = cmdBytesFor(0x2D, { on: true, mode: 'cool', fan: 'low', setC: 20 });
+      return [S.fam.name, S.comps, S.inv2Hz, decodeOduPage(pg(0x0E)).comps, oduUnits(o(0x14)).length, oduUnits(o(0x02)).length, oduOther(o(0x02)).tag, oduOther(o(0x0E)), oduFam(0x15).gen, oduFam(0x77).s4,
+        fr[5] & 0x80, pl[5] & 0x80, fr[5] & 0x7F, (fr.slice(0, 7).reduce((x, y) => x + y, 0) & 255 ^ 0x55) === fr[7], cleanUnits.toString().includes('filterReset')].join('|'); })();
     out.inv = JSON.stringify(decodeOduInventory([(() => { const f = new Array(64).fill(0); f[11] = 3; [0x40, 0x11, 0x40, 0x12, 0x30, 0x21, 0x99, 0x99].forEach((x, i) => f[16 + i] = x); return f; })()]).list.map(e => e.addr));
     out.logTypes = [...new Set(bus.log.map(d => d.type))].sort().join(',');
     return out;
@@ -97,6 +101,7 @@ const STREAM = [   // a central controller polling 4 indoor units and one outdoo
     ack1: { b4: 0x00, b5: 0x04, b6: 0x0B },
     oduMain: { fw: '29.0', mode: 'cool', err: 0, hp: 2337, lp: 739, cond: 40.4, evap: 1.7, suct: 14.3, d1: 80, d2: 41, liq: 24.6, air: 34.3, t1: 41, hz1: 41, e1: 32, e2: 1944, esc: 40, idus: 4, sh: 12.6, sc: 15.8, ratio: 2.9, subs: 1, v1: 490, dc1: 660, hpT: 2337, fan1: 260 },
     oduSub: { fw: '29.0', mode: 'cool', err: 0, hp: 2337, lp: 752, cond: 40.4, evap: 2.2, suct: 16.3, d1: 78, d2: 41, liq: 25.7, air: 32.7, t1: 41, hz1: 41, e1: 32, e2: 1944, esc: 48, idus: 6, sh: 14.1, sc: 14.7, ratio: 2.86, subs: 1, v1: 490, dc1: 665, hpT: 0, fan1: 260 },
+    fam: 'Multi V S|1|0|2|1|0|SUPER3||5|false|128|0|16|true|true',
     oduPages: '0,2', oduHtml: true, inv: '[17,18,33]', logTypes: 'cmd,cmd4,lockack,reply,scan',
   };
   let fail = 0;

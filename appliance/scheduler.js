@@ -30,7 +30,7 @@ function cmd0Bytes(u) {
   const seen5 = (u.d5 != null ? u.d5 : 0x33) & 0x7F;
   const fanN = FANHI[u.fan] != null ? FANHI[u.fan] : ((u.fanRaw != null ? u.fanRaw : (seen5 >> 4)) & 7);
   const modeN = MODELO[u.mode] != null ? MODELO[u.mode] : (seen5 & 0x07);
-  const b5 = (fanN << 4) | (u.swing ? 0x08 : 0) | modeN;
+  const b5 = (fanN << 4) | (u.swing ? 0x08 : 0) | modeN | (u.filterReset === true ? 0x80 : 0);   // bit 7 = filter-sign reset, one-shot, only when explicitly asked
   let b0 = u.b0 || 0x80, b6;
   if ((b0 & 0x78) !== 0 || !(b0 & 0x80)) b0 = 0x80;
   const setC = (u.mode === 'heat' ? u.heatC : u.coolC);

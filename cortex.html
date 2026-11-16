@@ -686,11 +686,12 @@ const FANS_SEL=FANS.filter(f=>f[0]!=="quiet"&&f[0]!=="power");
 function siteGen(){
   if(CFG&&(CFG.statGen===4||CFG.statGen===5))return CFG.statGen;
   if(CFG&&CFG.baud===9600)return 5;
+  try{for(const o of ODU.values()){const p0=o.pages&&o.pages[0];if(p0&&oduFam(p0.f[7]).gen===5)return 5;}}catch(e){}
   return 4;}
 function siteGenWhy(){
   if(CFG&&(CFG.statGen===4||CFG.statGen===5))return "set by hand in Settings";
   if(CFG&&CFG.baud===9600)return "9600-baud bus";
-  try{for(const o of ODU.values()){const p0=o.pages&&o.pages[0];if(p0){const d=decodeOduPage(p0.f);return "outdoor unit "+hx(d.addr)+" reports "+d.product+", family 0x"+d.family.toString(16).toUpperCase().padStart(2,"0");}}}catch(e){}
+  try{for(const o of ODU.values()){const p0=o.pages&&o.pages[0];if(p0){const d=decodeOduPage(p0.f);return "outdoor unit "+hx(d.addr)+" reports "+d.fam.name+" "+d.product+", family "+d.fam.hex;}}}catch(e){}
   return "4800-baud bus";}
 function siteCaps(){const g=siteGen();return {gen:g,autoFan:g>=5,dualAuto:g>=5};}
 function fansFor(){const c=siteCaps();return FANS_SEL.filter(f=>f[0]!=="auto"||c.autoFan);}
@@ -862,7 +863,7 @@ let unitsRev=0,unitsPushT=null,unitsPushing=false,unitsPushAgain=false,lastUnits
 let SRV={masterAlive:false,at:0};                             // what the appliance last told us about the live link
 function unitsSynced(){try{return localStorage.getItem("airow_units_rev")!=null;}catch(e){return false;}}
 function noteUnitsRev(r){unitsRev=r;try{localStorage.setItem("airow_units_rev",String(r));}catch(e){}}
-function cleanUnits(){return units.map(u=>{const o={};for(const k in u){if(k[0]!=="_")o[k]=u[k];}return o;});}  // drop runtime-only fields
+function cleanUnits(){return units.map(u=>{const o={};for(const k in u){if(k[0]!=="_"&&k!=="filterReset")o[k]=u[k];}return o;});}  // drop runtime-only fields
 function saveUnits(){try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}queueUnitsPush();}
 function queueUnitsPush(){if(location.protocol==="file:"||!BOOTED||unitsPushT)return;
   unitsPushT=setTimeout(()=>{unitsPushT=null;pushUnits();},isMaster()?3000:400);}
@@ -1030,7 +1031,7 @@ function cmdBytesFor(addr,o,change){
   const seen5=(o.d5!=null?o.d5:0x33)&0x7F;                    // bit7 = filter-sign reset (one-shot) — never carried over from a last-seen byte
   const fanN=FANHI[o.fan]!=null?FANHI[o.fan]:((o.fanRaw!=null?o.fanRaw:(seen5>>4))&7);   // quiet/power/unknown -> keep exactly what the unit reported
   const modeN=MODELO[o.mode]!=null?MODELO[o.mode]:(seen5&0x07);
-  const b5=(fanN<<4)|(o.swing?0x08:0)|modeN;                  // byte5: bits0-2 mode · bit3 SWING · bits4-6 fan · bit7 filter reset (kept 0) [kit ch.04 §6.1]
+  const b5=(fanN<<4)|(o.swing?0x08:0)|modeN|(o.filterReset===true?0x80:0);   // byte5: bits0-2 mode · bit3 SWING · bits4-6 fan · bit7 filter-sign reset, a one-shot set only by the explicit Reset button [kit ch.04 §6.1, ch.05 §1.1]
   // b6 = setpoint in whole °C minus 15 (cmd0 write — community-confirmed: 22°C -> 0x07, frame
   // 80 00 A0 31 03 30 07 DE checksum-validates). Half-degree rides b0 bit2 (0x04). When no
   // setpoint is supplied, preserve the last-seen b6 so a power/mode/fan-only write doesn't move it.
@@ -1635,6 +1636,18 @@ setInterval(()=>{if(passiveDirty){passiveDirty=false;saveUnits();liveRefresh();}
    (R410A tables from the LGAP reference kit, Multi V IV family 0x0E; pressures are kPa gauge).
    Heard passively whenever a real LG central polls its ODUs, or read on demand when Cortex is master. */
 const ODU_T={hp:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,49,82,114,147,180,212,245,278,310,343,376,408,441,474,507,539,572,605,637,670,703,735,768,801,833,866,899,931,964,997,1029,1062,1095,1127,1160,1193,1225,1258,1291,1324,1356,1389,1422,1454,1487,1520,1552,1585,1618,1650,1683,1716,1748,1781,1814,1846,1879,1912,1944,1977,2010,2042,2075,2108,2141,2173,2206,2239,2271,2304,2337,2369,2402,2435,2467,2500,2533,2565,2598,2631,2663,2696,2729,2761,2794,2827,2859,2892,2925,2958,2990,3023,3056,3088,3121,3154,3186,3219,3252,3284,3317,3350,3382,3415,3448,3480,3513,3546,3578,3611,3644,3676,3709,3742,3775,3807,3840,3873,3905,3938,3971,4003,4036,4069,4101,4134,4167,4199,4232,4265,4297,4330,4363,4395,4428,4461,4493,4526,4559,4592,4624,4657,4690,4722,4755,4788,4820,4853,4886,4918,4951,4984,5016,5049,5082,5114,5147,5180,5212,5245,5278,5310,5343,5376,5408,5441,5474,5507,5539,5572,5605,5637,5670,5703,5735,5768,5801,5833,5866,5899,5931,5964,5997,6029,6062,6095,6127,6160,6193,6225,6258,6291,6324,6356,6389,6422,6454,6487,6520,6552,6585,6618,6650,6683,6716,6748,6781,6814,6846,6879,6912,6944,6977,7010,7042,7075,7108,7141,7173,7206,7239,7271,7304,7337,7369,7402,7435,7467,7500],lp:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,20,33,46,59,72,85,98,111,124,137,150,163,176,190,203,216,229,242,255,268,281,294,307,320,333,346,359,373,386,399,412,425,438,451,464,477,490,503,516,529,542,556,569,582,595,608,621,634,647,660,673,686,699,712,725,739,752,765,778,791,804,817,830,843,856,869,882,895,908,922,935,948,961,974,987,1000,1013,1026,1039,1052,1065,1078,1092,1105,1118,1131,1144,1157,1170,1183,1196,1209,1222,1235,1248,1261,1275,1288,1301,1314,1327,1340,1353,1366,1379,1392,1405,1418,1431,1444,1458,1471,1484,1497,1510,1523,1536,1549,1562,1575,1588,1601,1614,1627,1641,1654,1667,1680,1693,1706,1719,1732,1745,1758,1771,1784,1797,1810,1824,1837,1850,1863,1876,1889,1902,1915,1928,1941,1954,1967,1980,1993,2007,2020,2033,2046,2059,2072,2085,2098,2111,2124,2137,2150,2163,2176,2190,2203,2216,2229,2242,2255,2268,2281,2294,2307,2320,2333,2346,2359,2373,2386,2399,2412,2425,2438,2451,2464,2477,2490,2503,2516,2529,2542,2556,2569,2582,2595,2608,2621,2634,2647,2660,2673,2686,2699,2712,2725,2739,2752,2765,2778,2791,2804,2817,2830,2843,2856,2869,2882,2895,2908,2922,2935,2948,2961,2974,2987,3000],cond:[-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-479,-431,-390,-353,-321,-291,-264,-238,-215,-193,-172,-153,-134,-116,-99,-83,-68,-53,-38,-25,-11,2,15,27,39,50,62,73,83,94,104,114,124,133,143,152,161,170,179,187,195,204,212,220,228,235,243,250,258,265,272,279,286,293,300,307,313,320,326,333,339,345,351,357,363,369,375,381,387,392,398,404,409,414,420,425,431,436,441,446,451,456,461,466,471,476,481,486,490,495,500,504,509,513,518,522,527,531,536,540,544,549,553,557,561,565,569,574,578,582,586,590,593,597,601,605,609,613,617,620,624,628,631,635,639,642,646,649,653,656,660,663,667,670,673,677,680,683,687,690,693,696,700,703,706,709,712,715,718,721,724,727,730,733,736,739,741,744,747,749,752,755,757,759,762,764,766,768,770,771,773,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774,774],evap:[-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-495,-474,-454,-435,-418,-401,-386,-371,-356,-343,-329,-317,-305,-293,-282,-271,-260,-250,-240,-230,-221,-212,-203,-194,-186,-177,-169,-161,-154,-146,-139,-131,-124,-117,-110,-104,-97,-90,-84,-78,-71,-65,-59,-53,-48,-42,-36,-31,-25,-20,-14,-9,-4,2,7,12,17,22,27,31,36,41,45,50,55,59,64,68,72,77,81,85,90,94,98,102,106,110,114,118,122,126,130,133,137,141,145,148,152,156,159,163,167,170,174,177,181,184,187,191,194,197,201,204,207,211,214,217,220,223,226,230,233,236,239,242,245,248,251,254,257,260,263,266,268,271,274,277,280,283,285,288,291,294,296,299,302,304,307,310,312,315,318,320,323,325,328,331,333,336,338,341,343,346,348,351,353,355,358,360,363,365,367,370,372,375,377,379,382,384,386,388,391,393,395,397,400,402,404,406,409,411,413,415,417,419,422,424,426,428,430,432,434,436,438,441,443,445,447,449,451,453,455,457,459,461,463,465,467,469,471,473,475,477,479,480,482,484,486,488,490,492,494,496,498,499,501,503,505,507],suct:[2000,1864,1520,1340,1221,1133,1064,1007,959,918,881,849,819,793,768,746,725,705,687,670,654,638,624,610,597,584,572,561,549,539,528,518,509,499,490,481,473,465,457,449,441,434,426,419,412,405,399,392,386,380,374,368,362,356,350,345,339,334,328,323,318,313,308,303,298,293,288,284,279,274,270,265,261,257,252,248,244,240,236,231,227,223,219,215,212,208,204,200,196,193,189,185,181,178,174,171,167,163,160,156,153,150,146,143,139,136,133,129,126,123,119,116,113,109,106,103,100,97,93,90,87,84,81,78,74,71,68,65,62,59,56,53,50,47,44,40,37,34,31,28,25,22,19,16,13,10,7,4,1,-2,-5,-8,-11,-14,-17,-21,-24,-27,-30,-33,-36,-39,-42,-45,-48,-51,-55,-58,-61,-64,-67,-70,-73,-77,-80,-83,-86,-90,-93,-96,-100,-103,-106,-110,-113,-116,-120,-123,-127,-130,-134,-137,-141,-144,-148,-152,-155,-159,-163,-171,-175,-179,-183,-187,-191,-195,-199,-203,-208,-212,-216,-221,-225,-230,-234,-239,-244,-248,-253,-258,-264,-269,-274,-280,-285,-291,-297,-303,-309,-315,-322,-328,-335,-342,-350,-358,-366,-374,-383,-392,-401,-411,-422,-434,-446,-459,-474,-489,-507,-527,-550,-577,-611,-658,-732,-1000],disch:[300,300,300,300,300,300,300,300,292,281,273,266,260,253,248,243,238,233,230,226,223,219,216,213,210,208,205,202,200,198,196,194,192,190,188,186,184,182,181,179,177,176,174,173,171,170,168,167,166,164,163,162,161,159,158,157,156,155,154,153,152,151,150,149,148,147,146,145,144,143,142,141,140,139,138,138,137,136,135,134,133,133,132,131,130,129,129,128,127,126,126,125,124,123,123,122,121,121,120,119,119,118,117,116,116,115,114,114,113,112,112,111,111,110,109,109,108,107,107,106,106,105,104,104,103,103,102,101,101,100,100,99,98,98,97,97,96,95,95,94,94,93,92,92,91,91,90,90,89,88,88,87,87,86,85,85,84,84,83,83,82,81,81,80,80,79,78,78,77,77,76,75,75,74,74,73,72,72,71,71,70,69,69,68,67,67,66,65,65,64,64,63,62,62,61,60,60,59,58,57,57,56,55,55,54,53,52,52,51,50,49,48,48,47,46,45,44,43,42,41,41,40,39,38,37,36,34,33,32,31,30,29,27,26,25,23,22,20,19,17,15,13,11,9,7,5,3,0,-1,-3,-5,-8,-10,-13,-16,-18],air:[2200,2144,1771,1578,1449,1355,1280,1219,1168,1123,1084,1049,1017,989,963,938,916,895,876,857,840,823,808,793,779,765,752,740,728,717,706,695,685,675,665,655,646,637,629,620,612,604,596,589,581,574,567,560,553,547,540,534,527,521,515,509,503,497,492,486,481,475,470,464,459,454,449,444,439,434,429,425,420,415,411,406,402,397,393,388,384,380,375,371,367,363,359,355,351,347,343,339,335,331,327,323,320,316,312,308,305,301,297,294,290,286,283,279,276,272,269,265,262,258,255,251,248,244,241,238,234,231,228,224,221,218,214,211,208,204,201,198,194,191,188,185,181,178,175,172,168,165,162,159,155,152,149,146,142,139,136,133,130,126,123,120,116,113,110,107,103,100,97,94,90,87,84,80,77,74,70,67,63,60,57,53,50,46,43,39,36,32,29,25,21,18,14,11,7,3,-1,-4,-8,-12,-16,-20,-24,-28,-32,-36,-40,-44,-48,-52,-56,-61,-65,-69,-74,-78,-83,-88,-92,-97,-102,-107,-112,-117,-122,-128,-133,-138,-144,-150,-156,-162,-168,-174,-181,-187,-194,-201,-209,-216,-224,-232,-240,-249,-258,-268,-278,-289,-300,-312,-325,-339,-354,-371,-389,-410,-435,-463,-499,-548,-626,-1000],pipe:[2200,2249,1847,1640,1503,1403,1324,1259,1204,1157,1116,1079,1046,1015,988,962,939,917,896,877,859,842,825,810,795,781,767,754,742,730,718,707,696,686,676,666,656,647,638,629,621,612,604,596,589,581,574,566,559,552,546,539,532,526,519,513,507,501,495,489,484,478,472,467,461,456,451,446,441,435,430,425,421,416,411,406,402,397,392,388,383,379,374,370,366,361,357,353,349,345,341,336,332,328,324,320,317,313,309,305,301,297,293,290,286,282,278,275,271,267,264,260,257,253,249,246,242,239,235,232,228,225,221,218,214,211,208,204,201,197,194,191,187,184,180,177,174,170,167,164,160,157,154,150,147,143,140,137,133,130,127,123,120,117,113,110,107,103,100,97,93,90,86,83,80,76,73,69,66,62,59,55,52,48,45,41,38,34,31,27,23,20,16,12,9,5,1,-2,-6,-10,-14,-18,-22,-26,-30,-34,-38,-42,-46,-50,-54,-58,-63,-67,-71,-76,-80,-85,-89,-94,-99,-103,-108,-113,-118,-123,-128,-133,-139,-144,-150,-155,-161,-167,-173,-179,-185,-192,-199,-205,-212,-220,-227,-235,-243,-251,-260,-269,-278,-288,-298,-309,-321,-333,-346,-360,-376,-393,-412,-433,-458,-487,-523,-573,-652,-1000]};
+/* Outdoor families (page byte 7). Codes and tags are the LG central controller's own type table; the names
+   after them are our reading. Layout says which page-0 map the controller uses for that family:
+   "s4" = the Multi V IV map Cortex decodes (the controller sends Multi V IV, Multi V S, Multi V 5, Water IV,
+   "single" and "multi" through one parser); "ghp" = gas heat pump map; "old" = the older generic map.
+   Only 0x0E has been seen on live equipment. comps:1 = one inverter compressor per frame. */
+const ODU_FAMS={0x00:["SUPER","Multi V Super","old"],0x01:["SUPER2","Multi V II","old"],0x02:["SUPER3","Multi V III","old"],0x03:["SPACE","Multi V Space","old"],
+  0x04:["MINI","Multi V Mini","old"],0x05:["RHP","RHP","old"],0x06:["WATER","Multi V Water","old"],0x07:["WATER2","Multi V Water II","old"],0x08:["SPACE2","Multi V Space II","old"],
+  0x09:["SPACE3","Multi V Space III","old"],0x0A:["LRA","LRA","old"],0x0B:["LRB","LRB","old"],0x0C:["SUPER3_BLDC","Multi V III (BLDC)","old"],0x0D:["COMBI","Combi","old"],
+  0x0E:["SUPER4","Multi V IV","s4"],0x0F:["GHP_GEN1","Gas heat pump","ghp"],0x10:["GHP_SUPER","Gas heat pump Super","ghp"],0x11:["SINGLE","Single","s4"],0x12:["MULTI","Multi","s4"],
+  0x13:["WATER4","Multi V Water IV","s4"],0x14:["MULTIV_S","Multi V S","s4",{comps:1,gen:4}],0x15:["SUPER5","Multi V 5","s4",{gen:5}]};
+function oduFam(code){const r=ODU_FAMS[code],x=(r&&r[3])||{};
+  return {code,tag:r?r[0]:null,name:r?r[1]:"unknown family",layout:r?r[2]:"old",s4:!!r&&r[2]==="s4",comps:x.comps||2,gen:x.gen||4,seen:code===0x0E,hex:"0x"+code.toString(16).toUpperCase().padStart(2,"0")};}
 const ODU=new Map();                                            // odu address -> {addr,pages:{replyPage:{f,at}},at}
 let oduDirty=false;
 function oduAddrs(){return (CFG&&Array.isArray(CFG.oduAddrs))?CFG.oduAddrs:[];}
@@ -1647,7 +1660,7 @@ setInterval(()=>{if(oduDirty){oduDirty=false;if(view==="cycle"&&currentUser&&!(d
 function decodeOduPage(f){
   const T=ODU_T,s8=b=>b>127?b-256:b,t10=(tb,b)=>Math.round(tb[b])/10;
   const d={addr:f[4],page:f[5],unit:f[5]<2?"main":("sub "+(f[5]-1)),product:({0:"heat pump",1:"cooling only",2:"heat recovery"})[f[6]&0x0F]||("class "+(f[6]&0x0F)),
-    family:f[7],fw:f[8]+"."+f[9],err:f[10],mode:(["stop","cool","heat","cool"])[f[15]&3],errUnit:((f[15]>>2)&3)+1,subs:f[15]>>5,
+    family:f[7],fam:oduFam(f[7]),comps:oduFam(f[7]).comps,fw:f[8]+"."+f[9],err:f[10],mode:(["stop","cool","heat","cool"])[f[15]&3],errUnit:((f[15]>>2)&3)+1,subs:f[15]>>5,
     hpTarget:T.hp[f[11]],lpTarget:T.lp[f[12]],shTarget:f[13]/10,scTarget:f[14]/10,
     inv1Target:f[16],inv1Hz:s8(f[17]),inv2Target:f[18],inv2Hz:s8(f[19]),fan1:f[20]*10,fan2:f[21]*10,
     air:t10(T.air,f[22]),hp:T.hp[f[23]],lp:T.lp[f[24]],cond:t10(T.cond,f[23]),evap:t10(T.evap,f[24]),suct:t10(T.suct,f[25]),
@@ -1657,12 +1670,15 @@ function decodeOduPage(f){
     hexUp:t10(T.pipe,f[30]),hexLo:t10(T.pipe,f[31]),eevOil:f[37]*8,eevVi1:f[38]*8,eevVi2:f[39]*8,fan1A:f[46]/10,fan2A:f[47]/10,inv1Ph:f[48]/5,inv2Ph:f[62]/5,hs1:f[52],hs2:f[54],
     fanStep:f[57]&0x0F,addDefrost:!!(f[57]&0x40),snow:!!(f[57]&0x80),divDefrost:!!(f[58]&0x20),oilSens1:!!(f[59]&1),oilSens2:!!(f[59]&2),heater1:!!(f[59]&4),heater2:!!(f[59]&8),coolFan:!!(f[59]&0x40),
     compCount:f[60]&3,sucInj:!!(f[60]&4),varPath:!!(f[60]&0x40),hotGas:!!(f[60]&0x80),recvIn:!!(f[61]&1),recvOut:!!(f[61]&2),backup1:!!(f[61]&0x40),backup2:!!(f[61]&0x80)};
-  d.running=!!(f[17]||f[19]);
+  if(d.comps===1){d.inv2Target=0;d.inv2Hz=0;}                       // single-compressor family: ignore whatever sits in the second compressor's bytes
+  d.running=!!(d.inv1Hz||d.inv2Hz||f[17]);
   d.sh=Math.round((d.suct-d.evap)*10)/10;d.sc=Math.round((d.cond-d.liq)*10)/10;
   d.ratio=(d.lp+101)?Math.round((d.hp+101)/(d.lp+101)*100)/100:null;
   if(d.disch1===-16)d.disch1=null;if(d.disch2===-16)d.disch2=null;   // -16 = sensor not fitted
   return d;}
-function oduUnits(o){const p0=o.pages[0];if(!p0)return [];const m=decodeOduPage(p0.f);const out=[m];
+/* A family whose page layout Cortex does not decode: say so instead of showing wrong numbers. */
+function oduOther(o){const p0=o.pages&&o.pages[0];if(!p0)return null;const fm=oduFam(p0.f[7]);return fm.s4?null:fm;}
+function oduUnits(o){const p0=o.pages[0];if(!p0)return [];if(!oduFam(p0.f[7]).s4)return [];const m=decodeOduPage(p0.f);const out=[m];
   for(let p=2;p<m.subs+2&&p<=4;p++){if(o.pages[p])out.push(decodeOduPage(o.pages[p].f));}return out;}
 function findOduPage(rx,addr){for(let i=0;i+64<=rx.length;i++){if(rx[i]===0x40&&rx[i+1]===0x70&&rx[i+2]===0xA0&&rx[i+4]===addr){const f=rx.slice(i,i+64);if(lgapCk(f,63)===f[63])return f;}}return null;}
 // One cmd14 page read. Read-only form only (bytes 5-6 zero, single ODU address).
@@ -1794,17 +1810,17 @@ function oduUnitPanel(u,k,idus){const f=cyFmt();
   const pct=(v,max)=>`<span class="cy-bar2"><span style="width:${Math.max(0,Math.min(100,Math.round(v/max*100)))}%"></span></span>`;
   return `<div class="cy-unit" style="--uc:${CY_UNIT_COL[k%CY_UNIT_COL.length]}">
     <div class="cy-uhead"><span class="cy-utag">${k===0?"MAIN":"SUB "+k}</span><span class="cy-pill ${u.running?'run':''}">${u.running?"running":"idle"}</span><span class="cy-pill ${u.mode==='heat'?'heat':u.mode==='cool'?'cool':''}">${ue(u.mode)}</span>${u.defrost?'<span class="cy-pill warn">defrost</span>':''}${u.oilReturn?'<span class="cy-pill warn">oil return</span>':''}<span style="margin-left:auto;font-size:11px;color:var(--text-faint)">fw ${ue(u.fw)}</span></div>
-    <div class="cy-sec"><span>Compressors</span><div class="cy-comps">${comp(1,u.inv1Target,u.inv1Hz,u.inv1V,u.inv1A,u.dc1)}${comp(2,u.inv2Target,u.inv2Hz,u.inv2V,u.inv2A,u.dc2)}</div></div>
+    <div class="cy-sec"><span>${u.comps===1?"Compressor":"Compressors"}</span><div class="cy-comps">${comp(1,u.inv1Target,u.inv1Hz,u.inv1V,u.inv1A,u.dc1)}${u.comps===1?"":comp(2,u.inv2Target,u.inv2Hz,u.inv2V,u.inv2A,u.dc2)}</div></div>
     <div class="cy-sec"><span>High side</span>
-      <div class="cy-grid">${tile("hot","High pressure",f.pr(u.hp),f.pu,"target "+f.pr(u.hpTarget),cyTone("hp",u),"hp")}${tile("hot","Discharge 1",f.tt(u.disch1),"","",cyTone("d1",u),"disch")}${tile("hot","Discharge 2",f.tt(u.disch2),"","",cyTone("d2",u),"disch")}${tile("hot","Disch. superheat",f.dt(dsh),"","",cyTone("dsh",u),"dsh")}${tile("warm","Condensing",f.tt(u.cond),"","","","cond")}${tile("warm","Liquid pipe",f.tt(u.liq),"","","","liq")}${tile("warm","Subcooling",f.dt(u.sc),"","target "+f.dt(u.scTarget),"","sc")}</div></div>
+      <div class="cy-grid">${tile("hot","High pressure",f.pr(u.hp),f.pu,"target "+f.pr(u.hpTarget),cyTone("hp",u),"hp")}${tile("hot","Discharge 1",f.tt(u.disch1),"","",cyTone("d1",u),"disch")}${u.comps===1?"":tile("hot","Discharge 2",f.tt(u.disch2),"","",cyTone("d2",u),"disch")}${tile("hot","Disch. superheat",f.dt(dsh),"","",cyTone("dsh",u),"dsh")}${tile("warm","Condensing",f.tt(u.cond),"","","","cond")}${tile("warm","Liquid pipe",f.tt(u.liq),"","","","liq")}${tile("warm","Subcooling",f.dt(u.sc),"","target "+f.dt(u.scTarget),"","sc")}</div></div>
     <div class="cy-sec"><span>Low side</span>
       <div class="cy-grid">${tile("cold","Low pressure",f.pr(u.lp),f.pu,"target "+f.pr(u.lpTarget),cyTone("lp",u),"lp")}${tile("cold","Evaporating",f.tt(u.evap),"","","","evap")}${tile("cold","Suction",f.tt(u.suct),"","","","suct")}${tile("cold","Superheat",f.dt(u.sh),"","target "+f.dt(u.shTarget),cyTone("sh",u),"sh")}${tile("","Comp. ratio",u.ratio==null?"—":u.ratio,"","","","ratio")}</div></div>
     <div class="cy-sec"><span>Fans &amp; outdoor coil</span>
       <div class="cy-grid">${tile("","Fan 1",u.fan1," rpm",u.fan1A+" A","","fan",fanSvg(u.fan1))}${tile("","Fan 2",u.fan2," rpm",u.fan2A+" A","","fan",fanSvg(u.fan2))}${tile("","Outdoor air",f.tt(u.air),"","","","air")}${tile("warm","Coil temp",f.tt(u.hex),"","upper "+f.tt(u.hexUp)+" · lower "+f.tt(u.hexLo),"","hex")}${tile("","4-way valve",u.fourWay?"heat":"cool","","","","fourWay")}</div></div>
     <div class="cy-sec"><span>Expansion valves &amp; subcooler</span>
       <div class="cy-grid">${tile("","Main EEV 1",u.eev1," pls",pct(u.eev1,2000),"","eevMain")}${tile("","Main EEV 2",u.eev2," pls",pct(u.eev2,2000),"","eevMain")}${tile("","Subcool EEV",u.eevSc," pls",pct(u.eevSc,2000),"","eevSc")}${tile("warm","Subcooler in",f.tt(u.scIn),"","","","scIn")}${tile("warm","Subcooler out",f.tt(u.scOut),"","","","scIn")}${tile("","Injection EEV 1",u.eevVi1," pls",pct(u.eevVi1,2000),"","eevVi")}${tile("","Injection EEV 2",u.eevVi2," pls",pct(u.eevVi2,2000),"","eevVi")}${tile("","Oil equalise EEV",u.eevOil," pls",pct(u.eevOil,2000),"","eevOil")}</div></div>
-    <div class="cy-sec"><span>Valves &amp; states${tip(CY_HELP.states)}</span><div class="cy-flags">${[["Hot gas bypass",u.hotGas],["Variable path",u.varPath],["Suction injection",u.sucInj],["Receiver in",u.recvIn],["Receiver out",u.recvOut],["Crankcase heater 1",u.heater1],["Crankcase heater 2",u.heater2],["Oil level 1",u.oilSens1],["Oil level 2",u.oilSens2],["Cooling fan",u.coolFan],["Defrost",u.defrost],["Split defrost",u.divDefrost],["Oil return",u.oilReturn],["Snow removal",u.snow],["Backup INV 1",u.backup1],["Backup INV 2",u.backup2]].map(([n,v])=>`<span class="${v?"on":""}">${n}</span>`).join("")}</div>
-      <div class="cy-grid" style="margin-top:8px">${tile("","INV 1 phase amps",u.inv1Ph," A")}${tile("","INV 2 phase amps",u.inv2Ph," A")}${tile("","Heat sink 1",u.hs1,"","raw value","","hs")}${tile("","Heat sink 2",u.hs2,"","raw value","","hs")}${tile("","Fan step",u.fanStep,"")}</div></div>
+    <div class="cy-sec"><span>Valves &amp; states${tip(CY_HELP.states)}</span><div class="cy-flags">${[["Hot gas bypass",u.hotGas],["Variable path",u.varPath],["Suction injection",u.sucInj],["Receiver in",u.recvIn],["Receiver out",u.recvOut],["Crankcase heater 1",u.heater1],u.comps===1?null:["Crankcase heater 2",u.heater2],["Oil level 1",u.oilSens1],u.comps===1?null:["Oil level 2",u.oilSens2],["Cooling fan",u.coolFan],["Defrost",u.defrost],["Split defrost",u.divDefrost],["Oil return",u.oilReturn],["Snow removal",u.snow],["Backup INV 1",u.backup1],u.comps===1?null:["Backup INV 2",u.backup2]].filter(Boolean).map(([n,v])=>`<span class="${v?"on":""}">${n}</span>`).join("")}</div>
+      <div class="cy-grid" style="margin-top:8px">${tile("","INV 1 phase amps",u.inv1Ph," A")}${u.comps===1?"":tile("","INV 2 phase amps",u.inv2Ph," A")}${tile("","Heat sink 1",u.hs1,"","raw value","","hs")}${u.comps===1?"":tile("","Heat sink 2",u.hs2,"","raw value","","hs")}${tile("","Fan step",u.fanStep,"")}</div></div>
   </div>`;}
 const CY_SYS_COL=["#2f8ff5","#e8955a","#8b6fd6","#2fbf71","#d6a23a","#e5484d","#3fa7b5","#b05fc4"];
 /* Outdoor page 5 as the ACP stores it (table fdd_code): byte 8 total, 9 FDD type, 10–14 five entry types,
@@ -1816,7 +1832,7 @@ function oduFaultTip(o){if(!o.pages[5])return "";const d=decodeOduFaults(o.pages
 function oduHead(o,m,i,n){const flt=o.pages[5]&&o.pages[5].f.slice(8,38).some(x=>x);const mine=units.filter(u=>u.odu===o.addr).length;
   return `<div class="cy-head"><div class="cy-badge">${n>1?`<small>SYSTEM ${i+1}</small>`:""}${hx(o.addr)}</div>
     <div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)} <span class="cy-pill ${m.mode==='heat'?'heat':m.mode==='cool'?'cool':''}">${ue(m.mode)}</span></div>
-      <div class="cy-subt">${ue(m.product)} · family 0x${m.family.toString(16).toUpperCase().padStart(2,"0")} · ${m.idus} indoor unit${m.idus!==1?"s":""}${mine?` · ${mine} matched in Cortex`:""}${m.subs?` · main + ${m.subs} sub`:""}</div></div>
+      <div class="cy-subt">${ue(m.fam.name)} ${ue(m.product)} · family ${m.fam.hex}${m.fam.seen?"":tip("Cortex was built and checked on Multi V IV (family 0x0E). LG\u2019s own controller reads this family with the same page map, so the numbers should line up, but they have not been compared against LGMV on this family yet. Check a few readings against the unit before trusting a diagnosis.")} · ${m.idus} indoor unit${m.idus!==1?"s":""}${mine?` · ${mine} matched in Cortex`:""}${m.subs?` · main + ${m.subs} sub`:""}</div></div>
     <div style="margin-left:auto;text-align:right;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn sm" data-ohealth="${o.addr}">🩺 Health</button><button class="btn sm" data-ocharge="${o.addr}">🧪 Charge check</button><button class="btn sm" data-otrend="${o.addr}">📈 Trends</button>
       <div>${(h=>h==null?"":`<span class="cy-pill ${h>=85?"run":h>=65?"warn":"bad"}" title="Cortex health score: starts at 100 and loses points for readings outside LG's ranges, matched fault patterns, errors and silent units. A rough guide only.">health ${h}</span>`)(sysHealth(o))}${m.err?`<span class="cy-pill bad">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span class="cy-pill run">no error</span>'}${flt?` <span class="cy-pill warn">fault table has entries</span>${tip(oduFaultTip(o))}`:''}
@@ -1828,7 +1844,9 @@ function oduChecks(us,idus){const all=[];us.forEach((u,k)=>oduAdvice(u,k===0?idu
   if(!all.length)return `<div class="cy-checks ok">✓ Readings are inside LG's typical running ranges.${note}</div>`;
   return `<div class="cy-checks"><b>Worth a look</b>${note}${all.map(a=>`<div class="${a.sev}"><span>${a.sev==="bad"?"●":"▲"}</span><span><b>${a.who}:</b> ${a.t}</span></div>`).join("")}</div>`;}
 function oduCards(list){
-  const cards=list.map((o,i)=>{const us=oduUnits(o);if(!us.length)return "";const idus=units.filter(u=>u.odu===o.addr);
+  const cards=list.map((o,i)=>{const ot=oduOther(o);
+    if(ot)return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[i%CY_SYS_COL.length]}"><div class="cy-head"><div class="cy-badge">${hx(o.addr)}</div><div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)}</div><div class="cy-subt">${ue(ot.name)} · family ${ot.hex}</div></div></div><div class="cy-checks idle">This outdoor unit answers, but its family (${ue(ot.name)}${ot.tag?", LG tag "+ue(ot.tag):""}) packs its data differently from Multi V IV, and Cortex does not have that map yet. Nothing is shown rather than showing wrong numbers. Indoor-unit control and monitoring are not affected.</div></div>`;
+    const us=oduUnits(o);if(!us.length)return "";const idus=units.filter(u=>u.odu===o.addr);
     return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[i%CY_SYS_COL.length]}">${oduHead(o,us[0],i,list.length)}${oduChecks(us,idus)}${oduDiagnosis(o)}<div class="cy-units">${us.map((u,k)=>oduUnitPanel(u,k,idus)).join("")}</div></div>`;}).join("");
   return cards||`<div class="cyc-note" style="margin-top:14px">No outdoor-unit data yet. ${isMaster()?"Use <b>Find outdoor units</b> (or type the outdoor unit's central address and press Read).":"It appears here once an outdoor unit has been read."}</div>`;}
 function iduSection(){
@@ -1876,15 +1894,15 @@ function oduDiagram(o,sysI,sysN){const us=oduUnits(o);if(!us.length)return "";co
   const anyHeat=idus.some(u=>act(u)&&isHeat(u)),anyCool=idus.some(u=>act(u)&&!isHeat(u));
   const lastLiq=nC?col(nC-1)-80:x0+20,lastGas=nC?col(nC-1)+80:x0+20,lastLP=nC?col(nC-1)+94:x0+20;
   // ---- outdoor unit ----
-  const coilCol=heat?cold:hot,r1=run&&m.inv1Hz>0,r2=run&&m.inv2Hz>0;
+  const coilCol=heat?cold:hot,one=m.comps===1,r1=run&&m.inv1Hz>0,r2=!one&&run&&m.inv2Hz>0;
   let p="";
-  p+=pipe(`M${cA} ${yC-27}V${y4}`,hot,r1)+pipe(`M${cB} ${yC-27}V${y4}`,hot,r2);                           // discharge risers
+  p+=pipe(`M${cA} ${yC-27}V${y4}`,hot,r1)+(one?"":pipe(`M${cB} ${yC-27}V${y4}`,hot,r2));                         // discharge risers
   p+=pipe(`M${cA} ${y4}H${gasH-18}`,hot,run&&!heat);                                                          // discharge header → 4-way
   if(!heat)p+=pipe(`M${gasH} ${y4-18}V${yU}H${coilR}`,hot,run)+pipe(`M${gasH} ${yLo}H${coilR}`,hot,run)       // 4-way → coil (condenser)
      +pipe(`M${coilL} ${yLo}H36V${yU}`,warm,run)+pipe(`M${coilL} ${yU}H36V${yL}H370`,warm,run)+pipe(`M460 ${yL}H${lastLiq}`,warm,run);
   else p+=pipe(`M${lastLiq} ${yL}H460`,warm,run)+pipe(`M370 ${yL}H36V${yU}H${coilL}`,warm,run)+pipe(`M36 ${yU}V${yLo}H${coilL}`,warm,run)
      +pipe(`M${coilR} ${yU}H${gasH}V${y4-18}`,cold,run)+pipe(`M${coilR} ${yLo}H${gasH}`,cold,run);              // coil (evaporator) → 4-way
-  p+=pipe(`M${gasH} ${y4+18}V302`,cold,run&&(heat||!hr))+pipe(`M${gasH} 362V${yS}H${cA}V${yC+27}`,cold,r1)+pipe(`M${cB} ${yS}V${yC+27}`,cold,r2);
+  p+=pipe(`M${gasH} ${y4+18}V302`,cold,run&&(heat||!hr))+pipe(`M${gasH} 362V${yS}H${cA}V${yC+27}`,cold,r1)+(one?"":pipe(`M${cB} ${yS}V${yC+27}`,cold,r2));
   p+=pipe(`M492 ${yL}V106H432V80`,cold,run&&m.eevSc>48,3)+pipe(`M398 80V108`,cold,run&&m.eevSc>48,3);         // subcooler bypass
   if(hr){p+=pipe(`M${cA} ${y4}H40V${yH}H${lastGas}`,hot,run&&(anyHeat||heat));                                  // high-pressure gas pipe
     p+=pipe(`M${lastLP} ${yG}H672V332H330`,cold,run&&(anyCool||!heat));}                                          // low-pressure gas pipe
@@ -1910,7 +1928,7 @@ function oduDiagram(o,sysI,sysN){const us=oduUnits(o);if(!us.length)return "";co
     <g${ti("fourWay")}><circle cx="${gasH}" cy="${y4}" r="18" fill="var(--surface)" stroke="var(--text-dim)" stroke-width="2"/><text class="cy-dn" x="${gasH}" y="${y4+4}" text-anchor="middle">4W</text></g>
     <g${ti("acc")}><rect x="${gasH-18}" y="302" width="36" height="60" rx="14" fill="var(--surface)" stroke="${cold}" stroke-width="2"/><text class="cy-dl" x="${gasH}" y="336" text-anchor="middle">acc</text></g>
     ${lbl(52,214,"HP",f.pr(m.hp)+" "+f.pu,toneCol("hp",hot),"hp")}${lbl(52,238,"cond",f.tt(m.cond),warm,"cond")}${lbl(176,238,"disch SH",f.dt(Math.max(m.disch1==null?-99:m.disch1,m.disch2==null?-99:m.disch2)-m.cond),hot,"dsh")}
-    ${comp(cA,m.inv1Hz,1,1,m.disch1,m.eevVi1)}${comp(cB,m.inv2Hz,2,1,m.disch2,m.eevVi2)}
+    ${comp(cA,m.inv1Hz,1,1,m.disch1,m.eevVi1)}${one?"":comp(cB,m.inv2Hz,2,1,m.disch2,m.eevVi2)}
     ${lbl(346,364,"LP",f.pr(m.lp)+" "+f.pu,toneCol("lp",cold),"lp")}${lbl(346,388,"suction",f.tt(m.suct)+" · evap "+f.tt(m.evap),cold,"suct")}${lbl(346,412,"superheat",f.dt(m.sh),toneCol("sh",cold),"sh")}`;
   // ---- indoor side: a liquid riser left of each column, gas riser(s) right of it ----
   let risers="";for(let c=0;c<nC;c++){const cx=col(c),mine=idus.filter((_,i)=>i%3===c),yLast=128+(mine.length-1)*104;
@@ -1992,6 +2010,13 @@ function openFieldRef(){const sec=(t,h)=>`<div style="margin:16px 0 6px;font-wei
    ${sec("EEV coils",`Outdoor main EEV and large indoor EEV (6-wire): about 300 Ω across 1–3 and 2–4, 150 Ω from each to common.<br>Subcooling EEV and small indoor EEV (5-wire): about 104 Ω across 1–3 and 2–4, 52 Ω to common.<br>Values differ by EEV model.`)}
    ${sec("Indoor fan motor (CH10)",`Motor unplugged from the PCB: terminals 4–5 above 35 kΩ, 4–7 above 230 kΩ. Supply while running about 308 V DC (±45).`)}
    ${sec("Protection limits",`High pressure above 580 psi for 10 s → CH34. Discharge above 239 °F for 10 s → CH32. Low pressure under 58 psi (cooling) or 33 psi (heating) for a minute → CH35. Compression ratio under 1.6 → CH36. Discharge superheat under about 5 °F in all-cooling → CH150. Connected indoor capacity must be 50–130 % of outdoor capacity → CH51.`)}
+   ${sec("Multi V S (single-frame units)",`One inverter compressor and no sub frames; the Cycle page draws it that way when the outdoor unit reports the Multi V S family. Heat pump 024–053 sizes add a <b>hot gas bypass valve</b> (it stays on for 15 minutes after a stop, then closes). The outdoor display adds the frame digit the same way: <span class="mono">211</span> is error 21, <span class="mono">1501</span> is error 150.<div style="overflow:auto"><table class="cy-table" style="margin-top:6px"><thead><tr><th></th><th>024–053 heat pump</th><th>060 heat pump / heat recovery</th></tr></thead><tbody>
+     <tr><td>Discharge temperature</td><td>above 212 °F speed is limited; above 230 °F it steps down</td><td>above 212 °F limited; 230 °F and 235 °F step down faster</td></tr>
+     <tr><td>High pressure, heating</td><td>stops above about 558 psi</td><td>steps down above about 495 psi</td></tr>
+     <tr><td>High pressure, cooling</td><td>normal below about 519 psi</td><td>normal below about 505 psi; steps down above about 548 psi</td></tr>
+     <tr><td>Input current</td><td>038–053: normal ≤25 A, slows ≤27 A, stops at 30 A</td><td>normal ≤35 A, slows ≤36 A, stops at 38 A</td></tr>
+     <tr><td>Compressor current</td><td>038–053: normal ≤14 A, slows ≤15 A, stops at 20 A</td><td>normal ≤35 A, slows ≤36 A, stops at 46 A</td></tr></tbody></table></div>
+     Targets: evaporating 35.6–41 °F in cooling, condensing 116.6–123.8 °F in heating (installer-adjustable). Oil return runs every 8 hours for 3 minutes; during it idle indoor valves go from <b>40 pulses</b> to 400 and back. In heating oil return and defrost, idle valves sit at 60–100 pulses and open to 400–800. Defrost ends when every coil pipe has been above its set temperature for 30 seconds.<br><span style="color:var(--text-dim)">From LG’s Multi V S outdoor service manual. Cortex has not been run on a Multi V S yet; the checks on the Cycle page still use Multi V IV numbers.</span>`)}
    ${sec("Outdoor frames installed apart (dual / triple frame)",`Measure from the centre of the outdoor Y-branch. No more than <b>33 ft</b> of pipe from the first outdoor Y-branch to the farthest frame, and no more than <b>16 ft</b> of height between frames.<br>An <b>inverted oil trap</b> (about 8 in. up) is needed in the vapor pipe when the horizontal run from a Y-branch to a frame is over 6.6 ft, or whenever the pipe turns downward leaving the Y-branch. Fit it within 6.6 ft of the Y-branch. Heat pump: suction pipe. Heat recovery: both the high- and low-pressure gas pipes.`)}
    ${sec("Heat-recovery boxes",`Wired into the indoor A/B daisy chain and powered at 208/230 V. Each box needs its own address 0–F on its rotary switch, counting up along the chain; give address 0 to the box whose port 1 carries the largest indoor unit.<br>Each port has two valves, one hot-gas and one suction, that set that port to heating or cooling. A bypass valve balances pressure between the two when a port changes mode.<br>Capacity per port: 54 MBh, or 108 / 162 MBh across two / three twinned ports; 192 MBh per box.`)}
   </div>`,true);}
@@ -2229,7 +2254,7 @@ function oduSubFrames(us){if(us.length<2)return "";const f=cyFmt();
     const c=(n,hz,d)=>`<div class="cy-subc">${scrollSvg(hz,34)}<div><small>INV ${n}</small><b style="color:${hz?'#e5484d':'var(--text-dim)'}">${hz} Hz</b><em>${f.tt(d)}</em></div></div>`;
     const kv=(l,v,tone)=>`<div class="${tone||""}"><small>${l}</small><b>${v}</b></div>`;
     return `<div class="cy-subf" style="--uc:${CY_UNIT_COL[(k+1)%CY_UNIT_COL.length]}"><div class="cy-uhead"><span class="cy-utag">SUB ${k+1}</span><span class="cy-pill ${u.running?'run':''}">${u.running?"running":"idle"}</span>${fl.map(x=>`<span class="cy-pill warn">${x}</span>`).join("")}</div>
-      <div class="cy-subrow">${c(1,u.inv1Hz,u.disch1)}${c(2,u.inv2Hz,u.disch2)}<div class="cy-subc">${fanSvg(u.fan1,20)}${fanSvg(u.fan2,20)}<div><small>fans</small><b>${u.fan1} / ${u.fan2}</b></div></div></div>
+      <div class="cy-subrow">${c(1,u.inv1Hz,u.disch1)}${u.comps===1?"":c(2,u.inv2Hz,u.disch2)}<div class="cy-subc">${fanSvg(u.fan1,20)}${fanSvg(u.fan2,20)}<div><small>fans</small><b>${u.fan1} / ${u.fan2}</b></div></div></div>
       <div class="cy-subkv">${kv("High",f.pr(u.hp)+" "+f.pu,cyTone("hp",u))}${kv("Low",f.pr(u.lp)+" "+f.pu,cyTone("lp",u))}${kv("Superheat",f.dt(u.sh),cyTone("sh",u))}${kv("Subcool",f.dt(u.sc))}${kv("Main EEV",u.eev1+" / "+u.eev2)}${kv("Coil",f.tt(u.hexUp)+" / "+f.tt(u.hexLo))}</div></div>`;}).join("")}
     <div class="cy-dnote" style="padding:6px 2px 0">Sub frames are piped in parallel with the main frame and share its pipes, so they are shown as summary cards. Full readings for every frame are in the Data view.</div></div>`;}
 /* ---- system health from recorded history ---- */
@@ -2580,10 +2605,11 @@ async function relayDrain(myseq){
   for(const c of cmds){const u=units.find(x=>x.addr===c.addr);if(!u||!c.state)continue;
     holdUnits([u]);
     ["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","rangeLock","c4b5","c4b6"].forEach(k=>{if(c.state[k]!==undefined&&c.state[k]!==null)u[k]=c.state[k];});
+    if(c.state.filterReset===true)u.filterReset=true;            // one-shot, removed again right after the frames go out
     u.coolC=clampC(u.coolC);u.heatC=clampC(u.heatC);u.sp=Math.round(activeC(u)*9/5+32);
     mlog("⇢ command from another screen → "+hx(u.addr));list.push(u);}
   if(!list.length||MASTER.seq!==myseq)return;
-  await busExclusive(async()=>{for(const u of list){try{await txUnitRaw(u);}catch(e){mlog("✖ relayed send failed "+hx(u.addr)+": "+e.message);}}});
+  await busExclusive(async()=>{for(const u of list){try{await txUnitRaw(u);}catch(e){mlog("✖ relayed send failed "+hx(u.addr)+": "+e.message);}finally{delete u.filterReset;}}});
   saveUnits();liveRefresh();}
 // A unit answered at an address we didn't know about. It's now being polled; ask whether to add it
 // to the saved unit list. Ask once per address per session, and don't stack dialogs.
@@ -2895,21 +2921,26 @@ async function txUnitRaw(u){
   // as the sole bus master (no ACP present to clobber), so it is authoritative — safe to assert locks + band.
   const lock=cmd4BytesFor(u.addr,u);                           // always sent, so a stale lock can be CLEARED (b4 dimension bits 0)
   if(u.rangeLock&&bandLo(u)<=18&&bandHi(u)>=30)mlog("ℹ "+hx(u.addr)+": range lock is on but set to the full 64–86°F, so it won't limit anything — narrow the range in the Locks section");
-  const R=rt(u.addr);R.hold=Date.now()+8000;R.lastTx=toHexBytes(basic);R.txAt=Date.now();
+  const R=rt(u.addr);R.hold=Date.now()+15000;R.lastTx=toHexBytes(basic);R.txAt=Date.now();
   const w=bus.port.writable.getWriter();
   try{
     for(let i=0;i<5;i++){await w.write(Uint8Array.from(basic));await sleep(140);}
     if(lock){for(let i=0;i<3;i++){await w.write(Uint8Array.from(lock));await sleep(140);}}   // then enforce locks via cmd4
   }
   finally{try{w.releaseLock();}catch(_){}}
-  R.hold=Date.now()+6000;                                      // this unit's frames are out: give it a few seconds to act on them
+  R.hold=Date.now()+15000;                                     // the first replies after a write are the outdoor unit's cached copy of our command; the unit's own state can take ~15 s to show [kit ch.04 §3.3]
   const dim=lock?[u.modeLock?"mode":"",u.fanLock?"fan":"",u.tempLock?"temp":""].filter(Boolean):[];   // dimension locks only ride the cmd4 frame (sent when template known)
   const lk=[...dim,...(u.hardLock?["hard"]:[])];                                                        // hard lock rides the cmd0 frame, always sent
   const d={addr:u.addr,type:"tx",hex:toHexBytes(basic),label:`${u.on?"on":"off"} · ${u.mode} · fan ${u.fan} · set ${spDisp(u.mode==="heat"?u.heatC:u.coolC)}°${lk.length?(" · lock["+lk.join("+")+"]"):""}`};
   bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push("TX "+d.hex);if(lock)bus.raw.push("TX "+toHexBytes(lock));bus.dirty=true;}
 // Call BEFORE changing units you are about to send: from that moment a poll reply that is already on
 // its way must not put the old state back (it used to be able to undo one unit of an "All off").
-function holdUnits(list){const until=Date.now()+12000+list.length*900;list.forEach(u=>{rt(u.addr).hold=until;});}
+/* Filter-sign reset: one cmd0 write with byte 5 bit 7 set and the unit's current settings. Two taps, staff only. */
+async function filterResetClick(u,btn){if(!canReach()){toast("Not connected to the equipment, so the reset can’t be sent");return;}
+  if(btn.dataset.arm!=="1"){btn.dataset.arm="1";btn.textContent="Tap again to send the reset";btn.classList.add("primary");return;}
+  btn.disabled=true;u.filterReset=true;let n=0;try{n=await sendUnits([u]);}finally{delete u.filterReset;}
+  toast(n?"Filter reset sent to "+dispName(u)+" — the sign should clear within a minute":"Couldn’t reach the unit");}
+function holdUnits(list){const until=Date.now()+18000+list.length*900;list.forEach(u=>{rt(u.addr).hold=until;});}
 function relayOk(){return location.protocol!=="file:"&&!liveTx()&&SRV.masterAlive;}
 function canReach(){return liveTx()||relayOk();}                // can a command from THIS screen get to the equipment right now?
 /* Send the current state of one or more units to the equipment. Returns how many were sent.
@@ -2925,8 +2956,8 @@ async function sendUnits(list){
   if(relayOk()){let n=0;
     for(const u of list){try{
       const r=await fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock,rangeLock:!!u.rangeLock,c4b5:u.c4b5,c4b6:u.c4b6}})});
-      if(r.ok){const j=await r.json();SRV.masterAlive=!!j.masterAlive;if(j.masterAlive){rt(u.addr).hold=Date.now()+12000;n++;}}
+        body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock,rangeLock:!!u.rangeLock,c4b5:u.c4b5,c4b6:u.c4b6,filterReset:u.filterReset===true}})});
+      if(r.ok){const j=await r.json();SRV.masterAlive=!!j.masterAlive;if(j.masterAlive){rt(u.addr).hold=Date.now()+20000;n++;}}
     }catch(e){}}
     return n;}
   return 0;}
@@ -3608,6 +3639,7 @@ function drawDrawer(u){
         <div class="dsrow"><div class="dslbl" style="color:var(--cool)">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
         <div class="dsrow"><div class="dslbl" style="color:var(--heat)">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
+    ${u.filterSign&&isStaff()?`<div class="field"><div class="lbl">Filter${tip("The unit counts fan hours and raises this sign when its filter is due. Reset it <b>after</b> the filter has been cleaned. The reset is one message to this unit carrying its current settings plus the reset flag; nothing else changes.")}</div><div class="note-box warn" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:160px">This unit is asking for its filter to be cleaned.</span><button class="btn sm" id="flt-reset" ${dis}>Filter cleaned — reset sign</button></div></div>`:""}
     <div class="field"><div class="lbl">Locks${tip("<b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat. <b>Temp</b> blocks every temperature change. <b>Hard</b> locks the whole wall controller. <b>Temp range</b>: when locked, the thermostat can only be set between the two temperatures; unlocked, there is no range limit.")} ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('rangeLock')||(p.rangeLock&&(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)))||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button><button class="opt ${p.hardLock?'sel':''}" id="lk-hard" ${dis}>${p.hardLock?'🔒':'🔓'} Hard</button></div>
       <div style="margin-top:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px">
@@ -3716,6 +3748,7 @@ function drawDrawer(u){
     g("lk-fan",()=>{p.fanLock=!p.fanLock;re2();});
     g("lk-temp",()=>{p.tempLock=!p.tempLock;re2();});
     g("lk-hard",()=>{p.hardLock=!p.hardLock;re2();});
+    {const fb=document.getElementById("flt-reset");if(fb)fb.onclick=()=>filterResetClick(u,fb);}
     g("lk-range",()=>{p.rangeLock=!p.rangeLock;re2();});
     {const lo=document.getElementById("lim-lo"),hi=document.getElementById("lim-hi"),toC=v=>{if(!isFinite(v))return null;const c=settings.unit==="C"?v:(v-32)*5/9;return Math.max(18,Math.min(30,Math.round(c)));};
       if(lo)lo.onchange=()=>{const v=toC(parseFloat(lo.value));if(v!=null){p.limLo=v;if(p.limHi<p.limLo)p.limHi=p.limLo;}re2();};
@@ -3759,6 +3792,7 @@ function openError(code){const e=errInfo(code);
     ${e.chk?`<div class="ed-row"><div class="k">Field check</div><div class="v">${e.chk}</div></div>`:""}
     ${e.lv?`<div class="ed-row"><div class="k">How LG reacts</div><div class="v">${ERR_LEVELS[e.lv]}</div></div>`:""}
     ${units_err.length?`<div class="ed-row"><div class="k">Affected</div><div class="v">${units_err.join(", ")}</div></div>`:""}
+    ${(units_err.length>=2&&+String(code).replace(/\D/g,"")>=21)?`<div class="ed-row"><div class="k">Where to look</div><div class="v">Several indoor units show this code at once. Codes 21 and up are handed down by the outdoor unit: an indoor unit with no fault of its own shows the outdoor unit’s code. Start at the outdoor unit, not at these indoor units.</div></div>`:""}
     ${DIAG[code]?`<button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" onclick="openDiagnose('${code}')">🧭 Diagnose step by step <span style="opacity:.8;font-weight:400;margin-left:4px">${DIAG[code].length} checks</span></button>`:""}
     <a class="btn" href="https://partner.lge.com" target="_blank" rel="noopener" style="width:100%;justify-content:center;margin-top:8px;text-decoration:none">Look it up on LG → <span style="opacity:.8;font-weight:400;margin-left:4px">LGHVACService · Partner Portal</span></a>
     <div style="margin-top:10px;font-size:11.5px;color:var(--text-faint)">Opens LG's B2B partner portal (LGHVACService login). Summary above is a field reference — always verify against the unit's service manual.</div>

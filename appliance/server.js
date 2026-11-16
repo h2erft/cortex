@@ -469,6 +469,7 @@ app.post('/api/cmd', (req, res) => {
   if (['low', 'med', 'high', 'auto'].includes(st.fan)) out.fan = st.fan;
   for (const k of ['coolC', 'heatC']) if (typeof st[k] === 'number' && isFinite(st[k]) && st[k] >= 10 && st[k] <= 35) out[k] = st[k];
   for (const k of ['swing', 'twoset', 'modeLock', 'fanLock', 'tempLock', 'hardLock', 'rangeLock']) if (typeof st[k] === 'boolean') out[k] = st[k];
+  if (st.filterReset === true) out.filterReset = true;                // one-shot filter-sign reset (cmd0 byte 5 bit 7)
   // cmd4 setpoint-limit band bytes (b5 = 0x80|(lower-15), b6 = upper-15) set in a unit's Locks section
   if (Number.isInteger(st.c4b5) && st.c4b5 >= 0x80 && st.c4b5 <= 0x8F) out.c4b5 = st.c4b5;
   if (Number.isInteger(st.c4b6) && st.c4b6 >= 0 && st.c4b6 <= 0x0F) out.c4b6 = st.c4b6;

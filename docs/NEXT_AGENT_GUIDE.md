@@ -327,3 +327,21 @@ The firmware-engine reading earlier in this section was done with capstone, no R
 - LG parks a satisfied indoor unit's EEV near 40 pulses (owner's field knowledge, 2026-11-15). Treat
   ≤ 60 pulses as "closed by the controller", never as a fault sign on its own.
 - Cortex Command reads `/health`, `/api/units`, `/api/events`, `/api/diag` from each site; nothing is stored.
+
+## 1.7.0-beta.10 addendum (2026-11-15)
+
+- **Filter reset is a one-shot.** `filterReset:true` may exist on a unit object only between the button
+  press and the send. `cleanUnits()` strips it, `/api/cmd` passes it only when it is exactly `true`,
+  `busmaster` copies it onto the outgoing frame only and never into the patch. Do not add it to
+  `CMD_KEYS` or to any stored state: a stored flag would reset the filter hours on every later command.
+- **Hold after a command is 15 s** in `txUnitRaw` and `busmaster.sendCommand` (kit: early replies are the
+  outdoor unit's cache). The relay path holds 20 s because the controller sends a moment later.
+- **`ODU_FAMS` / `oduFam()`** sit inside the block `diagwatch.js` loads, on purpose. `oduUnits()` returns
+  nothing for a family whose layout is not `s4`, so diagnosis, health and the diagram all stay quiet for
+  it; `oduOther()` drives the notice card. To support another layout, add a decoder and branch in
+  `oduUnits`, do not loosen the `s4` test.
+- **Single-compressor families** are marked `comps:1` in the table. Every place that draws compressor 2
+  checks `u.comps===1`. Only Multi V S is marked; small Multi V IV frames are not, because nothing on the
+  bus says so reliably.
+- Multi V S notes and open questions: `docs/KIT_FINDINGS.md` §10.
+

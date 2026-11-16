@@ -105,7 +105,7 @@ function createMaster(io) {
     const basic = cmd0Bytes(u), lock = cmd4Bytes(u);
     for (let i = 0; i < 5 && !S.stopping; i++) { await write(basic); await sleep(140); }
     for (let i = 0; i < 3 && !S.stopping; i++) { await write(lock); await sleep(140); }
-    S.hold.set(u.addr, Date.now() + 8000);
+    S.hold.set(u.addr, Date.now() + 15000);   // early replies are the outdoor unit's cached copy of the command (kit ch.04 §3.3)
   }
   async function drainCommands() {
     const cmds = io.drain() || []; if (!cmds.length) return;
@@ -114,6 +114,7 @@ function createMaster(io) {
       if (S.stopping) break;
       const u = units.find(x => x.addr === c.addr); if (!u || !c.state || c.addr === 0xFF) continue;
       const fields = commandPatch(c.state), next = Object.assign({}, u, fields);
+      if (c.state.filterReset === true) next.filterReset = true;   // one-shot: rides this frame only, never stored on the unit
       const act = next.mode === 'heat' ? next.heatC : next.coolC; if (act != null && isFinite(act)) fields.sp = toF(act);
       try { await sendCommand(next); io.patchUnits([{ addr: u.addr, fields }]); io.log('command sent to 0x' + u.addr.toString(16)); }
       catch (e) { io.log('command to 0x' + u.addr.toString(16) + ' failed: ' + e.message); }

@@ -44,6 +44,10 @@ function fakeBus(world) {
   const c0 = port.tx.filter(b => b[0] === 0x80 && b[3] === 0x12 && (b[4] & 2)), c4 = port.tx.filter(b => b[0] === 0xA0 && b[3] === 0x12);
   t('queued command: cmd0 x5 then cmd4 x3', [c0.length, c4.length], [5, 3]);
   t('queued command frame', H(c0[0]), '80 00 A0 12 03 30 09 ' + H([M.ck([0x80, 0, 0xA0, 0x12, 3, 0x30, 9], 7)]));
+  t('hold after a command is 15 s', master.state.hold.get(0x12) - Date.now() > 9000, true);
+  const S2 = require('../appliance/scheduler.js'), base = { addr: 0x12, on: true, mode: 'cool', fan: 'high', coolC: 24 };
+  t('filter reset sets only byte 5 bit 7', [S2.cmd0Bytes(Object.assign({ filterReset: true }, base))[5] ^ S2.cmd0Bytes(base)[5], S2.cmd0Bytes(Object.assign({ filterReset: 1 }, base))[5] & 0x80], [0x80, 0]);
+  t('normal commands never carry the filter reset', c0.some(b => b[5] & 0x80), false);
   t('outdoor pages read (0, 5)', [...new Set(oduFrames.map(f => f[5]))].sort(), [0, 5]);
   t('never addresses 0xFF or non-read cmd14', port.tx.some(b => b[3] === 0xFF || (b[0] === 0xF0 && (b[5] || b[6]))), false);
   t('alive while polling', master.alive(), true);
