@@ -235,3 +235,81 @@ real controller tracks.
 Other functions worth reading next if a question comes up: `ProcessRxDataFromAC` (how the ACP
 parses the 16-byte reply), `ProcessRxDataFromACCmd5` (the cmd5 reply), `FindAcCmdESendData` (the
 ODU page poll), `ProcessRxDataFromAC_20byte` (a 20-byte reply variant Cortex does not know about).
+
+
+## 8. Second pass over the LG controller's software (read 2026-11-15)
+
+The file is a raw dump of the controller's `engine/` folder: about 60 programs, a handful of small
+databases, shell scripts and Modbus maps. Several programs are damaged in the dump; the main comms
+program (`CommProc`) and the address search (`AddressSearch`) are intact with symbols and were
+decompiled with Ghidra. **Nothing from the dump is in this repo.**
+
+### 8.1 Outdoor page request bytes 5–6 are a write channel (`FindAcCmdESendData`)
+
+Frame: `F0 C0 A0 <odu> <page> <b5> <b6> ck`. LG's controller fills b5 from a per-unit `exe_index` and b6
+from the matching column:
+
+| b5 | b6 is the new value for |
+|---|---|
+| 0 | nothing (plain read) — except on page 0, see below |
+| 1 | `target_high_pressure` |
+| 2 | `target_low_pressure` |
+| 3 | `target_super_heat` |
+| 4 | `target_sub_cool` |
+| 5 | `err_clear_unit` |
+| 6 | `err_clear_number` |
+| 8 (with b6 = 1) | sent on page 0 during the first three minutes after midnight; purpose not established |
+
+On a plain page-0 read, b6 bit 1 is set when `oil_return_by_acs = true` in the controller's config, and
+b6 bit 0 is set during the configured `oil_return_hour` (and the hour after) if the unit is not already
+in oil return — a scheduled forced oil return.
+
+This names the "action selector" the kit warned about. **Cortex sends `00 00` and must keep doing so.**
+The same function counts unanswered polls per outdoor unit and raises error 242 at 31.
+
+### 8.2 cmd9, header `C8` — outdoor "demand" / cycle control (`FindCycleControlExeSendData`)
+
+`C8 C0 A0 <odu> 00 <b5> <b6> ck`, built from table `odu_demand`:
+
+| Byte | Bits |
+|---|---|
+| 5 | bit 7 `night_LN_flag`, bit 6 `night_LN_oper` (night low-noise), bits 0–3 `ability_enhance_step` |
+| 6 | bits 0–4 `target_pressure_step`, bit 6 `add_defrost`, bit 7 `remove_snow` |
+
+The reply (`ProcessRxDataFromODU_demand`) is 16 bytes; the controller reads byte 9 and byte 10's low
+nibble and bit 7. The same step values come back in outdoor page 0 bytes 56–57, which Cortex decodes
+since beta.6. **Still on the never-send list.**
+
+### 8.3 Outdoor page 5 = fault-detection table (`ProcessRxDataFromODUPage5_fdd`)
+
+Bytes 8–37 are stored in order as: `Total_Error_NUMBER`, `Fdd_Error_TYPE`, `RT_Error_TYPE_1..5`,
+`RT_Error_CODE_n_1..3` for n = 1..5 (the middle byte of each triple is printed in hex), then
+`Fdd_Module_AD_VALUE_1..8`. The controller stores the numbers without interpreting them, so their meaning
+is still open.
+
+### 8.4 Indoor 16-byte reply, bits the kit left open (`ProcessRxDataFromAC`)
+
+- Byte 7 bit 7 → column `filter`; byte 7 bit 4 → column `oil_alarm`. (Kit chapter 06 item 2 listed both
+  as unknown.)
+- Byte 5 = 0xAD is rewritten to 0 before use.
+- Byte 13 → `capa`, byte 14 → `capa_sum`. So the "system load" byte is the controller's name for summed
+  capacity, which is why it is shared across one system and drifts.
+- Bytes 11–12 → `lev` (EEV), read as one 16-bit value.
+
+### 8.5 Indoor-unit inventory (`AddressSearch` → `ProcessAddressDataFromODU`)
+
+Requests pages 0x30–0x32 with bytes 5–6 zero. For each page: **byte 15 = number of entries in that page**
+(rejected if over 22), pairs from byte 16 as (type, address); type < 0x70 updates the indoor table,
+0x70–0x7F the ventilator table. Page 0 byte 53 is the connected count. This confirms Cortex's grouping
+source and corrected which byte it uses for the per-page count.
+
+### 8.6 Other things the controller does (not explored further)
+
+- It sees 20-byte outdoor↔indoor packets on its bus and logs them (`idu_log.log`).
+- `super4_onboarding` pushes `.mot` firmware files to Multi V IV outdoor units; `odu_sync` syncs files to
+  the outdoor MICOM. Not something Cortex should ever attempt.
+- Feature list visible in table and program names: peak / demand control (rotating units to cap running
+  capacity), time-limit control, setback, auto changeover with a dead band, interlock with digital
+  inputs/outputs, fire-alarm stop, filter-sign reset, weather fetch, Modbus maps for chillers / AHUs.
+- The dump also holds the site's own bus map (128 indoor and 14 outdoor addresses) and daily energy
+  tables. Those are site data and were not copied anywhere.

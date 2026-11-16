@@ -2,6 +2,35 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.8 — 2026-11-15 (second pass over the LG controller's own software)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.7. Changes `cortex.html`, `appliance/busmaster.js`._
+
+**Fixed**
+- **Cycle diagnosis mixed °F with °C.** Unit records keep room and pipe temperatures in °F, and the
+  indoor rules (EEV blocked, low / over charge signs, "calling for cooling") compared them as if they
+  were °C. Every indoor rule in beta.6 and beta.7 was therefore wrong on real data: thresholds were about
+  half as wide as intended, the "calling" test was always true, and readings were shown double-converted.
+  The rules now convert first. `tests/diagwatch.test.js` uses the real units so this cannot slip back.
+- **Group by outdoor unit:** each inventory page's entry count is byte 15 (that is the byte LG's
+  controller reads); byte 11 is the total. Cortex used the total for every page, which could read
+  leftover bytes as units on a part-filled page. Ventilators (type 0x70–0x7F) are now marked.
+
+**New, from LG's controller software**
+- Indoor reply byte 7: **bit 7 = filter sign, bit 4 = oil alarm** (the controller's own column names).
+  Shown as pills in the indoor table on Outdoor / cycle. Error value 0xAD is treated as "no error", as
+  LG's controller does.
+- Outdoor page 5 is the unit's **fault-detection table** (total, type, five entries of type + 3-byte
+  code, eight module readings). The "fault table has entries" pill now has an (i) listing them raw.
+- CH242 text notes that the controller raises it itself after 31 unanswered outdoor polls.
+
+**Learned, deliberately not used** (written up in `docs/KIT_FINDINGS.md` §8)
+- What bytes 5 and 6 of the outdoor page request do on LG's controller: they are a write channel
+  (target pressures, target superheat / subcooling, error clear, scheduled oil return). Cortex keeps
+  sending zeros.
+- The `C8` frame (cmd9): night low-noise, target pressure step, capacity boost step, snow removal,
+  extra defrost. Cortex still never sends it.
+
 ## v1.7.0-beta.7 — 2026-11-15 (notifications · controller-side diagnosis · health report · Command)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.6. Changes `cortex.html`,

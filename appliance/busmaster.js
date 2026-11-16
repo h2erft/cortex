@@ -40,7 +40,8 @@ function parseReply(f) {
   const mraw = f[6] & 7, fraw = (f[6] >> 4) & 7;
   return { addr: f[4], on: (f[1] & 1) === 1, remoteLock: (f[1] & 0x04) === 0x04, modeRaw: mraw, fanRaw: fraw,
     mode: MODE_BY_CODE[mraw] || ('mode' + mraw), swing: (f[6] & 0x08) !== 0,
-    settemp: 15 + (f[7] & 0x0f) + ((f[1] & 0x80) ? 0.5 : 0), err: f[5],
+    settemp: 15 + (f[7] & 0x0f) + ((f[1] & 0x80) ? 0.5 : 0), err: f[5] === 0xAD ? 0 : f[5],
+    filter: (f[7] & 0x80) !== 0, oilAlarm: (f[7] & 0x10) !== 0,   // reply byte 7: bit 7 filter sign, bit 4 oil alarm (LG controller's own column names)
     room: inRange(f[8], -10, 50), pipeIn: inRange(f[9], -40, 90), pipeOut: inRange(f[10], -40, 90),
     eev: f[11] | (f[12] << 8), cap: f[13], load: f[14], autoSide: mraw === 7 ? 'heat' : (mraw === 3 ? 'cool' : null) };
 }
@@ -57,7 +58,7 @@ function replyPatch(p, held, now) {
   if (p.pipeIn != null) o.pipeIn = toF(p.pipeIn);
   if (p.pipeOut != null) o.pipeOut = toF(p.pipeOut);
   o.err = !!p.err; o.code = p.err ? ('CH' + p.err) : null;
-  o.eev = p.eev; o.capK = p.cap; o.sysLoad = p.load; o.autoSide = p.autoSide;
+  o.eev = p.eev; o.capK = p.cap; o.sysLoad = p.load; o.autoSide = p.autoSide; o.filterSign = !!p.filter; o.oilAlarm = !!p.oilAlarm;
   o.offline = false; o.seen = now;
   return o;
 }

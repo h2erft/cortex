@@ -790,7 +790,7 @@ const ERRORS={
  "CH230":{t:"Refrigerant leak sensor",cause:"The indoor leak sensor detected refrigerant, has failed, or the function is enabled with no sensor fitted.",act:"Treat as a real leak until proven otherwise. The indoor unit stops and stays stopped until its power is reset.",sev:"critical",who:"Indoor"},
  "CH237":{t:"ODU ↔ IDU RS-485 comms",cause:"The indoor unit has not heard the outdoor unit for more than 3 minutes.",act:"Check comm bus wiring, polarity and addressing.",chk:COMM_CHK,lv:"comm",sev:"high",who:"Both"},
  "CH238":{t:"ODU PCB comms",cause:"The indoor unit has not heard the outdoor unit for more than 3 minutes; suspect the outdoor PCB.",act:"Check the outdoor main PCB and the comm bus.",chk:COMM_CHK,lv:"comm",sev:"high",who:"Outdoor"},
- "CH242":{t:"No reply at this address",cause:"The central controller has an address registered but nothing is answering there (unit offline or removed).",act:"Expected on a bench with no units. In the field, confirm the unit is powered and on the bus.",sev:"info",who:"Central"},
+ "CH242":{t:"No reply at this address",cause:"The central controller has an address registered but nothing is answering there (unit offline or removed). The controller raises this code itself: LG's own controller sets it on an outdoor unit after 31 polls in a row go unanswered.",act:"Expected on a bench with no units. In the field, confirm the unit is powered and on the bus.",sev:"info",who:"Central"},
  "501":{t:"3-phase power error",cause:"Outdoor unit three-phase power not connected properly / phase loss.",act:"Technician: check breaker, phase order, and connections.",sev:"critical",who:"Outdoor"},
  "502":{t:"ODU ↔ IDU comms",cause:"Communication error between outdoor main PCB and indoor unit PCB(s).",act:"Check the indoor-outdoor comm bus wiring.",sev:"high",who:"Outdoor"}
 };
@@ -1578,9 +1578,9 @@ function parseReply(f){
   const set=15+(f[7]&0x0f)+((f[1]&0x80)?0.5:0);
   // a missing sensor reads as an absurd code (0x00 / 0xFF) — report "no reading" rather than 147°F
   const inR=(raw,lo,hi)=>{const v=tC(raw);return (raw!==0xFF&&isFinite(v)&&v>=lo&&v<=hi)?v:null;};   // 0xFF = sensor not fitted
-  const err=f[5], room=inR(f[8],-10,50), pin=inR(f[9],-40,90), pout=inR(f[10],-40,90), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1, remoteLock=(f[1]&0x04)===0x04;  // reply byte1 bit2 = remote lock [kit §3.2]
+  const err=f[5]===0xAD?0:f[5], room=inR(f[8],-10,50), pin=inR(f[9],-40,90), pout=inR(f[10],-40,90), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1, remoteLock=(f[1]&0x04)===0x04;  // reply byte1 bit2 = remote lock [kit §3.2]
   return {addr:f[4],mode:modeName,fan:fanName,modeRaw:f[6]&7,fanRaw:(f[6]>>4)&7,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,remoteLock,
-    swing:(f[6]&0x08)!==0,autoSide:mraw===7?"heat":(mraw===3?"cool":null),cap:f[13],utype:f[3],
+    swing:(f[6]&0x08)!==0,autoSide:mraw===7?"heat":(mraw===3?"cool":null),cap:f[13],utype:f[3],filter:(f[7]&0x80)!==0,oilAlarm:(f[7]&0x10)!==0,
     roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
     text:`${modeName} · fan ${fanName} · set ${set}°C · room ${room==null?"—":room+"°C"}${err?" · ERR "+err:""} · sys ${group}`};}
 /* ===== cmd4: wall-controller dimension locks + the setpoint-limit band =====
@@ -1803,13 +1803,19 @@ function oduUnitPanel(u,k,idus){const f=cyFmt();
       <div class="cy-grid" style="margin-top:8px">${tile("","INV 1 phase amps",u.inv1Ph," A")}${tile("","INV 2 phase amps",u.inv2Ph," A")}${tile("","Heat sink 1",u.hs1,"","raw value","","hs")}${tile("","Heat sink 2",u.hs2,"","raw value","","hs")}${tile("","Fan step",u.fanStep,"")}</div></div>
   </div>`;}
 const CY_SYS_COL=["#2f8ff5","#e8955a","#8b6fd6","#2fbf71","#d6a23a","#e5484d","#3fa7b5","#b05fc4"];
+/* Outdoor page 5 as the ACP stores it (table fdd_code): byte 8 total, 9 FDD type, 10–14 five entry types,
+   15–29 five 3-byte codes, 30–37 eight module readings. The meaning of the numbers is not decoded yet. */
+function decodeOduFaults(f){const e=[];for(let k=0;k<5;k++){const t=f[10+k],c=[f[15+k*3],f[16+k*3],f[17+k*3]];if(t||c.some(x=>x))e.push({type:t,code:c});}
+  return {total:f[8],fddType:f[9],entries:e,ad:f.slice(30,38)};}
+function oduFaultTip(o){if(!o.pages[5])return "";const d=decodeOduFaults(o.pages[5].f);
+  return `Outdoor unit fault table (page 5): total ${d.total}, FDD type ${d.fddType}.<br>${d.entries.length?d.entries.map((e,i)=>`Entry ${i+1}: type ${e.type}, code ${e.code[0]} / 0x${e.code[1].toString(16).toUpperCase().padStart(2,"0")} / ${e.code[2]}`).join("<br>"):"No entries."}<br>Module readings: ${d.ad.join(" ")}<br><i>Shown raw: the layout matches the LG controller's own table, but what each number means is not decoded yet.</i>`;}
 function oduHead(o,m,i,n){const flt=o.pages[5]&&o.pages[5].f.slice(8,38).some(x=>x);const mine=units.filter(u=>u.odu===o.addr).length;
   return `<div class="cy-head"><div class="cy-badge">${n>1?`<small>SYSTEM ${i+1}</small>`:""}${hx(o.addr)}</div>
     <div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)} <span class="cy-pill ${m.mode==='heat'?'heat':m.mode==='cool'?'cool':''}">${ue(m.mode)}</span></div>
       <div class="cy-subt">${ue(m.product)} · family 0x${m.family.toString(16).toUpperCase().padStart(2,"0")} · ${m.idus} indoor unit${m.idus!==1?"s":""}${mine?` · ${mine} matched in Cortex`:""}${m.subs?` · main + ${m.subs} sub`:""}</div></div>
     <div style="margin-left:auto;text-align:right;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn sm" data-ohealth="${o.addr}">🩺 Health</button><button class="btn sm" data-ocharge="${o.addr}">🧪 Charge check</button><button class="btn sm" data-otrend="${o.addr}">📈 Trends</button>
-      <div>${(h=>h==null?"":`<span class="cy-pill ${h>=85?"run":h>=65?"warn":"bad"}" title="Cortex health score: starts at 100 and loses points for readings outside LG's ranges, matched fault patterns, errors and silent units. A rough guide only.">health ${h}</span>`)(sysHealth(o))}${m.err?`<span class="cy-pill bad">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span class="cy-pill run">no error</span>'}${flt?' <span class="cy-pill warn">fault table has entries</span>':''}
+      <div>${(h=>h==null?"":`<span class="cy-pill ${h>=85?"run":h>=65?"warn":"bad"}" title="Cortex health score: starts at 100 and loses points for readings outside LG's ranges, matched fault patterns, errors and silent units. A rough guide only.">health ${h}</span>`)(sysHealth(o))}${m.err?`<span class="cy-pill bad">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span class="cy-pill run">no error</span>'}${flt?` <span class="cy-pill warn">fault table has entries</span>${tip(oduFaultTip(o))}`:''}
       <div style="font-size:11.5px;color:var(--text-faint);margin-top:4px">read ${ago(o.at)}</div></div></div></div>`;}
 function oduChecks(us,idus){const all=[];us.forEach((u,k)=>oduAdvice(u,k===0?idus:null).forEach(a=>all.push(Object.assign({who:k===0?"Main":"Sub "+k},a))));
   const any=us.some(u=>u.running);
@@ -1837,7 +1843,7 @@ function iduSection(){
     <td class="mono dim">${dT==null?"—":(dT>0?"+":"")+dT+"°"}</td>
     <td class="mono">${u.eev!=null?`<span class="cy-eev"><span style="width:${eevPct}%"></span></span>${u.eev}`:"—"}</td>
     <td class="mono dim">${u.capK?u.capK+"k":"—"}</td>
-    <td class="dim" style="font-size:12px">${u.seen?ago(u.seen):"not yet"}</td></tr>`;};
+    <td class="dim" style="font-size:12px">${u.filterSign?'<span class="cy-pill warn" title="The unit is asking for its filter to be cleaned (reply byte 7, bit 7)">filter</span>':""}${u.oilAlarm?'<span class="cy-pill bad" title="Oil alarm flag from the unit (reply byte 7, bit 4). New decode: tell us what the unit was doing if you see it.">oil alarm</span>':""} ${u.seen?ago(u.seen):"not yet"}</td></tr>`;};
   const groups=new Map();us.forEach(u=>{const k=u.odu!=null?u.odu:-1;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(u);});
   const keys=[...groups.keys()].sort((a,b)=>a-b);
   const body=keys.map(k=>`${keys.length>1||k!==-1?`<tr class="cy-grp"><td colspan="11">${k===-1?"Outdoor unit not known yet":"Outdoor unit "+hx(k)} · ${groups.get(k).length} unit${groups.get(k).length!==1?"s":""}</td></tr>`:""}${groups.get(k).map(row).join("")}`).join("");
@@ -1991,7 +1997,9 @@ function openFieldRef(){const sec=(t,h)=>`<div style="margin:16px 0 6px;font-wei
    every running unit in one mode) and it cannot see what a gauge and a thermometer can. */
 function cycleDiagnose(o){const us=oduUnits(o);if(!us.length)return {state:"nodata",list:[]};const m=us[0];
   const run=us.some(u=>u.running),mode=m.mode;if(!run||(mode!=="cool"&&mode!=="heat"))return {state:"idle",list:[]};
-  const on=units.filter(u=>u.odu===o.addr&&u.on&&!u.offline&&u.room!=null&&u.pipeIn!=null&&u.pipeOut!=null);
+  // unit records store room and pipe temperatures in °F; every rule below works in °C like the outdoor data
+  const f2c=v=>(v-32)*5/9;
+  const on=units.filter(u=>u.odu===o.addr&&u.on&&!u.offline&&u.room!=null&&u.pipeIn!=null&&u.pipeOut!=null).map(u=>Object.assign({},u,{room:f2c(u.room),pipeIn:f2c(u.pipeIn),pipeOut:f2c(u.pipeOut)}));
   const cooling=on.filter(u=>u.mode!=="heat"),heating=on.filter(u=>u.mode==="heat"),mixed=cooling.length&&heating.length;
   // LG parks the EEV of a unit that is satisfied (thermo-off) near 40 pulses: that is "closed", not blocked.
   const flowing=u=>u.eev==null||u.eev>60,callCool=u=>u.coolC!=null&&u.room-u.coolC>=1;
@@ -2155,7 +2163,7 @@ const DIAG={
     {q:"Is the comm cable between frames kept away from power wiring, with its shield grounded at one end only?",how:"Noise coupling shows up as an intermittent fault, often when a compressor ramps.",bad:"no",fix:"Reroute or correct the shield."},
     {q:"Are the main / sub DIP switch settings right on every frame?",how:"Each frame must know whether it is the main or a sub.",bad:"no",fix:"Correct the switches and power-cycle."},
     {q:"All of that is good and it still happens?",how:"Swap the comm cable between frames, then suspect the PCB of the frame that keeps dropping.",bad:"yes",fix:"Replace the cable, then the suspect frame's main PCB."}],
-  CH150:[{q:"Is one indoor unit passing a lot of refrigerant while it is off?",how:"With a unit off its EEV sits near 40 pulses. If its pipe-in and pipe-out are both under 50 °F and you can hear refrigerant rushing, its EEV is leaking through.",bad:"yes",fix:"Check that unit's EEV coil and plug; replace the EEV assembly.",live:c=>{const l=c.idus.filter(u=>!u.on&&u.pipeIn!=null&&u.pipeIn<10&&u.pipeOut<10);return l.length?`Off but cold right now: ${l.map(u=>ue(dispName(u))).join(", ")}.`:"No off unit has cold pipes right now.";}},
+  CH150:[{q:"Is one indoor unit passing a lot of refrigerant while it is off?",how:"With a unit off its EEV sits near 40 pulses. If its pipe-in and pipe-out are both under 50 °F and you can hear refrigerant rushing, its EEV is leaking through.",bad:"yes",fix:"Check that unit's EEV coil and plug; replace the EEV assembly.",live:c=>{const l=c.idus.filter(u=>!u.on&&u.pipeIn!=null&&u.pipeIn<50&&u.pipeOut<50);return l.length?`Off but cold right now: ${l.map(u=>ue(dispName(u))).join(", ")}.`:"No off unit has cold pipes right now.";}},
     {q:"Is the subcooling EEV or its circuit leaking through?",how:"Compare subcooler in and out temperatures with the subcooling EEV closed.",bad:"yes",fix:"Replace the subcooling EEV or its coil.",live:c=>c.m?`Subcooling EEV ${c.m.eevSc} pls; subcooler in ${c.f.tt(c.m.scIn)}, out ${c.f.tt(c.m.scOut)}.`:null},
     {q:"Are the subcooler inlet and outlet sensors in their own sockets?",how:"Swapped sensors make the board mis-steer the subcooling EEV.",bad:"no",fix:"Put them back in the right sockets."},
     {q:"Are the liquid and gas pipes connected to the right ports everywhere?",how:"",bad:"no",fix:"Correct the piping."}],
@@ -2429,7 +2437,11 @@ setInterval(()=>{if(BOOTED&&(view==="cycle"||!ODU.size))oduPull();},15000);
    is always shown for confirmation before anything is regrouped by hand). This replaces the old
    grouping by reply byte 14, which is a load value that drifts during a sweep. */
 function decodeOduInventory(pages){const count=pages[0][11],list=[];
-  for(const f of pages){for(let i=16;i+1<=59&&list.length<count;i+=2)list.push({type:f[i],addr:f[i+1]});}
+  // The ACP's own search reads byte 15 as "entries in THIS page" (max 22) and walks (type, address) pairs from
+  // byte 16; bytes past that are leftovers of an earlier reply, not zeros. Type < 0x70 is an indoor unit,
+  // 0x70–0x7F a ventilator. Byte 11 is the total across pages. Fall back to the total when byte 15 is unusable.
+  for(const f of pages){const seg=(f[15]>=1&&f[15]<=22)?f[15]:22;
+    for(let k=0;k<seg&&list.length<count;k++){const i=16+k*2;if(i+1>59)break;list.push({type:f[i],addr:f[i+1],vent:f[i]>=0x70&&f[i]<0x80});}}
   return {count,list};}
 async function masterOduInventory(addr){
   const p=await masterOduPage(addr,0x30);if(!p)return null;
@@ -2629,7 +2641,7 @@ function applyReplyToUnit(p){if(!p)return false;const u=units.find(x=>x.addr===p
   const oldCode=u.err?u.code:null;
   u.err=!!p.err;u.code=p.err?("CH"+p.err):null;
   if(u.code!==oldCode)logErr(u,oldCode);
-  u.eev=p.eev;u.capK=p.cap;u.sysLoad=p.group;u.autoSide=p.autoSide;   // EEV pulses, capacity (kBtu/h), system-load byte, which side Auto is working on
+  u.eev=p.eev;u.capK=p.cap;u.sysLoad=p.group;u.autoSide=p.autoSide;u.filterSign=!!p.filter;u.oilAlarm=!!p.oilAlarm;   // EEV pulses, capacity (kBtu/h), system-load byte, which side Auto is working on
   u.offline=false;u.seen=Date.now();
   if(wasClean&&pend)Object.assign(pend,snap(u));               // nothing staged in the open drawer → it follows the live unit (same object: the drawer's buttons hold a reference to it)
   const ch=liveSig(u)!==before;if(ch&&openId===u.id)drawerStale=true;return ch;}
