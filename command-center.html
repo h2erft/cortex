@@ -2,8 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cortex Command · AIROW</title>
+<link rel="manifest" href="/command.webmanifest">
+<meta name="theme-color" content="#0e7c66">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Command">
+<link rel="apple-touch-icon" href="/icon-256.png">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA0OCA0OCc+PHJlY3Qgd2lkdGg9JzQ4JyBoZWlnaHQ9JzQ4JyByeD0nMTEnIGZpbGw9JyMwZTdjNjYnLz48ZyBzdHJva2U9JyNmZmYnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnIHN0cm9rZS1saW5lY2FwPSdyb3VuZCcgZmlsbD0nI2ZmZic+PHBhdGggZD0nTTIzIDhDMTkgNS41IDE0LjUgNyAxMy41IDExQzkuNSAxMS41IDcgMTUgOC41IDE5QzUuNSAyMS41IDUuNSAyNi41IDguNSAyOUM3LjUgMzMgMTAuNSAzNi41IDE0LjUgMzZDMTYgMzkuNSAyMC41IDQxIDIzIDM5WicgZmlsbD0nI2ZmZmZmZicgZmlsbC1vcGFjaXR5PScuMTYnIHN0cm9rZS13aWR0aD0nMS44Jy8+PHBhdGggZD0nTTIzIDhDMTkgNS41IDE0LjUgNyAxMy41IDExQzkuNSAxMS41IDcgMTUgOC41IDE5QzUuNSAyMS41IDUuNSAyNi41IDguNSAyOUM3LjUgMzMgMTAuNSAzNi41IDE0LjUgMzZDMTYgMzkuNSAyMC41IDQxIDIzIDM5WicgdHJhbnNmb3JtPSd0cmFuc2xhdGUoNDggMCkgc2NhbGUoLTEgMSknIGZpbGw9JyNmZmZmZmYnIGZpbGwtb3BhY2l0eT0nLjE2JyBzdHJva2Utd2lkdGg9JzEuOCcvPjxwYXRoIGQ9Ik0yMyAxNUgxOEwxNS41IDEyLjUiIGZpbGw9Im5vbmUiIHN0cm9rZS13aWR0aD0iMS41Ii8+PGNpcmNsZSBjeD0iMTUuNSIgY3k9IjEyLjUiIHI9IjEuOSIvPjxwYXRoIGQ9Ik0yMyAyMkgxNkwxMyAxOSIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz48Y2lyY2xlIGN4PSIxMyIgY3k9IjE5IiByPSIxLjkiLz48cGF0aCBkPSJNMjMgMjlIMTdMMTMuNSAzMi41IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxjaXJjbGUgY3g9IjEzLjUiIGN5PSIzMi41IiByPSIxLjkiLz48cGF0aCBkPSJNMjMgMzVIMTkuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz48Y2lyY2xlIGN4PSIxOS41IiBjeT0iMzUiIHI9IjEuOSIvPjxwYXRoIGQ9Ik0yNSAxMkgyOC41IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxjaXJjbGUgY3g9IjI4LjUiIGN5PSIxMiIgcj0iMS45Ii8+PHBhdGggZD0iTTI1IDE4SDMwTDMzIDE1IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxjaXJjbGUgY3g9IjMzIiBjeT0iMTUiIHI9IjEuOSIvPjxwYXRoIGQ9Ik0yNSAyNUgzMkwzNSAyOCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz48Y2lyY2xlIGN4PSIzNSIgY3k9IjI4IiByPSIxLjkiLz48cGF0aCBkPSJNMjUgMzJIMjlMMzEuNSAzNC41IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxjaXJjbGUgY3g9IjMxLjUiIGN5PSIzNC41IiByPSIxLjkiLz48L2c+PC9zdmc+">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -111,7 +116,28 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 .err-text{color:var(--err);font-size:12.5px;min-height:16px;margin-top:6px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--surface);padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;transition:.25s;z-index:200;pointer-events:none}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.modal{max-height:calc(100dvh - 32px);display:flex;flex-direction:column}.modal .mb{overflow:auto;-webkit-overflow-scrolling:touch}
 @media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}}
+/* ---- phone ---- keep this block last so it wins over the component rules above */
+@media(max-width:640px){
+  html,body{overflow-x:hidden}
+  .top{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));padding-top:max(8px,env(safe-area-inset-top));gap:6px}
+  .brand{font-size:14px;white-space:nowrap}.brand small{display:none}
+  .whoami #who{display:none}
+  .icon-btn{width:40px;height:40px;flex:none}
+  .wrap{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
+  .kpis{gap:8px;margin-bottom:14px}
+  .tabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -12px 6px;padding:0 12px}.tabs::-webkit-scrollbar{display:none}
+  .tab{white-space:nowrap;flex:none;padding:10px 14px}
+  .sites{grid-template-columns:1fr}
+  .trow{flex-wrap:wrap;padding:12px}
+  .btn{min-height:40px}
+  input,select,textarea{font-size:16px!important}                 /* stops iOS zooming the page when a field is tapped */
+  .scrim{padding:0;align-items:flex-end}
+  .modal{width:100%;border-radius:18px 18px 0 0;max-height:92dvh;border-bottom:none;padding-bottom:env(safe-area-inset-bottom)}
+  .toast{left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateY(20px);border-radius:14px;text-align:center}
+  .toast.show{transform:translateY(0)}
+}
 </style>
 </head>
 <body>
@@ -202,7 +228,7 @@ async function pollAllSites(){if(!DB.sites.length)return;const before=DB.sites.m
   if(changed)save();if(!$("scrim").classList.contains("show")){if(tab==="sites"&&document.activeElement!==$("site-search"))renderSites();renderKpis();if(tab==="alerts")renderAlerts();if(changed)renderAudit();}}
 function startHealthPolling(){if(healthTimer)clearInterval(healthTimer);pollAllSites();healthTimer=setInterval(()=>{if(PREFS.autorefresh!==false)pollAllSites();},20000);}
 function load(){try{return JSON.parse(localStorage.getItem("cortex_command"));}catch(e){return null;}}
-function save(){try{localStorage.setItem("cortex_command",JSON.stringify(DB));}catch(e){}}
+function save(){try{localStorage.setItem("cortex_command",JSON.stringify(DB));}catch(e){}if(typeof fleetSync==="function")fleetSync();}
 function log(m){DB.audit.unshift({t:Date.now(),m});DB.audit=DB.audit.slice(0,60);save();}
 
 /* ---------- helpers ---------- */
@@ -436,7 +462,8 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;se
 $("theme").onclick=()=>{const dark=document.documentElement.getAttribute("data-theme")==="dark";PREFS.theme=dark?"light":"dark";savePrefs();applyTheme();};
 applyTheme();
 $("settings").onclick=openSettings;
-function openSettings(){
+function openSettings(){const _sc=document.querySelector("#modal .mb"),_y=_sc?_sc.scrollTop:0;   // toggles redraw this dialog; keep the place
+  setTimeout(()=>{const e=document.querySelector("#modal .mb");if(e&&_y)e.scrollTop=_y;},0);
   openModal(`<div class="mh"><h3>Settings</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
     <div class="mb">
       <label class="flabel">Theme</label>
@@ -455,6 +482,8 @@ function openSettings(){
       <div class="seg" id="st-idle">${[[5,"5 min"],[15,"15 min"],[30,"30 min"],[60,"1 hour"],[0,"Never"]].map(l=>`<button data-idle="${l[0]}" class="${(+PREFS.idleMin||0)===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
       <label class="flabel">More</label>
       <div>${mt("showOffline","Show offline buildings")}${mt("autorefresh","Auto-refresh fleet status")}${mt("clock24","24-hour clock")}${mt("confirmOpen","Confirm before opening a site remotely")}${mt("compactNums","Compact large numbers")}${mt("showHealth","Show health score on buildings")}${mt("popAlerts","Pop up a message when a building raises an alert")}${mt("soundAlerts","Sound on new alert")}</div>
+      <label class="flabel">Alerts while Command is closed</label>
+      <div id="fleet-push" class="note" style="margin:0">Checking…</div>
       <div class="note" style="margin-top:14px">These preferences are saved to your account (<b>${OWNER.user}</b>). Each person who logs in keeps their own theme and layout.</div>
       <div class="mf"><button class="btn primary" onclick="closeModal()">Done</button></div>
     </div>`);
@@ -466,7 +495,42 @@ function openSettings(){
   document.querySelectorAll("#st-idle button").forEach(b=>b.onclick=()=>{PREFS.idleMin=+b.dataset.idle;savePrefs();openSettings();});
   document.querySelectorAll("#st-land button").forEach(b=>b.onclick=()=>{PREFS.landing=b.dataset.land;savePrefs();openSettings();});
   document.querySelectorAll("[data-mt]").forEach(b=>b.onclick=()=>{const k=b.dataset.mt;PREFS[k]=!PREFS[k];savePrefs();renderSites();openSettings();});
+  drawFleetPush();
 }
+/* ---------- alerts while Command is closed ----------
+   A closed page cannot watch anything, so the controller this page was opened from does it: Command gives
+   it the list of buildings (name + address only), it looks at each one about once a minute, and it sends a
+   push notification to this device when one changes. Needs Command to be opened from a controller's https
+   address; opened as a file there is no controller to ask. */
+const HOME={ok:false,checked:false};
+async function homeCheck(){if(HOME.checked)return HOME.ok;HOME.checked=true;if(!/^https?:$/.test(location.protocol))return false;
+  try{const j=await getJ("/api/fleet",3000);HOME.ok=!!(j&&j.ok);}catch(e){HOME.ok=false;}return HOME.ok;}
+let fleetSyncT=null;
+function fleetSync(){if(!HOME.ok)return;clearTimeout(fleetSyncT);fleetSyncT=setTimeout(()=>{
+  const sites=DB.sites.map(s=>({id:s.id,name:s.name,url:siteUrl(s)})).filter(s=>s.url);
+  fetch("/api/fleet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sites})}).catch(()=>{});},800);}
+function pushCan(){return window.isSecureContext&&"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;}
+async function pushSub(){try{const reg=await navigator.serviceWorker.getRegistration("/");return reg?await reg.pushManager.getSubscription():null;}catch(e){return null;}}
+async function fleetPushState(){if(!pushCan())return {can:false};const sub=await pushSub();if(!sub)return {can:true,on:false};
+  try{const j=await getJ("/api/push?endpoint="+encodeURIComponent(sub.endpoint),3000);return {can:true,on:!!j.fleet,sub};}catch(e){return {can:true,on:false,sub};}}
+async function fleetPushOn(){try{const perm=await Notification.requestPermission();if(perm!=="granted")throw new Error(perm==="denied"?"notifications are blocked for this site in the browser’s settings":"permission was not given");
+    const reg=await navigator.serviceWorker.register("/sw.js",{scope:"/"});await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){const key=(await getJ("/api/push",4000)).key,raw=Uint8Array.from(atob(key.replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0));sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:raw});}
+    const r=await fetch("/api/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub.toJSON(),user:OWNER.user,fleet:true})});if(!r.ok)throw new Error("the controller refused it");
+    fleetSync();log("Turned on alerts for this device");toast("Alerts are on for this device");}catch(e){toast("Couldn’t turn alerts on: "+e.message);}drawFleetPush();}
+async function fleetPushOff(){try{const sub=await pushSub();if(sub)await fetch("/api/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub.toJSON(),user:OWNER.user,fleet:false})});
+    log("Turned off alerts for this device");toast("Alerts are off for this device");}catch(e){toast("Couldn’t turn them off: "+e.message);}drawFleetPush();}
+async function fleetPushTest(){const sub=await pushSub();if(!sub){toast("Turn alerts on first");return;}
+  try{const r=await(await fetch("/api/fleet/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:sub.endpoint})})).json();toast(r.sent?"Test sent. It should appear in a few seconds":"The push service did not accept it"+(r.errors&&r.errors[0]?" ("+r.errors[0]+")":""));}catch(e){toast("Couldn’t reach the controller");}}
+async function drawFleetPush(){const el=$("fleet-push");if(!el)return;
+  if(location.protocol==="file:"){el.innerHTML="Command is open as a file, so nothing is running when you close it. Open Command from one of your controllers instead (its address followed by <span class=\"mono\">/command-center.html</span>) and that controller will watch the buildings for you.";return;}
+  if(!await homeCheck()){el.innerHTML="The controller serving this page is on an older Cortex version. Update it to get alerts while Command is closed.";return;}
+  if(!$("fleet-push"))return;
+  if(!pushCan()){const ios=/iPhone|iPad/.test(navigator.userAgent);el.innerHTML=!window.isSecureContext?"Browsers only allow notifications on a secure (https) page. Open Command through the controller’s https address.":ios?"On iPhone and iPad: tap Share, then <b>Add to Home Screen</b>, and open Command from that icon. Then come back here.":"This browser does not support push notifications.";return;}
+  const st=await fleetPushState();if(!$("fleet-push"))return;const n=DB.sites.filter(s=>siteUrl(s)).length;
+  el.innerHTML=st.on?`<b>On for this device.</b> This controller checks ${n} building${n!==1?"s":""} about once a minute and notifies you when one goes offline or comes back, a unit goes into error or stops answering, or a new diagnosis advisory appears.<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" onclick="fleetPushTest()">Send a test</button><button class="btn" onclick="fleetPushOff()">Turn off</button></div>`
+    :`Off on this device. Turn it on and this controller will check your buildings about once a minute and notify this device, even with Command closed.<div style="margin-top:10px"><button class="btn primary" onclick="fleetPushOn()">Turn on alerts</button></div>`;}
 function signOut(msg){sessionStorage.removeItem("cortex_cmd_in");if(healthTimer){clearInterval(healthTimer);healthTimer=null;}closeModal();$("app").classList.add("hide");$("login").style.display="flex";showSignin(msg);}
 $("logout").onclick=()=>signOut();
 /* sign out after a period with no mouse, key or touch activity (per-user setting) */
@@ -475,7 +539,7 @@ setInterval(()=>{if(!sessionStorage.getItem("cortex_cmd_in"))return;const m=+PRE
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 
 /* ---------- auth: first-run setup wizard, sign-in, recovery ---------- */
-function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";render();setTab();if(tab==="techs")tickCountdowns();startHealthPolling();pollAllSites();}
+function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";render();setTab();if(tab==="techs")tickCountdowns();startHealthPolling();pollAllSites();homeCheck().then(ok=>{if(ok)fleetSync();});}
 function signedIn(acct){OWNER.user=acct.user;OWNER.name=acct.name;sessionStorage.setItem("cortex_cmd_in","1");PREFS=loadPrefs();siteSort=PREFS.siteSort||"custom";applyTheme();lastTouch=Date.now();fleetPrimed=false;enter();}
 const CARD=()=>$("login-card");
 function head(title,sub){return `<div class="login-logo">${LOGO_SVG}Cortex Command</div><div class="login-sub">${esc(sub||"Fleet console")}</div>${title?`<h2 style="margin:4px 0 14px;font-size:18px">${esc(title)}</h2>`:""}`;}

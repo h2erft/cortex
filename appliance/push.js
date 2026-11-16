@@ -52,10 +52,17 @@ function createPush(opts) {
   if (!st || !st.keys || !st.keys.jwk) { st = { keys: vapidKeys(), subs: [] }; save(); }
   if (!Array.isArray(st.subs)) st.subs = [];
   function save() { try { fs.mkdirSync(opts.dataDir, { recursive: true }); const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(st), { mode: 0o600 }); fs.renameSync(tmp, FILE); } catch (e) { log('could not save: ' + e.message); } }
-  function subscribe(sub, who, kinds) {
+  /* kinds: which of this controller's own alerts the device wants (omit to keep what it had; a new device
+     that only asks for fleet alerts gets none of them). opt.fleet: Cortex Command's fleet alerts, kept
+     separately so the Cortex page and the Command page on one device do not overwrite each other. */
+  function subscribe(sub, who, kinds, opt) {
     if (!validSub(sub)) return false;
+    const prev = st.subs.find(s => s.endpoint === sub.endpoint), hasFleet = opt && typeof opt.fleet === 'boolean';
+    const k = Array.isArray(kinds) ? kinds.filter(x => typeof x === 'string').slice(0, 8) : (kinds === undefined && prev) ? prev.kinds : (kinds === undefined && hasFleet) ? [] : null;
+    const fleet = hasFleet ? opt.fleet : !!(prev && prev.fleet);
     st.subs = st.subs.filter(s => s.endpoint !== sub.endpoint);
-    st.subs.push({ endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }, user: String(who || '').slice(0, 60), kinds: Array.isArray(kinds) ? kinds.filter(k => typeof k === 'string').slice(0, 8) : null, at: Date.now() });
+    if (hasFleet && !fleet && Array.isArray(k) && !k.length) { save(); return true; }      // nothing left that this device wants
+    st.subs.push({ endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }, user: String(who || (prev && prev.user) || '').slice(0, 60), kinds: k, fleet, at: Date.now() });
     if (st.subs.length > 60) st.subs = st.subs.slice(-60);
     save(); return true;
   }
@@ -67,19 +74,20 @@ function createPush(opts) {
     if (r.status === 404 || r.status === 410) { unsubscribe(s.endpoint); return 'gone'; }
     return r.ok ? 'sent' : ('http ' + r.status);
   }
-  // kind: 'fault' | 'silent' | 'diag' | 'test'. A subscription with no `kinds` list gets everything.
+  // kind: 'fault' | 'silent' | 'diag' | 'test' | 'fleet'. A subscription with no `kinds` list gets every site alert; 'fleet' goes only to devices that asked for it.
   async function send(msg, kind, onlyEndpoint) {
     const out = { sent: 0, failed: 0, gone: 0, errors: [] };
     for (const s of st.subs.slice()) {
       if (onlyEndpoint && s.endpoint !== onlyEndpoint) continue;
-      if (kind !== 'test' && s.kinds && !s.kinds.includes(kind)) continue;
+      if (kind === 'fleet') { if (!s.fleet) continue; } else if (kind !== 'test' && s.kinds && !s.kinds.includes(kind)) continue;
       try { const r = await sendOne(s, msg); if (r === 'sent') out.sent++; else if (r === 'gone') out.gone++; else { out.failed++; out.errors.push(r); } }
       catch (e) { out.failed++; out.errors.push(e.message); }
     }
     if (out.failed) log('push: ' + out.failed + ' failed (' + out.errors.slice(0, 2).join('; ') + ')');
     return out;
   }
-  return { publicKey: () => st.keys.pub, subscribe, unsubscribe, send, count: () => st.subs.length, has: (ep) => st.subs.some(s => s.endpoint === ep) };
+  return { publicKey: () => st.keys.pub, subscribe, unsubscribe, send, count: () => st.subs.length, has: (ep) => st.subs.some(s => s.endpoint === ep),
+    fleetCount: () => st.subs.filter(s => s.fleet).length, info: (ep) => { const s = st.subs.find(x => x.endpoint === ep); return s ? { fleet: !!s.fleet, kinds: s.kinds } : null; } };
 }
 
 // The service worker the browser installs. Kept tiny: show the notification, open Cortex on tap.

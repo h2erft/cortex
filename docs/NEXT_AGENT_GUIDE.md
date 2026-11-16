@@ -345,3 +345,13 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   bus says so reliably.
 - Multi V S notes and open questions: `docs/KIT_FINDINGS.md` §10.
 
+## 1.7.0-beta.11 addendum (2026-11-15) — Cortex Command
+
+- `appliance/fleetwatch.js` is new and is in both release copy lists. It is read-only by design: three
+  GETs per site. Do not add anything that writes to another controller.
+- Push subscriptions now carry `fleet` (boolean) beside `kinds`. `push.subscribe(sub, who, kinds, {fleet})`:
+  leaving `kinds` undefined keeps what the device had; the Cortex page never sends `fleet`, the Command
+  page never sends `kinds`. Keep it that way or the two pages will overwrite each other again.
+- Command's phone CSS is the last block in its `<style>`, same rule as Cortex.
+- `node tests/fleetwatch.test.js` must print "all passed".
+

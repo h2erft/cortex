@@ -790,12 +790,24 @@ function alertOut(kind, text, ev, url) {
   if (push.count()) push.send({ title: site, body: text, tag: kind + ':' + (ev && (ev.key || ev.addr) != null ? (ev.key || ev.addr) : ''), url: url || '/' }, kind).catch(e => console.error('push failed:', e.message));
 }
 app.get('/sw.js', (_req, res) => { res.set('Cache-Control', 'no-cache').type('application/javascript').send(SW_JS); });
-app.get('/api/push', (req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ key: push.publicKey(), devices: push.count(), subscribed: req.query.endpoint ? push.has(String(req.query.endpoint)) : undefined }); });
-app.post('/api/push/subscribe', (req, res) => { cors(res); const b = req.body || {}; if (!push.subscribe(b.subscription, b.user, b.kinds)) return res.status(400).json({ err: 'bad subscription' }); res.json({ ok: true, devices: push.count() }); });
+app.get('/api/push', (req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ key: push.publicKey(), devices: push.count(), subscribed: req.query.endpoint ? push.has(String(req.query.endpoint)) : undefined, fleet: req.query.endpoint ? !!(push.info(String(req.query.endpoint)) || {}).fleet : undefined }); });
+app.post('/api/push/subscribe', (req, res) => { cors(res); const b = req.body || {}; if (!push.subscribe(b.subscription, b.user, b.kinds, typeof b.fleet === 'boolean' ? { fleet: b.fleet } : undefined)) return res.status(400).json({ err: 'bad subscription' }); res.json({ ok: true, devices: push.count() }); });
 app.post('/api/push/unsubscribe', (req, res) => { cors(res); push.unsubscribe(String((req.body || {}).endpoint || '')); res.json({ ok: true, devices: push.count() }); });
 app.post('/api/push/test', async (req, res) => { cors(res); const ep = String((req.body || {}).endpoint || ''); if (!ep || !push.has(ep)) return res.status(400).json({ err: 'this device is not subscribed' });
   const cfg = readJsonSafe(APPCFG) || {}; const site = (cfg.site && cfg.site.name) || readConfig().name || 'Cortex';
   res.json(await push.send({ title: site, body: 'Test notification from Cortex. Alerts will look like this.', tag: 'test', url: '/' }, 'test', ep)); });
+// --- fleet watch: Cortex Command's alerts while the Command page is closed -------------------------
+// Command (served from this controller) saves its list of buildings here; this controller then looks at
+// each one about once a minute, read-only, and pushes a notification when one changes. See fleetwatch.js.
+const { createFleetWatch } = require('./fleetwatch');
+const fleetWatch = createFleetWatch({ dataDir: DATA, log: (t) => console.log(t), wanted: () => push.fleetCount() > 0,
+  notify: ({ site, text }) => { push.send({ title: site.name, body: text.charAt(0).toUpperCase() + text.slice(1), tag: 'fleet:' + site.id, url: '/command-center.html' }, 'fleet').catch(e => console.error('fleet push failed:', e.message)); } });
+fleetWatch.start();
+app.get('/api/fleet', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ ok: true, sites: fleetWatch.sites(), state: fleetWatch.state(), devices: push.fleetCount() }); });
+app.post('/api/fleet', (req, res) => { cors(res); const n = fleetWatch.setSites((req.body || {}).sites); res.json({ ok: true, sites: n }); });
+app.post('/api/fleet/test', async (req, res) => { cors(res); const ep = String((req.body || {}).endpoint || ''); if (!ep || !push.has(ep)) return res.status(400).json({ err: 'this device is not subscribed' });
+  res.json(await push.send({ title: 'Cortex Command', body: 'Test alert. Building alerts will look like this, even with Command closed.', tag: 'test', url: '/command-center.html' }, 'test', ep)); });
+app.get('/command.webmanifest', (_req, res) => { const m = pwa.manifest('Cortex Command'); res.type('application/manifest+json').json(Object.assign({}, m, { name: 'Cortex Command', short_name: 'Command', start_url: '/command-center.html', id: '/command-center.html' })); });
 // --- per-user preferences, kept on the controller so they follow the person to any device ---------
 const PREFSF = path.join(DATA, 'prefs.json');
 let prefsDoc = readJsonSafe(PREFSF) || {};

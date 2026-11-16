@@ -2,6 +2,42 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.11 — 2026-11-15 (Cortex Command on a phone, alerts while it is closed)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.10. Changes `command-center.html`,
+`appliance/server.js`, `appliance/push.js`; adds `appliance/fleetwatch.js`._
+
+**Added**
+- **Cortex Command fits a phone.** The header no longer runs off the screen, the tabs scroll sideways
+  instead of wrapping, building cards stack in one column, dialogs open as a sheet from the bottom that
+  scrolls, buttons are finger-sized, and the page respects the notch and home bar.
+- **Command can be added to the Home Screen** as its own app ("Command"), separate from Cortex.
+- **Alerts while Command is closed.** A closed page cannot watch anything, so the controller Command is
+  opened from does it. Command hands that controller the list of buildings (name and address only); the
+  controller looks at each one about once a minute and sends a push notification when a building goes
+  offline or comes back, a unit goes into error or stops answering, or a new diagnosis advisory appears.
+  Turn it on per device in Command ▸ Settings ▸ "Alerts while Command is closed"; there is a test button.
+  - Read-only: the watcher makes the same three requests Command makes (`/health`, `/api/units`,
+    `/api/diag`). It never sends a command to another controller.
+  - A building must miss two looks in a row before it is called offline, each change is reported once,
+    and a building that has never been seen online does not alert.
+  - It does nothing while no device has the alerts turned on.
+
+**Changed**
+- Command's settings dialog keeps its scroll position when a switch is flipped.
+- A device's Command alerts and its Cortex site alerts are stored separately, so turning one on or off
+  in one page no longer affects the other.
+
+**Needs**
+- The same as Cortex notifications: Command must be opened from a controller's **https** address
+  (see `docs/NOTIFICATIONS.md`). Opened as a file, or over plain http from another device, the browser
+  will not allow push. On iPhone and iPad, add Command to the Home Screen first.
+- The watching controller must be able to reach the other buildings' addresses itself.
+
+**Not verified**
+- Push delivery to a real phone. The watcher, the subscription handling and the page were tested here
+  against a local controller; an actual notification needs your https setup.
+
 ## v1.7.0-beta.10 — 2026-11-15 (filter reset, 15-second hold, Multi V S groundwork)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.9. Changes `cortex.html`,
