@@ -18,6 +18,11 @@ _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.13. Changes
   - Nothing is sent to the equipment. Units keep running as they are, including any locks.
   - Another screen that still holds the old list cannot put it back: its next save is refused and it
     picks up the empty list.
+  - **Outdoor unit data is cleared everywhere, and stays cleared.** With that box ticked the controller
+    forgets the outdoor units it found and their readings, stops reading them (its saved list of outdoor
+    addresses is emptied in the same step), ignores any reading that was already on its way back, and
+    other open screens drop their copy the next time they look. The Outdoor / cycle page is empty until
+    you run "Find outdoor units" again.
 
 ## v1.7.0-beta.13 — 2026-11-16 (reach Cortex on the standard web port)
 

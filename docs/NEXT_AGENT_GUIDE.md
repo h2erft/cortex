@@ -401,5 +401,8 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   `recorder.clear()` / `diagWatch.clear()`. The page (`clearUnitData()`) clears the unit-related parts
   of its own config: `unitMeta`, `ignoreAddrs`, `oduAddrs`, floor-plan `pos`, and schedules if asked.
 - It never transmits. Anything new that is keyed by unit and stored on the controller needs adding to
-  this path, or it will outlive a clear.
+  this path, or it will outlive a clear.- Outdoor data has three homes and the clear handles all of them: the recorder's page map, the site
+  config's `oduAddrs` (what the controller's loop reads from; emptied server-side in the same request,
+  with `cfgRev` returned so the page's own save is not refused), and each screen's `ODU` map (dropped
+  when `/api/odu`'s `cleared` timestamp changes). `recorder.onOdu` ignores pages for 20 s after a clear.
 

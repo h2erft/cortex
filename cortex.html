@@ -2581,8 +2581,10 @@ let oduPushQ=[],oduPushT=null;
 function oduShare(f){if(location.protocol==="file:"||!liveTx())return;oduPushQ.push(f.map(x=>x.toString(16).padStart(2,"0")).join(""));
   if(!oduPushT)oduPushT=setTimeout(()=>{oduPushT=null;const pages=oduPushQ.splice(0);fetch('/api/odu',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages})}).catch(()=>{});},1500);}
 let POLLER={active:false};
+let ODU_CLEARED=null;
 async function oduPull(){if(location.protocol==="file:"||liveTx()||!currentUser)return;
   try{const r=await fetch('/api/odu',{cache:'no-store'});if(!r.ok)return;const j=await r.json();POLLER=j.poller||POLLER;let ch=false;
+    if(typeof j.cleared==="number"){if(ODU_CLEARED!==null&&j.cleared!==ODU_CLEARED&&ODU.size){ODU.clear();ch=true;}ODU_CLEARED=j.cleared;}   // outdoor data was cleared from another screen: drop this screen's copy too
     for(const a of Object.keys(j.odu||{})){const src=j.odu[a];let o=ODU.get(+a);if(!o){o={addr:+a,pages:{}};ODU.set(+a,o);}
       for(const pg of Object.keys(src.pages)){const p=src.pages[pg];if(!o.pages[pg]||o.pages[pg].at<p.at){o.pages[pg]={f:hexBytes(p.hex),at:p.at};ch=true;}}
       o.at=Math.max(o.at||0,src.at||0);}
@@ -4784,7 +4786,7 @@ function clearUnitData(){
     let rev=null;
     if(location.protocol!=="file:"){
       try{const r=await fetch('/api/clear-units',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:"CLEAR",odu:opt.odu,history:opt.history,events:opt.events})});
-        if(!r.ok)throw new Error("refused");rev=(await r.json()).rev;}
+        if(!r.ok)throw new Error("refused");const j=await r.json();rev=j.rev;if(j.cfgRev!=null&&CFG)CFG._rev=j.cfgRev;}
       catch(e){err.textContent="The controller didn’t accept it, so nothing was cleared. Check the connection (and that the controller is up to date) and try again.";document.getElementById("cu-go").disabled=false;return;}
     }
     units=[];try{selSet.clear();}catch(e){}

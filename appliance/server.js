@@ -820,10 +820,14 @@ app.post('/api/clear-units', (req, res) => {
   cmdQueue = [];
   unitsDoc = { rev: unitsDoc.rev + 1, ts: Date.now(), units: [] }; unitsDirty = true; flushUnits();
   const done = ['units'].concat(recorder.clear({ odu: !!b.odu, events: !!b.events, history: !!b.history }));
+  // The controller reads outdoor units from the addresses saved in the site config. Empty that list here,
+  // in the same step, or its next pass would read the outdoor units again and bring them straight back.
+  let cfgRev = null;
+  if (b.odu) { try { const cur = readJsonSafe(APPCFG) || {}; if (cur.provisioned) { cur.oduAddrs = []; cur._rev = (Number(cur._rev) || 0) + 1; writeFileAtomic(APPCFG, JSON.stringify(cur, null, 2)); cfgRev = cur._rev; } } catch (e) { console.error('could not clear outdoor addresses:', e.message); } }
   if (b.history) histLast = 0;
   if (b.events) { try { diagWatch.clear(); done.push('advisories'); } catch (_) {} }
   console.log('unit data cleared: ' + done.join(', ') + ' (' + had + ' units removed)');
-  res.json({ ok: true, rev: unitsDoc.rev, removed: had, cleared: done });
+  res.json({ ok: true, rev: unitsDoc.rev, removed: had, cleared: done, cfgRev });
 });
 
 // --- per-user preferences, kept on the controller so they follow the person to any device ---------
@@ -846,7 +850,7 @@ app.post('/api/odu', (req, res) => { cors(res);                // pages read by 
   const pages = (req.body && Array.isArray(req.body.pages)) ? req.body.pages.slice(0, 16) : [];
   for (const h of pages) if (typeof h === 'string' && /^[0-9a-f]{128}$/i.test(h)) recorder.onOdu(Buffer.from(h, 'hex'));
   res.json({ ok: true }); });
-app.get('/api/odu', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ odu: recorder.oduState(), poller: pollerInfo() }); });
+app.get('/api/odu', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ odu: recorder.oduState(), poller: pollerInfo(), cleared: recorder.oduClearedAt() }); });
 // --- cycle diagnosis on the controller: persistent findings become advisories ------------------------
 const { createDiagWatch } = require('./diagwatch');
 const diagWatch = createDiagWatch({ dataDir: DATA, htmlPath: fs.existsSync(path.join(DIR, 'cortex.html')) ? path.join(DIR, 'cortex.html') : path.join(DIR, '..', 'cortex.html'), log: (t) => console.log('diagnosis:', t),

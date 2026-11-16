@@ -38,10 +38,10 @@ function createRecorder(opts) {
   /* What lives only in memory is written to disk when the controller stops (an update restarts it) and
      every few minutes, then read back at start: the last outdoor pages, with their real read times, and
      the last ten minutes of samples that a new fault's "before" data comes from. */
-  const STATE = path.join(DATA, 'recorder-state.json'); let lastState = 0;
+  const STATE = path.join(DATA, 'recorder-state.json'); let lastState = 0, oduClearedAt = 0, oduQuietUntil = 0;
   function saveState() { try { fs.mkdirSync(DATA, { recursive: true }); const o = {}; for (const [a, v] of odu) o[a] = v;
-    fs.writeFileSync(STATE + '.tmp', JSON.stringify({ at: now(), odu: o, ring })); fs.renameSync(STATE + '.tmp', STATE); } catch (e) { if (opts.log) opts.log('state save failed: ' + e.message); } }
-  try { const j = JSON.parse(fs.readFileSync(STATE, 'utf8')), t = now();
+    fs.writeFileSync(STATE + '.tmp', JSON.stringify({ at: now(), odu: o, ring, oduClearedAt })); fs.renameSync(STATE + '.tmp', STATE); } catch (e) { if (opts.log) opts.log('state save failed: ' + e.message); } }
+  try { const j = JSON.parse(fs.readFileSync(STATE, 'utf8')), t = now(); oduClearedAt = +j.oduClearedAt || 0;
     for (const a of Object.keys(j.odu || {})) { const v = j.odu[a]; if (v && v.pages && typeof v.pages === 'object') odu.set(+a, { pages: v.pages, at: +v.at || 0 }); }
     if (Array.isArray(j.ring)) ring = j.ring.filter(x => x && typeof x.t === 'number' && x.t <= t && t - x.t <= RING_MS);
   } catch (_) {}
@@ -61,7 +61,8 @@ function createRecorder(opts) {
   const saveIndex = () => { try { fs.mkdirSync(EVDIR, { recursive: true }); fs.writeFileSync(INDEX + '.tmp', JSON.stringify(index)); fs.renameSync(INDEX + '.tmp', INDEX); } catch (e) { if (opts.log) opts.log('event index save failed: ' + e.message); } };
   const saveDoc = (doc) => { try { fs.mkdirSync(EVDIR, { recursive: true }); fs.writeFileSync(path.join(EVDIR, doc.id + '.json'), JSON.stringify(doc)); } catch (e) { if (opts.log) opts.log('event save failed: ' + e.message); } };
 
-  function onOdu(frame) {                        // one 64-byte monitor page (from the controller's loop or pushed by a dashboard)
+  function onOdu(frame) {
+    if (now() < oduQuietUntil) return;         // just cleared: ignore pages that were already in flight                        // one 64-byte monitor page (from the controller's loop or pushed by a dashboard)
     const f = Array.from(frame); if (f.length !== 64) return;
     let o = odu.get(f[4]); if (!o) { o = { pages: {}, at: 0 }; odu.set(f[4], o); }
     o.pages[f[5]] = { hex: hex(f), at: now() }; o.at = now();
@@ -145,12 +146,13 @@ function createRecorder(opts) {
   function clear(what) {
     what = what || {}; const done = [];
     ring = []; prev = null; started.units.clear(); started.odu.clear(); lastSample = 0;
-    if (what.odu) { odu.clear(); lastOduLog = 0; done.push('odu'); }
+    // a page already on its way back from the equipment must not bring the old outdoor unit straight back
+    if (what.odu) { odu.clear(); lastOduLog = 0; oduClearedAt = now(); oduQuietUntil = now() + 20000; done.push('odu'); }
     if (what.events) { open.clear(); index.length = 0; try { for (const f of fs.readdirSync(EVDIR)) fs.rmSync(path.join(EVDIR, f), { force: true }); } catch (_) {} done.push('events'); }
     if (what.history) { try { for (const f of fs.readdirSync(HIST)) if (/\.ndjson$/.test(f)) fs.rmSync(path.join(HIST, f), { force: true }); } catch (_) {} done.push('history'); }
     saveState(); return done;
   }
-  return { onOdu, oduSnapshot, oduState, sample, events, event, oduHistory, flush, clear, ring: () => ring };
+  return { onOdu, oduSnapshot, oduState, sample, events, event, oduHistory, flush, clear, ring: () => ring, oduClearedAt: () => oduClearedAt };
 }
 
 module.exports = { createRecorder, unitRow, PRE_MS, POST_MS };
