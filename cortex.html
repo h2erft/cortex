@@ -773,7 +773,7 @@ const ERRORS={
  "CH67":{t:"Outdoor fan locked",cause:"The outdoor fan is not turning: blocked fan, failed motor or fan PCB.",act:"Check the fan spins freely, then motor wiring and the fan PCB.",lv:"auto",sev:"high",who:"Outdoor"},
  "CH71":{t:"Inverter CT sensor",cause:"Inverter current sensor circuit fault.",act:"Technician: check the inverter PCB.",sev:"high",who:"Outdoor"},
  "CH86":{t:"Main PCB EEPROM",cause:"The memory chip on the outdoor main PCB is missing, mis-seated or unreadable.",act:"Check the chip is in its socket the right way round with no bent pins.",sev:"high",who:"Outdoor"},
- "CH104":{t:"Main ODU lost a sub unit",cause:"On a multi-frame system the main outdoor unit lost communication with a sub outdoor unit.",act:"Check the outdoor-to-outdoor comm terminals for a loose or corroded connection, comm cable run beside power wiring, and whether a sub unit is briefly losing power (breaker, contactor, voltage dip). Open the fault in Fault history: the recording shows every outdoor frame's readings for the 10 minutes before it.",lv:"comm",sev:"high",who:"Outdoor"},
+ "CH104":{t:"Main ODU lost a sub unit",cause:"On a multi-frame system the main outdoor unit lost communication with a sub outdoor unit. In field tests it appeared about two minutes after a sub frame lost power, with a lower first-stage code showing on the outdoor unit before it.",act:"Check the outdoor-to-outdoor comm terminals for a loose or corroded connection, comm cable run beside power wiring, and whether a sub unit is briefly losing power (breaker, contactor, voltage dip). Open the fault in Fault history: the recording shows every outdoor frame's readings for the 10 minutes before it.",lv:"comm",sev:"high",who:"Outdoor"},
  "CH105":{t:"Fan PCB comms",cause:"The outdoor fan PCB and the inverter PCB are not talking.",act:"Check the plugs and the cable between the fan PCB and inverter PCB.",lv:"comm",sev:"high",who:"Outdoor"},
  "CH113":{t:"Outdoor liquid pipe sensor",cause:"Outdoor liquid pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
  "CH114":{t:"Subcooling inlet sensor",cause:"Subcooler inlet thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
@@ -784,7 +784,7 @@ const ERRORS={
  "CH201":{t:"HR box liquid sensor",cause:"Heat-recovery box liquid pipe sensor is open or shorted.",act:"Check the sensor plug and resistance at that HR box.",sev:"medium",who:"System"},
  "CH202":{t:"HR box subcooling inlet sensor",cause:"Heat-recovery box subcooling inlet sensor is open or shorted.",act:"Check the sensor plug and resistance at that HR box.",sev:"medium",who:"System"},
  "CH203":{t:"HR box subcooling outlet sensor",cause:"Heat-recovery box subcooling outlet sensor is open or shorted.",act:"Check the sensor plug and resistance at that HR box.",sev:"medium",who:"System"},
- "CH204":{t:"HR box comm error",cause:"The outdoor unit is not hearing a heat-recovery box.",act:"Check HR box power (208/230 V) and its place in the indoor A/B daisy chain.",chk:COMM_CHK,lv:"comm",sev:"high",who:"System"},
+ "CH204":{t:"HR box comm error",cause:"The outdoor unit is not hearing a heat-recovery box. Every indoor unit behind that box reports it at about the same moment and then switches off, which is how you tell it from a single-unit fault. The units keep answering, but commanding them will not bring them back until the box link recovers.",act:"Check HR box power (208/230 V) and its place in the indoor A/B daisy chain.",chk:COMM_CHK,lv:"comm",sev:"high",who:"System"},
  "CH205":{t:"HR box modem comms",cause:"A heat-recovery box lost its link to the comm bus for 3 minutes.",act:"Check the HR box PCB and its bus connection. Clears when the signal returns.",lv:"comm",sev:"high",who:"System"},
  "CH206":{t:"Duplicate HR address",cause:"Two heat-recovery boxes share the same address.",act:"Give every HR box on the system its own address (0–F) on its rotary switch.",sev:"medium",who:"System"},
  "CH230":{t:"Refrigerant leak sensor",cause:"The indoor leak sensor detected refrigerant, has failed, or the function is enabled with no sensor fitted.",act:"Treat as a real leak until proven otherwise. The indoor unit stops and stays stopped until its power is reset.",sev:"critical",who:"Indoor"},
@@ -1571,14 +1571,18 @@ function masterRecordAddr(p){
 //   [11:12]=EEV position (LE)  [14]=system/ODU group id
 // NOTE: our ACP firmware disassembly earlier read [5]=settemp/[6]=mode/[7]=fan — those are offsets
 // into the ACP's PARSED struct, not the wire. Cortex reads the wire, so we use the layout above.
-const tC=code=>Math.round((192-code)/3*10)/10;                // community temp table: C = (192-code)/3
+const tC=code=>Math.round((192-code)/3*10)/10;                // straight-line approximation; kept for the raw-frame log only
+// Indoor reply temperatures are thermistor codes, the same ones the outdoor unit and LG's service software use:
+// room = air-sensor curve, pipes = pipe-sensor curve. The straight line above reads about 1 °F high around room
+// temperature and many degrees low on a hot pipe (a 120 °F heating coil showed as about 111 °F).
+const tAir=code=>ODU_T.air[code]/10, tPipe=code=>ODU_T.pipe[code]/10;
 function parseReply(f){
   const mraw=f[6]&7, modeName=mraw===7?"auto":(Object.keys(MODELO).find(k=>MODELO[k]===mraw)||("mode"+mraw));   // 7 = auto, heating side
   const fanName=FANCODE[(f[6]>>4)&7]||("fan"+((f[6]>>4)&7));
   const set=15+(f[7]&0x0f)+((f[1]&0x80)?0.5:0);
   // a missing sensor reads as an absurd code (0x00 / 0xFF) — report "no reading" rather than 147°F
-  const inR=(raw,lo,hi)=>{const v=tC(raw);return (raw!==0xFF&&isFinite(v)&&v>=lo&&v<=hi)?v:null;};   // 0xFF = sensor not fitted
-  const err=f[5]===0xAD?0:f[5], room=inR(f[8],-10,50), pin=inR(f[9],-40,90), pout=inR(f[10],-40,90), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1, remoteLock=(f[1]&0x04)===0x04;  // reply byte1 bit2 = remote lock [kit §3.2]
+  const inR=(raw,lo,hi,fn)=>{const v=(fn||tC)(raw);return (raw!==0xFF&&isFinite(v)&&v>=lo&&v<=hi)?v:null;};   // 0xFF = sensor not fitted
+  const err=f[5]===0xAD?0:f[5], room=inR(f[8],-10,50,tAir), pin=inR(f[9],-40,110,tPipe), pout=inR(f[10],-40,110,tPipe), eev=f[11]|(f[12]<<8), group=f[14], on=(f[1]&1)===1, remoteLock=(f[1]&0x04)===0x04;  // reply byte1 bit2 = remote lock [kit §3.2]
   return {addr:f[4],mode:modeName,fan:fanName,modeRaw:f[6]&7,fanRaw:(f[6]>>4)&7,settemp:set,on,err,room,pipeIn:pin,pipeOut:pout,eev,group,remoteLock,
     swing:(f[6]&0x08)!==0,autoSide:mraw===7?"heat":(mraw===3?"cool":null),cap:f[13],utype:f[3],filter:(f[7]&0x80)!==0,oilAlarm:(f[7]&0x10)!==0,
     roomRaw:f[8],pipeInRaw:f[9],pipeOutRaw:f[10],
@@ -1679,8 +1683,8 @@ async function masterOduPage(addr,page,timeout){
 async function masterOduRead(addr){
   const p0=await masterOduPage(addr,0);if(!p0)return 0;let n=1;
   const subs=Math.min(3,p0[15]>>5);
-  for(let p=2;p<subs+2;p++){await sleep(700);if(await masterOduPage(addr,p))n++;}
-  await sleep(700);if(await masterOduPage(addr,5))n++;
+  for(let p=2;p<subs+2;p++){await sleep(1100);if(await masterOduPage(addr,p))n++;}
+  await sleep(1100);if(await masterOduPage(addr,5))n++;
   return n;}
 let oduBusy=false;
 async function oduReadClick(){
@@ -2157,7 +2161,7 @@ const DIAG={
   CH60:[{q:"Is the EEPROM chip seated in its socket the right way round, no bent pins?",how:"Notch on the chip lines up with the notch on the socket.",bad:"no",fix:"Reseat it or fit the correct chip."},{q:"With the chip seated, does the code persist?",how:"",bad:"yes",fix:"Replace the PCB."}],
   CH62:[{q:"Is anything overloading the system?",how:"Blocked coil, blocked pipe, stuck EEV, overcharge.",bad:"yes",fix:"Fix the overload first."},{q:"Is the outdoor fan running and moving air across the heat sink?",how:"",bad:"no",fix:"Repair the fan.",live:c=>c.m?`Fans ${c.m.fan1} / ${c.m.fan2} rpm${c.m.hs1!=null?`; heat sink reads ${c.m.hs1} / ${c.m.hs2} (unverified field)`:""}.`:null},{q:"Is the IPM bolted down on the heat sink with thermal paste?",how:"",bad:"no",fix:"Refit with fresh paste."},{q:"All good and it still trips?",how:"",bad:"yes",fix:"Replace the inverter PCB assembly."}],
   CH67:[{q:"Does the outdoor fan spin freely by hand, with nothing fouling it?",how:"Power off. Check for ice, debris, a seized bearing.",bad:"no",fix:"Clear the obstruction or replace the motor."},{q:"Are the motor leads (U, V, W) seated at the fan PCB?",how:"",bad:"no",fix:"Reseat them."},{q:"With a free fan and good wiring, does it still fail to reach speed?",how:"",bad:"yes",fix:"Replace the fan motor; if a new motor does the same, replace the fan PCB.",live:c=>c.m?`Fans now ${c.m.fan1} / ${c.m.fan2} rpm.`:null}],
-  CH104:[{q:"Which frame dropped out?",how:"On the outdoor display the last digit is the frame: 1 main, 2 sub 1, 3 sub 2. In Fault history, open the recording and see which frame's readings stop or freeze first.",yes:"Found it",no:"Can't tell",info:true},
+  CH104:[{q:"Which frame dropped out?",how:"On the outdoor display the last digit is the frame: 1 main, 2 sub 1, 3 sub 2. In Fault history, open the recording and look about two minutes before the fault: which frame's readings stop or freeze first, and whether a different, lower error number showed on the outdoor unit just before 104.",yes:"Found it",no:"Can't tell",info:true},
     {q:"Did that frame lose power, even briefly?",how:"Check its breaker, its lugs, and for a voltage dip when compressors start. A frame that reboots drops off the outdoor-to-outdoor link for a moment.",bad:"yes",fix:"Fix the supply to that frame."},
     {q:"Are the outdoor-to-outdoor comm terminals tight and clean on every frame?",how:"Loose screws, corrosion and stray strands are the usual cause of a fault that comes and goes.",bad:"no",fix:"Clean and re-terminate."},
     {q:"Is the comm cable between frames kept away from power wiring, with its shield grounded at one end only?",how:"Noise coupling shows up as an intermittent fault, often when a compressor ramps.",bad:"no",fix:"Reroute or correct the shield."},
@@ -2446,7 +2450,7 @@ function decodeOduInventory(pages){const count=pages[0][11],list=[];
 async function masterOduInventory(addr){
   const p=await masterOduPage(addr,0x30);if(!p)return null;
   const pages=[p],count=p[11];if(!count||count>64)return {count,list:[]};
-  for(let k=1;k<3&&count>22*k;k++){await sleep(700);const q=await masterOduPage(addr,0x30+k);if(!q)break;pages.push(q);}
+  for(let k=1;k<3&&count>22*k;k++){await sleep(1100);const q=await masterOduPage(addr,0x30+k);if(!q)break;pages.push(q);}
   return decodeOduInventory(pages);}
 const ODU_GROUP=a=>"Outdoor unit "+hx(a).replace(/^0x/i,"");
 function oduApplyPlan(plan,regroup){let n=0;

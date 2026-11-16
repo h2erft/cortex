@@ -11,8 +11,12 @@ t('read query', H(M.readQuery(0x5E)), '80 00 A0 5E 00 00 00 ' + H([M.ck([0x80, 0
 t('odu query is the read-only form', M.oduQuery(0xC0, 0).slice(4, 7), [0, 0, 0]);
 const reply = (addr, o) => { const f = [0x10, (o.on ? 1 : 0) | (o.lock ? 4 : 0), 0xA0, 0x40, addr, o.err || 0, (o.fan << 4) | o.mode, o.set - 15, 192 - 3 * o.room, 150, 140, 0x54, 0x01, 24, 77]; f.push(M.ck(f, 15)); return f; };
 const p = M.parseReply(reply(0x11, { on: true, mode: 0, fan: 3, set: 22, room: 23 }));
-t('parse reply', [p.addr, p.on, p.mode, p.fanRaw, p.settemp, p.room, p.eev, p.cap], [0x11, true, 'cool', 3, 22, 23, 340, 24]);
-t('reply patch', (() => { const x = M.replyPatch(p, false, 5); return [x.on, x.mode, x.fan, x.coolC, x.room, x.sp, x.err, x.offline, x.seen]; })(), [true, 'cool', 'high', 22, 73, 72, false, false, 5]);
+t('parse reply', [p.addr, p.on, p.mode, p.fanRaw, p.settemp, p.room, p.eev, p.cap], [0x11, true, 'cool', 3, 22, 22.4, 340, 24]);   // room code 123: air-sensor curve, not the straight line
+t('reply patch', (() => { const x = M.replyPatch(p, false, 5); return [x.on, x.mode, x.fan, x.coolC, x.room, x.sp, x.err, x.offline, x.seen]; })(), [true, 'cool', 'high', 22, 72, 72, false, false, 5]);
+{ const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'cortex.html'), 'utf8'), blk = html.slice(html.indexOf('const ODU_T={'));
+  const arr = (k) => blk.match(new RegExp(k + ':\\[([^\\]]+)\\]'))[1].split(',').map(Number);
+  t('sensor curves match the dashboard copy', [M.T_AIR.join() === arr('air').join(), M.T_PIPE.join() === arr('pipe').join(), M.T_AIR.length], [true, true, 256]);
+  const hot = M.parseReply(reply(0x12, { on: true, mode: 4, fan: 2, set: 22, room: 21 })); hot; }
 t('held unit keeps its command', 'mode' in M.replyPatch(p, true, 5), false);
 t('cmd4 no locks = full band', H(M.cmd4Bytes({ addr: 0xC9 })), 'A0 00 A0 C9 01 83 0F C9');
 t('cmd4 range lock', H(M.cmd4Bytes({ addr: 0x01, tempLock: true, rangeLock: true, c4b5: 0x84, c4b6: 0x0B })), 'A0 00 A0 01 03 84 0B 86');
@@ -35,7 +39,7 @@ function fakeBus(world) {
     drain: () => queue.splice(0), oduAddrs: () => [0xC0], onOdu: f => oduFrames.push(f), log: () => {} });
   queue.push({ addr: 0x12, state: { on: true, mode: 'cool', coolC: 24, heatC: 24, fan: 'high' } });
   master.start(); await sleep(4200);
-  t('unit 1 read from the bus', [units[0].on, units[0].mode, units[0].coolC, units[0].room], [true, 'cool', 23, 72]);
+  t('unit 1 read from the bus', [units[0].on, units[0].mode, units[0].coolC, units[0].room], [true, 'cool', 23, 71]);
   t('silent unit marked offline after 3 misses', units[2].offline === true || master.state.miss.get(0x13) >= 1, true);
   const c0 = port.tx.filter(b => b[0] === 0x80 && b[3] === 0x12 && (b[4] & 2)), c4 = port.tx.filter(b => b[0] === 0xA0 && b[3] === 0x12);
   t('queued command: cmd0 x5 then cmd4 x3', [c0.length, c4.length], [5, 3]);

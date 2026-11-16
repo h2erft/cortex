@@ -104,7 +104,7 @@ types 0x65–0x68, CRC-8 with reflected polynomial 0x85, init 0 (1 byte) for all
 |---|---|---|---|
 | 0x64 | 31 | product record: byte 3 model code; four 6-byte unit blocks from byte 4 (capacity, firmware major, minor, 3 EEPROM bytes); byte 28 indoor count; byte 29 HR-box count | `decodeProduct` |
 | 0x65 / 0x66–0x68 | 67 | main / sub outdoor unit (byte map below) | `decodeOduFrame` |
-| 0x69 | 32 | system summary — **not mapped** | stored raw |
+| 0x69 | 4 + N | indoor-unit communication counters, one byte per unit | shown as "Comm count" |
 | 0x6A | 17 | one indoor unit: byte 3 index, 4 type/lock, 5 on/mode/fan, 6 capacity, 7–8 EEV, 9 room, 10 pipe in, 11 pipe out, 12 error, 14 central address | `decodeIdu` |
 | 0x6E | 22 | one HR box (address 0x41 = box 1), one of four port pages per frame | `decodeHr` |
 | 0x6B | 14 | end of cycle: control step numbers, discharge target | `decodeStep` |
@@ -138,13 +138,16 @@ Read from LGMV-Business with Ghidra (helper scripts in `tools/ghidra/`; no decom
 - **Indoor frame (0x6A).** Byte 4 low nibble = unit type; byte 5 bits 0–2 mode, bit 3 running,
   bits 4–5 fan (4–6 on some models); byte 6 capacity; 7–8 EEV; 9 room; 10/11 pipe in/out; 12 error;
   14 central address (LGMV shows it in hex). LGMV also shows pipe-out minus pipe-in — now a column.
-- **Summary frame (0x69).** One byte per indoor unit, in order, shown by LGMV as a plain number.
-  The page shows it as "Page-69 byte". Guess to test on site: setpoint × 2 (sample: 46, 40, 56).
+- **Comm-counter frame (0x69).** One byte per indoor unit, in LGMV's index order (the same index as byte 3 of
+  the 0x6A records). It is that unit's communication counter (LGMV's "comm count"): a raw number that ticks
+  up, wrapping at 256, as the outdoor unit processes records from that unit — about once every 10 s in one
+  capture. A counter that has stopped does not by itself prove a dead link. (Our earlier guess of
+  "setpoint × 2" was wrong; the reference kit's chapter 02 §8 has this.) LG's manual uses the same counter
+  for CH53: the unit whose count is not increasing is the one not talking.
 
 ## Still open
 
 - Not yet proven on a live unit by us (first on-site run = the checklist above).
-- What the 0x69 per-unit byte means (see the guess above).
 - Outdoor-frame (0x65) field *names* have not been checked against LGMV one by one. LGMV's handler
   files values by grid row/column rather than by name, so that needs its cycle-view table definitions
   too. Offsets 3–0x10 are read in the order the kit lists; nothing contradicted the kit.

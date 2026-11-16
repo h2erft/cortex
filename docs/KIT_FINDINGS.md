@@ -313,3 +313,20 @@ source and corrected which byte it uses for the per-page count.
   inputs/outputs, fire-alarm stop, filter-sign reset, weather fetch, Modbus maps for chillers / AHUs.
 - The dump also holds the site's own bus map (128 indoor and 14 outdoor addresses) and daily energy
   tables. Those are site data and were not copied anywhere.
+
+
+## 9. Re-read of the kit against Cortex (2026-11-15)
+
+| Kit says | Where | Cortex before | Now |
+|---|---|---|---|
+| Indoor reply bytes 8–10 are the same raw codes as the service-port 0x6A record: room = TBL-AIR, pipes = TBL-PIPE; the straight line is only an approximation | ch.02 §9, ch.04 §3.2 | `(192 − code) / 3` for all three | air / pipe curves (beta.9). LG's controller holds the identical pipe table |
+| Space cmd14 requests by a second or more (Candidate) | ch.04 §4.6 | 0.7 s | 1.1 s |
+| 0x69 = per-unit communication counters | ch.02 §8 | guessed "setpoint × 2" | relabelled |
+| Filter-sign reset = cmd0 byte 5 bit 7 with EXE set and the unit's current settings | ch.05 §1.1 | not offered | **not added** — a new write; needs the owner's go-ahead |
+| A write's immediate reply is the outdoor unit's cache; verify 15 s later | ch.04 §3.3 | 8 s hold after a command | unchanged; consider 15 s if settings appear to flip back |
+| Pages 0x33–0x3C list indoor addresses in groups of 13 | ch.04 §4.3 | unused | unused (0x30–0x32 is enough) |
+| Page 0 bytes 49–51 look like a power-meter path (Candidate) | ch.06 G2 #9 | not decoded | not decoded |
+| A real central polls each indoor unit about every 90 s, sends cmd4 after every cmd0, and a zero cmd9 burst about every 530 s | ch.04 §7 | Cortex polls faster, sends cmd4 only on a lock change, never cmd9 | unchanged, by design |
+
+Kit open questions the controller-software pass (§8) answered: G2 #2 (reply byte 7 bits 4 and 7) and part
+of #9 (several page-0 flag bits have names in the controller's `odu_demand` table).

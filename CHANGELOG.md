@@ -2,6 +2,32 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.9 — 2026-11-15 (re-read of the reference kit)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.8. Changes `cortex.html`,
+`appliance/busmaster.js`, `uart-sniffer.html`._
+
+**Fixed**
+- **Indoor temperatures were decoded with a straight line; the units report thermistor codes.** Room
+  temperature now uses the air-sensor curve and pipe-in / pipe-out the pipe-sensor curve — the same
+  tables Cortex already used for the outdoor unit. The kit says so in two places, and LG's controller
+  uses the identical pipe table. Effect on what you see: room reads about 1 °F lower than before around
+  70 °F; a cooling coil about 2 °F lower; **a heating coil 8–30 °F higher** (a pipe at 120 °F used to
+  show about 111 °F, one at 160 °F about 129 °F). Trend lines step at the update for that reason.
+- Outdoor page reads are now spaced 1.1 s apart (was 0.7 s), following the kit's timing note.
+
+**Changed**
+- UART page: the 0x69 frame is each indoor unit's **communication counter**, not "setpoint × 2" as
+  guessed earlier. Column renamed "Comm count".
+- CH104 and CH204 pages and the CH104 walkthrough now include what was seen in field tests (104 appears
+  about two minutes after a sub frame loses power, with a first-stage code before it; 204 hits every
+  unit behind one HR box together).
+
+**Not changed**
+- Read: chapters 02 (§8–11), 04, 05 and 06-G of the kit, its tables and census notes. Not read line by
+  line: chapters 01, 03 (indoor A/B bus), 07–10 and the kit's Python tools and tests, which cover buses
+  Cortex does not use.
+
 ## v1.7.0-beta.8 — 2026-11-15 (second pass over the LG controller's own software)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.7. Changes `cortex.html`, `appliance/busmaster.js`._
