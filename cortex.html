@@ -301,7 +301,8 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .cy-scroll.run .cy-shell{stroke:#e5484d}.cy-scroll.run .cy-moving{stroke:#e5484d;opacity:1}
 .cy-scroll.run .cy-orb{animation:cyorbit 1s linear infinite}
 @keyframes cyorbit{0%{transform:translate(1.7px,0)}12.5%{transform:translate(1.2px,1.2px)}25%{transform:translate(0,1.7px)}37.5%{transform:translate(-1.2px,1.2px)}50%{transform:translate(-1.7px,0)}62.5%{transform:translate(-1.2px,-1.2px)}75%{transform:translate(0,-1.7px)}87.5%{transform:translate(1.2px,-1.2px)}100%{transform:translate(1.7px,0)}}
-.cy-fanico{vertical-align:-4px;margin-right:6px;fill:var(--text-faint)}.cy-fanico.run{fill:var(--accent)}.cy-fanico.run g{animation:cyspin 1s linear infinite;transform-origin:center}
+.cy-fanico{vertical-align:-4px;margin-right:6px;fill:var(--text-faint)}.cy-fanico.run{fill:var(--accent)}.cy-fanico.run g{animation:cyspin 1s linear infinite;transform-origin:0 0}.cy-fanring{fill:none;stroke:currentColor;stroke-width:1;opacity:.35}.cy-fanico{color:var(--text-faint)}.cy-fanico.run{color:var(--accent)}
+.cy-ti{cursor:help;outline:none}.cy-dnote{font-size:12px;color:var(--text-faint);padding:0 16px 12px}
 .cy-bar2{display:block;height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:5px}.cy-bar2 span{display:block;height:100%;background:var(--accent)}
 .cy-tile.run-glow{box-shadow:0 0 0 1px color-mix(in srgb,#e5484d 35%,transparent)}
 .cy-uhead{display:flex;gap:4px;align-items:center;margin:10px 0 2px;font-size:13.5px;text-transform:capitalize}
@@ -672,38 +673,73 @@ function genNote(){const c=siteCaps();return c.gen>=5?"":"These units are on a g
 const MC={cool:"cool",heat:"heat",auto:"auto",dry:"dry",fan:"fan"};
 
 /* ---- LG Multi V error code reference (verify against the unit's service manual) ---- */
+/* Error reference. Wording is ours; meanings follow LG's Multi V error-code tables and service-class
+   troubleshooting notes. chk = a quick field check; lv = how LG's logic reacts (see ERR_LEVELS). */
+const TH_CHK="Thermistors are NTC: air sensors 10 kΩ, pipe sensors 5 kΩ, discharge sensors 200 kΩ at 77 °F (in ice water about 34 kΩ / 17 kΩ / 586 kΩ). The board feeds each one 5 V DC. Compare the reading in Cortex with a good thermometer placed right next to the sensor.";
+const COMM_CHK="The indoor A/B daisy chain is a pulsing 0–5 V DC signal: you should see it moving at the outdoor unit, indoor units and HR boxes. With the chain unplugged at the outdoor unit the terminals should sit at a steady 5 V DC. If they don't, cycle power to let the board reset before condemning it.";
+const ERR_LEVELS={
+  comm:"Communication fault: it is raised after repeated failed attempts and <b>clears by itself as soon as communication comes back</b>, with no reset needed. That is why it can be gone when you arrive — use Fault history to see what was happening just before.",
+  auto:"The system stops for 3 minutes and restarts by itself. If the same fault comes back 10 times within an hour it locks out and needs a manual restart."};
 const ERRORS={
- "CH01":{t:"Indoor air / remote sensor",cause:"Return-air or wall-remote temperature sensor open or shorted.",act:"Check sensor wiring and resistance; replace sensor.",sev:"medium",who:"Indoor"},
- "CH02":{t:"Indoor pipe (inlet) sensor",cause:"Inlet pipe thermistor open or shorted.",act:"Check thermistor resistance; replace if out of range.",sev:"medium",who:"Indoor"},
- "CH03":{t:"Remote controller comms",cause:"Communication lost between the wired remote (zone) controller and the indoor unit.",act:"Check the remote's 2-wire link and connector.",sev:"medium",who:"Indoor"},
- "CH04":{t:"Condensate drain / float",cause:"Drain pump failure or float switch tripped (high water level).",act:"Clean the drain pan and line, verify the pump and float.",sev:"medium",who:"Indoor"},
- "CH05":{t:"Indoor ↔ outdoor comms lost",cause:"Communication failure between indoor and outdoor PCBs; miswired or damaged 2-wire bus.",act:"Check comm cable polarity and continuity; look for address conflicts.",sev:"high",who:"Both"},
- "CH06":{t:"Indoor pipe (outlet) sensor",cause:"Outlet pipe thermistor open or shorted.",act:"Check thermistor resistance; replace if faulty.",sev:"medium",who:"Indoor"},
- "CH07":{t:"Mode conflict",cause:"Indoor units are set to conflicting modes (one heat, one cool) on the same system.",act:"Set all indoor units to the same mode (all cool or all heat).",sev:"low",who:"System"},
- "CH09":{t:"Indoor PCB EEPROM",cause:"Indoor unit PCB memory corrupted.",act:"Replace the indoor PCB, then re-run auto-addressing and set the central address.",sev:"high",who:"Indoor"},
- "CH10":{t:"Indoor fan motor comms",cause:"BLDC fan motor not communicating with the indoor PCB.",act:"Check the fan motor harness; replace the motor or PCB.",sev:"high",who:"Indoor"},
- "CH21":{t:"Inverter overcurrent (IPM)",cause:"Compressor inverter drew over-current / IPM fault.",act:"Technician: check compressor, IPM, and inverter PCB.",sev:"critical",who:"Outdoor"},
- "CH22":{t:"DC link over-voltage",cause:"Inverter DC bus voltage too high (power spike).",act:"Check incoming power and DC bus capacitors; add surge protection.",sev:"critical",who:"Outdoor"},
- "CH27":{t:"High pressure trip",cause:"High-pressure switch tripped (~590 psi R-410A). Dirty coil, low airflow, or overcharge.",act:"Clean the outdoor coil, confirm all ODU fans run, verify charge.",sev:"critical",who:"Outdoor"},
- "CH53":{t:"Address duplication / comms",cause:"Two units share a central address, or indoor↔central communication failed.",act:"Re-run auto-addressing and set unique central control addresses.",sev:"medium",who:"System"},
- "CH150":{t:"Discharge superheat",cause:"Compressor discharge superheat target not satisfied.",act:"Technician: check charge, EEV operation, and sensors.",sev:"high",who:"Outdoor"},
- "CH151":{t:"Pressure difference low",cause:"High-to-low pressure difference too small.",act:"Technician: check compressor operation and valves.",sev:"high",who:"Outdoor"},
- "CH200":{t:"Auto pipe search failed",cause:"Controller could not find an indoor unit during pipe search.",act:"Verify indoor units are powered and addressed.",sev:"medium",who:"System"},
+ "CH01":{t:"Indoor air / remote sensor",cause:"Return-air or wall-remote temperature sensor is open, shorted or unplugged.",act:"Check the sensor plug on the indoor PCB, then the sensor itself.",chk:TH_CHK,sev:"medium",who:"Indoor"},
+ "CH02":{t:"Indoor pipe (inlet) sensor",cause:"Inlet pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the indoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Indoor"},
+ "CH03":{t:"Zone controller comms",cause:"The indoor PCB is not hearing its wired zone controller.",act:"Check the controller cable and the connector on the indoor PCB.",chk:"At the indoor PCB: COM to SIG should show about ±5 V DC, COM to 12V should show 12 V DC.",sev:"medium",who:"Indoor"},
+ "CH04":{t:"Condensate drain / float",cause:"Drain pump or float switch problem: water rose past the float's halfway point.",act:"Clear the drain pan and line, then check the pump and float switch. The code clears after the indoor unit's power is cycled.",sev:"medium",who:"Indoor"},
+ "CH05":{t:"Indoor ↔ outdoor comms lost",cause:"The indoor unit has not heard the outdoor unit for several minutes.",act:"Check the A/B comm cable for polarity, continuity and loose terminals; look for address conflicts.",chk:COMM_CHK,lv:"comm",sev:"high",who:"Both"},
+ "CH06":{t:"Indoor pipe (outlet) sensor",cause:"Outlet pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the indoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Indoor"},
+ "CH07":{t:"Mode conflict",cause:"Indoor units on a heat pump system are asking for different modes (heat pump systems only).",act:"Set the indoor units on this system to the same mode.",sev:"low",who:"System"},
+ "CH09":{t:"Indoor PCB EEPROM",cause:"The indoor PCB cannot read its memory chip or option card.",act:"Reseat the option card on the indoor PCB; if it persists replace the PCB, then re-run auto-addressing and set the central address.",sev:"high",who:"Indoor"},
+ "CH10":{t:"Indoor fan motor",cause:"The indoor BLDC fan motor is not turning or not reporting back.",act:"Check the fan plug and harness; on a new install make sure paperwork was removed from the fan shroud. Replace the motor or PCB if checks fail.",chk:"Motor unplugged from the PCB: terminals 4–5 should read above 35 kΩ and 4–7 above 230 kΩ. Running supply is about 308 V DC (±45).",sev:"high",who:"Indoor"},
+ "CH12":{t:"Indoor pipe (middle) sensor",cause:"Mid-coil pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the indoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Indoor"},
+ "CH21":{t:"Inverter overcurrent (IPM)",cause:"Over-current on one compressor phase: compressor winding or insulation damage, a loose compressor terminal, an overheated IPM (heat sink fan), or a failed inverter PCB.",act:"Technician: check compressor windings and terminals, heat sink and its fan, then the inverter PCB.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH22":{t:"AC input overcurrent",cause:"Too much input current at the inverter PCB: low supply voltage, a restriction from a faulty EEV, or overcharge.",act:"Check supply voltage under load, then EEV operation and refrigerant charge.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH23":{t:"DC link voltage",cause:"Inverter DC bus voltage went too low or too high: a failed capacitor, a loose DC link connection, or bad incoming power.",act:"Start at the inverter socket on the noise filter PCB; check DC link wiring and capacitors, then incoming power.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH24":{t:"High pressure switch",cause:"The outdoor high-pressure switch opened and shut the system off.",act:"Check the switch connection on the outdoor PCB, then find why pressure rose: dirty coil, fan not running, overcharge, closed service valve.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH25":{t:"Input voltage out of range",cause:"Supply voltage to the outdoor unit is too high or too low.",act:"Measure incoming voltage on every leg while the unit runs.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH26":{t:"Compressor failed to start",cause:"The inverter compressor did not start.",act:"Technician: check compressor wiring and windings, the inverter PCB, and for liquid in the compressor.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH27":{t:"High pressure trip",cause:"High pressure protection tripped. Dirty coil, low airflow or overcharge.",act:"Clean the outdoor coil, confirm every outdoor fan runs, verify charge.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH29":{t:"Compressor overcurrent",cause:"Compressor current draw is too high: a failing compressor or a restriction in the piping.",act:"Technician: compare amps with nameplate, look for restrictions and check the compressor.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH32":{t:"Discharge temperature too high",cause:"Compressor discharge gas overheated (shutdown above 239 °F for 10 seconds).",act:"Check for low charge or a leak first, then a faulty EEV, the liquid injection valve, and the discharge sensor itself. Repeated CH32 trips damage the compressor.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH34":{t:"High pressure too high",cause:"High pressure stayed above 580 psi (4,000 kPa) for 10 seconds.",act:"Cooling: check outdoor fans, coil cleanliness and clearance. Heating: check indoor filters and fans. Also check charge, EEVs, service valves and the pressure sensor.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH35":{t:"Low pressure too low",cause:"Low pressure stayed under the limit for a minute (cooling under 58 psi, heating under 33 psi).",act:"Check for a leak / low charge. Cooling: suspect an indoor EEV. Heating: suspect the outdoor EEV.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH36":{t:"Low compression ratio",cause:"The compressor is not building a pressure difference: ratio under 1.6 for minutes after a start or a reversing-valve change.",act:"Check for a compressor that is locked out or not pumping, low charge, and that the 4-way valve is shifting and seating. Often seen with CH151.",lv:"auto",sev:"high",who:"Outdoor"},
+ "CH38":{t:"EEV fault",cause:"An electronic expansion valve is not operating correctly.",act:"Check the EEV coil and its plug; replace if faulty.",chk:"Coil resistance — outdoor main EEV and large indoor EEV: about 300 Ω across pins 1–3 and 2–4, 150 Ω to common. Subcooling EEV and small indoor EEV: about 104 Ω and 52 Ω. Values vary by EEV model.",sev:"high",who:"Outdoor"},
+ "CH40":{t:"Current (CT) sensor",cause:"Compressor current sensor is open or shorted.",act:"Technician: check the CT sensor and inverter PCB.",sev:"high",who:"Outdoor"},
+ "CH41":{t:"Discharge pipe sensor",cause:"Compressor discharge thermistor is open, shorted, unplugged or not clipped to the pipe. Can also appear when cooling in very cold weather without a low-ambient kit.",act:"Check the sensor is fitted and plugged in, then its resistance.",chk:TH_CHK,sev:"high",who:"Outdoor"},
+ "CH42":{t:"Low pressure sensor",cause:"Outdoor low-pressure sensor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB and the sensor wiring.",sev:"high",who:"Outdoor"},
+ "CH43":{t:"High pressure sensor",cause:"Outdoor high-pressure sensor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB; compare the sensor's signal voltage with a gauge reading.",sev:"high",who:"Outdoor"},
+ "CH44":{t:"Outdoor air sensor",cause:"Outdoor-air thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH45":{t:"Outdoor coil pipe sensor",cause:"Outdoor heat-exchanger pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH46":{t:"Suction pipe sensor",cause:"Outdoor suction thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH50":{t:"Loss of phase",cause:"One input power leg is missing at the outdoor unit.",act:"Technician: check the breaker, fuses and every power terminal.",sev:"critical",who:"Outdoor"},
+ "CH51":{t:"Combination ratio out of range",cause:"Connected indoor capacity is under 50 % or over 130 % of the outdoor unit's capacity.",act:"Check the indoor units actually found against the design.",sev:"medium",who:"System"},
+ "CH52":{t:"Main PCB ↔ inverter PCB comms",cause:"The outdoor main PCB and inverter PCB are not talking.",act:"Check the plugs at both boards and the cable between them.",lv:"comm",sev:"high",who:"Outdoor"},
+ "CH53":{t:"Outdoor ↔ indoor comms",cause:"The outdoor main PCB is not hearing the indoor units: comm cable open or shorted, A/B swapped, or duplicate addresses.",act:"Check A goes to A and B to B at every unit, look for a short or break, then re-run auto-addressing.",chk:COMM_CHK,lv:"comm",sev:"medium",who:"System"},
+ "CH57":{t:"Inverter PCB not hearing main PCB",cause:"The outdoor inverter PCB receives nothing from the main PCB.",act:"Check the plugs at both boards and the cable between them.",lv:"comm",sev:"high",who:"Outdoor"},
+ "CH60":{t:"Inverter PCB EEPROM",cause:"The memory chip on the outdoor inverter PCB is missing, mis-seated or unreadable.",act:"Check the chip is in its socket the right way round with no bent pins.",sev:"high",who:"Outdoor"},
+ "CH62":{t:"Heat sink temperature",cause:"The inverter heat sink overheated and the system shut off.",act:"Check outdoor fan operation and airflow across the heat sink.",lv:"auto",sev:"high",who:"Outdoor"},
+ "CH65":{t:"Heat sink sensor",cause:"Inverter heat sink thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor (10 kΩ type).",sev:"medium",who:"Outdoor"},
+ "CH67":{t:"Outdoor fan locked",cause:"The outdoor fan is not turning: blocked fan, failed motor or fan PCB.",act:"Check the fan spins freely, then motor wiring and the fan PCB.",lv:"auto",sev:"high",who:"Outdoor"},
+ "CH71":{t:"Inverter CT sensor",cause:"Inverter current sensor circuit fault.",act:"Technician: check the inverter PCB.",sev:"high",who:"Outdoor"},
+ "CH86":{t:"Main PCB EEPROM",cause:"The memory chip on the outdoor main PCB is missing, mis-seated or unreadable.",act:"Check the chip is in its socket the right way round with no bent pins.",sev:"high",who:"Outdoor"},
+ "CH104":{t:"Main ODU lost a sub unit",cause:"On a multi-frame system the main outdoor unit lost communication with a sub outdoor unit.",act:"Check the outdoor-to-outdoor comm terminals for a loose or corroded connection, comm cable run beside power wiring, and whether a sub unit is briefly losing power (breaker, contactor, voltage dip). Open the fault in Fault history: the recording shows every outdoor frame's readings for the 10 minutes before it.",lv:"comm",sev:"high",who:"Outdoor"},
+ "CH105":{t:"Outdoor unit comms",cause:"Communication error between outdoor PCBs.",act:"Check the plugs and cables between the outdoor boards.",lv:"comm",sev:"high",who:"Outdoor"},
+ "CH113":{t:"Outdoor liquid pipe sensor",cause:"Outdoor liquid pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH114":{t:"Subcooling inlet sensor",cause:"Subcooler inlet thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH115":{t:"Subcooling outlet sensor",cause:"Subcooler outlet thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor. If the inlet and outlet sensors are swapped the unit can also raise CH150.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH150":{t:"Discharge superheat too low",cause:"With every running indoor unit in cooling, discharge superheat stayed under about 5 °F: liquid is likely flooding back to the compressor.",act:"Check for an EEV stuck open, overcharge, and swapped subcooling inlet / outlet sensors. Three trips in an hour lock the system out.",lv:"auto",sev:"high",who:"Outdoor"},
+ "CH151":{t:"Pressure difference low",cause:"Not enough difference between high and low pressure — usually the 4-way reversing valve is not shifting.",act:"Technician: check the 4-way valve coil and that the valve changes over; check the compressor is pumping.",lv:"auto",sev:"high",who:"Outdoor"},
+ "CH200":{t:"Auto pipe search failed",cause:"The heat-recovery pipe search did not finish, or the number of indoor units found does not match.",act:"Verify every indoor unit and HR box is powered and addressed, then run pipe search again.",sev:"medium",who:"System"},
+ "CH201":{t:"HR box liquid sensor",cause:"Heat-recovery box liquid pipe sensor is open or shorted.",act:"Check the sensor plug and resistance at that HR box.",sev:"medium",who:"System"},
+ "CH202":{t:"HR box subcooling inlet sensor",cause:"Heat-recovery box subcooling inlet sensor is open or shorted.",act:"Check the sensor plug and resistance at that HR box.",sev:"medium",who:"System"},
+ "CH203":{t:"HR box subcooling outlet sensor",cause:"Heat-recovery box subcooling outlet sensor is open or shorted.",act:"Check the sensor plug and resistance at that HR box.",sev:"medium",who:"System"},
+ "CH204":{t:"HR box comm error",cause:"The outdoor unit is not hearing a heat-recovery box.",act:"Check HR box power (208/230 V) and its place in the indoor A/B daisy chain.",chk:COMM_CHK,lv:"comm",sev:"high",who:"System"},
+ "CH205":{t:"HR box modem comms",cause:"A heat-recovery box lost its link to the comm bus for 3 minutes.",act:"Check the HR box PCB and its bus connection. Clears when the signal returns.",lv:"comm",sev:"high",who:"System"},
+ "CH206":{t:"Duplicate HR address",cause:"Two heat-recovery boxes share the same address.",act:"Give every HR box on the system its own address (0–F) on its rotary switch.",sev:"medium",who:"System"},
+ "CH230":{t:"Refrigerant leak sensor",cause:"The indoor leak sensor detected refrigerant, has failed, or the function is enabled with no sensor fitted.",act:"Treat as a real leak until proven otherwise. The indoor unit stops and stays stopped until its power is reset.",sev:"critical",who:"Indoor"},
+ "CH237":{t:"ODU ↔ IDU RS-485 comms",cause:"The indoor unit has not heard the outdoor unit for more than 3 minutes.",act:"Check comm bus wiring, polarity and addressing.",chk:COMM_CHK,lv:"comm",sev:"high",who:"Both"},
+ "CH238":{t:"ODU PCB comms",cause:"The indoor unit has not heard the outdoor unit for more than 3 minutes; suspect the outdoor PCB.",act:"Check the outdoor main PCB and the comm bus.",chk:COMM_CHK,lv:"comm",sev:"high",who:"Outdoor"},
  "CH242":{t:"No reply at this address",cause:"The central controller has an address registered but nothing is answering there (unit offline or removed).",act:"Expected on a bench with no units. In the field, confirm the unit is powered and on the bus.",sev:"info",who:"Central"},
- "CH23":{t:"DC link voltage",cause:"Low or high DC-link voltage at the outdoor inverter. System shut off because the DC bus failed to charge or saw an abnormal voltage.",act:"Check incoming power and the inverter PCB / DC bus.",sev:"critical",who:"Outdoor"},
- "CH36":{t:"Low compression ratio",cause:"Compression ratio stayed too low (<1.6 scroll / <1.8 rotary) after a reversing-valve change or compressor start — the unit isn't building a normal high/low pressure difference.",act:"Check for failed/locked-out compressors, low charge, and that the 4-way (reversing) valve is shifting and seating. Often paired with CH151.",sev:"high",who:"Outdoor"},
- "CH38":{t:"EEV fault",cause:"Electronic expansion valve not operating correctly.",act:"Check the EEV coil and operation; replace if faulty.",sev:"high",who:"Outdoor"},
- "CH40":{t:"Current (CT) sensor",cause:"Compressor current-transformer sensor fault.",act:"Technician: check the CT sensor and inverter PCB.",sev:"high",who:"Outdoor"},
- "CH44":{t:"Outdoor air sensor",cause:"Outdoor-air temperature thermistor open or shorted.",act:"Check/replace the outdoor air thermistor.",sev:"medium",who:"Outdoor"},
- "CH45":{t:"Compressor overload",cause:"Compressor protection trip / overload.",act:"Check amps, voltage, charge, and airflow; look for a restricted system.",sev:"critical",who:"Outdoor"},
- "CH62":{t:"Heatsink temperature",cause:"Inverter heatsink (IPM) over-temperature.",act:"Check outdoor fan operation and heatsink airflow.",sev:"high",who:"Outdoor"},
- "CH67":{t:"Outdoor fan motor",cause:"Outdoor fan motor or its PCB driver fault.",act:"Check the fan motor amps and the fan driver PCB.",sev:"high",who:"Outdoor"},
- "CH104":{t:"Main ODU lost a sub unit",cause:"On a multi-outdoor system the master outdoor unit lost communication with a slave outdoor unit.",act:"Check the outdoor-to-outdoor comm wiring and that all ODUs are powered.",sev:"high",who:"Outdoor"},
- "CH105":{t:"Outdoor unit comms",cause:"Communication error between outdoor PCBs.",act:"Check the ODU-to-ODU comm bus.",sev:"high",who:"Outdoor"},
- "CH204":{t:"HR box comm error",cause:"Communication error with a heat-recovery (HR) box.",act:"Check HR box power and comm wiring.",sev:"high",who:"System"},
- "CH206":{t:"Duplicate HR address",cause:"Two heat-recovery boxes share the same address.",act:"Set unique HR box addresses.",sev:"medium",who:"System"},
- "CH237":{t:"ODU↔IDU RS-485 comms",cause:"RS-485 communication error between indoor and outdoor units.",act:"Check comm bus wiring, polarity, and addressing.",sev:"high",who:"Both"},
- "CH238":{t:"ODU PCB comms",cause:"Outdoor PCB communication error with the indoor unit.",act:"Check the outdoor main PCB and comm bus.",sev:"high",who:"Outdoor"},
  "501":{t:"3-phase power error",cause:"Outdoor unit three-phase power not connected properly / phase loss.",act:"Technician: check breaker, phase order, and connections.",sev:"critical",who:"Outdoor"},
  "502":{t:"ODU ↔ IDU comms",cause:"Communication error between outdoor main PCB and indoor unit PCB(s).",act:"Check the indoor-outdoor comm bus wiring.",sev:"high",who:"Outdoor"}
 };
@@ -1640,9 +1676,15 @@ const CY_HELP={
   fan:"<b>Outdoor fan</b> — moves air across the outdoor coil. In cooling it speeds up to hold high pressure down (about +100 rpm every 10 s above 504 psi); in heating it works to hold low pressure up.<br><b>Full defrost:</b> stops. <b>Partial defrost:</b> runs on low-pressure control.",
   eevMain:"<b>Outdoor main EEV</b> — the expansion valve on the outdoor coil.<br><b>Cooling:</b> not metering — the lower valve is fully open (about 1940–2000 pulses) and the upper at minimum (32).<br><b>Heating:</b> meters refrigerant into the outdoor coil to hold suction superheat near 5 °F; normal 200–800 pulses. Above 1500: low charge. Below 150: overcharge.<br><b>Defrost:</b> driven to maximum. <b>Stopped:</b> minimum.",
   eevSc:"<b>Subcooling EEV</b> — feeds a little liquid through the subcooler to chill the main liquid line.<br><b>Cooling:</b> modulates to hold about 27 °F (15 °C) subcooling at the subcooler outlet.<br><b>Heating:</b> used for vapour injection and to pull a high discharge temperature down.<br><b>Defrost and stop:</b> minimum.",
-  fourWay:"<b>Four-way (reversing) valve</b> — sends hot gas to the outdoor coil (cooling) or to the indoor units (heating). During defrost it switches to the cooling position, then back.",
+  fourWay:"<b>Four-way (reversing) valve</b> — sends hot gas to the outdoor coil (cooling) or to the indoor units (heating). During defrost it switches to the cooling position, then back.<br>On a heat-recovery system it only decides whether the outdoor coil condenses or evaporates; hot gas for heating units leaves on the high-pressure gas pipe.<br><b>If it does not shift:</b> high and low pressure stay close together (LG raises CH151, and CH36 when the compression ratio stays under 1.6).",
   hex:"<b>Outdoor heat-exchanger temperature</b> — the coil itself. In heating, a coil well below freezing with rising time is what triggers defrost.",
   scIn:"<b>Subcooler inlet / outlet</b> — the small bypass stream through the subcooler. Outlet minus inlet is the subcooler's own superheat; a heat-recovery box holds about 45 °F (25 °C) on its subcooler.",
+  subcooler:"<b>Subcooler</b> — a small heat exchanger on the liquid line. A little liquid is bled off through the subcooling EEV, evaporates inside it and chills the main liquid stream, then returns to suction. Colder liquid means quieter indoor EEVs and full capacity on long pipe runs.<br><b>Cooling:</b> expect about 27 °F (15 °C) of subcooling leaving the outdoor unit.",
+  acc:"<b>Accumulator</b> — a tank on the suction line in front of the compressors. It catches any liquid refrigerant so only gas reaches the scrolls. The low-pressure sensor and suction temperature are read here; suction superheat near zero means liquid is arriving.",
+  liqLine:"<b>Liquid pipe</b> — carries liquid refrigerant between the outdoor unit and the indoor units. In cooling it flows out to the indoor EEVs; in heating it flows back.<br><b>LG charge-check value:</b> 77–95 °F leaving the outdoor unit in cooling, up to 104 °F in hot weather or in heating.",
+  gasLine:"<b>Gas pipe</b> — on a heat pump system this one pipe carries cold suction gas back in cooling and hot discharge gas out in heating.",
+  lpLine:"<b>Low-pressure gas pipe</b> (heat recovery) — the suction pipe. Indoor units that are cooling send their gas back to the outdoor unit through it.",
+  hpLine:"<b>High-pressure gas pipe</b> (heat recovery) — hot discharge gas, always available at the heat-recovery boxes. A box opens its hot-gas valve to put an indoor unit in heating and its suction valve to put it in cooling; each port has one of each. A third valve balances pressure between the two when a port changes mode.",
   iduEev:"<b>Indoor EEV</b> — in cooling it holds superheat across that coil; in heating it holds subcooling (18–36 °F).<br><b>Normal:</b> cooling 200–600 pulses; heating 150–1350. About 40 = closed (unit satisfied or off).<br><b>Cooling above 1000:</b> low charge. <b>Defrost:</b> calling units sit at 400–800.",
   iduPipe:"<b>Indoor pipe temperatures</b> — refrigerant entering and leaving the indoor coil.<br><b>Cooling:</b> both normally 43–59 °F (6–15 °C); outlet minus inlet 0–18 °F. Outlet colder than inlet by more than 2 °F: EEV leaking through. Difference above 18 °F: restricted EEV or piping. Pipes above 63 °F while calling: low charge, clogged path or EEV fault."
 };
@@ -1680,7 +1722,7 @@ function scrollSvg(hz,size){const pts=(a0)=>{let d="";for(let i=0;i<=44;i++){con
     <circle r="18.5" class="cy-shell"/><path d="${pts(0)}" class="cy-fixed"/>
     <g class="cy-orb" style="${dur?`animation-duration:${dur}s`:''}"><path d="${pts(Math.PI)}" class="cy-moving"/></g></svg>`;}
 function fanSvg(rpm,size){const dur=rpm>0?Math.max(.35,Math.min(3,480/rpm)):0;
-  return `<svg viewBox="-12 -12 24 24" width="${size||22}" height="${size||22}" class="cy-fanico ${rpm>0?'run':''}" aria-hidden="true"><g style="${dur?`animation-duration:${dur}s`:''}">${[0,120,240].map(a=>`<path transform="rotate(${a})" d="M0 0C3 -3 8 -4 9 -9C5 -10 1 -7 0 0Z"/>`).join("")}<circle r="1.8"/></g></svg>`;}
+  return `<svg viewBox="-12 -12 24 24" width="${size||22}" height="${size||22}" class="cy-fanico ${rpm>0?'run':''}" aria-hidden="true"><circle r="11" class="cy-fanring"/><g style="${dur?`animation-duration:${dur}s`:''}">${[0,90,180,270].map(a=>`<path transform="rotate(${a})" d="M0 -1.2C-1.6 -4.5 -.4 -9 3.6 -9.6C6.4 -7.4 4.6 -3 0 -1.2Z"/>`).join("")}<circle r="1.9"/></g></svg>`;}
 const CY_UNIT_COL=["var(--accent)","#8b6fd6","#d6a23a","#3fa7b5"];
 function oduUnitPanel(u,k,idus){const f=cyFmt();
   const tile=(cls,label,val,unit,sub,tone,help,extra)=>`<div class="cy-tile ${cls} ${tone||""}"><small>${label}${help?tip(CY_HELP[help]):""}</small><b>${extra||""}${val}<i>${unit||""}</i></b>${sub?`<em>${sub}</em>`:""}</div>`;
@@ -1705,7 +1747,7 @@ function oduHead(o,m,i,n){const flt=o.pages[5]&&o.pages[5].f.slice(8,38).some(x=
     <div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)} <span class="cy-pill ${m.mode==='heat'?'heat':m.mode==='cool'?'cool':''}">${ue(m.mode)}</span></div>
       <div class="cy-subt">${ue(m.product)} · family 0x${m.family.toString(16).toUpperCase().padStart(2,"0")} · ${m.idus} indoor unit${m.idus!==1?"s":""}${mine?` · ${mine} matched in Cortex`:""}${m.subs?` · main + ${m.subs} sub`:""}</div></div>
     <div style="margin-left:auto;text-align:right;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-      <button class="btn sm" data-otrend="${o.addr}">📈 Trends</button>
+      <button class="btn sm" data-ocharge="${o.addr}">🧪 Charge check</button><button class="btn sm" data-otrend="${o.addr}">📈 Trends</button>
       <div>${m.err?`<span class="cy-pill bad">error ${m.err}${m.subs?" on "+(m.errUnit===1?"main":"sub "+(m.errUnit-1)):""}</span>`:'<span class="cy-pill run">no error</span>'}${flt?' <span class="cy-pill warn">fault table has entries</span>':''}
       <div style="font-size:11.5px;color:var(--text-faint);margin-top:4px">read ${ago(o.at)}</div></div></div></div>`;}
 function oduChecks(us,idus){const all=[];us.forEach((u,k)=>oduAdvice(u,k===0?idus:null).forEach(a=>all.push(Object.assign({who:k===0?"Main":"Sub "+k},a))));
@@ -1746,57 +1788,137 @@ function iduSection(){
 /* Live refrigerant-cycle sketch for one outdoor system. The pipe layout is schematic (one gas trunk,
    one liquid trunk) — it shows direction, state and the real readings, not the building's piping. */
 function oduDiagram(o,sysI,sysN){const us=oduUnits(o);if(!us.length)return "";const m=us[0],f=cyFmt();
-  const heat=m.mode==="heat",run=us.some(u=>u.running);
+  const heat=m.mode==="heat",run=us.some(u=>u.running),hr=/recovery/.test(m.product||"");
   const mineAll=units.filter(u=>u.odu===o.addr||(u.odu==null&&ODU.size===1)),idus=mineAll.slice(0,12),more=mineAll.length-idus.length;
-  const hot="#e5484d",warm="#e8955a",cold="#3b8fe0";
-  const gasCol=heat?hot:cold,liqCol=warm;
-  const fl=(col,on)=>`fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round" class="cy-flow ${on?'on':''}"`;
-  const base=d=>`<path d="${d}" fill="none" stroke="var(--border-strong)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>`;
-  const pipe=(d,col,on)=>base(d)+`<path d="${d}" ${fl(col,on)}/>`;               // d is drawn in the direction of flow
-  const colW=176,x0=500,rows=Math.max(1,Math.ceil(idus.length/3)),H=Math.max(400,170+rows*104),W=x0+3*colW+40;
-  const yL=64,yG=H-44,xA=200,xB=290,yC=H-128;                                    // liquid trunk, gas trunk, compressor positions
-  const lbl=(x,y,t,v,col)=>`<g transform="translate(${x} ${y})"><rect x="-5" y="-14" rx="7" width="${(t.length+1)*6+String(v).length*7.3+16}" height="21" fill="var(--surface)" stroke="${col||'var(--border)'}"/><text class="cy-dl" x="3" y="1">${t} <tspan class="cy-dv" fill="${col||'var(--text)'}">${v}</tspan></text></g>`;
-  const comp=(x,hz,n,side)=>`<g transform="translate(${x} ${yC})"><g transform="translate(-27 -27)">${scrollSvg(hz,54)}</g>
-      <text class="cy-dl" text-anchor="${side<0?'end':'start'}" x="${side*36}" y="-2">INV ${n}</text><text class="cy-dv" text-anchor="${side<0?'end':'start'}" x="${side*36}" y="13" fill="${hz?hot:'var(--text-dim)'}">${hz} Hz</text></g>`;
-  const col=i=>x0+88+(i%3)*colW, rowY=i=>122+Math.floor(i/3)*104;
-  const xEnd=x0+88+2*colW+78;
-  // one liquid riser (left of each column) and one gas riser (right of each column), with a stub into every unit
-  let risers="";for(let c=0;c<Math.min(3,idus.length);c++){const cx=col(c),n=idus.filter((_,i)=>i%3===c).length,yLast=122+(n-1)*104;
-    const anyOn=run&&idus.some((u,i)=>i%3===c&&u.on&&!u.offline);
-    risers+=pipe(heat?`M${cx-78} ${yLast}V${yL}`:`M${cx-78} ${yL}V${yLast}`,liqCol,anyOn)+pipe(heat?`M${cx+78} ${yG}V${rowY(c)}`:`M${cx+78} ${rowY(c)}V${yG}`,gasCol,anyOn);}
-  const iduG=idus.map((u,i)=>{const cx=col(i),cy=rowY(i);const on=u.on&&!u.offline;const c=u.offline?"var(--warn)":u.err?"var(--err)":on?modeColor(u):"var(--border-strong)";
+  const hot="#e5484d",warm="#e8955a",cold="#3b8fe0",gasCol=hr?cold:(heat?hot:cold);
+  const fl=(col,on,w)=>`fill="none" stroke="${col}" stroke-width="${w||5}" stroke-linecap="round" stroke-linejoin="round" class="cy-flow ${on?'on':''}"`;
+  const base=(d,w)=>`<path d="${d}" fill="none" stroke="var(--border-strong)" stroke-width="${(w||5)+4}" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>`;
+  const pipe=(d,col,on,w)=>base(d,w)+`<path d="${d}" ${fl(col,on,w)}/>`;        // d is drawn in the direction of flow
+  const ti=k=>CY_HELP[k]?` class="cy-ti" tabindex="0" data-tip="${ue(CY_HELP[k])}"`:"";
+  const lbl=(x,y,t,v,col,k)=>`<g transform="translate(${x} ${y})"${ti(k)}><rect x="-5" y="-14" rx="7" width="${(t.length+1)*6+String(v).length*7.3+16}" height="21" fill="var(--surface)" stroke="${col||'var(--border)'}"/><text class="cy-dl" x="3" y="1">${t} <tspan class="cy-dv" fill="${col||'var(--text)'}">${v}</tspan></text></g>`;
+  const toneCol=(k,d)=>({bad:"var(--err)",warn:"var(--warn)"})[cyTone(k,m)]||d;
+  const rows=Math.max(1,Math.ceil(idus.length/3)),H=Math.max(480,150+rows*104),colW=hr?196:176,x0=690;
+  const yL=64,yG=H-62,yH=H-40,yU=111,yLo=157,y4=262,yC=340,yS=386,cA=96,cB=215,coilL=130,coilR=300,gasH=312;
+  const col=i=>x0+100+(i%3)*colW,rowY=i=>128+Math.floor(i/3)*104,nC=Math.min(3,idus.length);
+  const W=x0+100+2*colW+(hr?112:98);
+  const isHeat=u=>hr?u.mode==="heat":heat,act=u=>run&&u.on&&!u.offline;
+  const anyHeat=idus.some(u=>act(u)&&isHeat(u)),anyCool=idus.some(u=>act(u)&&!isHeat(u));
+  const lastLiq=nC?col(nC-1)-80:x0+20,lastGas=nC?col(nC-1)+80:x0+20,lastLP=nC?col(nC-1)+94:x0+20;
+  // ---- outdoor unit ----
+  const coilCol=heat?cold:hot,r1=run&&m.inv1Hz>0,r2=run&&m.inv2Hz>0;
+  let p="";
+  p+=pipe(`M${cA} ${yC-27}V${y4}`,hot,r1)+pipe(`M${cB} ${yC-27}V${y4}`,hot,r2);                           // discharge risers
+  p+=pipe(`M${cA} ${y4}H${gasH-18}`,hot,run&&!heat);                                                          // discharge header → 4-way
+  if(!heat)p+=pipe(`M${gasH} ${y4-18}V${yU}H${coilR}`,hot,run)+pipe(`M${gasH} ${yLo}H${coilR}`,hot,run)       // 4-way → coil (condenser)
+     +pipe(`M${coilL} ${yLo}H36V${yU}`,warm,run)+pipe(`M${coilL} ${yU}H36V${yL}H370`,warm,run)+pipe(`M460 ${yL}H${lastLiq}`,warm,run);
+  else p+=pipe(`M${lastLiq} ${yL}H460`,warm,run)+pipe(`M370 ${yL}H36V${yU}H${coilL}`,warm,run)+pipe(`M36 ${yU}V${yLo}H${coilL}`,warm,run)
+     +pipe(`M${coilR} ${yU}H${gasH}V${y4-18}`,cold,run)+pipe(`M${coilR} ${yLo}H${gasH}`,cold,run);              // coil (evaporator) → 4-way
+  p+=pipe(`M${gasH} ${y4+18}V302`,cold,run&&(heat||!hr))+pipe(`M${gasH} 362V${yS}H${cA}V${yC+27}`,cold,r1)+pipe(`M${cB} ${yS}V${yC+27}`,cold,r2);
+  p+=pipe(`M492 ${yL}V106H432V80`,cold,run&&m.eevSc>48,3)+pipe(`M398 80V108`,cold,run&&m.eevSc>48,3);         // subcooler bypass
+  if(hr){p+=pipe(`M${cA} ${y4}H40V${yH}H${lastGas}`,hot,run&&(anyHeat||heat));                                  // high-pressure gas pipe
+    p+=pipe(`M${lastLP} ${yG}H672V332H330`,cold,run&&(anyCool||!heat));}                                          // low-pressure gas pipe
+  else p+=heat?pipe(`M${gasH+18} ${y4}H672V${yG}H${lastGas}`,hot,run):pipe(`M${lastGas} ${yG}H672V${y4}H${gasH+18}`,cold,run);
+  const eev=(x,y,n,v)=>`<g${ti("eevMain")}><path transform="translate(${x} ${y})" d="M-7 -6L7 6V-6L-7 6Z" fill="var(--surface)" stroke="var(--text-dim)" stroke-width="1.6" stroke-linejoin="round"/>
+      <text class="cy-dl" x="${x}" y="${y-11}" text-anchor="middle">EEV${n} <tspan class="cy-dv">${v}</tspan></text></g>`;
+  const comp=(x,hz,n,side,d)=>`<g${ti("inv")}><g transform="translate(${x-27} ${yC-27})">${scrollSvg(hz,54)}</g>
+      <text class="cy-dl" text-anchor="${side<0?'end':'start'}" x="${x+side*36}" y="${yC-2}">INV ${n}</text><text class="cy-dv" text-anchor="${side<0?'end':'start'}" x="${x+side*36}" y="${yC+13}" fill="${hz?hot:'var(--text-dim)'}">${hz} Hz</text></g>
+      <text class="cy-dv" x="${x+9}" y="${yC-38}" fill="${hot}"${ti("disch")}>${f.tt(d)}</text>`;
+  const coil=y=>`<rect x="${coilL}" y="${y-13}" width="${coilR-coilL}" height="26" rx="7" fill="var(--surface)" stroke="${coilCol}" stroke-width="2"/>`
+     +Array.from({length:9},(_,i)=>`<line x1="${coilL+17+i*17}" y1="${y-8}" x2="${coilL+17+i*17}" y2="${y+8}" stroke="${coilCol}" stroke-width="2" opacity=".45"/>`).join("");
+  const subs=us.slice(1).map((u,k)=>`<text class="cy-dl" x="336" y="${204+k*18}">SUB ${k+1} · <tspan class="cy-dv" fill="${u.running?hot:'var(--text-dim)'}">${u.inv1Hz}/${u.inv2Hz} Hz</tspan> · ${f.pr(u.hp)}/${f.pr(u.lp)} ${f.pu} · disch ${f.tt(Math.max(u.disch1==null?-99:u.disch1,u.disch2==null?-99:u.disch2))}</text>`).join("");
+  const oduG=`<rect x="14" y="14" width="636" height="${H-24}" rx="16" fill="var(--surface-2)" stroke="var(--border)" stroke-dasharray="5 5"/>
+    <text class="cy-dn" x="30" y="38">OUTDOOR UNIT ${hx(o.addr)} · ${ue(m.mode).toUpperCase()}${run?"":" · IDLE"}${hr?" · HEAT RECOVERY":""}</text>
+    ${p}${coil(yU)}${coil(yLo)}
+    <g${ti("fan")}><g transform="translate(${coilL} 74)">${fanSvg(m.fan1,18)}</g><g transform="translate(${coilL+22} 74)">${fanSvg(m.fan2,18)}</g><text class="cy-dl" x="${coilL+48}" y="88">${heat?"evaporator":"condenser"} fans <tspan class="cy-dv">${m.fan1} / ${m.fan2}</tspan> rpm</text></g>
+    ${eev(83,yU,1,m.eev1)}${eev(83,yLo,2,m.eev2)}
+    <g${ti("subcooler")}><rect x="370" y="48" width="90" height="32" rx="16" fill="var(--surface)" stroke="${warm}" stroke-width="2"/><text class="cy-dl" x="415" y="68" text-anchor="middle">subcooler</text></g>
+    <g${ti("eevSc")}><path transform="translate(462 106)" d="M-6 -5L6 5V-5L-6 5Z" fill="var(--surface)" stroke="var(--text-dim)" stroke-width="1.5" stroke-linejoin="round"/><text class="cy-dl" x="380" y="122">to suction</text></g>
+    ${lbl(512,94,"liquid",f.tt(m.liq),warm,"liq")}${lbl(512,118,"subcool",f.dt(m.sc),warm,"sc")}${lbl(512,142,"SC EEV",m.eevSc,null,"eevSc")}
+    ${lbl(336,152,"air",f.tt(m.air),null,"air")}${lbl(336,176,"coil",f.tt(m.hex),coilCol,"hex")}${subs}
+    <g${ti("fourWay")}><circle cx="${gasH}" cy="${y4}" r="18" fill="var(--surface)" stroke="var(--text-dim)" stroke-width="2"/><text class="cy-dn" x="${gasH}" y="${y4+4}" text-anchor="middle">4W</text></g>
+    <g${ti("acc")}><rect x="${gasH-18}" y="302" width="36" height="60" rx="14" fill="var(--surface)" stroke="${cold}" stroke-width="2"/><text class="cy-dl" x="${gasH}" y="336" text-anchor="middle">acc</text></g>
+    ${lbl(52,214,"HP",f.pr(m.hp)+" "+f.pu,toneCol("hp",hot),"hp")}${lbl(52,238,"cond",f.tt(m.cond),warm,"cond")}${lbl(176,238,"disch SH",f.dt(Math.max(m.disch1==null?-99:m.disch1,m.disch2==null?-99:m.disch2)-m.cond),hot,"dsh")}
+    ${comp(cA,m.inv1Hz,1,1,m.disch1)}${comp(cB,m.inv2Hz,2,1,m.disch2)}
+    ${lbl(346,364,"LP",f.pr(m.lp)+" "+f.pu,toneCol("lp",cold),"lp")}${lbl(346,388,"suction",f.tt(m.suct)+" · evap "+f.tt(m.evap),cold,"suct")}${lbl(346,412,"superheat",f.dt(m.sh),toneCol("sh",cold),"sh")}`;
+  // ---- indoor side: a liquid riser left of each column, gas riser(s) right of it ----
+  let risers="";for(let c=0;c<nC;c++){const cx=col(c),mine=idus.filter((_,i)=>i%3===c),yLast=128+(mine.length-1)*104;
+    const h=mine.some(u=>act(u)&&isHeat(u)),k=mine.some(u=>act(u)&&!isHeat(u)),liqUp=h&&!k;
+    risers+=pipe(liqUp?`M${cx-80} ${yLast}V${yL}`:`M${cx-80} ${yL}V${yLast}`,warm,h||k);
+    if(hr)risers+=pipe(`M${cx+80} ${yH}V118`,hot,h)+pipe(`M${cx+94} 138V${yG}`,cold,k);
+    else risers+=pipe(heat?`M${cx+80} ${yG}V128`:`M${cx+80} 128V${yG}`,gasCol,h||k);}
+  const iduG=idus.map((u,i)=>{const cx=col(i),cy=rowY(i),on=u.on&&!u.offline,a=act(u),uh=isHeat(u);
+    const c=u.offline?"var(--warn)":u.err?"var(--err)":on?modeColor(u):"var(--border-strong)";
     const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
-    return `<g>${pipe(heat?`M${cx-66} ${cy}H${cx-78}`:`M${cx-78} ${cy}H${cx-66}`,liqCol,run&&on)}${pipe(heat?`M${cx+78} ${cy}H${cx+66}`:`M${cx+66} ${cy}H${cx+78}`,gasCol,run&&on)}
+    const gas=hr?pipe(`M${cx+80} ${cy-10}H${cx+66}`,hot,a&&uh,4)+pipe(`M${cx+66} ${cy+10}H${cx+94}`,cold,a&&!uh,4)
+        +`<circle cx="${cx+73}" cy="${cy-10}" r="3.2" fill="${a&&uh?hot:'var(--surface)'}" stroke="var(--text-dim)"/><circle cx="${cx+73}" cy="${cy+10}" r="3.2" fill="${a&&!uh?cold:'var(--surface)'}" stroke="var(--text-dim)"/>`
+      :pipe(uh?`M${cx+80} ${cy}H${cx+66}`:`M${cx+66} ${cy}H${cx+80}`,gasCol,a);
+    return `<g>${pipe(uh?`M${cx-66} ${cy}H${cx-80}`:`M${cx-80} ${cy}H${cx-66}`,warm,a)}${gas}
       <rect x="${cx-66}" y="${cy-32}" width="132" height="64" rx="10" fill="var(--surface)" stroke="${c}" stroke-width="${on?2:1.3}"/>
       <text class="cy-dn" x="${cx-57}" y="${cy-14}">${ue(dispName(u)).slice(0,17)}</text>
       <text class="cy-dl" x="${cx-57}" y="${cy+3}">room <tspan class="cy-dv">${t(u.room)}</tspan> · EEV <tspan class="cy-dv">${u.eev!=null?u.eev:"—"}</tspan></text>
-      <text class="cy-dl" x="${cx-57}" y="${cy+20}">in <tspan class="cy-dv" fill="${liqCol}">${t(u.pipeIn)}</tspan> · out <tspan class="cy-dv" fill="${gasCol}">${t(u.pipeOut)}</tspan></text></g>`;}).join("");
+      <text class="cy-dl" x="${cx-57}" y="${cy+20}">in <tspan class="cy-dv" fill="${warm}">${t(u.pipeIn)}</tspan> · out <tspan class="cy-dv" fill="${uh?hot:cold}">${t(u.pipeOut)}</tspan></text></g>`;}).join("");
   return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[(sysI||0)%CY_SYS_COL.length]}">${oduHead(o,m,sysI||0,sysN||1)}
-   <div style="overflow:auto"><svg viewBox="0 0 ${W} ${H}" class="cy-svg" style="min-width:820px;max-width:${W*1.25}px">
-    <rect x="14" y="14" width="406" height="${H-24}" rx="16" fill="var(--surface-2)" stroke="var(--border)" stroke-dasharray="5 5"/>
-    <text class="cy-dn" x="30" y="38">OUTDOOR UNIT ${hx(o.addr)} · ${ue(m.mode).toUpperCase()}${run?"":" · IDLE"}</text>
-    ${pipe(heat?`M${xEnd} ${yL}H360V86`:`M360 86V${yL}H${xEnd}`,liqCol,run)}
-    ${pipe(heat?`M${xA} ${yG}H${xEnd}`:`M${xEnd} ${yG}H${xA}`,gasCol,run)}
-    ${heat
-      ?pipe(`M${xA} ${yC+26}V${yG}`,hot,run&&m.inv1Hz)+pipe(`M${xB} ${yC+26}V${yG}`,hot,run&&m.inv2Hz)+pipe(`M${xA} 114V${yC-26}`,cold,run&&m.inv1Hz)+pipe(`M${xA} ${yC-62}H${xB}V${yC-26}`,cold,run&&m.inv2Hz)
-      :pipe(`M${xA} ${yG}V${yC+26}`,cold,run&&m.inv1Hz)+pipe(`M${xB} ${yG}V${yC+26}`,cold,run&&m.inv2Hz)+pipe(`M${xA} ${yC-26}V114`,hot,run&&m.inv1Hz)+pipe(`M${xB} ${yC-26}V${yC-62}H${xA}`,hot,run&&m.inv2Hz)}
-    <rect x="150" y="72" width="230" height="42" rx="9" fill="var(--surface)" stroke="${heat?cold:warm}" stroke-width="2"/>
-    ${Array.from({length:10},(_,i)=>`<line x1="${168+i*21.5}" y1="79" x2="${168+i*21.5}" y2="107" stroke="${heat?cold:warm}" stroke-width="2" opacity=".45"/>`).join("")}
-    <text class="cy-dl" x="150" y="62">${heat?"evaporator":"condenser"} · air <tspan class="cy-dv">${f.tt(m.air)}</tspan> · fans <tspan class="cy-dv">${m.fan1}/${m.fan2}</tspan></text>
-    ${comp(xA,m.inv1Hz,1,-1)}${comp(xB,m.inv2Hz,2,1)}
-    <text class="cy-dl" x="30" y="${yC-118}" style="letter-spacing:.08em">HIGH SIDE</text>
-    ${lbl(34,yC-96,"pressure",f.pr(m.hp)+" "+f.pu,hot)}${lbl(34,yC-70,"discharge",f.tt(m.disch1)+" / "+f.tt(m.disch2),hot)}${lbl(34,yC-44,"condensing",f.tt(m.cond),warm)}
-    <text class="cy-dl" x="30" y="${yC+50}" style="letter-spacing:.08em">LOW SIDE</text>
-    ${lbl(34,yC+72,"pressure",f.pr(m.lp)+" "+f.pu,cold)}${H>=420?"":""}
-    ${lbl(34,yC+98,"superheat",f.dt(m.sh),cold)}
-    ${lbl(430,yL-22,"liquid",f.tt(m.liq)+" · subcool "+f.dt(m.sc),warm)}
-    ${lbl(430,yG+26,heat?"hot gas":"suction",(heat?f.tt(m.disch1):f.tt(m.suct))+" · evap "+f.tt(m.evap),gasCol)}
-    <text class="cy-dl" x="${xEnd}" y="${yL-12}" text-anchor="end">LIQUID LINE ${heat?"◀":"▶"}</text>
-    <text class="cy-dl" x="${xEnd}" y="${yG+22}" text-anchor="end">GAS LINE ${heat?"▶":"◀"}</text>
+   <div style="overflow:auto"><svg viewBox="0 0 ${W} ${H}" class="cy-svg" style="min-width:980px;max-width:${W*1.2}px">
+    ${oduG}
+    <text class="cy-dl" x="${x0}" y="${yL-12}"${ti("liqLine")}>LIQUID PIPE</text>
+    <text class="cy-dl" x="${x0}" y="${yG-9}"${ti(hr?"lpLine":"gasLine")}>${hr?"LOW-PRESSURE GAS PIPE":"GAS PIPE"}</text>
+    ${hr?`<text class="cy-dl" x="${x0}" y="${yH+15}"${ti("hpLine")}>HIGH-PRESSURE GAS PIPE</text>`:""}
     ${risers}${iduG}
     ${!idus.length?`<text class="cy-dl" x="${x0+20}" y="${(yL+yG)/2}">Indoor units for this outdoor unit aren’t known yet — use “Group by outdoor unit” in the Data view.</text>`:""}
-    ${more>0?`<text class="cy-dl" x="${xEnd}" y="${H-6}" text-anchor="end">+${more} more indoor unit${more>1?"s":""} — see the Data view</text>`:""}
-   </svg></div></div>`;}
+    ${more>0?`<text class="cy-dl" x="${W-12}" y="${H-6}" text-anchor="end">+${more} more indoor unit${more>1?"s":""} — see the Data view</text>`:""}
+   </svg></div>
+   <div class="cy-dnote">Schematic of the main outdoor unit, not to scale. Hover or tap a part for what it does and its normal values.${hr?" Heat-recovery boxes can’t be read on this bus, so each indoor unit’s pipes are coloured from that unit’s own mode.":""}</div></div>`;}
+/* ---- LG charge check: expected readings by outdoor temperature ----
+   From LG's "Refrigerant Charge Determination" table (psig / °F). Test condition: every indoor unit
+   running the same mode on high fan, system settled. Used as a comparison, never as a verdict. */
+const LG_CHARGE={cool:[
+  {oa:[50,68],ia:"68–77",hp:[305,363],lp:[102,131],disch:[140,158],liq:[77,95],sc:[40,150],idu:[100,250]},
+  {oa:[68,86],ia:"68–86",hp:[334,392],lp:[102,131],disch:[149,176],liq:[77,95],sc:[40,200],idu:[150,300]},
+  {oa:[86,95],ia:"68–86",hp:[377,435],lp:[102,131],disch:[158,185],liq:[77,104],sc:[40,250],idu:[200,400]}],
+ heat:[
+  {oa:[41,59],ia:"68–77",hp:[363,435],lp:[102,145],disch:[149,167],liq:[77,104],idu:[400,600],main:[200,600],pin:[104,122]},
+  {oa:[23,41],ia:"59–68",hp:[363,435],lp:[58,116],disch:[167,185],liq:[77,104],idu:[300,500],main:[400,800],pin:[104,122]},
+  {oa:[5,23],ia:"59–68",hp:[363,435],lp:[43,87],disch:[167,203],liq:[77,104],idu:[200,400],main:[600,1000],pin:[95,122]}]};
+function chargeBand(mode,airC){const oaF=airC*9/5+32,L=LG_CHARGE[mode];if(!L||!isFinite(oaF))return null;
+  let b=L.find(x=>oaF>=x.oa[0]&&oaF<x.oa[1]),exact=!!b;
+  if(!b)b=L.slice().sort((x,y)=>Math.abs((x.oa[0]+x.oa[1])/2-oaF)-Math.abs((y.oa[0]+y.oa[1])/2-oaF))[0];
+  return {b,exact,oaF};}
+function openChargeCheck(addr){const o=ODU.get(addr),us=o?oduUnits(o):[];if(!us.length){toast("No data for that outdoor unit yet");return;}
+  const m=us[0],F=settings.unit!=="C",idus=units.filter(u=>u.odu===addr&&u.on&&!u.offline);
+  const mode=m.mode==="heat"?"heat":m.mode==="cool"?"cool":null,cb=mode?chargeBand(mode,m.air):null,run=us.some(u=>u.running);
+  const T=v=>F?Math.round(v):Math.round((v-32)*5/9),P=v=>F?Math.round(v):Math.round(v*6.895),tu=F?"°F":"°C",pu=F?"psi":"kPa";
+  const nowT=c=>c==null?null:(F?c*9/5+32:c),nowP=k=>k==null?null:(F?k*0.145038:k);
+  let body="";
+  if(!cb||!run)body=`<div class="note-box">${run?"This outdoor unit isn't reporting cooling or heating right now.":"The system isn't running, so there is nothing to compare."} Start every indoor unit in the same mode on high fan, let it settle for 15–20 minutes, then open this again.</div>`;
+  else{const b=cb.b,rows=[];
+    const add=(name,now,rng,conv,unit,help)=>{const lo=conv(rng[0]),hi=conv(rng[1]);const v=now==null||!isFinite(now)?null:Math.round(now);
+      const st=v==null?"":v<lo?"low":v>hi?"high":"ok";rows.push(`<tr><td>${name}${help?tip(help):""}</td><td class="mono"><b>${v==null?"—":v}</b> ${unit}</td><td class="mono dim">${lo}–${hi} ${unit}</td><td>${st==="ok"?'<span class="cy-pill run">in range</span>':st?`<span class="cy-pill warn">${st}</span>`:""}</td></tr>`);};
+    us.forEach((u,k)=>{const w=us.length>1?(k?"Sub "+k+" · ":"Main · "):"";
+      add(w+"High pressure",nowP(u.hp),b.hp,P,pu,k?"":CY_HELP.hp);add(w+"Low pressure",nowP(u.lp),b.lp,P,pu,k?"":CY_HELP.lp);
+      if(u.inv1Hz>0&&u.disch1!=null)add(w+"Discharge 1",nowT(u.disch1),b.disch,T,tu);if(u.inv2Hz>0&&u.disch2!=null)add(w+"Discharge 2",nowT(u.disch2),b.disch,T,tu);
+      add(w+"Liquid pipe",nowT(u.liq),b.liq,T,tu);
+      if(b.sc)add(w+"Subcooling EEV",u.eevSc,b.sc,x=>x,"pls");if(b.main)add(w+"Main EEV",Math.max(u.eev1||0,u.eev2||0),b.main,x=>x,"pls");});
+    const inR=(v,r)=>v!=null&&v>=r[0]&&v<=r[1],withE=idus.filter(u=>u.eev!=null),okE=withE.filter(u=>inR(u.eev,b.idu)).length;
+    const outE=withE.filter(u=>!inR(u.eev,b.idu)).map(u=>ue(dispName(u))+" ("+u.eev+")");
+    body=`<div class="note-box" style="margin-bottom:12px">Outdoor air is <b>${Math.round(F?cb.oaF:m.air)}${tu}</b>, system is <b>${mode}ing</b>. Compared with LG's charge-check table for <b>${T(b.oa[0])}–${T(b.oa[1])}${tu} outdoor</b>, ${b.ia.split("–").map(x=>T(+x)).join("–")}${tu} indoor.${cb.exact?"":" <b>Today's outdoor temperature is outside LG's table</b>, so this is the nearest row only."}</div>
+     <div style="overflow:auto"><table class="cy-table"><thead><tr><th>Reading</th><th>Now</th><th>LG range</th><th></th></tr></thead><tbody>${rows.join("")}
+      <tr><td>Indoor EEVs${tip(CY_HELP.iduEev)}</td><td class="mono"><b>${okE}</b> of ${withE.length} running</td><td class="mono dim">${b.idu[0]}–${b.idu[1]} pls</td><td>${withE.length&&okE===withE.length?'<span class="cy-pill run">in range</span>':withE.length?'<span class="cy-pill warn">'+(withE.length-okE)+' outside</span>':""}</td></tr></tbody></table></div>
+     ${outE.length?`<div style="font-size:12.5px;color:var(--text-dim);margin-top:8px">Outside the EEV range: ${outE.slice(0,12).join(", ")}${outE.length>12?" …":""}</div>`:""}
+     <div style="font-size:12.5px;color:var(--text-dim);margin-top:10px">${mode==="cool"?`Indoor pipes in cooling should be about ${T(41)}–${T(52)}${tu} in and ${T(44)}–${T(55)}${tu} out.`:`Indoor pipe-in in heating should be about ${T(b.pin[0])}–${T(b.pin[1])}${tu}.`}</div>
+     <div class="note-box warn" style="margin-top:12px"><b>This only means something under LG's test conditions:</b> every indoor unit running in ${mode==="cool"?"cooling":"heating"} on high fan, with the system settled for 15–20 minutes. ${idus.length} of ${units.filter(u=>u.odu===addr).length} matched indoor units are on right now. Under part load, or on a heat-recovery system with units in both modes, readings sit outside these ranges on a healthy system. Never add or remove refrigerant from this screen alone — weigh the charge.</div>`;}
+  modal(head("Charge check · outdoor unit "+hx(addr))+`<div class="modal-body">${body}</div>`,true);}
+function openFieldRef(){const sec=(t,h)=>`<div style="margin:16px 0 6px;font-weight:650">${t}</div><div style="font-size:13.5px;line-height:1.55">${h}</div>`;
+  modal(head("Field reference · Multi V")+`<div class="modal-body">
+   <div class="note-box">Quick checks pulled together from LG service-class material and service manuals. Always confirm against the manual for the exact model in front of you.</div>
+   ${sec("How the system reacts to a fault",`<b>Communication faults</b> are raised after repeated failed attempts and clear by themselves when communication returns. Timing: outdoor PCB to outdoor PCB — immediately; indoor to outdoor — 3 minutes; indoor to HR box — 10 seconds.<br><b>Most other faults</b> stop the system for 3 minutes, then it restarts by itself. The 10th repeat inside one hour locks it out until someone restarts it.<br><b>Minor faults</b> show a code while the system keeps running.<br>Outdoor display: the last digit is the frame (1 main, 2 sub 1, 3 sub 2) — <span class="mono">211</span> is error 21 on the main unit, <span class="mono">1051</span> is error 105 on the main unit.`)}
+   ${sec("Comm bus",`Indoor A/B daisy chain and the central-controller chain are both a pulsing 0–5 V DC signal (a slow meter may not show the full swing). Unplugged at the main outdoor unit, the terminals should sit at a steady 5 V DC. If not, cycle power before condemning the board.<br>Zone controller at the indoor PCB: COM–SIG about ±5 V DC, COM–12V 12 V DC.`)}
+   ${sec("Temperature sensors",`All NTC (resistance falls as temperature rises), fed 5 V DC by the board.<div style="overflow:auto"><table class="cy-table" style="margin-top:6px"><thead><tr><th></th><th>Air</th><th>Pipe</th><th>Discharge</th></tr></thead><tbody><tr><td>At 77 °F</td><td class="mono">10 kΩ</td><td class="mono">5 kΩ</td><td class="mono">200 kΩ</td></tr><tr><td>In ice water (32 °F)</td><td class="mono">33.9 kΩ</td><td class="mono">17 kΩ</td><td class="mono">585.7 kΩ</td></tr></tbody></table></div>Compare what Cortex shows with a good thermometer held right beside the sensor.`)}
+   ${sec("EEV coils",`Outdoor main EEV and large indoor EEV (6-wire): about 300 Ω across 1–3 and 2–4, 150 Ω from each to common.<br>Subcooling EEV and small indoor EEV (5-wire): about 104 Ω across 1–3 and 2–4, 52 Ω to common.<br>Values differ by EEV model.`)}
+   ${sec("Indoor fan motor (CH10)",`Motor unplugged from the PCB: terminals 4–5 above 35 kΩ, 4–7 above 230 kΩ. Supply while running about 308 V DC (±45).`)}
+   ${sec("Protection limits",`High pressure above 580 psi for 10 s → CH34. Discharge above 239 °F for 10 s → CH32. Low pressure under 58 psi (cooling) or 33 psi (heating) for a minute → CH35. Compression ratio under 1.6 → CH36. Discharge superheat under about 5 °F in all-cooling → CH150. Connected indoor capacity must be 50–130 % of outdoor capacity → CH51.`)}
+   ${sec("Outdoor frames installed apart (dual / triple frame)",`Measure from the centre of the outdoor Y-branch. No more than <b>33 ft</b> of pipe from the first outdoor Y-branch to the farthest frame, and no more than <b>16 ft</b> of height between frames.<br>An <b>inverted oil trap</b> (about 8 in. up) is needed in the vapor pipe when the horizontal run from a Y-branch to a frame is over 6.6 ft, or whenever the pipe turns downward leaving the Y-branch. Fit it within 6.6 ft of the Y-branch. Heat pump: suction pipe. Heat recovery: both the high- and low-pressure gas pipes.`)}
+   ${sec("Heat-recovery boxes",`Wired into the indoor A/B daisy chain and powered at 208/230 V. Each box needs its own address 0–F on its rotary switch, counting up along the chain; give address 0 to the box whose port 1 carries the largest indoor unit.<br>Each port has two valves, one hot-gas and one suction, that set that port to heating or cooling. A bypass valve balances pressure between the two when a port changes mode.<br>Capacity per port: 54 MBh, or 108 / 162 MBh across two / three twinned ports; 192 MBh per box.`)}
+  </div>`,true);}
 function oduDiagrams(list){const d=list.map((o,i)=>oduDiagram(o,i,list.length)).join("");
   return d||`<div class="cyc-note" style="margin-top:14px">The diagram draws itself from outdoor-unit data, and none has been read yet.</div>`;}
 /* ---- small line chart (events + outdoor trends) ---- */
@@ -2304,7 +2426,7 @@ function busConnectBackend(auto){
     const rerender=()=>{if(view==="busscan")renderBusScan();fillLiveBanner();};
     ws.onopen=()=>{bus.scanning=true;bus.err="";busRetryN=0;rerender();};
     ws.onmessage=ev=>{ if(typeof ev.data==='string'){try{const m=JSON.parse(ev.data);
-          if(m.err){bus.err=m.err;if(/already in use/.test(m.err)){bus.inUse=true;bus.err="Another Cortex screen is already connected to the equipment — this screen shows its readings.";}}
+          if(m.err){bus.err=m.err;if(/already in use/.test(m.err)){bus.inUse=true;bus.err=(POLLER&&POLLER.active?"The controller is already polling the equipment itself":"Another Cortex screen already holds the adapter")+" — nothing is wrong. This screen shows the live readings and sends your commands through it, so you don’t need to connect here.";}}
           // the adapter is really open: resume live polling if this is the screen that was doing it
           if(m.ok&&busAutoWanted()&&!MASTER.running&&!MASTER.discovering&&!(WZ&&WZ.scan&&WZ.scan.scanning))setTimeout(()=>{if(bus.port&&bus.port._ws===ws&&!MASTER.running&&!MASTER.discovering)masterLoopRun({auto:true});},250);
         }catch(_){ } bus.dirty=true; return; } ingestBytes(new Uint8Array(ev.data)); };
@@ -2773,6 +2895,7 @@ function renderCycle(){renderGroupNav();
       <div class="segmented"><button class="${cycView==='data'?'on':''}" data-cyv="data">Data</button><button class="${cycView==='diagram'?'on':''}" data-cyv="diagram">Refrigerant diagram</button></div>
       <span class="cy-live ${live?'on':''}">${live?'● live':'○ last known readings'}</span>
       ${tip("Everything here is <b>real data read from the equipment</b>, not a simulation. Outdoor values come from each outdoor unit's monitor pages (re-read about once a minute while Cortex is polling); indoor values come from each unit's status reply on every pass. Tables are for Multi V IV — treat values on other families as approximate. Heat-recovery box (HRU) data is not carried on this bus; it is only on the outdoor unit's service port (see the UART page).")}
+      <button class="btn sm" id="cy-fieldref">📖 Field reference</button>
       <div style="flex:1"></div>
       ${oduControls()}
     </div>
@@ -2784,6 +2907,8 @@ function renderCycle(){renderGroupNav();
   const off=document.getElementById("odu-find");if(off)off.onclick=oduFindClick;
   const og=document.getElementById("odu-group");if(og)og.onclick=()=>oduGroupClick(false);
   main.querySelectorAll("[data-otrend]").forEach(b=>b.onclick=()=>openOduTrends(+b.dataset.otrend));
+  main.querySelectorAll("[data-ocharge]").forEach(b=>b.onclick=()=>openChargeCheck(+b.dataset.ocharge));
+  const fr=document.getElementById("cy-fieldref");if(fr)fr.onclick=openFieldRef;
   if(!cycPulled){cycPulled=true;oduPull().then(()=>{if(oduDirty&&view==="cycle"){oduDirty=false;renderCycle();}});}}
 let cycPulled=false;
 /* ---- schedules ---- */
@@ -3227,6 +3352,8 @@ function openError(code){const e=errInfo(code);
     <span class="rchip" style="margin-left:6px">${e.who}</span>
     <div class="ed-row"><div class="k">Means</div><div class="v">${e.cause}</div></div>
     <div class="ed-row"><div class="k">What to do</div><div class="v">${e.act}</div></div>
+    ${e.chk?`<div class="ed-row"><div class="k">Field check</div><div class="v">${e.chk}</div></div>`:""}
+    ${e.lv?`<div class="ed-row"><div class="k">How LG reacts</div><div class="v">${ERR_LEVELS[e.lv]}</div></div>`:""}
     ${units_err.length?`<div class="ed-row"><div class="k">Affected</div><div class="v">${units_err.join(", ")}</div></div>`:""}
     <a class="btn primary" href="https://partner.lge.com" target="_blank" rel="noopener" style="width:100%;justify-content:center;margin-top:14px;text-decoration:none">Diagnose on LG → <span style="opacity:.8;font-weight:400;margin-left:4px">LGHVACService · Partner Portal</span></a>
     <div style="margin-top:10px;font-size:11.5px;color:var(--text-faint)">Opens LG's B2B partner portal (LGHVACService login). Summary above is a field reference — always verify against the unit's service manual.</div>
@@ -3586,10 +3713,10 @@ let toastT;function toast(msg){let t=document.getElementById("toast");if(!t){t=d
     let x=Math.min(window.innerWidth-bw-8,Math.max(8,r.left+r.width/2-bw/2)),y=r.bottom+8;if(y+bh>window.innerHeight-8)y=Math.max(8,r.top-bh-8);
     box.style.left=x+"px";box.style.top=y+"px";};
   const hide=()=>{cur=null;if(box)box.classList.remove("show");};
-  document.addEventListener("mouseover",e=>{const t=e.target.closest&&e.target.closest(".ii");if(t)show(t);else if(cur)hide();});
-  document.addEventListener("focusin",e=>{const t=e.target.closest&&e.target.closest(".ii");if(t)show(t);});
+  document.addEventListener("mouseover",e=>{const t=e.target.closest&&e.target.closest(".ii,.cy-ti");if(t)show(t);else if(cur)hide();});
+  document.addEventListener("focusin",e=>{const t=e.target.closest&&e.target.closest(".ii,.cy-ti");if(t)show(t);});
   document.addEventListener("focusout",hide);
-  document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest(".ii");if(t){e.stopPropagation();e.preventDefault();if(cur===t&&box&&box.classList.contains("show")&&e.detail===0)hide();else show(t);}else hide();},true);
+  document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest(".ii,.cy-ti");if(t){e.stopPropagation();e.preventDefault();if(cur===t&&box&&box.classList.contains("show")&&e.detail===0)hide();else show(t);}else hide();},true);
   window.addEventListener("scroll",hide,true);})();
 function snowBurst(icon){let l=document.getElementById("fxlayer");if(!l){l=document.createElement("div");l.id="fxlayer";document.body.appendChild(l);}
   l.innerHTML="";for(let i=0;i<44;i++){const f=document.createElement("div");f.className="flake";f.textContent=icon;

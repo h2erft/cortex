@@ -2,6 +2,32 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.5 — 2026-11-15 (refrigerant diagram rework · charge check · field reference)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.4. Changes `cortex.html` only._
+
+- **Outdoor fan animation fixed.** The blades were rotating around the icon's corner (SVG
+  `transform-origin:center` resolves against the view box, whose origin is not the icon centre), so the
+  fan swung out of its tile. It now spins in place, with four blades and a shroud ring.
+- **Refrigerant diagram redrawn** after studying the cycle view in LG's service software for Multi V IV
+  heat pump and heat recovery. The outdoor unit now shows the split coil with both main EEVs, the
+  subcooler and its EEV, the 4-way valve, the accumulator, both compressors with their own discharge
+  temperatures, and where the pressure / temperature sensors sit. Heat-recovery systems get three pipes
+  (liquid, high-pressure gas, low-pressure gas) and each indoor unit's pipes follow that unit's own mode.
+  Sub frames are summarised in a line each. Every part has hover / tap help. The drawing is our own.
+- **Charge check** (button on each outdoor unit): compares live readings with LG's refrigerant charge
+  determination ranges for today's outdoor temperature band, in cooling or heating.
+- **Field reference** (button on the cycle page): fault-level behaviour, comm-bus voltages, thermistor
+  and EEV resistances, fan-motor check, protection limits, separated-frame piping limits and oil traps,
+  HR box addressing and port capacity.
+- **Error reference** grew from 31 to 56 codes, each can carry a field check and how LG's logic reacts.
+  Corrected: CH22 is AC input over-current (was "DC link over-voltage"), CH45 is the outdoor coil pipe
+  sensor (was "compressor overload").
+- The "another Cortex screen is already connected" message now says whether it is the controller's own
+  poller or another screen, and that nothing is wrong.
+- Not verified on equipment: the diagram's flow directions on a heat-recovery system in mixed mode are
+  inferred from each unit's mode, because HR box valve states are not on this bus.
+
 ## v1.7.0-beta.4 — 2026-11-15 (phone layout)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.3. Changes `cortex.html` only._

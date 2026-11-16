@@ -277,3 +277,17 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   and everything in `decodeOduPage` are °C. Convert at the display edge.
 - The operator sometimes numbers betas himself. The tag he publishes wins; the Action stamps the
   version from the tag, not from `appliance/VERSION`.
+
+## 1.7.0-beta.4 / beta.5 addendum (2026-11-15)
+
+- beta.4: phone layout (slide-out nav under 860 px, bottom-sheet modals). The phone CSS block sits at the
+  **end** of the main `<style>` so it wins over later component rules — keep it last.
+- beta.5: `oduDiagram()` was redrawn. Layout constants are at the top of the function; pipes are drawn in
+  the direction of flow (the dash animation follows path direction). SVG parts get help by adding
+  `class="cy-ti" data-tip=…` (the tooltip engine matches `.ii,.cy-ti`).
+- SVG gotcha: `transform-origin:center` on an element inside an SVG whose viewBox does not start at 0,0
+  rotates around the wrong point. Use `transform-origin:0 0` with a centred viewBox (see `fanSvg`).
+- `LG_CHARGE` / `chargeBand()` hold LG's charge-determination ranges (psig / °F). `ERRORS` entries may
+  carry `chk` (field check) and `lv` (`comm` | `auto`, see `ERR_LEVELS`).
+- LG's software stores its cycle-view pictures as Qt resources inside the executable. They were looked at
+  for component placement only. Do not commit them or trace them.
