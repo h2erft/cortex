@@ -2,6 +2,31 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.6 — 2026-11-15 (diagnosis: guided checks · cycle diagnosis · more outdoor data)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.5. Changes `cortex.html` only._
+
+- **Guided diagnosis.** Error pages for 50 codes get a "Diagnose step by step" button: one check at a
+  time in the order LG's flowcharts use, with what Cortex can already see beside the question (pressures,
+  fan speeds, volts, unit counts), a likely-cause card when a check fails, and "Copy notes" for the ticket.
+- **Cycle diagnosis.** A rule set that counts how many signs of a known fault pattern are present: low
+  charge, overcharge (cooling and heating), indoor EEV partly / fully blocked (per unit), outdoor unit
+  re-breathing hot air, and three "a sensor is lying" checks. Patterns come from the cycle-diagnosis
+  guides built into LG's service software; wording is ours. Charge patterns pause when units heat and
+  cool at once. Flagged indoor units get a marker on the refrigerant diagram.
+- **Health score** per system (rough guide, 0–100) on the outdoor unit header.
+- **More outdoor data from the same pages** (was being read but not decoded): upper / lower coil
+  temperatures, vapor-injection EEVs, oil-equalising EEV, fan amps, inverter phase amps, heat sink raw
+  values, fan step, and 16 on/off states (hot gas bypass, variable path, suction injection, receiver
+  in / out, crankcase heaters, oil level sensors, cooling fan, split defrost, snow removal, backup).
+  **Decoded from a reference table; not yet checked against equipment.**
+- **Error reference** now covers every code LG's software lists for Multi V IV heat pump and heat
+  recovery (82 entries). CH105 corrected to fan PCB comms.
+- **Field reference**: thermistor resistance for any temperature (pipe / air / discharge), and LG's
+  test-run pass ranges for Multi V IV.
+- Not done: the cycle-diagnosis rules run in the browser, so they do not raise alerts while no screen is
+  open; thresholds are LG's published ones and have not been tuned on a live system.
+
 ## v1.7.0-beta.5 — 2026-11-15 (refrigerant diagram rework · charge check · field reference)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.4. Changes `cortex.html` only._

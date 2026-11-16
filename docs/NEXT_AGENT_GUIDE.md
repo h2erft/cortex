@@ -291,3 +291,24 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   carry `chk` (field check) and `lv` (`comm` | `auto`, see `ERR_LEVELS`).
 - LG's software stores its cycle-view pictures as Qt resources inside the executable. They were looked at
   for component placement only. Do not commit them or trace them.
+
+## 1.7.0-beta.6 addendum (2026-11-15) — diagnosis
+
+- `cycleDiagnose(o)` returns `{state, list}`; each finding has `signs` (hit / not hit), `lvl`
+  (`possible` | `likely`) and optional `who` (indoor unit id). `rule(..., need)` takes
+  `[minSigns, likelySigns, [indexes that must hit]]`. `sysHealth(o)` is a rough 0–100 score.
+- `DIAG[code]` is an array of steps `{q, how, bad:"yes"|"no", fix, live?(ctx), info?}`;
+  `openDiagnose(code, unitId?)` runs it. `DG_SENSOR`, `DG_COMP`, `DG_COMM_IO` are shared templates.
+- `decodeOduPage` now also returns the page-0 fields listed in the changelog. Byte map: 30/31 upper /
+  lower coil, 37 oil EEV, 38/39 VI EEVs, 46/47 fan amps (÷10), 48 and 62 inverter phase amps (÷5),
+  52/54 heat sink (scaling unknown), 57–61 flag bits. **Unverified on equipment.**
+- **What is inside LG's service software (read 2026-11-15, nothing copied into the repo):** it is a Qt
+  program with its resources compiled in. Besides the cycle-view pictures there are nine troubleshooting
+  guides (refrigerant shortage, overcharge, indoor EEV blockage, outdoor air circulation, three sensor
+  checks, high humidity, refrigerant noise), an error-code → guide-page map per product line (which is
+  where the full Multi V IV code list came from), test-run report templates with pass ranges, and a table
+  of 105 installer settings the program can read / write over the service port (central address, E.S.P.
+  steps, static pressure, sensor selection, …). The last one is a lead for the UART work, not a feature.
+- Ideas not done: run `cycleDiagnose` on the controller so findings raise alerts and land in Fault
+  history; a printable service report; tune thresholds against recorded site data; show HR box valve
+  states once the service-port path works.

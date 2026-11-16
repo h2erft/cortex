@@ -76,6 +76,7 @@ const STREAM = [   // a central controller polling 4 indoor units and one outdoo
     out.oduMain = pick(us[0]); out.oduSub = pick(us[1]); out.oduPages = o ? Object.keys(o.pages).join(',') : '';
     out.oduHtml = oduCards([...ODU.values()]).length > 500 && oduDiagrams([...ODU.values()]).includes('<svg');
     out.charge = [chargeBand('cool', 25).b.hp[0], chargeBand('cool', 25).exact, chargeBand('heat', -10).b.lp[1], chargeBand('cool', 45).exact, ERRORS.CH22.t, !!ERRORS.CH104.lv, fanSvg(500).includes('rotate(270)')].join('|');
+    out.dx = [rtLookup('pipe', 25), Math.round(rtLookup('air', 0) * 10) / 10, DIAG.CH104.length > 3, Object.keys(DIAG).every(k => ERRORS[k]), Object.keys(ERRORS).length >= 80, typeof decodeOduPage(new Array(64).fill(0)).hotGas, decodeOduPage((() => { const f = new Array(64).fill(0); f[60] = 0x80; f[38] = 5; return f; })()).eevVi1].join('|');
     out.inv = JSON.stringify(decodeOduInventory([(() => { const f = new Array(64).fill(0); f[11] = 3; [0x40, 0x11, 0x40, 0x12, 0x30, 0x21, 0x99, 0x99].forEach((x, i) => f[16 + i] = x); return f; })()]).list.map(e => e.addr));
     out.logTypes = [...new Set(bus.log.map(d => d.type))].sort().join(',');
     return out;
