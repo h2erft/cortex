@@ -46,7 +46,7 @@ cp -f "$HERE/server.js" "$HERE/package.json" "$HERE/VERSION" "$HERE/cortex-updat
 [ -f "$HERE/cortex.sudoers" ] && cp -f "$HERE/cortex.sudoers" "$REL/$VER"/ || true
 cp -f "$HERE/cortex-appliance.service" "$HERE/cortex-updater.service" "$HERE/cortex-updater.timer" "$REL/$VER"/ 2>/dev/null || true
 chmod +x "$REL/$VER/cortex-update.sh"
-for f in cortex.html command-center.html setup.html LGAP_reference.md; do
+for f in cortex.html command-center.html room.html setup.html LGAP_reference.md; do
   [ -f "$UIDIR/$f" ] && cp -f "$UIDIR/$f" "$REL/$VER"/ || true
   [ -f "$HERE/$f"  ] && cp -f "$HERE/$f"  "$REL/$VER"/ || true
 done

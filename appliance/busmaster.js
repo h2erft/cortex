@@ -60,7 +60,7 @@ function replyPatch(p, held, now) {
   o.room = p.room != null ? toF(p.room) : null;
   if (p.pipeIn != null) o.pipeIn = toF(p.pipeIn);
   if (p.pipeOut != null) o.pipeOut = toF(p.pipeOut);
-  o.err = !!p.err; o.code = p.err ? ('CH' + p.err) : null;
+  o.err = !!p.err; o.code = p.err ? ('CH' + String(p.err).padStart(2, '0')) : null;   // CH04, not CH4: the same name the error reference uses
   o.eev = p.eev; o.capK = p.cap; o.sysLoad = p.load; o.autoSide = p.autoSide; o.filterSign = !!p.filter; o.oilAlarm = !!p.oilAlarm;
   o.offline = false; o.seen = now;
   return o;

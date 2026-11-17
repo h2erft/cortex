@@ -4,6 +4,7 @@
 const { app, BrowserWindow, Tray, Menu, shell, ipcMain, Notification, nativeImage } = require('electron');
 const path = require('path'), fs = require('fs'), os = require('os'), { spawn } = require('child_process');
 const U = require('./updater');
+const bridge = require('./bridge');
 
 const REPO = 'h2erft/cortex';
 const OPT_FILE = () => path.join(app.getPath('userData'), 'app-options.json');
@@ -84,6 +85,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     ipcMain.handle('update:check', () => check(true));
     ipcMain.handle('update:install', () => install());
     ipcMain.handle('app:show', () => { show(); return true; });
+    ipcMain.handle('ctl:request', (_e, req) => bridge.send(req));        // allow-listed requests to a building's controller (bridge.js)
     ipcMain.handle('app:notify', (_e, n) => { if (!Notification.isSupported()) return false; const x = new Notification({ title: n.title, body: n.body, icon: icon() }); x.on('click', show); x.show(); return true; });
     setTimeout(() => check(false), 15000); setInterval(() => check(false), 6 * 3600000);
   });

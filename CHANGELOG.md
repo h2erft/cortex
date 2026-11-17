@@ -4,11 +4,84 @@ All notable changes to Cortex. Dates are when the work landed on `main`.
 
 ## Unreleased (next: v1.7.0-beta.16)
 
-_Collecting changes; not tagged yet._
+_Collecting changes; not tagged yet. Changes `cortex.html`, `command-center.html`, `appliance/server.js`,
+`busmaster.js`, `recorder.js`, `command-app/`; adds `room.html`, `appliance/occupant.js`,
+`appliance/commandstore.js`, `command-app/bridge.js`, `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`,
+and tests `backup`, `occupant`, `commandstore`, `command-bridge`, `demo`._
+
+### Cortex
+
+**Added**
+- **Demo building.** A pretend site (22 units, two outdoor units, a live fault, a low-charge system, a
+  recorded high-pressure trip, schedules, trends) for training and showing customers. Open it from the
+  sign-in screen, first-time setup, Settings ▸ Advanced, or `?demo`. It runs inside one browser tab:
+  nothing is saved, nothing is sent to a controller or to equipment. See `docs/DEMO_BUILDING.md`.
+- **Fault report.** Fault history ▸ a fault ▸ **Fault report** prints one document (or saves a PDF): the
+  code and what it means, the readings just before it, charts around it, the checks to make with tick
+  boxes, and space for notes and a signature.
+- **Trends to CSV.** The Trends dialog has a **CSV** button: every reading and every column, in the
+  temperature unit you use.
+- **Occupant view (off by default).** Settings ▸ Advanced ▸ Room pages for occupants. Make a link for a
+  room; whoever has it sees that room and can adjust the temperature inside limits you set. Off means
+  off: every link answers "not available". See `docs/OCCUPANT_VIEW.md`.
+- **Screens feel alive.** Screens ease in, headline numbers count up, buttons give under a press, a
+  changed setpoint bumps, a sent command gets a tick. One switch turns it all off (Settings ▸ Display ▸
+  Animations), and it follows the system's "reduce motion" setting.
 
 **Changed**
-- Cortex Command ▸ Settings ▸ Appearance: the colour choice is a row of colour circles, as in Cortex,
-  instead of named buttons.
+- **Locks show what is set, and a tap flips it.** In the multi-unit dialog each lock button shows locked,
+  unlocked or "2 of 8 locked"; tap to switch. New **Unlock everything** and **Lock everything**. The
+  single-unit buttons say locked / unlocked the same way. Hard lock is read back from every unit on
+  every poll. Mode, Fan and Temp locks cannot be read from a thermostat, so they show what Cortex last
+  sent.
+- **Backup lets you choose what goes in the file:** site details and limits, logins and access codes,
+  units, schedules, floor plans (now with the pictures), display preferences. **Restore** shows what a
+  file holds and brings back only the parts you tick; everything else is left alone. Older backup files
+  still restore.
+
+**Fixed**
+- **Error codes 1 to 9 were not recognised when they came from live equipment.** A unit reporting
+  error 4 was labelled "CH4", which the error reference does not know, so the error page said
+  "Unrecognized code" and offered no diagnosis. Codes are now CH04-style everywhere (page, controller
+  poller, fault recorder), and old "CH4" records are read as CH04.
+- **Error reference corrected against LG's Multi V S and Multi V IV service manuals.** CH27 was described
+  as a high-pressure trip; it is a PSC/PFC fault on the inverter's input stage. CH59 is "a smaller frame
+  is set as main". CH71 is the converter-side current sensor. CH105 names the right boards for each
+  generation. CH116 (oil level sensor) added. CH35, CH36, CH46, CH51, CH60 gained LG's thresholds and
+  checks. CH38 is flagged as not in LG's tables. CH242 explains the outdoor display's different meaning.
+
+### Cortex Command
+
+**Added**
+- **Sync between computers.** Settings ▸ Sync. One copy of your buildings, notes, technicians, grants and
+  acknowledgements lives on a controller you choose; every Command pointed at it matches. A new computer
+  can pick everything up from the first screen.
+- **Find any unit.** The Buildings search box now searches every unit in every building: a room name, a
+  code such as CH05, "offline", "filter".
+- **Acknowledge and snooze.** Mark an alert as seen, with a note; snooze a building for 1, 4 or 24 hours
+  or until 7 am. Acknowledged alerts stop counting as new, the Alerts tab shows how many are new, and the
+  briefing lists them under "Already in hand" and "Snoozed". An acknowledgement clears itself when the
+  fault clears.
+- **Repeat offenders.** Alerts tab: the units and outdoor units that faulted most in 30 days.
+- **Building notes and a service log.** Site contact, how to get in, equipment, and dated visit entries,
+  in each building's Details.
+- **Building report.** Details ▸ **Report** prints a one-page 30-day summary for a customer: time online,
+  faults and how long they took to clear, a day-by-day strip, open advisories, service visits.
+- **Controller software.** Settings ▸ Controller software lists every controller's version and whether an
+  update is waiting. The Windows app can start the update (one or all); a browser copy offers Open.
+- Unit names from each building are used everywhere (alerts, briefing, details) instead of bus names.
+- Motion: cards and numbers ease in when a tab opens, windows twinkle, dialogs pop.
+
+**Changed**
+- Settings ▸ Appearance: the colour choice is a row of colour circles, as in Cortex.
+- Command keeps a daily roll-up of each building for 120 days (for the report), as well as the 7 days of
+  15-minute samples.
+
+### Not verified
+- Windows app: sync and "start update" go through the app's own sender, which has unit tests but has not
+  been run on Windows.
+- Occupant view, lock buttons and the fault report were tested against the built-in simulator and a local
+  controller, not real equipment.
 
 ## v1.7.0-beta.15 — 2026-11-16 (Cortex Command: Windows app with its own updates, daily briefing, richer buildings)
 

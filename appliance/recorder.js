@@ -55,7 +55,7 @@ function createRecorder(opts) {
     const q = openFor('silent', a); if (q && !c.offline) clearEvents('silent', a, t); if (!q && c.offline) openEvent('silent', a, null, c.name, t);
   }
   function reconcileOdu(a, err, t) {
-    const code = err ? 'CH' + err : null, e = openFor('odu', a); if (e && e.code !== code) clearEvents('odu', a, t);
+    const code = err ? 'CH' + String(err).padStart(2, '0') : null, e = openFor('odu', a); if (e && e.code !== code) clearEvents('odu', a, t);
     if (code && !(e && e.code === code)) openEvent('odu', a, code, 'Outdoor unit', t);
   }
   const saveIndex = () => { try { fs.mkdirSync(EVDIR, { recursive: true }); fs.writeFileSync(INDEX + '.tmp', JSON.stringify(index)); fs.renameSync(INDEX + '.tmp', INDEX); } catch (e) { if (opts.log) opts.log('event index save failed: ' + e.message); } };
@@ -104,7 +104,7 @@ function createRecorder(opts) {
       if (c.offline && !p.offline) openEvent('silent', a, null, c.name, t);
       if (!c.offline && p.offline) clearEvents('silent', a, t); }
     for (const [a, e] of cur.odu) { const p = seen.odu.get(a); if (p === undefined) { if (!started.odu.has(a)) { started.odu.add(a); reconcileOdu(a, e, t); } continue; }
-      if (e && e !== p) openEvent('odu', a, 'CH' + e, 'Outdoor unit', t);
+      if (e && e !== p) openEvent('odu', a, 'CH' + String(e).padStart(2, '0'), 'Outdoor unit', t);
       if (!e && p) clearEvents('odu', a, t); }
     if (prev) for (const [a, p] of prev.odu) if (!cur.odu.has(a)) cur.odu.set(a, p);      // outdoor page went stale for a moment: remember its last error so its return is not a "new" fault
     prev = cur;

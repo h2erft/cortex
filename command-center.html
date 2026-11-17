@@ -165,6 +165,48 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 .site .foot{flex-wrap:wrap}.site .foot .grow{flex:1 1 100%}.site .foot .btn:not(.grow){flex:1}
 .bgroup{border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:var(--surface)}.bg-h{display:flex;gap:10px;align-items:center;margin-bottom:4px}.bg-r{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--border)}.bg-r .tname{font-size:13.5px;font-weight:550}
 .bdot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:var(--text-faint)}.bdot.err{background:var(--err)}.bdot.warn{background:var(--warn)}.bdot.ok{background:var(--ok)}.bdot.off{background:var(--text-faint)}
+/* ===== Motion =====
+   Entrance effects run only when a tab or dialog is opened (.enter / .pop), never on the 20-second refresh.
+   All of it is off with Settings ▸ Appearance ▸ Animations, or the system's "reduce motion" setting. */
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes drawLine{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes twinkle{0%,100%{opacity:1}45%{opacity:.35}}
+@keyframes ringIn{from{opacity:0;transform:rotate(-70deg) scale(.82)}to{opacity:1;transform:none}}
+@keyframes growX{from{transform:scaleX(0)}to{transform:none}}
+@keyframes okPing{0%{box-shadow:0 0 0 0 rgba(46,157,106,.45)}100%{box-shadow:0 0 0 14px rgba(46,157,106,0)}}
+@keyframes errDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}
+html:not(.no-motion) .enter .kpi,html:not(.no-motion) .enter .site,html:not(.no-motion) .enter .agroup,html:not(.no-motion) .enter .panel,html:not(.no-motion) .enter .setpage{animation:riseIn .34s cubic-bezier(.2,.8,.3,1) both}
+html:not(.no-motion) .enter .site:nth-child(2),html:not(.no-motion) .enter .kpi:nth-child(2),html:not(.no-motion) .enter .agroup:nth-child(2){animation-delay:0.04s}html:not(.no-motion) .enter .site:nth-child(3),html:not(.no-motion) .enter .kpi:nth-child(3),html:not(.no-motion) .enter .agroup:nth-child(3){animation-delay:0.09s}html:not(.no-motion) .enter .site:nth-child(4),html:not(.no-motion) .enter .kpi:nth-child(4),html:not(.no-motion) .enter .agroup:nth-child(4){animation-delay:0.14s}html:not(.no-motion) .enter .site:nth-child(5),html:not(.no-motion) .enter .kpi:nth-child(5),html:not(.no-motion) .enter .agroup:nth-child(5){animation-delay:0.18s}html:not(.no-motion) .enter .site:nth-child(6),html:not(.no-motion) .enter .kpi:nth-child(6),html:not(.no-motion) .enter .agroup:nth-child(6){animation-delay:0.22s}html:not(.no-motion) .enter .site:nth-child(7),html:not(.no-motion) .enter .kpi:nth-child(7),html:not(.no-motion) .enter .agroup:nth-child(7){animation-delay:0.27s}html:not(.no-motion) .enter .site:nth-child(8),html:not(.no-motion) .enter .kpi:nth-child(8),html:not(.no-motion) .enter .agroup:nth-child(8){animation-delay:0.32s}html:not(.no-motion) .enter .site:nth-child(9),html:not(.no-motion) .enter .kpi:nth-child(9),html:not(.no-motion) .enter .agroup:nth-child(9){animation-delay:0.36s}html:not(.no-motion) .enter .site:nth-child(10),html:not(.no-motion) .enter .kpi:nth-child(10),html:not(.no-motion) .enter .agroup:nth-child(10){animation-delay:0.40s}html:not(.no-motion) .enter .site:nth-child(11),html:not(.no-motion) .enter .kpi:nth-child(11),html:not(.no-motion) .enter .agroup:nth-child(11){animation-delay:0.45s}html:not(.no-motion) .enter .site:nth-child(12),html:not(.no-motion) .enter .kpi:nth-child(12),html:not(.no-motion) .enter .agroup:nth-child(12){animation-delay:0.49s}
+html:not(.no-motion) .enter .sline{stroke-dasharray:1;animation:drawLine 1.1s .15s ease-out both}
+html:not(.no-motion) .enter .site svg:not(.sart),html:not(.no-motion) .pop .mb>div svg[width="84"]{animation:ringIn .5s cubic-bezier(.2,.9,.3,1.1) both;transform-origin:center}
+html:not(.no-motion) .enter .obar i{animation:growX .6s ease-out both;transform-origin:left}
+html:not(.no-motion) .sart .w-on:nth-of-type(11n+3){animation:twinkle 6s ease-in-out infinite}html:not(.no-motion) .sart .w-on:nth-of-type(17n+5){animation:twinkle 9s 2s ease-in-out infinite}html:not(.no-motion) .sart .w-on:nth-of-type(23n+1){animation:twinkle 7s 4s ease-in-out infinite}
+html:not(.no-motion) .modal.pop{animation:popIn .22s cubic-bezier(.2,.9,.3,1.15) both}html:not(.no-motion) .scrim.pop{animation:fadeIn .16s ease both}
+html:not(.no-motion) .pop .bgroup{animation:riseIn .3s ease both}html:not(.no-motion) .pop .bgroup:nth-of-type(2){animation-delay:.07s}html:not(.no-motion) .pop .bgroup:nth-of-type(3){animation-delay:.14s}html:not(.no-motion) .pop .bgroup:nth-of-type(n+4){animation-delay:.2s}
+html:not(.no-motion) .btn,html:not(.no-motion) .tab,html:not(.no-motion) .icon-btn,html:not(.no-motion) .setnav button{transition:transform .08s ease,background .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease}
+html:not(.no-motion) .btn:active,html:not(.no-motion) .icon-btn:active,html:not(.no-motion) .tab:active{transform:scale(.95)}
+html:not(.no-motion) .btn.primary:hover{box-shadow:0 3px 12px color-mix(in srgb,var(--accent) 35%,transparent)}
+html:not(.no-motion) .site{transition:transform .18s cubic-bezier(.2,.8,.3,1),box-shadow .18s,border-color .15s}html:not(.no-motion) .site:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+html:not(.no-motion) .pill.err .pdot{animation:errDot 1.6s ease-in-out infinite}
+html:not(.no-motion) .toast{transition:opacity .22s ease,transform .32s cubic-bezier(.2,1.2,.3,1)}
+html:not(.no-motion) .toast.ok::before{content:"✓";display:inline-block;margin-right:8px;width:18px;height:18px;line-height:18px;text-align:center;border-radius:50%;background:#2e9d6a;color:#fff;font-size:12px;animation:okPing .7s ease-out}
+html:not(.no-motion) .swt i{transition:transform .2s cubic-bezier(.2,1.3,.4,1)}html:not(.no-motion) .tbadge{animation:popIn .25s ease both}
+.kpi .n{font-variant-numeric:tabular-nums}
+@media(prefers-reduced-motion:reduce){.enter *,.pop,.pop *,.sart .w-on,.pill.err .pdot{animation:none!important}}
+.tbadge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--err);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;margin-left:4px}
+.agroup{border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:10px;overflow:hidden}.agroup.snz{opacity:.62}.ag-h{display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}.agroup .trow.acked .pill,.agroup .trow.acked .tname{opacity:.55}
+.sm-sel{width:auto;padding:5px 8px;font-size:12.5px;margin:0}.obar{width:110px;height:7px;border-radius:4px;background:var(--border);overflow:hidden;flex:none}.obar i{display:block;height:100%;background:var(--err);border-radius:4px}
+.urow{cursor:pointer}.urow:hover{background:var(--surface-2,rgba(127,127,127,.06))}.sec-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:18px}.sec-row .sec{margin:0 0 8px}
+.linkbtn{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:0;text-decoration:underline}textarea.inp{resize:vertical;font-family:inherit}
+#printdoc{display:none}
+@media print{body.print-doc>*:not(#printdoc){display:none!important}html,body.print-doc{background:#fff!important;height:auto!important;overflow:visible!important;zoom:1!important}body.print-doc #printdoc{display:block;color:#111;font-size:11.5px;line-height:1.45}@page{margin:14mm}}
+#printdoc h1{font-size:20px;margin:0}#printdoc h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.5px;margin:18px 0 7px;padding-bottom:3px;border-bottom:1.5px solid #111}#printdoc p{margin:8px 0}
+.pd-head{display:flex;gap:16px;align-items:flex-start;border-bottom:2px solid #0e7c66;padding-bottom:10px}.pd-brand{display:flex;gap:8px;align-items:center}.pd-brand b{display:block;font-size:14px}.pd-brand small{color:#555;font-size:10px}.pd-title{flex:1}.pd-title div{color:#444;margin-top:2px}.pd-site{text-align:right;font-size:10.5px;color:#444}.pd-site b{font-size:12px;color:#111}
+.pd-tiles{width:100%;border-collapse:collapse}.pd-tiles td{border:1px solid #bbb;padding:8px 10px;width:20%}.pd-tiles b{display:block;font-size:19px}.pd-tiles small{color:#555;font-size:10.5px}
+.pd-list{width:100%;border-collapse:collapse}.pd-list td,.pd-list th{padding:4px 6px;border-bottom:1px solid #ccc;text-align:left;vertical-align:top}.pd-list th{font-size:10px;text-transform:uppercase;color:#555}.pd-list tr{break-inside:avoid}
+.pd-key{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:#444;margin-top:4px}.pd-key i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}.pd-note{color:#555;font-size:10px}
 .swatches{display:flex;gap:10px}.swatch{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0}.swatch.on{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
 .updbar{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:60;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);padding:10px 14px;font-size:13.5px;max-width:calc(100vw - 24px)}
 .login-logo{display:flex;align-items:center;gap:10px}
@@ -236,7 +278,7 @@ function loadAcct(){try{return JSON.parse(localStorage.getItem("cortex_cmd_acct"
 function saveAcct(a){try{localStorage.setItem("cortex_cmd_acct",JSON.stringify(a));}catch(e){}}
 function genRecovery(name){const base=(name||"CMD").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,6)||"CMD";const g=()=>Math.random().toString(16).slice(2,6).toUpperCase();return "CORTEX-"+base+"-"+g()+"-"+g();}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-let DB=load()||seed();
+let DB=load()||seed();DB.acks=DB.acks||{};DB.snooze=DB.snooze||{};
 /* per-user preferences (scoped to the signed-in owner account) */
 const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites",idleMin:15,accent:"slate",textSize:"normal",showHealth:true,popAlerts:true,cardArt:true,motion:true,briefing:true,briefHour:4,winNotify:true};
 let PREFS=loadPrefs();
@@ -261,8 +303,12 @@ async function pollSite(s){const base=siteUrl(s);if(!base){s.online=false;return
   try{const j=await getJ(base+"/health",3000);s.online=!!j.ok;if(j.version)s.ver=j.version;}catch(e){s.online=false;}
   if(!s.online){delete LIVE[s.id];return;}
   const L=LIVE[s.id]||(LIVE[s.id]={});
-  try{const u=(await getJ(base+"/api/units")).units||[];L.units=u.length;L.on=u.filter(x=>x.on&&!x.offline).length;L.offline=u.filter(x=>x.offline).length;
-    L.errs=u.filter(x=>x.err||x.code).map(x=>({name:x.name||("0x"+Number(x.addr).toString(16).toUpperCase()),code:x.code||("CH"+x.err)}));s.units=L.units;s.err=L.errs.length;
+  if(!L.metaAt||Date.now()-L.metaAt>600000){try{const c=await getJ(base+"/api/appconfig");L.meta=(c&&c.unitMeta)||{};L.metaAt=Date.now();}catch(e){}}   // only the unit names and groups are kept from this
+  if(!L.updAt||Date.now()-L.updAt>1800000){L.updAt=Date.now();getJ(base+"/api/update/check",9000).then(j=>{L.upd=j;if(tab==="settings"&&setSec==="controllers"&&!$("scrim").classList.contains("show"))renderSettings();}).catch(()=>{});}
+  try{const u=(await getJ(base+"/api/units")).units||[];L.units=u.length;
+    const M=L.meta||{},nm=x=>{const m=M[x.name],l=String(x.label||"").trim();return (m&&m.alias)||((!l||/^Addr 0x/i.test(l))?"Unit "+(x.id!=null?x.id:"0x"+Number(x.addr).toString(16).toUpperCase()):l);},cd=x=>(x.err||x.code)?String(x.code||("CH"+x.err)).replace(/^CH(\d)$/,"CH0$1"):null;
+    L.list=u.map(x=>({a:x.addr,n:nm(x),g:(M[x.name]&&M[x.name].floor)||"",on:!!x.on&&!x.offline,m:x.mode,r:x.room,sp:x.mode==="heat"?x.heatC:x.coolC,c:x.offline?null:cd(x),off:!!x.offline,f:!!x.filterSign}));L.on=u.filter(x=>x.on&&!x.offline).length;L.offline=u.filter(x=>x.offline).length;
+    L.errs=u.filter(x=>x.err||x.code).map(x=>({name:nm(x),code:cd(x)}));s.units=L.units;s.err=L.errs.length;
     L.cool=u.filter(x=>x.on&&!x.offline&&x.mode==="cool").length;L.heat=u.filter(x=>x.on&&!x.offline&&x.mode==="heat").length;const rs=u.filter(x=>!x.offline&&typeof x.room==="number").map(x=>x.room);L.avgRoom=rs.length?rs.reduce((a,b)=>a+b,0)/rs.length:null;
     L.filters=u.filter(x=>x.filterSign).length;L.locked=u.filter(x=>x.hardLock||x.tempLock||x.modeLock||x.fanLock).length;}catch(e){}
   if(!L.oduAt||Date.now()-L.oduAt>300000){try{const o=await getJ(base+"/api/odu");L.odus=Object.keys(o.odu||{}).length;L.oduAt=Date.now();}catch(e){}}
@@ -270,7 +316,7 @@ async function pollSite(s){const base=siteUrl(s);if(!base){s.online=false;return
   try{const d=await getJ(base+"/api/diag");L.adv=(d.advisories||[]).filter(a=>!a.cleared);const hs=Object.values(d.health||{}).filter(h=>Date.now()-h.at<600000).map(h=>h.score);L.health=hs.length?Math.min(...hs):null;L.healthAll=Object.entries(d.health||{}).filter(([a,h])=>h&&Date.now()-h.at<600000).map(([a,h])=>({addr:"0x"+(+a).toString(16).toUpperCase(),score:h.score}));}catch(e){L.adv=L.adv||null;L.health=null;}
   L.at=Date.now();s.seen=L.at;}
 function siteSig(s){const L=LIVE[s.id]||{};return [s.online,s.err||0,(L.adv||[]).length,L.offline||0].join("|");}
-function fleetNotice(before){const msgs=[];DB.sites.forEach((s,i)=>{const b=before[i].split("|"),a=siteSig(s).split("|");
+function fleetNotice(before){const msgs=[];DB.sites.forEach((s,i)=>{if(snoozed(s))return;const b=before[i].split("|"),a=siteSig(s).split("|");
     if(b[0]==="true"&&a[0]==="false")msgs.push(s.name+" went offline");else if(+a[1]>+b[1])msgs.push(s.name+": "+(+a[1])+" unit"+(+a[1]>1?"s":"")+" in error");else if(+a[2]>+b[2])msgs.push(s.name+": new diagnosis advisory");else if(+a[3]>+b[3])msgs.push(s.name+": a unit stopped answering");});
   if(!msgs.length||!fleetPrimed)return;
   if(APP&&PREFS.winNotify!==false&&(document.hidden||!document.hasFocus())){try{APP.notify(msgs.length>1?msgs.length+" building alerts":"Cortex Command",msgs.slice(0,3).join("\n")+(msgs.length>3?"\n+"+(msgs.length-3)+" more":""));}catch(e){}}
@@ -287,11 +333,11 @@ async function pollAllSites(){if(!DB.sites.length){if(briefWait){briefWait=false
   await Promise.all(DB.sites.map(pollSite));
   setTimeout(()=>brandMark(false),Math.max(0,1400-(Date.now()-pollBusyAt)));histNote();
   if(briefWait&&sessionStorage.getItem("cortex_cmd_in")){briefWait=false;setTimeout(()=>briefing(false),300);}
-  const changed=DB.sites.some((s,i)=>siteSig(s)!==before[i]);fleetNotice(before);fleetPrimed=true;
+  const changed=DB.sites.some((s,i)=>siteSig(s)!==before[i]);fleetNotice(before);fleetPrimed=true;ackPrune();tabBadges();
   if(changed)save();if(!$("scrim").classList.contains("show")){if(tab==="sites"&&document.activeElement!==$("site-search"))renderSites();renderKpis();if(tab==="alerts")renderAlerts();if(changed)renderAudit();}}
 function startHealthPolling(){if(healthTimer)clearInterval(healthTimer);pollAllSites();healthTimer=setInterval(()=>{if(PREFS.autorefresh!==false)pollAllSites();},20000);}
 function load(){try{return JSON.parse(localStorage.getItem("cortex_command"));}catch(e){return null;}}
-function save(){try{localStorage.setItem("cortex_command",JSON.stringify(DB));}catch(e){}if(typeof fleetSync==="function")fleetSync();}
+function save(){try{localStorage.setItem("cortex_command",JSON.stringify(DB));}catch(e){}if(typeof fleetSync==="function")fleetSync();if(typeof syncTouch==="function")syncTouch();}
 function log(m){DB.audit.unshift({t:Date.now(),m});DB.audit=DB.audit.slice(0,60);save();}
 
 /* ---------- helpers ---------- */
@@ -305,6 +351,7 @@ function techAccess(tid){const t=DB.techs.find(x=>x.id===tid);const perm=t?t.ass
 
 /* ---------- toast ---------- */
 let tT;function toast(m){let t=$("toast");if(!t){t=document.createElement("div");t.id="toast";t.className="toast";document.body.appendChild(t);}
+  t.classList.toggle("ok",/^(Acknowledged|Synced|Sync is on$|Notes saved|Added to the log|Backup downloaded|Update started|Snoozed|Saved|Link copied)/.test(String(m)));
   t.textContent=m;t.classList.add("show");clearTimeout(tT);tT=setTimeout(()=>t.classList.remove("show"),2400);}
 
 /* ---------- render ---------- */
@@ -340,7 +387,7 @@ function sitePill(s){return !siteUrl(s)?`<span class="pill off"><span class="pdo
   :s.err?`<span class="pill err"><span class="pdot"></span>${s.err} error${s.err>1?'s':''}</span>`
   :`<span class="pill ok"><span class="pdot"></span>Online</span>`;}
 function sitesToolbar(){return `<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-  <input class="inp" id="site-search" placeholder="Search buildings…" value="${siteQuery}" style="flex:1;min-width:160px">
+  <input class="inp" id="site-search" placeholder="Search buildings and units: a room, CH05, offline…" value="${esc(siteQuery)}" style="flex:1;min-width:160px">
   <select class="inp" id="site-sort" style="width:auto"><option value="custom" ${siteSort==="custom"?"selected":""}>Custom order</option><option value="alpha" ${siteSort==="alpha"?"selected":""}>A–Z</option><option value="status" ${siteSort==="status"?"selected":""}>Problems first</option></select>
   <button class="btn primary" id="add-building">+ Add building</button>
   </div>${siteSort==="custom"&&!siteQuery&&PREFS.layout!=="list"&&DB.sites.length>1?'<div style="font-size:11.5px;color:var(--text-faint);margin:-8px 0 12px">Drag cards to reorder.</div>':''}`;}
@@ -359,10 +406,12 @@ function renderSites(){
     const pad=PREFS.density==="compact"?"12px":"16px";
 inner=`<div class="sites">`+list.map(s=>siteCard(s,canDrag,pad)).join("")+`</div>`;
   }
-  $("tab-sites").innerHTML=sitesToolbar()+(list.length?inner:`<div class="note">No buildings yet. Click <b>+ Add building</b> and enter the address of a Cortex appliance — its Tailscale name or IP with the port, like <span class="mono">cortex-site:8080</span> or <span class="mono">100.84.2.17:8080</span>.</div>`);
+  const uq=siteQuery.trim().length>=2?unitResults(siteQuery.trim()):"";
+  $("tab-sites").innerHTML=sitesToolbar()+uq+(list.length?(uq?`<h2 class="sec" style="margin-top:2px">Buildings matching · ${list.length}</h2>`:"")+inner:siteQuery&&DB.sites.length?(uq?"":`<div class="note">Nothing matches “${esc(siteQuery)}”.</div>`):`<div class="note">No buildings yet. Click <b>+ Add building</b> and enter the address of a Cortex appliance — its Tailscale name or IP with the port, like <span class="mono">cortex-site:8080</span> or <span class="mono">100.84.2.17:8080</span>.</div>`);
   $("site-search").oninput=e=>{siteQuery=e.target.value;renderSites();$("site-search").focus();};
   $("site-sort").onchange=e=>{siteSort=e.target.value;PREFS.siteSort=siteSort;savePrefs();renderSites();};
   const ab=$("add-building");if(ab)ab.onclick=()=>buildingModal(null);
+  document.querySelectorAll("#tab-sites [data-uopen]").forEach(b=>b.onclick=()=>openSite(DB.sites.find(x=>x.id===b.dataset.uopen)));
   document.querySelectorAll("#tab-sites [data-open]").forEach(b=>b.onclick=()=>openSite(DB.sites.find(x=>x.id===b.dataset.open)));
   document.querySelectorAll("#tab-sites [data-detail]").forEach(b=>b.onclick=()=>siteDetail(b.dataset.detail));
   document.querySelectorAll("#tab-sites [data-edit]").forEach(b=>b.onclick=()=>buildingModal(b.dataset.edit));
@@ -377,21 +426,32 @@ inner=`<div class="sites">`+list.map(s=>siteCard(s,canDrag,pad)).join("")+`</div
   });
 }
 function renderAlerts(){
-  const when=t=>fmtTime(t),items=[];
-  DB.sites.forEach(s=>{const L=LIVE[s.id]||{};
-    if(siteUrl(s)&&!s.online)items.push({s,cls:"off",tag:"Offline",t:"Controller is not answering",sub:"Check the site's internet / Tailscale link and that the controller has power.",w:0});
-    (L.events||[]).filter(e=>!e.cleared).forEach(e=>items.push({s,cls:e.kind==="silent"?"warn":"err",tag:e.kind==="silent"?"Silent":(e.code||"Error"),t:(e.kind==="odu"?"Outdoor unit":(e.name||"Unit"))+" 0x"+Number(e.addr).toString(16).toUpperCase()+(e.kind==="silent"?" stopped answering":" in error"),sub:"since "+when(e.at),w:e.at}));
-    (L.adv||[]).forEach(a=>items.push({s,cls:"warn",tag:a.lvl==="likely"?"Likely":"Possible",t:a.title,sub:"diagnosis advisory since "+when(a.at)+" · "+a.hit+" of "+a.total+" signs",w:a.at}));});
-  items.sort((a,b)=>b.w-a.w);
-  const rows=items.length?items.map(i=>`<div class="trow"><span class="pill ${i.cls}"><span class="pdot"></span>${esc(i.tag)}</span>
-    <div class="tinfo"><div class="tname">${esc(i.s.name)} · ${esc(i.t)}</div><div class="tsub">${esc(i.sub)}</div></div>
-    <button class="btn primary sm" data-open="${i.s.id}" ${i.s.online?'':'disabled style="opacity:.5"'}>Open ↗</button></div>`).join(""):'<div class="trow"><div class="tsub">✓ No active alerts across the fleet.</div></div>';
+  const items=alertItems(),by=new Map();items.forEach(i=>{if(!by.has(i.s.id))by.set(i.s.id,[]);by.get(i.s.id).push(i);});
+  const groups=[...by.values()].sort((a,b)=>(a[0].snz?1:0)-(b[0].snz?1:0)||a.filter(i=>i.ack).length/a.length-b.filter(i=>i.ack).length/b.length);
+  const rows=groups.length?groups.map(g=>{const s=g[0].s,snz=g[0].snz;
+    return `<div class="agroup ${snz?"snz":""}"><div class="ag-h"><b>${esc(s.name)}</b>${snz?`<span class="pill off">Snoozed until ${fmtTime(DB.snooze[s.id])}</span>`:""}<span style="flex:1"></span>
+        ${snz?`<button class="btn sm" data-wake="${s.id}">Wake</button>`:`<select class="inp sm-sel" data-snz="${s.id}" title="Stop alerts from this building for a while"><option value="">Snooze…</option><option value="1">1 hour</option><option value="4">4 hours</option><option value="am">Until 7 am</option><option value="24">24 hours</option></select>`}
+        <button class="btn primary sm" data-open="${s.id}" ${s.online?'':'disabled style="opacity:.5"'}>Open ↗</button></div>
+      ${g.map(i=>`<div class="trow ${i.ack?"acked":""}"><span class="pill ${i.cls}"><span class="pdot"></span>${esc(i.tag)}</span>
+        <div class="tinfo"><div class="tname">${esc(i.t)}</div><div class="tsub">${esc(i.sub)}${i.ack?`<br>✓ Seen by ${esc(i.ack.by)}, ${fmtTime(i.ack.at)}${i.ack.note?" · “"+esc(i.ack.note)+"”":""}`:""}</div></div>
+        ${i.ack?`<button class="btn sm" data-unack="${esc(i.key)}">Undo</button>`:`<button class="btn sm" data-ack="${esc(i.key)}">Acknowledge</button>`}</div>`).join("")}</div>`;}).join("")
+    :'<div class="panel"><div class="trow"><div class="tsub">✓ No active alerts across the fleet.</div></div></div>';
   const spark=h=>{const mx=Math.max(1,...h);return `<svg width="150" height="26" viewBox="0 0 150 26">${h.map((v,i)=>`<rect x="${i*5}" y="${26-Math.max(v/mx*24,v?3:1)}" width="4" height="${Math.max(v/mx*24,v?3:1)}" fill="${v>0?'var(--err)':'var(--border)'}" rx="1"/>`).join("")}</svg>`;};
-  $("tab-alerts").innerHTML=`<h2 class="sec" style="margin-top:4px">Active alerts</h2><div class="panel">${rows}</div>
+  const off=offenders(30),omx=Math.max(1,...off.map(o=>o.n)),open=items.filter(i=>!i.ack&&!i.snz).length;
+  $("tab-alerts").innerHTML=`<h2 class="sec" style="margin-top:4px">Active alerts${items.length?` · ${open} new${items.length-open?", "+(items.length-open)+" in hand":""}`:""}</h2>${rows}
+    <h2 class="sec">Repeat offenders · last 30 days</h2><div class="panel">${off.length?off.map(o=>`<div class="trow"><div class="tinfo"><div class="tname">${esc(o.odu?"Outdoor unit 0x"+Number(o.addr).toString(16).toUpperCase():unitName(o.s,o.addr))} <span class="tsub" style="font-weight:400">· ${esc(o.s.name)}</span></div>
+        <div class="tsub">${[...o.codes.entries()].sort((a,b)=>b[1]-a[1]).map(c=>esc(c[0])+(c[1]>1?" ×"+c[1]:"")).join(" · ")} · last ${fmtTime(o.last)}</div></div>
+        <div class="obar"><i style="width:${Math.round(o.n/omx*100)}%"></i></div><b style="min-width:54px;text-align:right">${o.n} faults</b></div>`).join(""):'<div class="trow"><div class="tsub">Nothing has faulted twice in the last 30 days.</div></div>'}</div>
     <h2 class="sec">Faults · last 30 days</h2><div class="panel">${DB.sites.length?DB.sites.map(s=>{const h=siteErrHist(s);
       return `<div class="trow"><div class="tinfo"><div class="tname">${esc(s.name)}</div><div class="tsub">${h?h.reduce((a,b)=>a+b,0)+" fault"+(h.reduce((a,b)=>a+b,0)===1?"":"s")+" recorded in 30 days":(s.online?"This controller does not report fault history (needs Cortex 1.7.0-beta.3 or newer)":"No data while offline")}</div></div>${h?spark(h):""}</div>`;}).join(""):'<div class="trow"><div class="tsub">No buildings yet.</div></div>'}</div>
-    <div class="note" style="margin-top:12px">Everything here is read live from each building's Cortex controller: active faults and the 30-day history from its fault recorder, advisories from its cycle diagnosis. Nothing is stored in Cortex Command.</div>`;
-  document.querySelectorAll("#tab-alerts [data-open]").forEach(b=>b.onclick=()=>{const s=DB.sites.find(x=>x.id===b.dataset.open),u=siteUrl(s);if(!u)return;window.open(u,"_blank","noopener");log(`Opened ${s.name} from an alert`);renderAudit();});
+    <div class="note" style="margin-top:12px">Alerts, the fault history and advisories are read live from each building's Cortex controller. Command only keeps who acknowledged or snoozed what; an acknowledgement clears itself when the fault clears.</div>`;
+  const T=$("tab-alerts"),q=(sel,fn)=>T.querySelectorAll(sel).forEach(b=>b.onclick=()=>fn(b));
+  q("[data-open]",b=>{const s=DB.sites.find(x=>x.id===b.dataset.open),u=siteUrl(s);if(!u)return;window.open(u,"_blank","noopener");log(`Opened ${s.name} from an alert`);renderAudit();});
+  q("[data-ack]",b=>ackModal(b.dataset.ack));
+  q("[data-unack]",b=>{delete DB.acks[b.dataset.unack];save();renderAlerts();});
+  q("[data-wake]",b=>{const s=DB.sites.find(x=>x.id===b.dataset.wake);delete DB.snooze[s.id];log(`Woke alerts for ${s.name}`);renderAlerts();renderAudit();});
+  T.querySelectorAll("[data-snz]").forEach(sel=>sel.onchange=()=>{if(!sel.value)return;const s=DB.sites.find(x=>x.id===sel.dataset.snz);DB.snooze[s.id]=snoozeUntil(sel.value);log(`Snoozed alerts for ${s.name} until ${fmtTime(DB.snooze[s.id])}`);renderAlerts();renderAudit();toast("Snoozed until "+fmtTime(DB.snooze[s.id]));});
+  tabBadges();
 }
 function renderTechs(){
   $("tab-techs").innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px"><button class="btn sm" id="addtech">+ Add technician</button><button class="btn primary sm" id="newgrant">+ Grant temporary access</button></div>
@@ -430,7 +490,7 @@ setInterval(()=>{if(!$("app").classList.contains("hide")&&tab==="techs")tickCoun
   else{/* still expire silently */DB.grants.forEach(g=>{if(!g.expired&&g.until<=Date.now()){g.expired=true;log(`Temporary access expired: ${siteName(g.site)} for ${techName(g.tech)}`);save();renderKpis();}});}},1000);
 
 /* ---------- modals ---------- */
-function openModal(html,wide){$("modal").className="modal"+(wide?" wide":"");$("modal").innerHTML=html;$("scrim").classList.add("show");}
+function openModal(html,wide){const fresh=!$("scrim").classList.contains("show");$("modal").className="modal"+(wide?" wide":"")+(fresh?" pop":"");$("modal").innerHTML=html;$("scrim").classList.toggle("pop",fresh);$("scrim").classList.add("show");}
 function closeModal(){$("scrim").classList.remove("show");$("modal").innerHTML="";}
 $("scrim").onclick=e=>{if(e.target.id==="scrim")closeModal();};
 function buildingModal(id){
@@ -549,9 +609,9 @@ let HIST=(()=>{try{return JSON.parse(localStorage.getItem(HIST_KEY))||{};}catch(
 function histNote(){const t=Date.now();let ch=false;
   DB.sites.forEach(s=>{if(!siteUrl(s))return;const a=HIST[s.id]||(HIST[s.id]=[]),last=a[a.length-1];if(last&&t-last[0]<HIST_EVERY)return;const L=LIVE[s.id]||{};
     a.push([t,s.online?1:0,s.online?(L.on||0):0,L.units||s.units||0,s.online?(s.err||0):0,s.online?(L.offline||0):0,s.online?(L.adv||[]).length:0,(s.online&&L.health!=null)?L.health:-1,(s.online&&L.avgRoom!=null)?Math.round(L.avgRoom):-1]);
-    while(a.length&&t-a[0][0]>HIST_KEEP)a.shift();ch=true;});
+    histdNote(s,a[a.length-1]);while(a.length&&t-a[0][0]>HIST_KEEP)a.shift();ch=true;});
   Object.keys(HIST).forEach(id=>{if(!DB.sites.find(s=>s.id===id)){delete HIST[id];ch=true;}});
-  if(ch)try{localStorage.setItem(HIST_KEY,JSON.stringify(HIST));}catch(e){}}
+  if(ch){try{localStorage.setItem(HIST_KEY,JSON.stringify(HIST));}catch(e){}histdSave();}}
 function histOf(s,hours){const t=Date.now()-hours*3600000;return (HIST[s.id]||[]).filter(x=>x[0]>=t);}
 function uptime(s,hours){const h=histOf(s,hours);if(h.length<4)return null;return Math.round(h.filter(x=>x[1]).length/h.length*100);}
 function newestVer(){let best="";DB.sites.forEach(s=>{if(s.ver&&cmpVer(s.ver,best)>0)best=s.ver;});return best;}
@@ -571,7 +631,7 @@ function siteArt(s){const W=320,H=74,L=LIVE[s.id]||{},st=!siteUrl(s)?"none":!s.o
     for(let wy=y+6;wy<H-6;wy+=8)for(let wx=x+4;wx<x+w-5;wx+=7){const lit=rnd()<frac;win+=`<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="3.2" height="4" rx=".6" class="${lit?"w-on":"w-off"}"/>`;}
     x+=w+bw*0.12;}
   const h24=histOf(s,24).map(p=>p[1]?p[2]:null),sp=sparkPath(h24,W,H-8,6);
-  return `<svg class="sart ${st}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><g class="bld">${b}</g>${win}${sp?`<path d="${sp}" class="sline"/>`:""}${st==="ok"||st==="err"?`<circle class="sbeat" cx="${W-14}" cy="13" r="4"/>`:""}</svg>`;}
+  return `<svg class="sart ${st}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><g class="bld">${b}</g>${win}${sp?`<path d="${sp}" class="sline" pathLength="1"/>`:""}${st==="ok"||st==="err"?`<circle class="sbeat" cx="${W-14}" cy="13" r="4"/>`:""}</svg>`;}
 /* a ring: how many units are on, off, in error or silent */
 function ring(L,size){const R=size/2-5,C=2*Math.PI*R,tot=L&&L.units||0;if(!tot)return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="var(--border)" stroke-width="7"/><text x="50%" y="54%" text-anchor="middle" class="rg-n" style="font-size:12px">–</text></svg>`;
   const err=(L.errs||[]).length,sil=L.offline||0,on=Math.max(0,(L.on||0)-err),off=Math.max(0,tot-on-err-sil);let a=0;
@@ -617,22 +677,26 @@ function siteDetail(id){const s=DB.sites.find(x=>x.id===id);if(!s)return;const L
       <div class="tcard"><div class="tl">Average room temperature (°F)</div>${lineChart(series(8),{col:"var(--warn)"})}</div>
       <div class="tcard"><div class="tl">Faults per day, last 30 days</div>${eh?bars+`<div class="tsub">${eh.reduce((a,b)=>a+b,0)} recorded by the controller</div>`:`<div class="note" style="margin:0">${s.online?"This controller does not report fault history.":"No data while offline."}</div>`}</div>
       <div class="note" style="margin-top:12px">The trend lines come from samples Command saves in this ${APP?"app":"browser"} every 15 minutes while it is running, for 7 days. Fault history comes from the building's own controller.</div>
+      ${notesHtml(s)}
     </div>
-    <div class="mf"><button class="btn" data-edit2="${s.id}">Edit</button><button class="btn" onclick="closeModal()">Close</button><button class="btn primary" data-open2="${s.id}">Open dashboard ↗</button></div>`,true);
+    <div class="mf"><button class="btn" data-rep2="${s.id}" title="A one-page summary of the last 30 days to print or save as a PDF">🖨 Report</button><button class="btn" data-edit2="${s.id}">Edit</button><button class="btn" onclick="closeModal()">Close</button><button class="btn primary" data-open2="${s.id}">Open dashboard ↗</button></div>`,true);
   document.querySelectorAll("#det-range button").forEach(b=>b.onclick=()=>{detRange=+b.dataset.r;siteDetail(id);});
   const o=document.querySelector("[data-open2]");if(o)o.onclick=()=>openSite(s);
-  const e=document.querySelector("[data-edit2]");if(e)e.onclick=()=>buildingModal(s.id);}
+  const e=document.querySelector("[data-edit2]");if(e)e.onclick=()=>buildingModal(s.id);
+  const M=$("modal"),on=(sel,fn)=>M.querySelectorAll(sel).forEach(b=>b.onclick=()=>fn(b));
+  on("[data-rep2]",()=>siteReport(s.id,30));on("[data-notes]",()=>notesModal(s.id));on("[data-logadd]",()=>logModal(s.id));
+  on("[data-logdel]",b=>{if(!confirm("Remove this service log entry?"))return;s.log=(s.log||[]).filter(x=>x.id!==b.dataset.logdel);save();siteDetail(id);});}
 function openSite(s){const u=siteUrl(s);if(!u){toast("Set this building's address first");buildingModal(s.id);return;}
   if(PREFS.confirmOpen&&!confirm("Open "+s.name+"?"))return;window.open(u,"_blank","noopener");log(`Opened ${s.name} (${u.replace(/^https?:\/\//,'')})`);renderAudit();}
 
 /* ---------- settings page ---------- */
 let setSec="look";
-const SET_SECS=[["look","Appearance"],["sites","Buildings view"],["alerts","Alerts"],["brief","Daily briefing"],["security","Sign-in and security"],["updates","App and updates"],["data","Backup and data"],["about","About"]];
+const SET_SECS=[["look","Appearance"],["sites","Buildings view"],["alerts","Alerts"],["brief","Daily briefing"],["security","Sign-in and security"],["sync","Sync between computers"],["controllers","Controller software"],["updates","App and updates"],["data","Backup and data"],["about","About"]];
 function segc(id,cur,opts){return `<div class="seg" id="${id}">${opts.map(o=>`<button data-v="${o[0]}" class="${String(cur)===String(o[0])?'on':''}">${o[1]}</button>`).join("")}</div>`;}
 function srow(title,sub,ctl){return `<div class="srow"><div class="tinfo"><div class="tname">${title}</div>${sub?`<div class="tsub">${sub}</div>`:""}</div><div class="sctl">${ctl}</div></div>`;}
 function sw(key,src){const v=src?!!src[key]:PREFS[key]!==false&&!!PREFS[key];return `<button class="swt ${v?'on':''}" data-sw="${key}" role="switch" aria-checked="${v}"><i></i></button>`;}
 function renderSettings(){const el=$("tab-settings");if(!el)return;const o=(APPINFO&&APPINFO.options)||{},u=(APPINFO&&APPINFO.update)||{};let body="";
-  if(setSec==="look")body=srow("Theme","Auto follows this computer.",segc("st-theme",PREFS.theme,[["auto","Auto"],["light","Light"],["dark","Dark"]]))+srow("Colour",(CMD_ACCENTS[PREFS.accent]||CMD_ACCENTS.slate).n,`<div class="swatches" id="st-accent">${Object.entries(CMD_ACCENTS).map(([k,a])=>`<button class="swatch ${PREFS.accent===k?"on":""}" data-v="${k}" title="${a.n}" aria-label="${a.n}" style="background:${document.documentElement.getAttribute("data-theme")==="dark"?a.d[0]:a.l[0]}"></button>`).join("")}</div>`)+srow("Text size","",segc("st-text",PREFS.textSize,[["normal","Normal"],["large","Large"]]))+srow("24-hour clock","",sw("clock24"))+srow("Compact large numbers","Show 1.2k instead of 1,200.",sw("compactNums"))+srow("Logo animation","The Cortex mark breathes and sparks while it works. Turn off for a still logo.",sw("motion"));
+  if(setSec==="look")body=srow("Theme","Auto follows this computer.",segc("st-theme",PREFS.theme,[["auto","Auto"],["light","Light"],["dark","Dark"]]))+srow("Colour",(CMD_ACCENTS[PREFS.accent]||CMD_ACCENTS.slate).n,`<div class="swatches" id="st-accent">${Object.entries(CMD_ACCENTS).map(([k,a])=>`<button class="swatch ${PREFS.accent===k?"on":""}" data-v="${k}" title="${a.n}" aria-label="${a.n}" style="background:${document.documentElement.getAttribute("data-theme")==="dark"?a.d[0]:a.l[0]}"></button>`).join("")}</div>`)+srow("Text size","",segc("st-text",PREFS.textSize,[["normal","Normal"],["large","Large"]]))+srow("24-hour clock","",sw("clock24"))+srow("Compact large numbers","Show 1.2k instead of 1,200.",sw("compactNums"))+srow("Animations","Screens ease in, numbers count up, windows twinkle and the Cortex mark sparks while it works. Turn off for a still screen.",sw("motion"));
   if(setSec==="sites")body=srow("Layout","",segc("st-layout",PREFS.layout,[["grid","Cards"],["list","List"]]))+srow("Density","",segc("st-density",PREFS.density,[["comfortable","Comfortable"],["compact","Compact"]]))+srow("Picture on each card","The skyline with lit windows and the 24-hour line.",sw("cardArt"))+srow("Show health score","",sw("showHealth"))+srow("Show offline buildings","",sw("showOffline"))+srow("Refresh automatically","Reads every building about every 20 seconds.",sw("autorefresh"))+srow("Ask before opening a building","",sw("confirmOpen"))+srow("Opens on","The tab you land on after signing in.",segc("st-land",PREFS.landing,[["sites","Buildings"],["alerts","Alerts"],["techs","Technicians"]]));
   if(setSec==="alerts")body=srow("Pop up a message","When a building raises an alert while Command is on screen.",sw("popAlerts"))+srow("Play a sound","",sw("soundAlerts"))
     +(APP?srow("Windows notifications","A notification from Windows when a building goes offline or comes back, a unit goes into error or stops answering, or a new advisory appears.",sw("winNotify"))+srow("Keep watching after the window is closed","Command stays in the tray by the clock and keeps checking the buildings. Right-click the tray icon to quit.",sw("background",o))+srow("Start with Windows","Starts hidden in the tray when you sign in to Windows.",sw("autoStart",o))
@@ -643,8 +707,10 @@ function renderSettings(){const el=$("tab-settings");if(!el)return;const o=(APPI
       +`<div class="srow" style="display:block"><div class="note" style="margin:0" id="st-upd">${updText(u)}</div>${u.state==="ready"?`<div style="margin-top:10px"><button class="btn primary" id="st-inst">Restart and install v${esc(u.latest)}</button></div>`:""}</div>`
       +srow("Install updates automatically","Downloads a new version in the background, then asks you to restart.",sw("autoUpdate",o))+srow("Beta testing","Get pre-release versions as soon as they are published. Leave off for stable versions only.",sw("beta",o))
     :`<div class="note" style="margin:0">${location.protocol==="file:"?"You are running Cortex Command as a single file. Install the Windows app (Cortex-Command-Setup from the Cortex releases page) to get a Start menu entry, automatic updates and alerts from the tray.":"This copy of Cortex Command is served by a Cortex controller and updates when that controller updates. For a program in the Start menu with its own updates, install the Windows app from the Cortex releases page."}</div>`;
+  if(setSec==="sync")body=syncHtml();
+  if(setSec==="controllers")body=controllersHtml();
   if(setSec==="data")body=srow("Download a backup","Buildings, technicians, access grants, your preferences and the saved history, in one file.",`<button class="btn sm" id="st-exp">Download</button>`)+srow("Restore from a backup","Replaces what is in this "+(APP?"app":"browser")+". Use this to move from the browser version to the Windows app.",`<button class="btn sm" id="st-imp">Choose file…</button><input type="file" id="st-file" accept="application/json,.json" style="display:none">`)+srow("Clear saved history","The 7 days of samples behind the trend lines. Buildings and settings stay.",`<button class="btn sm danger" id="st-clr">Clear</button>`);
-  if(setSec==="about")body=`<div style="display:flex;gap:16px;align-items:center;color:var(--accent)">${brainMark(64,"live")}<div style="color:var(--text)"><div style="font-weight:650;font-size:16px">Cortex Command</div><div class="tsub">${APP?"Windows app · version "+esc((APPINFO&&APPINFO.version)||"…"):location.protocol==="file:"?"Single-file version":"Served by "+esc(location.host)}</div><div class="tsub">by AIROW</div></div></div><div class="note" style="margin-top:14px">One console for every Cortex building. Command only reads from each building's controller; to change anything at a building, open its dashboard.</div>`;
+  if(setSec==="about")body=`<div style="display:flex;gap:16px;align-items:center;color:var(--accent)">${brainMark(64,"live")}<div style="color:var(--text)"><div style="font-weight:650;font-size:16px">Cortex Command</div><div class="tsub">${APP?"Windows app · version "+esc((APPINFO&&APPINFO.version)||"…"):location.protocol==="file:"?"Single-file version":"Served by "+esc(location.host)}</div><div class="tsub">by AIROW</div></div></div><div class="note" style="margin-top:14px">One console for every Cortex building. Command reads from each building's controller and never sends a command to the heating and cooling; to change anything at a building, open its dashboard. The two things it can change on a controller are its own shared data (Sync) and, from the Windows app, starting that controller's software update.</div>`;
   el.innerHTML=`<div class="setpage"><div class="setnav">${SET_SECS.map(x=>`<button class="${setSec===x[0]?'on':''}" data-sec="${x[0]}">${x[1]}</button>`).join("")}</div><div class="panel setbody"><h2 class="sec" style="margin:0 0 6px">${SET_SECS.find(x=>x[0]===setSec)[1]}</h2>${body}<div class="tsub" style="margin-top:14px">Preferences are saved for <b>${esc(OWNER.user)}</b>. Each person who signs in keeps their own.</div></div></div>`;
   el.querySelectorAll("[data-sec]").forEach(b=>b.onclick=()=>{setSec=b.dataset.sec;renderSettings();});
   const seg=(id,fn)=>el.querySelectorAll("#"+id+" button").forEach(b=>b.onclick=()=>{fn(b.dataset.v);savePrefs();applyTheme();renderSites();renderSettings();});
@@ -654,8 +720,12 @@ function renderSettings(){const el=$("tab-settings");if(!el)return;const o=(APPI
     PREFS[k]=!(PREFS[k]!==false&&!!PREFS[k]);savePrefs();applyTheme();renderSites();renderSettings();});
   const on=(id,fn)=>{const x=$(id);if(x)x.onclick=fn;};
   on("st-brief",()=>briefing(true));on("st-out",()=>signOut());on("st-chk",async()=>{toast("Checking for updates…");try{APPINFO.update=await APP.checkUpdate();}catch(e){}renderSettings();});on("st-inst",()=>APP.installUpdate());
+  on("sy-on",()=>{const h=$("sy-home");let v=h?h.value.trim():"";if(APP&&!v){toast("Enter the home controller's address");return;}if(v&&!/^https?:\/\//i.test(v))v="http://"+v;syncEnable(v.replace(/\/+$/,""));});
+  on("sy-off",syncDisable);on("sy-now",()=>{toast("Syncing…");syncNow(false).then(()=>{renderSettings();toast(SYNC.err?"Not synced: "+SYNC.err:"Synced");});});
+  el.querySelectorAll("[data-cupd]").forEach(b=>b.onclick=()=>ctlUpdate([b.dataset.cupd]));el.querySelectorAll("[data-copen]").forEach(b=>b.onclick=()=>openSite(DB.sites.find(x=>x.id===b.dataset.copen)));
+  on("cu-all",()=>ctlUpdate(DB.sites.map(x=>x.id)));on("cu-refresh",()=>{DB.sites.forEach(x=>{if(LIVE[x.id])LIVE[x.id].updAt=0;});toast("Checking every controller…");pollAllSites().then(()=>setTimeout(renderSettings,2500));});
   on("st-exp",exportData);on("st-imp",()=>$("st-file").click());const f=$("st-file");if(f)f.onchange=()=>importData(f.files[0]);
-  on("st-clr",()=>{if(!confirm("Clear the saved history for every building?"))return;HIST={};try{localStorage.removeItem(HIST_KEY);}catch(e){}renderSites();toast("History cleared");});
+  on("st-clr",()=>{if(!confirm("Clear the saved history for every building?"))return;HIST={};HISTD={};try{localStorage.removeItem(HIST_KEY);localStorage.removeItem(HD_KEY);}catch(e){}renderSites();toast("History cleared");});
   if($("fleet-push"))drawFleetPush();}
 function updText(u){const when=u.checkedAt?" Last checked "+fmtTime(u.checkedAt)+".":"";
   return u.state==="ready"?"Version "+esc(u.latest)+" is downloaded and ready. It installs when you restart Cortex Command; your buildings and settings are kept."
@@ -665,15 +735,228 @@ function updText(u){const when=u.checkedAt?" Last checked "+fmtTime(u.checkedAt)
 function updBar(){let b=$("updbar");const u=(APPINFO&&APPINFO.update)||{};if(u.state!=="ready"){if(b)b.remove();return;}
   if(!b){b=document.createElement("div");b.id="updbar";b.className="updbar";document.body.appendChild(b);}
   b.innerHTML=`<span style="color:var(--accent);display:flex">${brainMark(22,"calm")}</span><span>Cortex Command ${esc(u.latest)} is ready to install.</span><button class="btn primary sm" onclick="APP.installUpdate()">Restart now</button><button class="btn sm" onclick="this.parentNode.remove()">Later</button>`;}
-function exportData(){const out={kind:"cortex-command-backup",v:1,at:Date.now(),db:DB,acct:loadAcct(),prefs:{},hist:HIST};
+function exportData(){const out={kind:"cortex-command-backup",v:1,at:Date.now(),db:DB,acct:loadAcct(),prefs:{},hist:HIST,histd:HISTD};
   for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf("cortex_cmd_prefs")===0)out.prefs[k]=localStorage.getItem(k);}
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:"application/json"}));a.download="cortex-command-backup-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);log("Downloaded a backup");
   toast("Backup downloaded. It contains the sign-in for this console, so keep it somewhere safe.");}
 async function importData(file){if(!file)return;try{const j=JSON.parse(await file.text());if(j.kind!=="cortex-command-backup"||!j.db||!Array.isArray(j.db.sites))throw new Error("that file is not a Cortex Command backup");
     if(!confirm("Replace everything in this "+(APP?"app":"browser")+" with the backup from "+new Date(j.at).toLocaleString()+"? ("+j.db.sites.length+" building"+(j.db.sites.length===1?"":"s")+")"))return;
-    localStorage.setItem("cortex_command",JSON.stringify(j.db));if(j.acct)localStorage.setItem("cortex_cmd_acct",JSON.stringify(j.acct));Object.keys(j.prefs||{}).forEach(k=>{if(k.indexOf("cortex_cmd_prefs")===0)localStorage.setItem(k,j.prefs[k]);});if(j.hist)localStorage.setItem(HIST_KEY,JSON.stringify(j.hist));
+    localStorage.setItem("cortex_command",JSON.stringify(j.db));if(j.acct)localStorage.setItem("cortex_cmd_acct",JSON.stringify(j.acct));Object.keys(j.prefs||{}).forEach(k=>{if(k.indexOf("cortex_cmd_prefs")===0)localStorage.setItem(k,j.prefs[k]);});if(j.hist)localStorage.setItem(HIST_KEY,JSON.stringify(j.hist));if(j.histd)localStorage.setItem(HD_KEY,JSON.stringify(j.histd));localStorage.removeItem(SYNC_KEY);
     sessionStorage.removeItem("cortex_cmd_in");location.reload();}catch(e){toast("Couldn't restore: "+e.message);}}
 
+/* ---------- names, search, acknowledgements, repeat offenders, notes, reports ----------
+   Everything here works from what each controller already reports. Nothing is sent to equipment. */
+function unitName(s,addr){const L=LIVE[s.id]||{},u=(L.list||[]).find(x=>x.a===addr);return u?u.n:"Unit 0x"+Number(addr).toString(16).toUpperCase().padStart(2,"0");}
+function snoozed(s){return ((DB.snooze||{})[s.id]||0)>Date.now();}
+function alertItems(){const items=[];
+  DB.sites.forEach(s=>{const L=LIVE[s.id]||{};
+    if(siteUrl(s)&&!s.online)items.push({s,key:"off:"+s.id,cls:"off",tag:"Offline",t:"Controller is not answering",sub:(s.seen?"Last seen "+fmtTime(s.seen)+". ":"")+"Check the site's internet or Tailscale link and that the controller has power.",w:s.seen||0});
+    (L.events||[]).filter(e=>!e.cleared).forEach(e=>items.push({s,key:"ev:"+s.id+":"+(e.id||(e.kind+e.addr+"@"+e.at)),cls:e.kind==="silent"?"warn":"err",tag:e.kind==="silent"?"Silent":(e.code||"Error"),
+      t:(e.kind==="odu"?"Outdoor unit 0x"+Number(e.addr).toString(16).toUpperCase():unitName(s,e.addr))+(e.kind==="silent"?" stopped answering":" in error"),sub:"since "+fmtTime(e.at),w:e.at}));
+    (L.adv||[]).forEach(a=>items.push({s,key:"adv:"+s.id+":"+(a.key||a.id||a.title),cls:"warn",tag:a.lvl==="likely"?"Likely":"Possible",t:a.title,sub:"diagnosis advisory since "+fmtTime(a.at)+" · "+a.hit+" of "+a.total+" signs",w:a.at}));});
+  items.forEach(i=>{i.ack=(DB.acks||{})[i.key]||null;i.snz=snoozed(i.s);});
+  return items.sort((a,b)=>b.w-a.w);}
+function openAlertCount(){return alertItems().filter(i=>!i.ack&&!i.snz).length;}
+/* An acknowledgement lasts as long as its alert. Once the controller says the alert is gone, forget it. */
+function ackPrune(){let ch=false;const live=new Set(alertItems().map(i=>i.key)),now=Date.now();
+  Object.keys(DB.acks||{}).forEach(k=>{const sid=k.split(":")[1],s=DB.sites.find(x=>x.id===sid),L=s&&LIVE[s.id];
+    if(!s){delete DB.acks[k];ch=true;return;}
+    const fresh=k.indexOf("off:")===0?s.online:(s.online&&L&&L.events&&L.at&&now-L.at<120000);
+    if(fresh&&!live.has(k)){delete DB.acks[k];ch=true;}});
+  Object.keys(DB.snooze||{}).forEach(id=>{if(DB.snooze[id]<=now||!DB.sites.find(x=>x.id===id)){delete DB.snooze[id];ch=true;}});
+  if(ch)save();}
+function tabBadges(){const b=document.querySelector('.tab[data-tab="alerts"]');if(!b)return;const n=openAlertCount();b.innerHTML="Alerts"+(n?` <span class="tbadge">${n}</span>`:"");}
+function ackModal(key){const i=alertItems().find(x=>x.key===key);if(!i)return;
+  openModal(`<div class="mh"><h3>Acknowledge</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb"><div class="tname">${esc(i.s.name)} · ${esc(i.t)}</div><div class="tsub" style="margin-bottom:12px">${esc(i.sub)}</div>
+      <label class="flabel">Note (optional)</label><input class="inp" id="ack-note" maxlength="140" placeholder="e.g. Sam is on site Thursday" autocomplete="off">
+      <div class="note" style="margin-top:12px">This marks the alert as seen so it stops counting as new, here and on every computer that shares this Command. It clears by itself when the fault clears.</div></div>
+    <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="ack-go">Acknowledge</button></div>`);
+  const go=()=>{DB.acks[key]={by:OWNER.name,at:Date.now(),note:$("ack-note").value.trim()};log(`Acknowledged: ${i.s.name} · ${i.t}`);closeModal();renderAlerts();renderAudit();toast("Acknowledged");};
+  $("ack-go").onclick=go;$("ack-note").addEventListener("keydown",e=>{if(e.key==="Enter")go();});setTimeout(()=>{const n=$("ack-note");if(n)n.focus();},50);}
+function snoozeUntil(v){const now=Date.now();if(v==="am"){const d=new Date(now);d.setDate(d.getDate()+(d.getHours()>=7?1:0));d.setHours(7,0,0,0);return d.getTime();}return now+(+v)*3600000;}
+function offenders(days){const from=Date.now()-days*86400000,m=new Map();
+  DB.sites.forEach(s=>((LIVE[s.id]||{}).events||[]).forEach(e=>{if(e.at<from)return;const k=s.id+":"+(e.kind==="odu"?"odu":"u")+":"+e.addr;let o=m.get(k);
+    if(!o){o={s,odu:e.kind==="odu",addr:e.addr,n:0,codes:new Map(),last:0};m.set(k,o);}
+    o.n++;const c=e.kind==="silent"?"went silent":(e.code||"fault");o.codes.set(c,(o.codes.get(c)||0)+1);o.last=Math.max(o.last,e.at);}));
+  return [...m.values()].filter(o=>o.n>=2).sort((a,b)=>b.n-a.n||b.last-a.last).slice(0,12);}
+function unitSearch(q){const words=q.toLowerCase().split(/\s+/).filter(Boolean);if(!words.length)return [];const out=[];
+  DB.sites.forEach(s=>((LIVE[s.id]||{}).list||[]).forEach(u=>{
+    const hay=[u.n,u.g,s.name,s.loc,u.c,u.off?"offline silent not answering":"",u.f?"filter":"",u.on?"on running "+(u.m||""):"off","0x"+Number(u.a).toString(16)].join(" ").toLowerCase();
+    if(words.every(w=>hay.indexOf(w)>=0))out.push({s,u});}));
+  return out.sort((a,b)=>(b.u.c?2:b.u.off?1:0)-(a.u.c?2:a.u.off?1:0)||a.u.n.localeCompare(b.u.n,undefined,{numeric:true}));}
+function unitResults(q){const r=unitSearch(q),tot=DB.sites.reduce((n,s)=>n+((LIVE[s.id]||{}).list||[]).length,0);
+  if(!tot)return "";
+  const row=x=>{const u=x.u,st=u.off?["off","Silent"]:u.c?["err",u.c]:u.on?["ok",u.m==="heat"?"Heating":u.m==="fan"?"Fan":u.m==="dry"?"Dry":u.m==="auto"?"Auto":"Cooling"]:["off","Off"];
+    return `<div class="trow urow" data-uopen="${x.s.id}"><span class="pill ${st[0]}"><span class="pdot"></span>${esc(st[1])}</span><div class="tinfo"><div class="tname">${esc(u.n)}</div><div class="tsub">${esc(x.s.name)}${u.g?" · "+esc(u.g):""}${typeof u.r==="number"?" · room "+Math.round(u.r)+"°":""}${typeof u.sp==="number"&&u.on?" · set "+Math.round(u.sp*9/5+32)+"°":""}${u.f?" · filter due":""}</div></div><span class="tsub">Open ↗</span></div>`;};
+  return `<h2 class="sec" style="margin-top:2px">Units matching “${esc(q)}” · ${r.length}</h2><div class="panel" style="margin-bottom:16px">${r.length?r.slice(0,40).map(row).join("")+(r.length>40?`<div class="trow"><div class="tsub">Showing the first 40. Add another word to narrow it down.</div></div>`:""):`<div class="trow"><div class="tsub">No unit matches across ${tot} units. Try a room name, a code such as CH05, or “offline”.</div></div>`}</div>`;}
+/* ---------- building notes and service log ---------- */
+function notesModal(id){const s=DB.sites.find(x=>x.id===id);if(!s)return;const n=s.notes||{};
+  openModal(`<div class="mh"><h3>Notes · ${esc(s.name)}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb"><label class="flabel">Site contact</label><input class="inp" id="nt-contact" maxlength="80" value="${esc(n.contact||"")}" placeholder="Name and role">
+      <label class="flabel" style="margin-top:10px">Phone or email</label><input class="inp" id="nt-phone" maxlength="80" value="${esc(n.phone||"")}">
+      <label class="flabel" style="margin-top:10px">Getting in</label><textarea class="inp" id="nt-access" rows="2" maxlength="400" placeholder="Where to check in, where the equipment is, hours">${esc(n.access||"")}</textarea>
+      <label class="flabel" style="margin-top:10px">Equipment</label><textarea class="inp" id="nt-equip" rows="3" maxlength="800" placeholder="Outdoor models, HR boxes, anything worth knowing before a visit">${esc(n.equip||"")}</textarea>
+      <div class="note" style="margin-top:12px">Notes stay in Cortex Command. Leave out door codes and passwords: anything typed here is saved as plain text.</div></div>
+    <div class="mf"><button class="btn" id="nt-cancel">Cancel</button><button class="btn primary" id="nt-save">Save</button></div>`);
+  $("nt-cancel").onclick=()=>siteDetail(id);
+  $("nt-save").onclick=()=>{s.notes={contact:$("nt-contact").value.trim(),phone:$("nt-phone").value.trim(),access:$("nt-access").value.trim(),equip:$("nt-equip").value.trim()};log(`Edited notes for ${s.name}`);renderAudit();siteDetail(id);toast("Notes saved");};}
+function logModal(id){const s=DB.sites.find(x=>x.id===id);if(!s)return;const d=new Date(),iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  openModal(`<div class="mh"><h3>Add to the service log</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb"><div class="tsub" style="margin-bottom:10px">${esc(s.name)}</div><label class="flabel">Date</label><input class="inp" id="lg-date" type="date" value="${iso}" style="max-width:190px">
+      <label class="flabel" style="margin-top:10px">What was done</label><textarea class="inp" id="lg-text" rows="4" maxlength="600" placeholder="e.g. Cleaned filters on floor 2, replaced the drain pump on Conference B"></textarea>
+      <label class="flabel" style="margin-top:10px">By</label><input class="inp" id="lg-by" maxlength="60" value="${esc(OWNER.name)}"></div>
+    <div class="mf"><button class="btn" id="lg-cancel">Cancel</button><button class="btn primary" id="lg-save">Add</button></div>`);
+  $("lg-cancel").onclick=()=>siteDetail(id);
+  $("lg-save").onclick=()=>{const m=$("lg-text").value.trim();if(!m){toast("Write what was done");return;}const t=new Date($("lg-date").value+"T12:00:00").getTime()||Date.now();
+    s.log=(s.log||[]);s.log.push({id:"l"+Date.now().toString(36),t,by:$("lg-by").value.trim()||OWNER.name,m});s.log.sort((a,b)=>b.t-a.t);s.log=s.log.slice(0,200);log(`Added a service log entry for ${s.name}`);renderAudit();siteDetail(id);toast("Added to the log");};}
+function notesHtml(s){const n=s.notes||{},any=n.contact||n.phone||n.access||n.equip,r=(k,v)=>v?`<div class="trow"><div class="tinfo"><div class="tsub">${k}</div><div class="tname" style="white-space:pre-wrap;font-weight:500">${esc(v)}</div></div></div>`:"";
+  return `<div class="sec-row"><h2 class="sec">Notes</h2><button class="btn sm" data-notes="${s.id}">${any?"Edit":"+ Add notes"}</button></div>${any?`<div class="panel">${r("Site contact",[n.contact,n.phone].filter(Boolean).join(" · "))}${r("Getting in",n.access)}${r("Equipment",n.equip)}</div>`:""}
+    <div class="sec-row"><h2 class="sec">Service log</h2><button class="btn sm" data-logadd="${s.id}">+ Add entry</button></div>${(s.log||[]).length?`<div class="panel">${s.log.slice(0,30).map(e=>`<div class="trow"><div class="tinfo"><div class="tsub">${new Date(e.t).toLocaleDateString([],{year:"numeric",month:"short",day:"numeric"})} · ${esc(e.by||"")}</div><div class="tname" style="white-space:pre-wrap;font-weight:500">${esc(e.m)}</div></div><button class="icon-btn" data-logdel="${e.id}" title="Remove this entry">✕</button></div>`).join("")}</div>`:`<div class="tsub" style="margin:-4px 0 8px">Nothing logged yet.</div>`}`;}
+/* ---------- daily roll-up of the history, kept 120 days, for the monthly report ---------- */
+const HD_KEY="cortex_cmd_histd";
+let HISTD=(()=>{try{return JSON.parse(localStorage.getItem(HD_KEY))||{};}catch(e){return {};}})();
+function dayKey(t){const d=new Date(t);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+/* one sample -> today's row: [samples, samples online, sum of units on, most units in error, lowest health (-1 = none)] */
+function histdNote(s,p){const D=HISTD[s.id]||(HISTD[s.id]={}),k=dayKey(p[0]),r=D[k]||(D[k]=[0,0,0,0,-1]);
+  r[0]++;if(p[1]){r[1]++;r[2]+=p[2]||0;r[3]=Math.max(r[3],p[4]||0);if(p[7]>=0)r[4]=r[4]<0?p[7]:Math.min(r[4],p[7]);}
+  const keys=Object.keys(D).sort();while(keys.length>120)delete D[keys.shift()];}
+function histdSave(){Object.keys(HISTD).forEach(id=>{if(!DB.sites.find(s=>s.id===id))delete HISTD[id];});try{localStorage.setItem(HD_KEY,JSON.stringify(HISTD));}catch(e){}}
+(function(){let ch=false;Object.keys(HIST).forEach(id=>{if(!HISTD[id]&&(HIST[id]||[]).length){HIST[id].forEach(p=>histdNote({id},p));ch=true;}});if(ch)try{localStorage.setItem(HD_KEY,JSON.stringify(HISTD));}catch(e){}})();   // first run after this was added: roll up what is already saved
+function daysBack(n){const out=[],d=new Date();d.setHours(12,0,0,0);for(let i=n-1;i>=0;i--)out.push(dayKey(d.getTime()-i*86400000));return out;}
+/* ---------- printable building report ---------- */
+function printDoc(html,title){let el=$("printdoc");if(!el){el=document.createElement("div");el.id="printdoc";document.body.appendChild(el);}
+  el.innerHTML=html;const r=document.documentElement,was=r.getAttribute("data-theme"),t0=document.title;r.removeAttribute("data-theme");r.classList.add("print-light");document.body.classList.add("print-doc");if(title)document.title=title;
+  const done=()=>{window.removeEventListener("afterprint",done);document.body.classList.remove("print-doc");r.classList.remove("print-light");document.title=t0;if(was)r.setAttribute("data-theme",was);applyTheme();el.innerHTML="";};
+  window.addEventListener("afterprint",done);setTimeout(()=>{try{window.print();}catch(e){done();}},80);}
+function reportData(s,days){const L=LIVE[s.id]||{},keys=daysBack(days),D=HISTD[s.id]||{},from=Date.now()-days*86400000;
+  const rows=keys.map(k=>D[k]||null),seen=rows.filter(Boolean),n=seen.reduce((a,r)=>a+r[0],0),up=seen.reduce((a,r)=>a+r[1],0);
+  const ev=(L.events||[]).filter(e=>e.at>=from).sort((a,b)=>b.at-a.at),faults=ev.filter(e=>e.kind!=="silent"),done=faults.filter(e=>e.cleared),mins=done.map(e=>(e.cleared-e.at)/60000).sort((a,b)=>a-b);
+  const hs=seen.map(r=>r[4]).filter(x=>x>=0);
+  return {keys,rows,watched:seen.length,online:n?Math.round(up/n*1000)/10:null,ev,faults,open:faults.filter(e=>!e.cleared).length,silent:ev.filter(e=>e.kind==="silent").length,
+    median:mins.length?mins[Math.floor(mins.length/2)]:null,healthLow:hs.length?Math.min(...hs):null,healthNow:L.health!=null?L.health:null,perDay:keys.map(k=>faults.filter(e=>dayKey(e.at)===k).length)};}
+function durTxt(m){return m==null?"–":m<90?Math.max(1,Math.round(m))+" min":m<2880?Math.round(m/60)+" h":Math.round(m/1440)+" days";}
+function siteReportHtml(s,days){const R=reportData(s,days),L=LIVE[s.id]||{},d0=new Date(Date.now()-(days-1)*86400000),fd=t=>new Date(t).toLocaleDateString([],{month:"short",day:"numeric",year:"numeric"});
+  const mx=Math.max(1,...R.perDay),W=700,bw=W/days;
+  const chart=`<svg viewBox="0 0 ${W} 96" style="width:100%;display:block">${R.rows.map((r,i)=>{const x=i*bw,v=R.perDay[i],h=v?Math.max(5,v/mx*52):0,pct=r&&r[0]?r[1]/r[0]:null;
+      return `<rect x="${x+1}" y="${60-h}" width="${bw-2}" height="${h}" fill="#d64545" rx="1.5"/><rect x="${x+1}" y="68" width="${bw-2}" height="9" rx="1.5" fill="${pct==null?"#e6e9ee":pct>=0.99?"#2e9d6a":pct>=0.9?"#e0a030":"#d64545"}"/>`;}).join("")}
+      <line x1="0" y1="60.5" x2="${W}" y2="60.5" stroke="#999" stroke-width="1"/><text x="0" y="92" font-size="10" fill="#555">${fd(d0.getTime())}</text><text x="${W}" y="92" font-size="10" fill="#555" text-anchor="end">${fd(Date.now())}</text></svg>
+      <div class="pd-key"><span><i style="background:#d64545"></i>faults that day</span><span><i style="background:#2e9d6a"></i>controller online all day</span><span><i style="background:#e0a030"></i>online 90% or more</span><span><i style="background:#e6e9ee"></i>not watched</span></div>`;
+  const tile=(n,l)=>`<td><b>${n}</b><small>${l}</small></td>`;
+  return `<div class="pd-head"><div class="pd-brand"><span style="color:#0e7c66">${brainMark(34,"calm")}</span><div><b>Cortex Command</b><small>by AIROW</small></div></div>
+      <div class="pd-title"><h1>${esc(s.name)}</h1><div>${esc(s.loc||"")}</div></div><div class="pd-site"><b>System report</b><div>${fd(d0.getTime())} to ${fd(Date.now())}</div><div>Printed ${new Date().toLocaleString()}</div></div></div>
+    <h2>Summary</h2><table class="pd-tiles"><tr>${tile(R.online!=null?R.online+"%":"–","controller online")}${tile(R.faults.length,"fault"+(R.faults.length===1?"":"s")+" recorded")}${tile(durTxt(R.median),"typical time to clear")}${tile(L.units!=null?L.units:(s.units||"–"),"indoor units")}${tile(R.healthNow!=null?R.healthNow+" / 100":"–","system health now")}</tr></table>
+    <p>${R.faults.length?`${R.faults.length} fault${R.faults.length===1?" was":"s were"} recorded in these ${days} days${R.open?`; ${R.open} ${R.open===1?"is":"are"} still open`:", and all have cleared"}.`:`No faults were recorded in these ${days} days.`}${R.silent?` A unit stopped answering ${R.silent} time${R.silent===1?"":"s"}.`:""}${L.filters?` ${L.filters} filter${L.filters===1?" is":"s are"} due for cleaning.`:""}${(L.adv||[]).length?` ${L.adv.length} diagnosis advisor${L.adv.length===1?"y is":"ies are"} open (below).`:""}</p>
+    <h2>Day by day</h2>${chart}
+    ${R.watched<days?`<p class="pd-note">The online figure covers the ${R.watched} day${R.watched===1?"":"s"} Cortex Command was watching this building in the period. Fault history comes from the building's own controller and covers every day it was running.</p>`:""}
+    ${(L.adv||[]).length?`<h2>Open advisories</h2><table class="pd-list">${L.adv.map(a=>`<tr><td style="width:90px">${a.lvl==="likely"?"Likely":"Possible"}</td><td><b>${esc(a.title)}</b>${a.what?`<div>${esc(a.what)}</div>`:""}</td><td style="width:120px">since ${fd(a.at)}</td></tr>`).join("")}</table>`:""}
+    <h2>Faults${R.ev.length>40?" (most recent 40)":""}</h2>${R.ev.length?`<table class="pd-list"><tr><th>Date</th><th>Where</th><th>Code</th><th>Lasted</th></tr>${R.ev.slice(0,40).map(e=>`<tr><td>${new Date(e.at).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</td><td>${esc(e.kind==="odu"?"Outdoor unit 0x"+Number(e.addr).toString(16).toUpperCase():unitName(s,e.addr))}</td><td>${e.kind==="silent"?"stopped answering":esc(e.code||"")}</td><td>${e.cleared?durTxt((e.cleared-e.at)/60000):"still open"}</td></tr>`).join("")}</table>`:`<p>None.</p>`}
+    ${(s.log||[]).filter(e=>e.t>=Date.now()-days*86400000).length?`<h2>Service visits</h2><table class="pd-list">${s.log.filter(e=>e.t>=Date.now()-days*86400000).map(e=>`<tr><td style="width:110px">${fd(e.t)}</td><td>${esc(e.m)}</td><td style="width:120px">${esc(e.by||"")}</td></tr>`).join("")}</table>`:""}
+    <p class="pd-note">Prepared from readings taken by the building's Cortex controller. Controller software v${esc(s.ver||"?")}.</p>`;}
+function siteReport(id,days){const s=DB.sites.find(x=>x.id===id);if(!s)return;log(`Printed a report for ${s.name}`);printDoc(siteReportHtml(s,days||30),"Cortex report "+s.name+" "+dayKey(Date.now()));}
+/* ---------- changes on a controller ----------
+   A controller only accepts a change from a page it served itself. So Command can change something on a
+   controller in two cases: the page was opened from that same controller, or this is the Windows app
+   (which sends the request itself, limited to the short list in command-app/bridge.js). */
+function sameBase(base){try{return /^https?:$/.test(location.protocol)&&new URL(base).host===location.host;}catch(e){return false;}}
+function canWrite(base){return !!base&&(!!(APP&&APP.controller)||sameBase(base));}
+async function ctlSend(base,method,path,body){
+  if(APP&&APP.controller)return APP.controller({base,method,path,body});
+  if(!sameBase(base))return {ok:false,status:0,err:"this copy of Command can only look at that controller"};
+  try{const r=await fetch(path,{method,headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined});let json=null;try{json=await r.json();}catch(e){}return {ok:r.ok,status:r.status,json};}
+  catch(e){return {ok:false,status:0,err:"could not reach the controller"};}}
+/* ---------- controller software ---------- */
+function ctlState(s){const L=LIVE[s.id]||{},u=L.upd||null;
+  if(!siteUrl(s))return ["off","No address"];if(!s.online)return ["off","Offline"];
+  if(L.updating&&Date.now()<L.updating.until&&s.ver===L.updating.from)return ["warn","Updating… back in about a minute"];
+  if(!u)return ["off","Checking…"];if(u.error)return ["warn","Could not check: "+u.error];if(u.configured===false)return ["off","Updates are not set up on this controller"];
+  return u.updateAvailable?["warn","v"+u.latest+" is available"]:["ok","Up to date"];}
+function ctlCanUpdate(s){const L=LIVE[s.id]||{};return !!(s.online&&L.upd&&L.upd.updateAvailable&&!(L.updating&&Date.now()<L.updating.until&&s.ver===L.updating.from));}
+async function ctlUpdate(ids){const list=ids.map(id=>DB.sites.find(s=>s.id===id)).filter(s=>s&&ctlCanUpdate(s)&&canWrite(siteUrl(s)));if(!list.length)return;
+  openModal(`<div class="mh"><h3>Update ${list.length===1?esc(list[0].name):list.length+" controllers"}?</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb">${list.map(s=>`<div class="trow"><div class="tinfo"><div class="tname">${esc(s.name)}</div><div class="tsub">v${esc(s.ver||"?")} → v${esc(LIVE[s.id].upd.latest)} · ${esc(LIVE[s.id].upd.channel||"stable")} channel</div></div></div>`).join("")}
+      <div class="note" style="margin-top:12px">Each controller downloads the new version, restarts and is back in about a minute. The heating and cooling keep running as they are. While a controller restarts it cannot run schedules or take commands, so pick a quiet moment.</div></div>
+    <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="cu-go">Start update${list.length>1?"s":""}</button></div>`);
+  $("cu-go").onclick=async()=>{$("cu-go").disabled=true;$("cu-go").textContent="Starting…";let ok=0,bad=[];
+    for(const s of list){const r=await ctlSend(siteUrl(s),"POST","/api/update/apply",{});if(r&&r.ok){ok++;(LIVE[s.id]||(LIVE[s.id]={})).updating={from:s.ver,until:Date.now()+6*60000};LIVE[s.id].updAt=0;log(`Started the update on ${s.name} (v${s.ver||"?"} → v${LIVE[s.id].upd.latest})`);}else bad.push(s.name+": "+((r&&(r.err||(r.json&&r.json.err)))||"refused"));}
+    closeModal();renderAudit();if(tab==="settings")renderSettings();toast(bad.length?(ok?ok+" started. ":"")+"Not started: "+bad.join("; "):(ok===1?"Update started. The controller will be back in about a minute.":ok+" updates started."));};}
+function controllersHtml(){const any=DB.sites.filter(s=>siteUrl(s)),up=any.filter(s=>ctlCanUpdate(s)&&canWrite(siteUrl(s))),looking=any.some(s=>ctlCanUpdate(s)&&!canWrite(siteUrl(s)));
+  return (any.length?`<div class="panel" style="margin:6px 0 0">${any.map(s=>{const st=ctlState(s),L=LIVE[s.id]||{},can=ctlCanUpdate(s);
+      return `<div class="trow"><div class="tinfo"><div class="tname">${esc(s.name)}</div><div class="tsub">${s.ver?"v"+esc(s.ver):"version unknown"}${L.upd&&L.upd.channel?" · "+esc(L.upd.channel)+" channel":""}</div></div><span class="pill ${st[0]}"><span class="pdot"></span>${esc(st[1])}</span>${can?(canWrite(siteUrl(s))?`<button class="btn primary sm" data-cupd="${s.id}">Update</button>`:`<button class="btn sm" data-copen="${s.id}">Open ↗</button>`):""}</div>`;}).join("")}</div>
+      <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn sm" id="cu-refresh">Check again</button>${up.length>1?`<button class="btn primary sm" id="cu-all">Update all ${up.length}</button>`:""}</div>`:`<div class="note" style="margin:0">No buildings with an address yet.</div>`)
+    +(looking?`<div class="note" style="margin-top:12px">A controller only accepts changes from its own page, so this copy of Command can see that an update is waiting but cannot start it. Use <b>Open ↗</b> and update from that building's Settings, or use the Cortex Command Windows app, which can start updates from here.</div>`:"")
+    +`<div class="note" style="margin-top:12px">Each controller follows its own update channel (stable or beta), set in that building's Settings. Command never changes the channel.</div>`;}
+/* ---------- sync between computers ----------
+   One copy of the building list, technicians, grants, notes, acknowledgements and the sign-in is kept on a
+   controller you pick as home. Every Command that points at it shows the same thing. What each computer
+   measures for itself (online now, trend history, preferences) stays on that computer. */
+const SYNC_KEY="cortex_cmd_sync",LIVE_KEYS=["online","err","units","ver","seen"];
+let SYNC=(()=>{try{return JSON.parse(localStorage.getItem(SYNC_KEY))||{};}catch(e){return {};}})();
+function syncSave(){try{localStorage.setItem(SYNC_KEY,JSON.stringify(SYNC));}catch(e){}}
+function syncHome(){return SYNC.home||(/^https?:$/.test(location.protocol)?location.origin:"");}
+function syncPossible(){return APP&&APP.controller?true:/^https?:$/.test(location.protocol);}
+function syncDoc(){const a=loadAcct();return {sites:DB.sites.map(s=>{const o={};Object.keys(s).forEach(k=>{if(!LIVE_KEYS.includes(k))o[k]=s[k];});return o;}),techs:DB.techs,grants:DB.grants,
+  audit:DB.audit.filter(x=>!/^Alert: /.test(x.m)).slice(0,60),acks:DB.acks||{},snooze:DB.snooze||{},acct:a?{user:a.user,name:a.name,passhash:a.passhash}:undefined};}
+function syncSig(d){return JSON.stringify(d);}
+async function syncGet(home){const base=home||syncHome();if(!base)throw new Error("no home controller");
+  if(APP&&APP.controller){const r=await APP.controller({base,method:"GET",path:"/api/command-data"});if(!r.ok)throw new Error(r.err||("the controller answered "+r.status));return r.json;}
+  return getJ((sameBase(base)?"":base)+"/api/command-data",6000);}
+function syncAdopt(doc,rev){const old=new Map(DB.sites.map(s=>[s.id,s]));
+  DB.sites=(doc.sites||[]).map(s=>{const o=old.get(s.id)||{},n=Object.assign({},s);LIVE_KEYS.forEach(k=>{if(o[k]!==undefined)n[k]=o[k];});return n;});
+  DB.techs=doc.techs||[];DB.grants=doc.grants||[];DB.acks=doc.acks||{};DB.snooze=doc.snooze||{};
+  const mine=DB.audit.filter(x=>/^Alert: /.test(x.m));DB.audit=[...(doc.audit||[]),...mine].sort((a,b)=>b.t-a.t).slice(0,60);
+  if(doc.acct&&doc.acct.user&&doc.acct.passhash){const a=loadAcct()||{};if(a.user!==doc.acct.user||a.passhash!==doc.acct.passhash||a.name!==doc.acct.name)saveAcct(Object.assign(a.user===doc.acct.user?a:{},doc.acct));}
+  try{localStorage.setItem("cortex_command",JSON.stringify(DB));}catch(e){}
+  SYNC.rev=rev;SYNC.sig=syncSig(syncDoc());SYNC.at=Date.now();SYNC.err="";syncSave();
+  const ids=new Set(DB.sites.map(s=>s.id));PREFS.siteOrder=(PREFS.siteOrder||[]).filter(id=>ids.has(id));DB.sites.forEach(s=>{if(!PREFS.siteOrder.includes(s.id))PREFS.siteOrder.push(s.id);});savePrefs();}
+let syncBusy=false,syncT=null;
+async function syncNow(quiet){if(!SYNC.on||syncBusy)return;syncBusy=true;
+  try{const remote=await syncGet(),doc=syncDoc(),dirty=syncSig(doc)!==SYNC.sig;
+    if(remote.rev!==SYNC.rev&&remote.doc&&!dirty){syncAdopt(remote.doc,remote.rev);if(sessionStorage.getItem("cortex_cmd_in")&&!$("scrim").classList.contains("show")){render();if(!quiet)toast("Updated from another computer");}}
+    else if(dirty||!remote.doc){const r=await ctlSend(syncHome(),"PUT","/api/command-data",{base:remote.doc?SYNC.rev:remote.rev,doc});
+      if(r.ok&&r.json){SYNC.rev=r.json.rev;SYNC.sig=syncSig(doc);SYNC.at=Date.now();SYNC.err="";syncSave();}
+      else if(r.status===409&&r.json&&r.json.doc){syncAdopt(r.json.doc,r.json.rev);if(sessionStorage.getItem("cortex_cmd_in"))render();toast("Another computer saved first, so this one now matches it. Make your last change again if it is missing.");}
+      else{SYNC.err=(r.json&&r.json.err)||r.err||("the home controller answered "+r.status);syncSave();}}
+    else{SYNC.at=Date.now();SYNC.err="";syncSave();}
+  }catch(e){SYNC.err="cannot reach the home controller";syncSave();}
+  syncBusy=false;if(tab==="settings"&&setSec==="sync"&&!document.activeElement.matches("input"))renderSettings();}
+function syncTouch(){if(!SYNC.on)return;clearTimeout(syncT);syncT=setTimeout(()=>syncNow(true),2500);}
+setInterval(()=>{if(SYNC.on&&!document.hidden)syncNow(true);},45000);
+async function syncEnable(home){if(!syncPossible()){toast("Sync needs the Windows app, or Command opened from a controller");return;}
+  let remote;try{remote=await syncGet(home);}catch(e){toast("Could not reach that controller. Check the address and that it runs Cortex 1.7.0-beta.16 or newer.");return;}
+  if(!remote||typeof remote.rev!=="number"){toast("That controller does not offer Command sync yet. Update it first.");return;}
+  if(!canWrite(home||syncHome())){toast("This copy of Command cannot save to that controller. Open Command from that controller, or use the Windows app.");return;}
+  const start=(useRemote)=>{SYNC={on:true,home:home||"",rev:useRemote?-1:remote.rev,sig:""};syncSave();closeModal();
+    if(useRemote){syncAdopt(remote.doc,remote.rev);render();}
+    log("Turned on sync with "+(home||location.host));syncNow(false).then(()=>{renderSettings();toast(SYNC.err?"Sync is on, but: "+SYNC.err:"Sync is on");});};
+  if(remote.doc&&remote.doc.sites&&remote.doc.sites.length&&DB.sites.length){
+    openModal(`<div class="mh"><h3>Which list should win?</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+      <div class="mb"><div class="note">Both this computer and the home controller already have buildings. Pick one to keep; the other is replaced.</div>
+        <div class="trow"><div class="tinfo"><div class="tname">The home controller's list</div><div class="tsub">${remote.doc.sites.length} building${remote.doc.sites.length===1?"":"s"}, last saved ${fmtTime(remote.ts)}</div></div><button class="btn primary sm" id="sy-remote">Use this</button></div>
+        <div class="trow"><div class="tinfo"><div class="tname">This computer's list</div><div class="tsub">${DB.sites.length} building${DB.sites.length===1?"":"s"}</div></div><button class="btn sm" id="sy-local">Use this</button></div>
+        <div class="note" style="margin-top:12px">Not sure? Download a backup first in Settings ▸ Backup and data.</div></div>`);
+    $("sy-remote").onclick=()=>start(true);$("sy-local").onclick=()=>start(false);return;}
+  start(!!(remote.doc&&remote.doc.sites&&remote.doc.sites.length));}
+function syncDisable(){SYNC={on:false,home:SYNC.home||""};syncSave();log("Turned off sync");renderSettings();toast("Sync is off. This computer keeps its own copy from now on.");}
+function syncHtml(){const home=syncHome();
+  if(!syncPossible())return `<div class="note" style="margin:0">Sync keeps one copy of your buildings, technicians, notes and acknowledgements on a controller you choose, so every computer shows the same thing. This copy of Command was opened as a file, which cannot save to a controller. Use the Cortex Command Windows app, or open Command from a controller's address.</div>`;
+  const where=APP?`<div class="srow" style="display:block"><div class="tname">Home controller</div><div class="tsub">The address of the controller that keeps the shared copy. Any building's controller will do; pick one that is always on.</div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input class="inp" id="sy-home" style="flex:1;min-width:200px" placeholder="e.g. 100.84.2.17:8080" value="${esc(SYNC.home||"")}" ${SYNC.on?"disabled":""} list="sy-list"><datalist id="sy-list">${DB.sites.filter(s=>siteUrl(s)).map(s=>`<option value="${esc(siteUrl(s))}">${esc(s.name)}</option>`).join("")}</datalist></div></div>`
+    :srow("Home controller","The controller this page was opened from keeps the shared copy.",`<span class="mono" style="font-size:12.5px">${esc(location.host)}</span>`);
+  return where+srow("Sync",SYNC.on?(SYNC.err?`<span style="color:var(--err)">Not syncing: ${esc(SYNC.err)}</span>`:"On"+(SYNC.at?" · last checked "+fmtTime(SYNC.at):"")):"Off. This computer keeps its own copy.",SYNC.on?`<button class="btn sm" id="sy-now">Sync now</button> <button class="btn sm" id="sy-off">Turn off</button>`:`<button class="btn primary sm" id="sy-on">Turn on</button>`)
+    +`<div class="note" style="margin-top:12px"><b>Shared:</b> buildings and their notes and service logs, technicians, access grants, acknowledged and snoozed alerts, the audit log, and the sign-in name and password.<br><b>Stays on each computer:</b> trend history, display preferences, and the recovery code.</div>
+      <div class="note" style="margin-top:8px">Anyone who can reach the home controller on the network can read this list, the same as the rest of a controller's settings. Keep controllers on a private network or Tailscale.</div>`;}
+/* On a computer that has never used Command: offer to pick everything up from a home controller. */
+async function setupSyncOffer(){const box=$("su-sync");if(!box)return;
+  const adopt=(home,remote)=>{saveAcct(Object.assign({},remote.doc.acct));DB=seed();DB.sites=[];DB.techs=[];DB.grants=[];DB.audit=[];DB.acks={};DB.snooze={};syncAdopt(remote.doc,remote.rev);
+    SYNC={on:canWrite(home||syncHome()),home:home||"",rev:remote.rev,sig:syncSig(syncDoc()),at:Date.now()};syncSave();location.reload();};
+  const ask=()=>{box.innerHTML=`<label class="flabel" style="margin-top:4px">Home controller address</label><div style="display:flex;gap:8px"><input class="inp" id="su-home" placeholder="e.g. 100.84.2.17:8080" style="flex:1"><button class="btn" id="su-conn">Connect</button></div><div class="err-text" id="su-serr"></div>`;
+    $("su-conn").onclick=async()=>{let h=$("su-home").value.trim();if(!h)return;if(!/^https?:\/\//i.test(h))h="http://"+h;h=h.replace(/\/+$/,"");$("su-serr").textContent="Connecting…";
+      try{const r=await syncGet(h);if(!r.doc||!r.doc.acct){$("su-serr").textContent="That controller has no Command data saved on it yet.";return;}adopt(h,r);}catch(e){$("su-serr").textContent="Could not reach that controller.";}};};
+  box.innerHTML=`<button class="linkbtn" id="su-have">Already use Cortex Command on another computer?</button>`;$("su-have").onclick=ask;
+  if(/^https?:$/.test(location.protocol)){try{const r=await getJ("/api/command-data",3000);if(r&&r.doc&&r.doc.acct&&$("su-sync")){
+      box.innerHTML=`<div class="note" style="margin:0 0 10px">This controller already holds a Cortex Command setup for <b>${esc(r.doc.acct.name||r.doc.acct.user)}</b> with ${r.doc.sites.length} building${r.doc.sites.length===1?"":"s"}.</div><button class="btn primary" id="su-use" style="width:100%">Use it and sign in</button><div style="text-align:center;margin:10px 0 2px;font-size:12px;color:var(--text-faint)">or start a separate console below</div>`;
+      $("su-use").onclick=()=>adopt("",r);}}catch(e){}}}
 /* ---------- daily briefing ----------
    The first sign-in of each day opens one screen: what needs attention, what changed since you were last
    here, and what is fine. Everything on it is read from the buildings' controllers a moment ago. */
@@ -682,9 +965,11 @@ function briefKey(){return "cortex_cmd_brief_"+OWNER.user;}
 function briefState(){try{return JSON.parse(localStorage.getItem(briefKey()))||{};}catch(e){return {};}}
 function briefing(force){const st=briefState();if(!force&&(PREFS.briefing===false||st.day===briefDay()))return;if(!DB.sites.length&&!force)return;
   const since=st.at||Date.now()-86400000,hr=new Date().getHours(),hello=hr<12?"Good morning":hr<18?"Good afternoon":"Good evening",first=(OWNER.name||"").split(/\s+/)[0]||"";
-  const need=[],news=[],fyi=[];let fine=0,unitsOn=0,units=0;const nv=newestVer();
+  const need=[],news=[],fyi=[],hand=[],snz=[];let fine=0,unitsOn=0,units=0;const nv=newestVer(),AI=alertItems();
   DB.sites.forEach(s=>{const L=LIVE[s.id]||{},n=[];if(!siteUrl(s))return;
-    if(!s.online){need.push({s,cls:"off",t:"Controller is not answering",sub:(s.seen?"Last seen "+fmtTime(s.seen)+". ":"")+"Check its power and its network or Tailscale link."});return;}
+    const its=AI.filter(i=>i.s.id===s.id),allAck=its.length>0&&its.every(i=>i.ack),ackLine=()=>{const a=its.map(i=>i.ack).filter(Boolean).sort((x,y)=>y.at-x.at)[0];return {s,cls:"ok",t:its.length+" alert"+(its.length>1?"s":"")+" acknowledged",sub:"By "+a.by+", "+fmtTime(a.at)+(a.note?" · “"+a.note+"”":"")};};
+    if(snoozed(s)){snz.push({s,cls:"off",t:"Alerts snoozed until "+fmtTime(DB.snooze[s.id]),sub:its.length?its.length+" alert"+(its.length>1?"s":"")+" waiting":""});if(s.online){units+=L.units||0;unitsOn+=L.on||0;}return;}
+    if(!s.online){if(allAck)hand.push(ackLine());else need.push({s,cls:"off",t:"Controller is not answering",sub:(s.seen?"Last seen "+fmtTime(s.seen)+". ":"")+"Check its power and its network or Tailscale link."});return;}
     units+=L.units||0;unitsOn+=L.on||0;
     if((L.errs||[]).length)n.push({cls:"err",t:L.errs.length+" unit"+(L.errs.length>1?"s":"")+" in error",sub:L.errs.slice(0,4).map(e=>e.name+" "+e.code).join(" · ")+(L.errs.length>4?" · +"+(L.errs.length-4)+" more":"")});
     if(L.offline)n.push({cls:"warn",t:L.offline+" unit"+(L.offline>1?"s are":" is")+" not answering",sub:"The controller can't reach "+(L.offline>1?"them":"it")+" on the bus."});
@@ -697,7 +982,7 @@ function briefing(force){const st=briefState();if(!force&&(PREFS.briefing===fals
     if(cl.length)news.push({s,t:cl.length+" earlier fault"+(cl.length>1?"s":"")+" cleared",sub:""});
     const h=histOf(s,Math.min(168,Math.max(1,(Date.now()-since)/3600000))),downs=h.filter((p,i)=>i&&!p[1]&&h[i-1][1]).length;if(downs)news.push({s,t:"Went offline "+downs+" time"+(downs>1?"s":"")+" and came back",sub:""});
     n.filter(x=>x.cls==="info").forEach(x=>fyi.push(Object.assign({s},x)));const real=n.filter(x=>x.cls!=="info");
-    if(real.length)real.forEach(x=>need.push(Object.assign({s},x)));else fine++;});
+    if(real.length&&allAck)hand.push(ackLine());else if(real.length)real.forEach(x=>need.push(Object.assign({s},x)));else fine++;});
   const soon=activeGrants().filter(g=>g.until-Date.now()<24*3600000);
   const group=(list,calm)=>{const by=new Map();list.forEach(x=>{if(!by.has(x.s.id))by.set(x.s.id,[]);by.get(x.s.id).push(x);});
     return [...by.values()].map(xs=>{const s=xs[0].s;return `<div class="bgroup"><div class="bg-h"><b>${esc(s.name)}</b>${calm?"":sitePill(s)}<span style="flex:1"></span>${s.online?`<button class="btn sm" data-bopen="${s.id}">Open ↗</button>`:""}</div>${xs.map(x=>`<div class="bg-r"><i class="bdot ${calm?"ok":x.cls}"></i><div><div class="tname">${esc(x.t)}</div>${x.sub?`<div class="tsub">${esc(x.sub)}</div>`:""}</div></div>`).join("")}</div>`;}).join("");};
@@ -705,6 +990,8 @@ function briefing(force){const st=briefState();if(!force&&(PREFS.briefing===fals
   openModal(`<div class="mb" style="padding-top:22px"><div class="brief-h"><span style="color:var(--accent)">${brainMark(56,"live")}</span><div><div class="brief-t">${hello}${first?", "+esc(first):""}.</div><div class="tsub">${new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})} · ${st.at?"since you were last here "+fmtTime(st.at):"your first briefing"}</div></div></div>
       <div class="brief-sum">${total?`<b>${total-bad}</b> of <b>${total}</b> building${total===1?"":"s"} ${total-bad===1?"is":"are"} running with nothing to look at.${units?" "+unitsOn+" of "+units+" indoor units are on.":""}`:"No buildings have a controller address yet."}</div>
       <h2 class="sec">Needs attention${need.length?" · "+bad+" building"+(bad===1?"":"s"):""}</h2>${need.length?group(need):'<div class="panel"><div class="trow"><div class="tsub">✓ Nothing needs you right now.</div></div></div>'}
+      ${hand.length?`<h2 class="sec">Already in hand</h2>${group(hand,true)}`:""}
+      ${snz.length?`<h2 class="sec">Snoozed</h2>${group(snz,true)}`:""}
       <h2 class="sec">Since you were last here</h2>${news.length?group(news,true):'<div class="panel"><div class="trow"><div class="tsub">No new faults, outages or advisories.</div></div></div>'}
       ${fyi.length?`<h2 class="sec">Worth knowing</h2>${group(fyi)}`:""}
       ${soon.length?`<h2 class="sec">Temporary access ending today</h2><div class="panel">${soon.map(g=>`<div class="trow"><div class="tinfo"><div class="tname">${esc(techName(g.tech))} · ${esc(siteName(g.site))}</div><div class="tsub">ends ${fmtTime(g.until)}</div></div></div>`).join("")}</div>`:""}
@@ -719,7 +1006,13 @@ let briefWait=false;
 /* ---------- tabs / chrome ---------- */
 function setTab(){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   ["sites","alerts","techs","audit","settings"].forEach(t=>$("tab-"+t).classList.toggle("hide",tab!==t));if(tab==="settings")renderSettings();}
-document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;setTab();if(tab==="techs")tickCountdowns();});
+/* Opening a tab: ease it in and count the headline numbers up. The 20-second refresh never does this. */
+function enterAnim(all){if(PREFS.motion===false||matchMedia("(prefers-reduced-motion:reduce)").matches)return;
+  const els=[$("tab-"+tab)].concat(all?[$("kpis")]:[]).filter(Boolean);els.forEach(el=>{el.classList.remove("enter");void el.offsetWidth;el.classList.add("enter");});
+  clearTimeout(enterAnim.t);enterAnim.t=setTimeout(()=>els.forEach(el=>el.classList.remove("enter")),1500);if(all)countUp();}
+function countUp(){document.querySelectorAll(".kpi .n").forEach(el=>{const node=[...el.childNodes].find(n=>n.nodeType===3&&/^\s*\d+\s*$/.test(n.nodeValue));if(!node)return;const to=parseInt(node.nodeValue,10);if(!(to>1)||to>99999)return;
+    const t0=performance.now(),dur=Math.min(800,280+to*8),step=t=>{const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);if(!node.parentNode)return;node.nodeValue=String(Math.round(to*e))+" ";if(k<1)requestAnimationFrame(step);else node.nodeValue=to+" ";};requestAnimationFrame(step);});}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{const was=tab;tab=b.dataset.tab;setTab();if(tab==="techs")tickCountdowns();if(was!==tab)enterAnim(false);});
 {const _at=applyTheme;applyTheme=function(){_at();document.documentElement.classList.toggle("no-motion",PREFS.motion===false);};}
 applyTheme();
 $("settings").onclick=openSettings;$("brief").onclick=()=>briefing(true);
@@ -767,7 +1060,7 @@ setInterval(()=>{if(!sessionStorage.getItem("cortex_cmd_in"))return;const m=+PRE
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 
 /* ---------- auth: first-run setup wizard, sign-in, recovery ---------- */
-function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";brandMark(false);render();setTab();if(tab==="techs")tickCountdowns();briefWait=true;updBar();startHealthPolling();homeCheck().then(ok=>{if(ok)fleetSync();});}
+function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";brandMark(false);render();setTab();enterAnim(true);if(tab==="techs")tickCountdowns();briefWait=true;updBar();startHealthPolling();homeCheck().then(ok=>{if(ok)fleetSync();});}
 function signedIn(acct){OWNER.user=acct.user;OWNER.name=acct.name;sessionStorage.setItem("cortex_cmd_in","1");PREFS=loadPrefs();siteSort=PREFS.siteSort||"custom";applyTheme();lastTouch=Date.now();fleetPrimed=false;enter();}
 const CARD=()=>$("login-card");
 function head(title,sub){return `<div class="login-logo">${LOGO_SVG}Cortex Command</div><div class="login-sub">${esc(sub||"Fleet console")}</div>${title?`<h2 style="margin:4px 0 14px;font-size:18px">${esc(title)}</h2>`:""}`;}
@@ -784,6 +1077,7 @@ function showSetup(){
     <input class="inp" id="su-pass2" type="password" placeholder="confirm password" style="margin-top:8px">
     <div class="err-text" id="su-err"></div>
     <button class="btn primary" id="su-go" style="width:100%;margin-top:10px">Create console</button>
+    <div id="su-sync" style="margin-top:14px"></div>
     <div class="note" style="margin-top:14px">This owner account always has access to every building. You'll get a recovery code next — keep it somewhere safe.</div>`;
   $("su-go").onclick=()=>{
     const name=$("su-name").value.trim(),user=$("su-user").value.trim(),p=$("su-pass").value,p2=$("su-pass2").value;
@@ -794,6 +1088,7 @@ function showSetup(){
     saveAcct(acct);showRecoveryCode(acct);
   };
   $("su-pass2").addEventListener("keydown",e=>{if(e.key==="Enter")$("su-go").click();});
+  setupSyncOffer();
 }
 /* show the generated recovery code once, then enter */
 function showRecoveryCode(acct){

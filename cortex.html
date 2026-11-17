@@ -427,6 +427,53 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 #fxlayer{position:fixed;inset:0;pointer-events:none;z-index:150;overflow:hidden}
 .flake{position:absolute;top:-24px;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(107vh) rotate(360deg)}}
+#printdoc{display:none}
+@media print{body.print-doc>*:not(#printdoc){display:none!important}html:has(body.print-doc),body.print-doc{background:#fff!important;zoom:1!important;height:auto!important;min-height:0!important;overflow:visible!important;position:static!important}body.print-doc #printdoc{display:block;color:#111;font-size:11.5px;line-height:1.4}
+  @page{margin:14mm}}
+#printdoc h1{font-size:19px;margin:0}#printdoc h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #111}#printdoc h2 small{font-weight:400;text-transform:none;letter-spacing:0;color:#555;margin-left:6px}
+.pd-head{display:flex;gap:16px;align-items:flex-start;border-bottom:2px solid #0e7c66;padding-bottom:10px}.pd-brand{display:flex;gap:8px;align-items:center}.pd-brand b{display:block;font-size:15px}.pd-brand small{color:#555;font-size:10px}.pd-title{flex:1}.pd-title div{color:#444;margin-top:2px}.pd-site{text-align:right;font-size:10.5px;color:#444}.pd-site b{font-size:12px;color:#111}
+.pd-kv{width:100%;border-collapse:collapse}.pd-kv th{text-align:left;width:120px;font-weight:600;color:#444;vertical-align:top;padding:3px 8px 3px 0}.pd-kv td{padding:3px 0;vertical-align:top}
+.pd-grid{width:100%;border-collapse:collapse}.pd-grid td{border:1px solid #bbb;padding:5px 8px;width:33%}.pd-grid small{display:block;color:#555;font-size:10px}.pd-grid b{font-size:13px}
+.pd-charts>*{break-inside:avoid;margin-bottom:6px}.pd-charts svg{max-height:210px}.pd-steps{width:100%;border-collapse:collapse}.pd-steps tr{break-inside:avoid}.pd-steps td{padding:6px 4px;border-bottom:1px solid #ccc;vertical-align:top}.pd-box{font-size:18px;width:24px}.pd-fix{color:#444;font-style:italic}.pd-line{margin-top:8px;border-bottom:1px solid #999;height:16px;color:#777;font-size:10px}
+.pd-notes{height:90px;border:1px solid #bbb}.pd-sign{width:100%;margin-top:14px;border-collapse:collapse}.pd-sign td{border-top:1px solid #111;padding-top:3px;font-size:10px;color:#444;width:33%;height:10px}.pd-note{color:#555;font-size:10px;margin-top:10px}.pd-break{break-before:auto}
+#demo-chip{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:40;display:flex;gap:10px;align-items:center;background:#1b2027;color:#fff;border-radius:999px;padding:7px 8px 7px 16px;font-size:12.5px;box-shadow:0 6px 24px rgba(0,0,0,.28);max-width:calc(100vw - 20px)}#demo-chip b{color:#ffd166;white-space:nowrap}#demo-chip span{opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#demo-chip button{border:0;border-radius:999px;background:#fff;color:#111;font-weight:600;font-size:12px;padding:5px 12px;cursor:pointer;white-space:nowrap}
+@media(max-width:640px){#demo-chip span{display:none}}@media print{#demo-chip{display:none!important}}
+.occ-room{display:flex;flex-direction:column;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}.occ-room small{display:block;color:var(--text-dim);font-size:12px;margin-top:2px}.occ-act{display:flex;gap:6px;flex-wrap:wrap}.occ-units{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;max-height:210px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13.5px}.occ-units label{display:flex;gap:7px;align-items:center;cursor:pointer}
+/* ===== Motion =====
+   Small movements that say "this just happened": screens ease in, numbers count up, buttons give under a
+   press, a changed setpoint bumps. Everything here is switched off by Settings ▸ Display ▸ Animations and
+   by the operating system's "reduce motion" setting. Entrance effects run only when a screen is opened
+   (.enter is set for a moment), never on the live refresh, so nothing flickers while you watch. */
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes bumpNum{0%{transform:scale(1)}40%{transform:scale(1.16)}100%{transform:scale(1)}}
+@keyframes okPing{0%{box-shadow:0 0 0 0 rgba(46,157,106,.45)}100%{box-shadow:0 0 0 14px rgba(46,157,106,0)}}
+@keyframes softGlow{0%,100%{box-shadow:var(--shadow)}50%{box-shadow:0 0 0 3px var(--err-soft,rgba(214,69,69,.14)),var(--shadow)}}
+@keyframes navDot{from{transform:scaleY(.2);opacity:0}to{transform:none;opacity:1}}
+body:not(.no-motion) #main.enter>*{animation:riseIn .32s cubic-bezier(.2,.8,.3,1) both}
+body:not(.no-motion) #main.enter>*:nth-child(2){animation-delay:.04s}body:not(.no-motion) #main.enter>*:nth-child(3){animation-delay:.08s}body:not(.no-motion) #main.enter>*:nth-child(n+4){animation-delay:.12s}
+body:not(.no-motion) #main.enter .card{animation:riseIn .34s cubic-bezier(.2,.8,.3,1) both}
+body:not(.no-motion) #main.enter .card:nth-child(1){animation-delay:0.02s}body:not(.no-motion) #main.enter .card:nth-child(2){animation-delay:0.04s}body:not(.no-motion) #main.enter .card:nth-child(3){animation-delay:0.06s}body:not(.no-motion) #main.enter .card:nth-child(4){animation-delay:0.08s}body:not(.no-motion) #main.enter .card:nth-child(5){animation-delay:0.10s}body:not(.no-motion) #main.enter .card:nth-child(6){animation-delay:0.12s}body:not(.no-motion) #main.enter .card:nth-child(7){animation-delay:0.14s}body:not(.no-motion) #main.enter .card:nth-child(8){animation-delay:0.16s}body:not(.no-motion) #main.enter .card:nth-child(9){animation-delay:0.18s}body:not(.no-motion) #main.enter .card:nth-child(10){animation-delay:0.20s}body:not(.no-motion) #main.enter .card:nth-child(11){animation-delay:0.22s}body:not(.no-motion) #main.enter .card:nth-child(12){animation-delay:0.24s}body:not(.no-motion) #main.enter .card:nth-child(13){animation-delay:0.26s}body:not(.no-motion) #main.enter .card:nth-child(14){animation-delay:0.28s}body:not(.no-motion) #main.enter .card:nth-child(15){animation-delay:0.30s}body:not(.no-motion) #main.enter .card:nth-child(16){animation-delay:0.32s}
+body:not(.no-motion) #main.enter .card:nth-child(n+17){animation-delay:.34s}
+body:not(.no-motion) #main.enter .gauge,body:not(.no-motion) #main.enter .cy-tile{animation:riseIn .3s ease both}
+body:not(.no-motion) .modal.pop{animation:popIn .2s cubic-bezier(.2,.9,.3,1.15) both}body:not(.no-motion) .modal-scrim.pop{animation:fadeIn .16s ease both}
+body:not(.no-motion) .btn,body:not(.no-motion) .opt,body:not(.no-motion) .icon-btn,body:not(.no-motion) .nav-item{transition:transform .08s ease,background .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease}
+body:not(.no-motion) .btn:active,body:not(.no-motion) .opt:active,body:not(.no-motion) .icon-btn:active,body:not(.no-motion) .stepper button:active,body:not(.no-motion) .pwr button:active{transform:scale(.95)}
+body:not(.no-motion) .btn.primary:hover{box-shadow:0 3px 12px color-mix(in srgb,var(--accent) 35%,transparent)}
+body:not(.no-motion) .card{transition:border-color .15s,transform .18s cubic-bezier(.2,.8,.3,1),box-shadow .18s}
+body:not(.no-motion) .card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+body:not(.no-motion) .card.err{animation:softGlow 2.6s ease-in-out infinite}
+body:not(.no-motion) .bump{animation:bumpNum .22s ease}
+body:not(.no-motion) .pill.run::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;animation:pulse 2.2s ease-in-out infinite}
+body:not(.no-motion) .nav-item.active{position:relative}body:not(.no-motion) .nav-item.active::after{content:"";position:absolute;left:0;top:22%;bottom:22%;width:3px;border-radius:2px;background:var(--accent);animation:navDot .22s ease both;transform-origin:center}
+body:not(.no-motion) .toast{transition:opacity .22s ease,transform .32s cubic-bezier(.2,1.2,.3,1)}
+body:not(.no-motion) .toast.ok::before{content:"✓";display:inline-block;margin-right:8px;width:18px;height:18px;line-height:18px;text-align:center;border-radius:50%;background:#2e9d6a;color:#fff;font-size:12px;animation:okPing .7s ease-out}
+body:not(.no-motion) .toggle::after{transition:transform .2s cubic-bezier(.2,1.3,.4,1)}
+body:not(.no-motion) .gauge .gv,body:not(.no-motion) .set .v b{font-variant-numeric:tabular-nums}
+@media(prefers-reduced-motion:reduce){#main.enter>*,#main.enter .card,.modal.pop,.modal-scrim.pop,.bump,.card.err{animation:none!important}}
+.bk-row{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--border);cursor:pointer}.bk-row input{margin-top:3px;width:17px;height:17px;flex:none}.bk-row small{display:block;font-size:12px;color:var(--text-dim);font-weight:400;margin-top:1px}
+.lkbtn{display:inline-flex;flex-direction:column;align-items:center;gap:1px;line-height:1.2}.lkbtn small{font-size:10.5px;font-weight:400;opacity:.75}.lkbtn .lk-ic{font-size:15px}
 .swatches{display:flex;gap:9px}
 .swatch{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0}
 .swatch.sel{border-color:var(--text);box-shadow:0 0 0 2px var(--surface) inset}
@@ -685,6 +732,11 @@ svg.ug{width:100%;height:100%;display:block}
 <div id="thinking"></div>
 
 <script>
+/* Demo mode flag and the stores every part of the page uses. See "Demo building" further down. */
+const DEMO=(()=>{try{if(/[?&]demo\b/.test(location.search)){sessionStorage.setItem("cortex_demo","1");history.replaceState(null,"",location.pathname);}return sessionStorage.getItem("cortex_demo")==="1";}catch(e){return false;}})();
+const IS_FILE=location.protocol==="file:"&&!DEMO;               // opened as a bare file (no controller behind it) - the demo building behaves like a hosted page
+const LS=DEMO?(()=>{const m=new Map();return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v));},removeItem:k=>{m.delete(k);},clear:()=>m.clear(),key:i=>[...m.keys()][i]||null,get length(){return m.size;}};})():window.localStorage;
+
 const MODES=[["cool","Cool","❄"],["heat","Heat","☀"],["auto","Auto","⇅"],["dry","Dry","💧"],["fan","Fan","✦"]];
 const FANS=[["low","Low"],["med","Med"],["high","High"],["auto","Auto"],["quiet","Quiet"],["power","Power"]];
 // Speeds you can CHOOSE. Auto is fan code 4 on the bus (field-verified in the LGAP reference kit, ch.05 §1.1),
@@ -739,7 +791,7 @@ const ERRORS={
  "CH33":{t:"Compressor 2 discharge too hot",cause:"Second compressor's discharge gas overheated.",act:"Same checks as CH32: charge and leaks first, then EEVs, injection, and the discharge sensor.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH47":{t:"Compressor 2 discharge sensor",cause:"Second compressor's discharge thermistor is open, shorted or unplugged.",act:"Check the sensor is fitted and plugged in, then its resistance.",chk:TH_CHK,sev:"high",who:"Outdoor"},
  "CH49":{t:"IPM temperature sensor",cause:"The inverter power module's temperature sensor is open or shorted.",act:"Technician: check the inverter PCB.",sev:"high",who:"Outdoor"},
- "CH59":{t:"Outdoor frame mismatch",cause:"The outdoor frames connected together are not an allowed combination.",act:"Check the main / sub combination against LG's combination table and the DIP switches on each frame.",sev:"high",who:"Outdoor"},
+ "CH59":{t:"Series installation error",cause:"On a system with more than one outdoor frame, a smaller frame is set as the main (master) unit. The largest frame must be the main.",act:"Check which frame is set as main on the DIP switches and that the frame sizes are an allowed combination in LG's table.",sev:"high",who:"Outdoor"},
  "CH75":{t:"Fan current sensor",cause:"Outdoor fan PCB current sensor fault.",act:"Technician: check the fan PCB.",sev:"high",who:"Outdoor"},
  "CH76":{t:"Fan DC link over-voltage",cause:"DC bus voltage on the outdoor fan PCB went too high.",act:"Check incoming voltage, then the fan PCB.",lv:"auto",sev:"high",who:"Outdoor"},
  "CH77":{t:"Fan overcurrent",cause:"Outdoor fan motor is drawing too much current.",act:"Check the fan turns freely and the motor windings, then the fan PCB.",lv:"auto",sev:"high",who:"Outdoor"},
@@ -760,37 +812,38 @@ const ERRORS={
  "CH24":{t:"High pressure switch",cause:"The outdoor high-pressure switch opened and shut the system off.",act:"Check the switch connection on the outdoor PCB, then find why pressure rose: dirty coil, fan not running, overcharge, closed service valve.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH25":{t:"Input voltage out of range",cause:"Supply voltage to the outdoor unit is too high or too low.",act:"Measure incoming voltage on every leg while the unit runs.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH26":{t:"Compressor failed to start",cause:"The inverter compressor did not start.",act:"Technician: check compressor wiring and windings, the inverter PCB, and for liquid in the compressor.",lv:"auto",sev:"critical",who:"Outdoor"},
- "CH27":{t:"High pressure trip",cause:"High pressure protection tripped. Dirty coil, low airflow or overcharge.",act:"Clean the outdoor coil, confirm every outdoor fan runs, verify charge.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH27":{t:"PSC / PFC fault (inverter input)",cause:"Over-current was detected at the IGBT / PFC module, the part of the inverter PCB that turns incoming AC into DC. LG lists this for single-phase inverter outdoor units (single and multi-split boards); it is not in the Multi V IV code table.",act:"Check incoming voltage, then the reactor and its wiring, the compressor leads (U, V, W) and winding resistance, and finally the inverter PCB.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH29":{t:"Compressor overcurrent",cause:"Compressor current draw is too high: a failing compressor or a restriction in the piping.",act:"Technician: compare amps with nameplate, look for restrictions and check the compressor.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH32":{t:"Discharge temperature too high",cause:"Compressor discharge gas overheated (shutdown above 239 °F for 10 seconds).",act:"Check for low charge or a leak first, then a faulty EEV, the liquid injection valve, and the discharge sensor itself. Repeated CH32 trips damage the compressor.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH34":{t:"High pressure too high",cause:"High pressure stayed above 580 psi (4,000 kPa) for 10 seconds.",act:"Cooling: check outdoor fans, coil cleanliness and clearance. Heating: check indoor filters and fans. Also check charge, EEVs, service valves and the pressure sensor.",lv:"auto",sev:"critical",who:"Outdoor"},
- "CH35":{t:"Low pressure too low",cause:"Low pressure stayed under the limit for a minute (cooling under 58 psi, heating under 33 psi).",act:"Check for a leak / low charge. Cooling: suspect an indoor EEV. Heating: suspect the outdoor EEV.",lv:"auto",sev:"critical",who:"Outdoor"},
- "CH36":{t:"Low compression ratio",cause:"The compressor is not building a pressure difference: ratio under 1.6 for minutes after a start or a reversing-valve change.",act:"Check for a compressor that is locked out or not pumping, low charge, and that the 4-way valve is shifting and seating. Often seen with CH151.",lv:"auto",sev:"high",who:"Outdoor"},
- "CH38":{t:"EEV fault",cause:"An electronic expansion valve is not operating correctly.",act:"Check the EEV coil and its plug; replace if faulty.",chk:"Coil resistance — outdoor main EEV and large indoor EEV: about 300 Ω across pins 1–3 and 2–4, 150 Ω to common. Subcooling EEV and small indoor EEV: about 104 Ω and 52 Ω. Values vary by EEV model.",sev:"high",who:"Outdoor"},
+ "CH35":{t:"Low pressure too low",cause:"Low pressure stayed under the limit for a minute (cooling under 58 psi, heating under 33 psi; under 16 psi at any time the inverter is below 30 Hz).",act:"Check for a leak / low charge. Cooling: suspect an indoor EEV. Heating: suspect the outdoor EEV.",lv:"auto",sev:"critical",who:"Outdoor"},
+ "CH36":{t:"Low compression ratio",cause:"The compressor is not building a pressure difference: ratio under 1.6 (scroll compressor) or 1.8 (rotary) for 2 minutes after a reversing-valve change or 5 minutes after a compressor start.",act:"Check for a compressor that is locked out or not pumping, low charge, and that the 4-way valve is shifting and seating. Often seen with CH151.",lv:"auto",sev:"high",who:"Outdoor"},
+ "CH38":{t:"EEV fault",cause:"An electronic expansion valve is not operating correctly. This code is not in LG's Multi V IV or Multi V S code tables, so confirm its meaning in the manual for the model that is showing it.",act:"Check the EEV coil and its plug; replace if faulty.",chk:"Coil resistance — outdoor main EEV and large indoor EEV: about 300 Ω across pins 1–3 and 2–4, 150 Ω to common. Subcooling EEV and small indoor EEV: about 104 Ω and 52 Ω. Values vary by EEV model.",sev:"high",who:"Outdoor"},
  "CH40":{t:"Current (CT) sensor",cause:"Compressor current sensor is open or shorted.",act:"Technician: check the CT sensor and inverter PCB.",sev:"high",who:"Outdoor"},
  "CH41":{t:"Discharge pipe sensor",cause:"Compressor discharge thermistor is open, shorted, unplugged or not clipped to the pipe. Can also appear when cooling in very cold weather without a low-ambient kit.",act:"Check the sensor is fitted and plugged in, then its resistance.",chk:TH_CHK,sev:"high",who:"Outdoor"},
  "CH42":{t:"Low pressure sensor",cause:"Outdoor low-pressure sensor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB and the sensor wiring.",sev:"high",who:"Outdoor"},
  "CH43":{t:"High pressure sensor",cause:"Outdoor high-pressure sensor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB; compare the sensor's signal voltage with a gauge reading.",sev:"high",who:"Outdoor"},
  "CH44":{t:"Outdoor air sensor",cause:"Outdoor-air thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
  "CH45":{t:"Outdoor coil pipe sensor",cause:"Outdoor heat-exchanger pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
- "CH46":{t:"Suction pipe sensor",cause:"Outdoor suction thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH46":{t:"Suction pipe sensor",cause:"Outdoor suction thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor. LG: check the suction sensor when the fault shows in cooling, and the hot-gas sensor near the heat exchanger when it shows in heating.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
  "CH50":{t:"Loss of phase",cause:"One input power leg is missing at the outdoor unit.",act:"Technician: check the breaker, fuses and every power terminal.",sev:"critical",who:"Outdoor"},
- "CH51":{t:"Combination ratio out of range",cause:"Connected indoor capacity is under 50 % or over 130 % of the outdoor unit's capacity.",act:"Check the indoor units actually found against the design.",sev:"medium",who:"System"},
+ "CH51":{t:"Combination ratio out of range",cause:"Connected indoor capacity is under 50 % or over 130 % of the outdoor unit's capacity.",act:"Check the indoor units actually found against the design. On heat-recovery systems a 51 shown with an HR box number means too much indoor capacity on that box: over 54 MBh on one port, or over 192 MBh on one box.",sev:"medium",who:"System"},
  "CH52":{t:"Main PCB ↔ inverter PCB comms",cause:"The outdoor main PCB and inverter PCB are not talking.",act:"Check the plugs at both boards and the cable between them.",lv:"comm",sev:"high",who:"Outdoor"},
  "CH53":{t:"Outdoor ↔ indoor comms",cause:"The outdoor main PCB is not hearing the indoor units: comm cable open or shorted, A/B swapped, or duplicate addresses.",act:"Check A goes to A and B to B at every unit, look for a short or break, then re-run auto-addressing.",chk:COMM_CHK,lv:"comm",sev:"medium",who:"System"},
  "CH54":{t:"Outdoor power phase error",cause:"The outdoor unit sees its three-phase supply in the wrong order, or with a leg missing. LG's service-class material calls this the outdoor unit power error; it is not in every model's code table.",act:"Check that all three legs are present and tight at the outdoor terminal block and that phase rotation is correct. If the rotation is reversed, swap two supply legs at the disconnect, not inside the unit.",sev:"high",who:"Outdoor"},
  "CH57":{t:"Inverter PCB not hearing main PCB",cause:"The outdoor inverter PCB receives nothing from the main PCB.",act:"Check the plugs at both boards and the cable between them.",lv:"comm",sev:"high",who:"Outdoor"},
- "CH60":{t:"Inverter PCB EEPROM",cause:"The memory chip on the outdoor inverter PCB is missing, mis-seated or unreadable.",act:"Check the chip is in its socket the right way round with no bent pins.",sev:"high",who:"Outdoor"},
+ "CH60":{t:"Inverter PCB EEPROM",cause:"The memory chip on the outdoor inverter PCB is missing, mis-seated or unreadable.",act:"Check the chip is in its socket with no bent pins and that the notch in the chip lines up with the arrow on the socket.",sev:"high",who:"Outdoor"},
  "CH62":{t:"Heat sink temperature",cause:"The inverter heat sink overheated and the system shut off.",act:"Check outdoor fan operation and airflow across the heat sink.",lv:"auto",sev:"high",who:"Outdoor"},
  "CH65":{t:"Heat sink sensor",cause:"Inverter heat sink thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor (10 kΩ type).",sev:"medium",who:"Outdoor"},
  "CH67":{t:"Outdoor fan locked",cause:"The outdoor fan is not turning: blocked fan, failed motor or fan PCB.",act:"Check the fan spins freely, then motor wiring and the fan PCB.",lv:"auto",sev:"high",who:"Outdoor"},
- "CH71":{t:"Inverter CT sensor",cause:"Inverter current sensor circuit fault.",act:"Technician: check the inverter PCB.",sev:"high",who:"Outdoor"},
+ "CH71":{t:"Converter CT sensor",cause:"The current sensor on the converter (input) side of the inverter PCB is open or shorted.",act:"Technician: check input voltage, then the inverter PCB's current-sensing circuit.",sev:"high",who:"Outdoor"},
  "CH86":{t:"Main PCB EEPROM",cause:"The memory chip on the outdoor main PCB is missing, mis-seated or unreadable.",act:"Check the chip is in its socket the right way round with no bent pins.",sev:"high",who:"Outdoor"},
  "CH104":{t:"Main ODU lost a sub unit",cause:"On a multi-frame system the main outdoor unit lost communication with a sub outdoor unit. In field tests it appeared about two minutes after a sub frame lost power, with a lower first-stage code showing on the outdoor unit before it.",act:"Check the outdoor-to-outdoor comm terminals for a loose or corroded connection, comm cable run beside power wiring, and whether a sub unit is briefly losing power (breaker, contactor, voltage dip). Open the fault in Fault history: the recording shows every outdoor frame's readings for the 10 minutes before it.",lv:"comm",sev:"high",who:"Outdoor"},
- "CH105":{t:"Fan PCB comms",cause:"The outdoor fan PCB and the inverter PCB are not talking.",act:"Check the plugs and the cable between the fan PCB and inverter PCB.",lv:"comm",sev:"high",who:"Outdoor"},
+ "CH105":{t:"Fan PCB comms",cause:"The outdoor fan PCB has lost its link: to the inverter (compressor) PCB on Multi V IV, to the main PCB on Multi V 5.",act:"Check the plugs and the cable between the fan PCB and the board it reports to.",lv:"comm",sev:"high",who:"Outdoor"},
  "CH113":{t:"Outdoor liquid pipe sensor",cause:"Outdoor liquid pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
  "CH114":{t:"Subcooling inlet sensor",cause:"Subcooler inlet thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
  "CH115":{t:"Subcooling outlet sensor",cause:"Subcooler outlet thermistor is open, shorted or unplugged.",act:"Check the plug on the outdoor PCB, then the thermistor. If the inlet and outlet sensors are swapped the unit can also raise CH150.",chk:TH_CHK,sev:"medium",who:"Outdoor"},
+ "CH116":{t:"Oil level sensor",cause:"The compressor oil level sensor on an outdoor frame is open, shorted or unplugged.",act:"Check the oil level sensor plug on the outdoor PCB, then the sensor.",sev:"medium",who:"Outdoor"},
  "CH150":{t:"Discharge superheat too low",cause:"With every running indoor unit in cooling, discharge superheat stayed under about 5 °F: liquid is likely flooding back to the compressor.",act:"Check for an EEV stuck open, overcharge, and swapped subcooling inlet / outlet sensors. Three trips in an hour lock the system out.",lv:"auto",sev:"high",who:"Outdoor"},
  "CH151":{t:"Pressure difference low",cause:"Not enough difference between high and low pressure — usually the 4-way reversing valve is not shifting.",act:"Technician: check the 4-way valve coil and that the valve changes over; check the compressor is pumping.",lv:"auto",sev:"high",who:"Outdoor"},
  "CH200":{t:"Auto pipe search failed",cause:"The heat-recovery pipe search did not finish, or the number of indoor units found does not match.",act:"Verify every indoor unit and HR box is powered and addressed, then run pipe search again.",sev:"medium",who:"System"},
@@ -803,12 +856,14 @@ const ERRORS={
  "CH230":{t:"Refrigerant leak sensor",cause:"The indoor leak sensor detected refrigerant, has failed, or the function is enabled with no sensor fitted.",act:"Treat as a real leak until proven otherwise. The indoor unit stops and stays stopped until its power is reset.",sev:"critical",who:"Indoor"},
  "CH237":{t:"ODU ↔ IDU RS-485 comms",cause:"The indoor unit has not heard the outdoor unit for more than 3 minutes.",act:"Check comm bus wiring, polarity and addressing.",chk:COMM_CHK,lv:"comm",sev:"high",who:"Both"},
  "CH238":{t:"ODU PCB comms",cause:"The indoor unit has not heard the outdoor unit for more than 3 minutes; suspect the outdoor PCB.",act:"Check the outdoor main PCB and the comm bus.",chk:COMM_CHK,lv:"comm",sev:"high",who:"Outdoor"},
- "CH242":{t:"No reply at this address",cause:"The central controller has an address registered but nothing is answering there (unit offline or removed). The controller raises this code itself: LG's own controller sets it on an outdoor unit after 31 polls in a row go unanswered.",act:"Expected on a bench with no units. In the field, confirm the unit is powered and on the bus.",sev:"info",who:"Central"},
+ "CH242":{t:"No reply at this address",cause:"The central controller has an address registered but nothing is answering there (unit offline or removed). The controller raises this code itself: LG's own controller sets it on an outdoor unit after 31 polls in a row go unanswered.",act:"Expected on a bench with no units. In the field, confirm the unit is powered and on the bus. Do not confuse it with 242 on an outdoor unit's own display: there the last digit is the frame, so 242 means error 24 (high pressure switch) on sub unit 1.",sev:"info",who:"Central"},
  "501":{t:"3-phase power error",cause:"Outdoor unit three-phase power not connected properly / phase loss.",act:"Technician: check breaker, phase order, and connections.",sev:"critical",who:"Outdoor"},
  "502":{t:"ODU ↔ IDU comms",cause:"Communication error between outdoor main PCB and indoor unit PCB(s).",act:"Check the indoor-outdoor comm bus wiring.",sev:"high",who:"Outdoor"}
 };
 // Always return something, even for a code we don't have a reference for, so the UI never crashes.
-function errInfo(code){return ERRORS[code]||{t:"Unrecognized code",cause:"No reference for "+code+" yet — check the unit's service manual for this model.",act:"Look up "+code+" in the LG service manual.",sev:"medium",who:"Unit"};}
+/* Codes 1-9 are written with two digits (CH04). Anything stored or heard as CH4 is the same code. */
+function errKey(code){const m=/^CH(\d)$/i.exec(String(code||""));return m?"CH0"+m[1]:code;}
+function errInfo(code){code=errKey(code);return ERRORS[code]||{t:"Unrecognized code",cause:"No reference for "+code+" yet — check the unit's service manual for this model.",act:"Look up "+code+" in the LG service manual.",sev:"medium",who:"Unit"};}
 const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
 
 /* ---- state ---- */
@@ -873,15 +928,15 @@ let selMode=false; let selSet=new Set(); // multi-select / batch control
 let BOOTED=false;                                              // set once boot has loaded config + units
 let unitsRev=0,unitsPushT=null,unitsPushing=false,unitsPushAgain=false,lastUnitsPushAt=0;
 let SRV={masterAlive:false,at:0};                             // what the appliance last told us about the live link
-function unitsSynced(){try{return localStorage.getItem("airow_units_rev")!=null;}catch(e){return false;}}
-function noteUnitsRev(r){unitsRev=r;try{localStorage.setItem("airow_units_rev",String(r));}catch(e){}}
+function unitsSynced(){try{return LS.getItem("airow_units_rev")!=null;}catch(e){return false;}}
+function noteUnitsRev(r){unitsRev=r;try{LS.setItem("airow_units_rev",String(r));}catch(e){}}
 function cleanUnits(){return units.map(u=>{const o={};for(const k in u){if(k[0]!=="_"&&k!=="filterReset")o[k]=u[k];}return o;});}  // drop runtime-only fields
-function saveUnits(){try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}queueUnitsPush();}
-function queueUnitsPush(){if(location.protocol==="file:"||!BOOTED||unitsPushT)return;
+function saveUnits(){try{LS.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}queueUnitsPush();}
+function queueUnitsPush(){if(IS_FILE||!BOOTED||unitsPushT)return;
   unitsPushT=setTimeout(()=>{unitsPushT=null;pushUnits();},isMaster()?3000:400);}
 let unitsForce=false;                                          // next push replaces the shared list outright (restore from backup)
 async function pushUnits(force){
-  if(location.protocol==="file:")return;
+  if(IS_FILE)return;
   if(force)unitsForce=true;
   if(!units.length&&!unitsSynced()&&!unitsForce)return;        // never let a screen that has no units blank the shared list
   if(unitsPushing){unitsPushAgain=true;return;}unitsPushing=true;
@@ -898,17 +953,17 @@ async function pushUnits(force){
 function adoptUnits(j){
   if(!j||!Array.isArray(j.units))return;
   const prev=new Map(units.map(u=>[u.addr,u]));
-  try{if(units.length)localStorage.setItem("airow_units_prev",JSON.stringify(cleanUnits()));}catch(e){}   // one-step safety copy
+  try{if(units.length)LS.setItem("airow_units_prev",JSON.stringify(cleanUnits()));}catch(e){}   // one-step safety copy
   units=normalizeIds(j.units);migrateUnits(true);
   units.forEach(u=>{const o=prev.get(u.addr);if(!o)return;
     if(o._hist)u._hist=o._hist;
     if(rt(u.addr).hold>Date.now()){["on","mode","fan","swing","coolC","heatC","twoset","modeLock","fanLock","tempLock","hardLock","rangeLock","sp"].forEach(k=>{u[k]=o[k];});}});  // a command we just sent wins for a few seconds
   noteUnitsRev(j.rev);
-  try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}
+  try{LS.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}
   if(openId!=null)drawerStale=true;
   if(BOOTED&&currentUser){renderGroupNav();liveRefresh(true);}}
 async function pullUnits(){
-  if(location.protocol==="file:")return;
+  if(IS_FILE)return;
   const was=SRV.masterAlive;
   try{const r=await fetch('/api/units',{cache:'no-store'});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();
     SRV.masterAlive=!!j.masterAlive;SRV.at=Date.now();
@@ -918,7 +973,7 @@ async function pullUnits(){
     else if(was!==SRV.masterAlive){fillLiveBanner();updateBusHealth();}
   }catch(e){SRV.masterAlive=false;if(was){fillLiveBanner();updateBusHealth();}}}   // the controller itself is unreachable
 setInterval(()=>{if(BOOTED&&!isMaster()&&document.visibilityState!=="hidden")pullUnits();},4000);
-function loadUnits(){try{const u=JSON.parse(localStorage.getItem("airow_units"));if(Array.isArray(u))return normalizeIds(u);}catch(e){}return [];}
+function loadUnits(){try{const u=JSON.parse(LS.getItem("airow_units"));if(Array.isArray(u))return normalizeIds(u);}catch(e){}return [];}
 // Guarantee every unit has a unique numeric id. Repairs units imported by an older build that
 // saved id:"" (which made the control drawer fail to open and broke selection/delete).
 function normalizeIds(arr){const seen=new Set();let next=1;
@@ -976,8 +1031,8 @@ function unitsInCat(cat,dim){return units.filter(u=>catVals(u,dim).includes(cat)
 /* ---- helpers ---- */
 let settingsUser=null; // per-user preferences are scoped to the signed-in user
 function settingsKey(){return "airow_settings"+(settingsUser?("__"+settingsUser):"");}
-function loadSettings(){try{const s=JSON.parse(localStorage.getItem(settingsKey()));return Object.assign({},DEF_SETTINGS,s||{},{show:Object.assign({},DEF_SETTINGS.show,(s&&s.show)||{})});}catch(e){return JSON.parse(JSON.stringify(DEF_SETTINGS));}}
-function saveSettings(){try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(e){}if(typeof prefsPush==="function")prefsPush();}
+function loadSettings(){try{const s=JSON.parse(LS.getItem(settingsKey()));return Object.assign({},DEF_SETTINGS,s||{},{show:Object.assign({},DEF_SETTINGS.show,(s&&s.show)||{})});}catch(e){return JSON.parse(JSON.stringify(DEF_SETTINGS));}}
+function saveSettings(){try{LS.setItem(settingsKey(),JSON.stringify(settings));}catch(e){}if(typeof prefsPush==="function")prefsPush();}
 function temp(f){if(f==null||!isFinite(f))return "--";return settings.unit==="C"?Math.round((f-32)*5/9)+"°C":f+"°F";}
 function cksum(b){let s=0;for(let i=0;i<7;i++)s=(s+b[i])&0xff;return s^0x55;}
 function powerFrame(u,on){const b=[0x80,0x00,0xA0,u.addr,on?0x03:0x02,(u.d5||0)&0x7F,u.d6,0];b[7]=cksum(b);   // &0x7F: byte5 bit7 is a one-shot filter-sign RESET — never replay it
@@ -1103,7 +1158,7 @@ function ago(t){if(!t)return "never";const s=Math.max(0,Math.round((Date.now()-t
 // (Settings ▸ Advanced) and are locked out of a unit a technician has marked "in service".
 function ctlAllowed(u){const role=currentUser?currentUser.role:"customer";if(role!=="customer")return true;
   if(CFG&&CFG.custCtl===false)return false;return !inService(u);}
-function isDemo(){return location.protocol==="file:"&&!liveTx();}   // opened as a bare file with no adapter: a local demo
+function isDemo(){return IS_FILE&&!liveTx();}   // opened as a bare file with no adapter: a local demo
 function notConnMsg(){return isTechView()?"Bus not connected — nothing was sent":"Cortex isn’t connected to the equipment right now, so nothing was sent.";}
 /* Change a set of units and send it. mut(u) applies the change. Nothing is changed on screen unless the
    command can actually reach the equipment (or this is the file:// demo). Returns how many were sent. */
@@ -1134,7 +1189,7 @@ function renderWho(){
   const sn=document.getElementById("site-name");
   if(sn){const n=(CFG&&CFG.site&&CFG.site.name&&CFG.site.name!=="Site")?CFG.site.name:null;
     if(n)sn.textContent=n;
-    else if(location.protocol!=="file:")fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name)sn.textContent=j.name;}).catch(()=>{});}
+    else if(!IS_FILE)fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name)sn.textContent=j.name;}).catch(()=>{});}
   const name=currentUser?currentUser.name:"Guest";
   const role=currentUser?currentUser.role:(session.tech?"technician":(session.admin?"admin":"customer"));
   document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${ue(name)} <span class="rolebadge">${ue(role)}</span>`;
@@ -1400,7 +1455,13 @@ function drawBatch(){if(!bp)return;
   const nc='<span style="color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0"> · no change</span>';
   const st=k=>bp[k]!==null?'<span style="color:var(--warn)">• staged</span>':nc;
   const cur=(()=>{const v=targets.map(u=>activeC(u)).filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);return v.length?v[Math.floor(v.length/2)]:22;})();
-  const tri=(k,label)=>`<button class="opt ${bp[k]!==null?'sel':''}" data-blk="${k}" style="${bp[k]!==null?STG:''}">${bp[k]===null?'·':(bp[k]?'🔒':'🔓')} ${label}</button>`;
+  // Locks show what the selected units have NOW; a tap stages the opposite. Nothing is "no change" until Clear.
+  const lkNow=k=>{const c=targets.filter(u=>!!u[k]).length;return c===0?"off":(c===n?"on":"mix");};
+  const lkCount=k=>targets.filter(u=>!!u[k]).length;
+  const tri=(k,label)=>{const now=lkNow(k),stg=bp[k]!==null,on=stg?bp[k]:now==="on";
+    const sub=stg?(bp[k]?"will lock":"will unlock"):(now==="mix"?lkCount(k)+" of "+n+" locked":(now==="on"?"locked":"unlocked"));
+    return `<button class="opt lkbtn ${on?'sel':''} ${stg?'stg':''}" data-blk="${k}" style="${stg?STG:''}"><span class="lk-ic">${stg?(bp[k]?'🔒':'🔓'):(now==="off"?'🔓':'🔒')}</span> ${label}<small>${sub}</small></button>`;};
+  const anyLocked=["modeLock","fanLock","tempLock","hardLock"].some(k=>lkCount(k)>0);
   const names=targets.map(u=>ue(dispName(u)));
   drawer.innerHTML=`<div class="drawer-head"><div style="min-width:0;flex:1">
       <div class="card-name">${n} unit${n!==1?"s":""} selected</div>
@@ -1416,8 +1477,9 @@ function drawBatch(){if(!bp)return;
     <div class="field"><div class="lbl">Setpoint ${st('spC')}</div>
       <div class="stepper"><button id="bspdn">−</button><div class="val mono" style="${bp.spC!==null?'color:var(--warn)':'color:var(--text-faint)'}">${bp.spC!==null?spDisp(bp.spC):"—"}<small>°${settings.unit}</small></div><button id="bspup">+</button></div>
       ${bp.spC===null?`<div style="font-size:12px;color:var(--text-faint);margin-top:6px">Each unit keeps its own setpoint. Press + or − to set one for all (starts from ${spDisp(cur)}°).</div>`:""}</div>
-    ${role!=="customer"?`<div class="field"><div class="lbl">Locks${tip("Tap once to lock on every selected unit, again to unlock, a third time for no change. <b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat, <b>Temp</b> blocks temperature changes, <b>Hard</b> locks the whole wall controller.")}</div>
-      <div class="opts">${tri("modeLock","Mode")}${tri("fanLock","Fan")}${tri("tempLock","Temp")}${tri("hardLock","Hard")}</div></div>`:""}
+    ${role!=="customer"?`<div class="field"><div class="lbl">Locks${tip("Each button shows what the selected units have now. Tap to switch it: locked becomes unlocked, unlocked becomes locked. Nothing is sent until you press Send. <b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat, <b>Temp</b> blocks temperature changes, <b>Hard</b> locks the whole wall controller. Cortex reads the Hard lock back from each unit; Mode, Fan and Temp cannot be read from a thermostat, so those show what Cortex last sent.")}</div>
+      <div class="opts">${tri("modeLock","Mode")}${tri("fanLock","Fan")}${tri("tempLock","Temp")}${tri("hardLock","Hard")}</div>
+      <div style="display:flex;gap:14px;margin-top:8px"><button class="linklike" id="bunlockall" style="font-size:12.5px">🔓 Unlock everything</button><button class="linklike" id="block-all" style="font-size:12.5px">🔒 Lock everything</button></div></div>`:""}
     <div class="field">
       <button class="btn primary" id="bsendgo" style="width:100%;justify-content:center;padding:11px 13px;font-size:14.5px${touched?'':';opacity:.5'}" ${touched?'':'disabled'}>Send to ${n} unit${n!==1?"s":""}</button>
       ${touched?`<button class="linklike" id="bclear" style="display:block;margin:10px auto 0;font-size:12.5px">Clear changes</button>`:""}</div>
@@ -1429,7 +1491,10 @@ function drawBatch(){if(!bp)return;
   drawer.querySelectorAll("[data-bsw]").forEach(b=>b.onclick=()=>tog("swing",b.dataset.bsw==="1"));
   drawer.querySelectorAll("[data-bmode]").forEach(b=>b.onclick=()=>tog("mode",b.dataset.bmode));
   drawer.querySelectorAll("[data-bfan]").forEach(b=>b.onclick=()=>tog("fan",b.dataset.bfan));
-  drawer.querySelectorAll("[data-blk]").forEach(b=>b.onclick=()=>{const k=b.dataset.blk;bp[k]=bp[k]===null?true:(bp[k]===true?false:null);re();});
+  drawer.querySelectorAll("[data-blk]").forEach(b=>b.onclick=()=>{const k=b.dataset.blk;bp[k]=bp[k]===null?(lkNow(k)==="off"):!bp[k];re();});   // unlocked -> lock; locked or mixed -> unlock; again flips it
+  const LK4=["modeLock","fanLock","tempLock","hardLock"];
+  const bua=drawer.querySelector("#bunlockall");if(bua)bua.onclick=()=>{LK4.forEach(k=>bp[k]=false);re();};
+  const bla=drawer.querySelector("#block-all");if(bla)bla.onclick=()=>{LK4.forEach(k=>bp[k]=true);re();};
   const step=d=>{bp.spC=bp.spC!==null?spStep(bp.spC,d):clampC(cur);re();};
   drawer.querySelector("#bspdn").onclick=()=>step(-1);drawer.querySelector("#bspup").onclick=()=>step(1);
   const bc=drawer.querySelector("#bclear");if(bc)bc.onclick=()=>{["on","mode","fan","swing","spC","modeLock","fanLock","tempLock","hardLock"].forEach(k=>bp[k]=null);re();};
@@ -2391,7 +2456,7 @@ function openHealthReport(addr){healthCtx={addr,days:7,rows:null,events:[],adv:[
   modal(head("System health · outdoor unit "+hx(addr))+`<div class="modal-body"><div class="segmented" style="margin-bottom:12px">${[[1,"24 hours"],[7,"7 days"],[30,"30 days"]].map(([d,l])=>`<button data-hd="${d}" class="${d===7?'on':''}">${l}</button>`).join("")}</div><div id="hr-body">${brainLoader(36,"Reading the log…")}</div></div>`,true);
   mroot.querySelectorAll("[data-hd]").forEach(b=>b.onclick=()=>{healthCtx.days=+b.dataset.hd;mroot.querySelectorAll("[data-hd]").forEach(x=>x.classList.toggle("on",x===b));healthLoad();});healthLoad();}
 async function healthLoad(){const c=healthCtx,el=document.getElementById("hr-body");if(!c||!el)return;
-  if(location.protocol==="file:"){el.innerHTML='<div class="note-box">The health report reads the controller\'s log. This copy was opened as a file, so there is no log.</div>';return;}
+  if(IS_FILE){el.innerHTML='<div class="note-box">The health report reads the controller\'s log. This copy was opened as a file, so there is no log.</div>';return;}
   el.innerHTML=brainLoader(36,"Reading the log…");
   try{const [h,e,d]=await Promise.all([fetch(`/api/history/odu?addr=${c.addr}&days=${c.days}`,{cache:"no-store"}).then(r=>r.json()),fetch('/api/events',{cache:"no-store"}).then(r=>r.json()).catch(()=>({})),fetch('/api/diag',{cache:"no-store"}).then(r=>r.json()).catch(()=>({}))]);
     c.rows=h.rows||[];c.events=e.events||[];c.adv=d.advisories||[];}catch(_){el.innerHTML='<div class="note-box">Couldn’t reach the controller.</div>';return;}
@@ -2425,7 +2490,7 @@ function healthHtml(c){const S=healthStats(c.rows),f=cyFmt(),from=Date.now()-c.d
     ${(drift("disch","Discharge temperature",true)+drift("sh","Suction superheat")+drift("dsh","Discharge superheat"))?`<div style="margin-top:14px;font-weight:650;font-size:13.5px">Drift inside this period</div>${drift("disch","Discharge temperature",true)}${drift("sh","Suction superheat")}${drift("dsh","Discharge superheat")}<div style="font-size:12px;color:var(--text-faint);margin-top:4px">Weather and load change these too, so read drift alongside the outdoor temperature in Trends.</div>`:""}
     ${adv.length?`<div style="margin-top:14px;font-weight:650;font-size:13.5px">Diagnosis advisories</div><div class="cy-dxs" style="margin-top:4px">${adv.slice(0,8).map(a=>`<div class="hit"><span>●</span><span>${ue(a.title)} <i>(${new Date(a.at).toLocaleDateString()}${a.cleared?", cleared":", still present"})</i></span></div>`).join("")}</div>`:""}`;}
 /* ---- notifications on this device (Web Push) ---- */
-const pushOk=()=>("serviceWorker" in navigator)&&("PushManager" in window)&&window.isSecureContext&&location.protocol!=="file:";
+const pushOk=()=>("serviceWorker" in navigator)&&("PushManager" in window)&&window.isSecureContext&&!IS_FILE;
 async function pushState(){if(!pushOk())return {ok:false};try{const reg=await navigator.serviceWorker.getRegistration("/");const sub=reg?await reg.pushManager.getSubscription():null;return {ok:true,sub,perm:Notification.permission};}catch(e){return {ok:true,sub:null,perm:Notification.permission,err:e.message};}}
 function pushKinds(){const n=settings.notif||{};return ["fault","silent","diag"].filter(k=>n[k]!==false);}
 async function pushEnable(){try{if(!pushOk())throw new Error("not available on this page");
@@ -2441,7 +2506,7 @@ async function pushTest(){const st=await pushState();if(!st.sub){toast("Turn not
   try{const r=await (await fetch("/api/push/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:st.sub.endpoint})})).json();toast(r.sent?"Test sent — it should appear in a few seconds":"The push service did not accept it"+(r.errors&&r.errors[0]?" ("+r.errors[0]+")":""));}catch(e){toast("Couldn’t reach the controller");}}
 async function pushResync(){const st=await pushState();if(st.sub)fetch("/api/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:st.sub.toJSON(),user:settingsUser,kinds:pushKinds()})}).catch(()=>{});}
 async function drawPushRow(){const el=document.getElementById("push-row");if(!el)return;
-  if(location.protocol==="file:"){el.innerHTML='<span class="sd">Opened as a file — notifications come from the controller.</span>';return;}
+  if(IS_FILE){el.innerHTML='<span class="sd">Opened as a file — notifications come from the controller.</span>';return;}
   if(!pushOk()){const ios=/iPhone|iPad/.test(navigator.userAgent);el.innerHTML=`<span class="sd" style="max-width:340px;display:block">${!window.isSecureContext?"Browsers only allow notifications on a secure (https) page. Open Cortex through its https address to turn them on.":ios?"On iPhone and iPad, add Cortex to the Home Screen first and open it from that icon.":"This browser does not support notifications."} <button class="linklike" onclick="pushHelp()">How</button></span>`;return;}
   const st=await pushState();
   el.innerHTML=st.sub?`<span class="cy-pill run" style="margin:0 8px 0 0">on for this device</span><button class="btn sm" onclick="pushTest()">Send a test</button> <button class="btn sm" onclick="pushDisable()">Turn off</button>`
@@ -2455,12 +2520,12 @@ function pushHelp(){modal(head("Notifications on your phone or computer")+`<div 
   <p style="margin:0;color:var(--text-dim);font-size:13px">The controller needs internet access to reach the phone makers' push services. If that is not possible on this site, use Settings ▸ Fault alerts with a webhook instead.</p></div>`);}
 /* ---- per-user preferences follow the person: mirrored to the controller ---- */
 let prefPushT=null;
-function prefsPush(){if(location.protocol==="file:"||!settingsUser)return;clearTimeout(prefPushT);prefPushT=setTimeout(()=>{settings._ts=Date.now();try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(_){}
+function prefsPush(){if(IS_FILE||!settingsUser)return;clearTimeout(prefPushT);prefPushT=setTimeout(()=>{settings._ts=Date.now();try{LS.setItem(settingsKey(),JSON.stringify(settings));}catch(_){}
   fetch("/api/prefs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:settingsUser,prefs:settings})}).catch(()=>{});},800);}
-async function prefsPull(){if(location.protocol==="file:"||!settingsUser)return;const who=settingsUser;
+async function prefsPull(){if(IS_FILE||!settingsUser)return;const who=settingsUser;
   try{const d=await (await fetch("/api/prefs?user="+encodeURIComponent(who),{cache:"no-store"})).json();
     if(who!==settingsUser||!d||!d.prefs)return;if((d.prefs._ts||d.ts||0)<=(settings._ts||0))return;
-    settings=Object.assign({},DEF_SETTINGS,d.prefs,{show:Object.assign({},DEF_SETTINGS.show,d.prefs.show||{})});try{localStorage.setItem(settingsKey(),JSON.stringify(settings));}catch(_){}
+    settings=Object.assign({},DEF_SETTINGS,d.prefs,{show:Object.assign({},DEF_SETTINGS.show,d.prefs.show||{})});try{LS.setItem(settingsKey(),JSON.stringify(settings));}catch(_){}
     applyTheme();if(settings.cycleView)cycView=settings.cycleView;renderAll();}catch(_){}}
 function oduDiagrams(list){const d=list.map((o,i)=>oduDiagram(o,i,list.length)).join("");
   return d||`<div class="cyc-note" style="margin-top:14px">The diagram draws itself from outdoor-unit data, and none has been read yet.</div>`;}
@@ -2496,7 +2561,7 @@ function oduChart(key,rows,opt){const G=ODU_SERIES[key];   // rows: [[t, decoded
 let oduTrendCtx=null;
 async function openOduTrends(addr){oduTrendCtx={addr,days:1,pg:"0",rows:null};modal(head("Outdoor unit "+hx(addr)+" · trends")+`<div class="modal-body" id="otr-body">${brainLoader(60,"Loading the controller's log…")}</div>`,true);await oduTrendLoad();}
 async function oduTrendLoad(){const c=oduTrendCtx;if(!c)return;const el=document.getElementById("otr-body");if(!el)return;
-  if(location.protocol==="file:"){el.innerHTML='<div class="note-box">Trends are kept by the Cortex controller. This copy was opened as a file, so there is no log to read.</div>';return;}
+  if(IS_FILE){el.innerHTML='<div class="note-box">Trends are kept by the Cortex controller. This copy was opened as a file, so there is no log to read.</div>';return;}
   try{const r=await fetch(`/api/history/odu?addr=${c.addr}&days=${c.days}`,{cache:"no-store"});c.rows=(await r.json()).rows||[];}catch(e){c.rows=[];}
   oduTrendDraw();}
 function oduTrendDraw(){const c=oduTrendCtx,el=document.getElementById("otr-body");if(!c||!el)return;
@@ -2518,7 +2583,7 @@ function evDur(e){if(!e.cleared)return '<span style="color:var(--err);font-weigh
 async function renderEvents(){renderGroupNav();
   main.innerHTML=`<div class="cyc-note">${brainLoader(40,"Loading fault history…")}</div>`;
   let list=[];
-  if(location.protocol==="file:"){main.innerHTML='<div class="cyc-note">Fault history is recorded by the Cortex controller. This copy was opened as a file, so there is nothing to show.</div>';return;}
+  if(IS_FILE){main.innerHTML='<div class="cyc-note">Fault history is recorded by the Cortex controller. This copy was opened as a file, so there is nothing to show.</div>';return;}
   try{const r=await fetch('/api/events',{cache:'no-store'});list=(await r.json()).events||[];}catch(e){main.innerHTML='<div class="cyc-note">Couldn’t reach the controller to load the fault history.</div>';return;}
   if(view!=="events")return;
   const now=Date.now(),span=30*86400000,act=list.filter(e=>!e.cleared&&e.kind!=="silent").length;
@@ -2566,7 +2631,7 @@ async function openEvent(id){
   el.innerHTML=`<div class="ev-head"><div><div class="ev-t" style="font-size:17px">${evTitle(d)}</div>
       <div class="ev-s">${new Date(d.at).toLocaleString()} · ${EV_KIND[d.kind]||d.kind} · ${evDur(d)}</div>
       ${d.kind!=="silent"&&d.code&&errInfo(d.code).t?`<div style="margin-top:6px;font-size:13.5px">${ue(errInfo(d.code).t)}</div>`:""}</div>
-      <button class="btn sm" id="ev-dl">⬇ Download recording</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" id="ev-rep">🖨 Fault report</button><button class="btn sm" id="ev-dl">⬇ Download recording</button></div></div>
     <div class="note-box" style="margin:12px 0">Readings from <b>${S.length?Math.round((d.at-S[0].t)/60000):0} minutes before</b> the fault to ${d.post&&d.post.length?Math.round((S[S.length-1].t-d.at)/60000)+" minutes after":"the moment it happened"} — one sample about every 15 seconds. The red line is the moment the fault appeared.</div>
     ${last?`<div class="cy-sec"><span>Outdoor unit ${oduAddr?hx(+oduAddr):""} — last reading before the fault</span><div class="cy-grid" style="margin-bottom:10px">
       ${[["High pressure",f.pr(last[1].hp)+" "+f.pu,"hot"],["Low pressure",f.pr(last[1].lp)+" "+f.pu,"cold"],["Discharge 1 / 2",f.tt(last[1].disch1)+" / "+f.tt(last[1].disch2),"hot"],["Suction",f.tt(last[1].suct),"cold"],["Superheat",f.dt(last[1].sh),"cold"],["Subcooling",f.dt(last[1].sc),"warm"],["Inverter 1 / 2",last[1].inv1Hz+" / "+last[1].inv2Hz+" Hz",""],["Outdoor air",f.tt(last[1].air),""],["Mode",last[1].mode+(last[1].defrost?" · defrost":"")+(last[1].oilReturn?" · oil return":""),""]].map(t=>`<div class="cy-tile ${t[2]}"><small>${t[0]}</small><b style="font-size:14.5px">${t[1]}</b></div>`).join("")}</div></div>`:""}
@@ -2575,14 +2640,61 @@ async function openEvent(id){
     ${main0.some(r=>r[1])?["press","temps","comp","shsc","eev","fans"].map(k=>oduChart(k,main0,mk)).join(""):'<div class="note-box">No outdoor-unit readings were available around this fault (the outdoor unit had not been read yet).</div>'}
     ${subs.map(pg=>`<div class="ev-day" style="margin-top:14px">Sub unit ${pg-1}</div>`+["press","comp"].map(k=>oduChart(k,dec(pg),mk)).join("")).join("")}
     ${sibs.length?lineChart(sibs.map((x,i)=>({label:dispName(x),color:CY_SYS_COL[i%CY_SYS_COL.length],pts:row(x.addr).map(r=>[r[0],r[1]?r[1][7]:null])})),Object.assign({title:"Indoor EEVs on this system",unit:"pulses"},mk)):""}`;
-  document.getElementById("ev-dl").onclick=()=>{const bl=new Blob([JSON.stringify(d)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="cortex-fault-"+d.id+".json";a.click();};}
+  document.getElementById("ev-dl").onclick=()=>{const bl=new Blob([JSON.stringify(d)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="cortex-fault-"+d.id+".json";a.click();};
+  document.getElementById("ev-rep").onclick=()=>faultReport(d,{u,oduAddr,last:last?last[1]:null,lastT:last?last[0]:0,ur,main0,mk});}
+/* ===== Printable documents =====
+   printDoc() shows one document on its own page and opens the browser's print box, where "Save as PDF"
+   makes the file. Always printed in the light theme whatever the screen uses. */
+function printDoc(html,title){let el=document.getElementById("printdoc");if(!el){el=document.createElement("div");el.id="printdoc";document.body.appendChild(el);}
+  el.innerHTML=html;const r=document.documentElement,was=r.getAttribute("data-theme"),t0=document.title;
+  r.setAttribute("data-theme","light");document.body.classList.add("print-doc");if(title)document.title=title;
+  const done=()=>{window.removeEventListener("afterprint",done);document.body.classList.remove("print-doc");document.title=t0;if(was)r.setAttribute("data-theme",was);else r.removeAttribute("data-theme");applyTheme();el.innerHTML="";};
+  window.addEventListener("afterprint",done);
+  setTimeout(()=>{try{window.print();}catch(e){done();}},80);}
+function repHead(title,sub){const st=(CFG&&CFG.site)||{};
+  return `<div class="pd-head"><div class="pd-brand"><span style="color:#0e7c66">${brainMark(34)}</span><div><b>Cortex</b><small>by AIROW</small></div></div>
+    <div class="pd-title"><h1>${title}</h1><div>${sub||""}</div></div>
+    <div class="pd-site"><b>${ue(st.name||"")}</b><div>${ue(st.location||"")}</div><div>Printed ${new Date().toLocaleString()}</div>${LOADED_VER?`<div>Cortex v${ue(LOADED_VER)}</div>`:""}</div></div>`;}
+function faultReportHtml(d,c){c=c||{};const e=d.code?errInfo(d.code):null,u=c.u,f=cyFmt(),L=c.last;
+  const kv=rows=>`<table class="pd-kv">${rows.filter(Boolean).map(r=>`<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join("")}</table>`;
+  const lastU=c.ur?[...c.ur].reverse().find(r=>r[0]<=d.at&&r[1]):null;
+  const steps=(d.code&&DIAG[d.code])||[];
+  const strip=h=>String(h==null?"":h);
+  return repHead("Fault report",evTitle(d))+
+   `<h2>The fault</h2>`+kv([["Code",d.kind==="silent"?"Stopped responding":`<b>${ue(d.code||"")}</b>${e&&e.t?" — "+ue(e.t):""}`],
+      ["Type",EV_KIND[d.kind]||ue(d.kind)],["Started",new Date(d.at).toLocaleString()],
+      ["Ended",d.cleared?new Date(d.cleared).toLocaleString()+" ("+evDur(d).replace(/<[^>]+>/g,"")+")":"Still active when this report was printed"],
+      d.kind!=="odu"?["Indoor unit",(u?ue(dispName(u))+" · ":"")+"address "+hx(d.addr)+(u&&getMeta(u).group?" · "+ue(getMeta(u).group):"")]:["Outdoor unit","address "+hx(d.addr)],
+      (d.kind!=="odu"&&c.oduAddr)?["Outdoor unit","address "+hx(+c.oduAddr)]:null,
+      e&&e.who?["Where",ue(e.who)]:null,e&&e.sev?["Severity",ue(e.sev)]:null])+
+   (e?`<h2>What the code means</h2>`+kv([["Means",strip(e.cause)],["What to do",strip(e.act)],e.chk?["Field check",strip(e.chk)]:null,e.lv?["How LG reacts",ERR_LEVELS[e.lv]]:null]):"")+
+   (L?`<h2>Outdoor unit, last reading before the fault <small>${new Date(c.lastT).toLocaleTimeString()}</small></h2>`+
+      `<table class="pd-grid"><tr>${[["High pressure",f.pr(L.hp)+" "+f.pu],["Low pressure",f.pr(L.lp)+" "+f.pu],["Discharge 1 / 2",f.tt(L.disch1)+" / "+f.tt(L.disch2)],["Suction",f.tt(L.suct)],["Superheat",f.dt(L.sh)],["Subcooling",f.dt(L.sc)],["Inverter 1 / 2",L.inv1Hz+" / "+L.inv2Hz+" Hz"],["Outdoor air",f.tt(L.air)],["Mode",ue(L.mode)+(L.defrost?" · defrost":"")+(L.oilReturn?" · oil return":"")]].map((t,i)=>`${i&&i%3===0?"</tr><tr>":""}<td><small>${t[0]}</small><b>${t[1]}</b></td>`).join("")}</tr></table>`:"")+
+   (lastU?`<h2>Indoor unit, last reading before the fault</h2><table class="pd-grid"><tr>${[["Running",lastU[1][1]?"yes":"no"],["Room",lastU[1][4]!=null?tnum(lastU[1][4])+" °"+settings.unit:"—"],["Pipe in",lastU[1][5]!=null?tnum(lastU[1][5])+" °"+settings.unit:"—"],["Pipe out",lastU[1][6]!=null?tnum(lastU[1][6])+" °"+settings.unit:"—"],["Expansion valve",lastU[1][7]!=null?lastU[1][7]+" pulses":"—"]].map(t=>`<td><small>${t[0]}</small><b>${t[1]}</b></td>`).join("")}</tr></table>`:"")+
+   ((c.main0&&c.main0.some(r=>r[1]))?`<h2>Around the fault <small>the red line is the moment it appeared</small></h2><div class="pd-charts">${["press","temps","comp","shsc"].map(k=>oduChart(k,c.main0,c.mk)).join("")}</div>`:(!L&&!lastU?`<p class="pd-note">No readings were recorded around this fault.</p>`:""))+
+   (steps.length?`<h2 class="pd-break">Checks to make <small>tick each one and write what you found</small></h2><table class="pd-steps">${steps.map((x,i)=>`<tr><td class="pd-box">☐</td><td><b>${i+1}. ${strip(x.q)}</b>${x.how?`<div>${strip(x.how)}</div>`:""}${x.fix?`<div class="pd-fix">If ${x.bad==="yes"?"yes":"not"}: ${strip(x.fix)}</div>`:""}<div class="pd-line">Found:</div></td></tr>`).join("")}</table>`:"")+
+   `<h2>Notes</h2><div class="pd-notes"></div>
+    <table class="pd-sign"><tr><td>Technician</td><td>Date</td><td>Work order</td></tr></table>
+    <p class="pd-note">Recorded by Cortex from the equipment's own bus. The code summary and checks are a field reference; confirm against the service manual for this model before replacing parts.</p>`;}
+function faultReport(d,c){printDoc(faultReportHtml(d,c),"Cortex fault report "+(d.code||"")+" "+new Date(d.at).toISOString().slice(0,10));}
+/* ===== CSV download ===== */
+function csvCell(v){if(v==null)return "";const t=String(v);return /[",\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;}
+function csvText(rows){return rows.map(r=>r.map(csvCell).join(",")).join("\r\n")+"\r\n";}
+function csvDownload(name,rows){const bl=new Blob(["\ufeff"+csvText(rows)],{type:"text/csv"}),a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+/* /api/history rows are [t, room°C, set°C, on, errorCode|0, pipeIn°C, pipeOut°C, eev]. One CSV line per unit per sample. */
+function trendCsvRows(us,series){const U=settings.unit,rows=[["Time","Unit","Address","Room (°"+U+")","Setpoint (°"+U+")","Running","Error code","Pipe in (°"+U+")","Pipe out (°"+U+")","Expansion valve (pulses)"]];
+  const all=[];us.forEach(u=>((series&&series[u.addr])||[]).forEach(r=>all.push([r[0],u,r])));all.sort((a,b)=>a[0]-b[0]||a[1].addr-b[1].addr);
+  const tv=x=>(x==null||!isFinite(x))?"":tnum(x),iso=t=>{const d=new Date(t),z=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())+" "+z(d.getHours())+":"+z(d.getMinutes());};
+  const sv=c=>(c==null||!isFinite(c))?"":(U==="C"?c:Math.round(c*9/5+32));            // the log keeps the setpoint in °C, the temperatures in °F
+  all.forEach(([t,u,r])=>rows.push([iso(t),dispName(u),hx(u.addr),tv(r[1]),sv(r[2]),r[3]?"yes":"no",r[4]||"",tv(r[5]),tv(r[6]),r[7]==null?"":r[7]]));
+  return rows;}
 /* ---- outdoor data on every screen: the controller keeps the latest raw pages ---- */
 let oduPushQ=[],oduPushT=null;
-function oduShare(f){if(location.protocol==="file:"||!liveTx())return;oduPushQ.push(f.map(x=>x.toString(16).padStart(2,"0")).join(""));
+function oduShare(f){if(IS_FILE||!liveTx())return;oduPushQ.push(f.map(x=>x.toString(16).padStart(2,"0")).join(""));
   if(!oduPushT)oduPushT=setTimeout(()=>{oduPushT=null;const pages=oduPushQ.splice(0);fetch('/api/odu',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages})}).catch(()=>{});},1500);}
 let POLLER={active:false};
 let ODU_CLEARED=null;
-async function oduPull(){if(location.protocol==="file:"||liveTx()||!currentUser)return;
+async function oduPull(){if(IS_FILE||liveTx()||!currentUser)return;
   try{const r=await fetch('/api/odu',{cache:'no-store'});if(!r.ok)return;const j=await r.json();POLLER=j.poller||POLLER;let ch=false;
     if(typeof j.cleared==="number"){if(ODU_CLEARED!==null&&j.cleared!==ODU_CLEARED&&ODU.size){ODU.clear();ch=true;}ODU_CLEARED=j.cleared;}   // outdoor data was cleared from another screen: drop this screen's copy too
     for(const a of Object.keys(j.odu||{})){const src=j.odu[a];let o=ODU.get(+a);if(!o){o={addr:+a,pages:{}};ODU.set(+a,o);}
@@ -2727,7 +2839,7 @@ function markMiss(a){const u=units.find(x=>x.addr===a);if(!u)return false;
 /* Commands from screens that are not connected to the equipment arrive through the appliance; the
    connected screen transmits them on its next pass. */
 async function relayDrain(myseq){
-  if(location.protocol==="file:")return;
+  if(IS_FILE)return;
   let cmds=[];
   try{const r=await fetch('/api/cmd/drain',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!r.ok)return;cmds=(await r.json()).cmds||[];}catch(e){return;}
   if(!cmds.length)return;
@@ -2799,7 +2911,7 @@ function applyReplyToUnit(p){if(!p)return false;const u=units.find(x=>x.addr===p
   if(p.pipeIn!=null)u.pipeIn=Math.round(p.pipeIn*9/5+32);
   if(p.pipeOut!=null)u.pipeOut=Math.round(p.pipeOut*9/5+32);
   const oldCode=u.err?u.code:null;
-  u.err=!!p.err;u.code=p.err?("CH"+p.err):null;
+  u.err=!!p.err;u.code=p.err?errKey("CH"+p.err):null;
   if(u.code!==oldCode)logErr(u,oldCode);
   u.eev=p.eev;u.capK=p.cap;u.sysLoad=p.group;u.autoSide=p.autoSide;u.filterSign=!!p.filter;u.oilAlarm=!!p.oilAlarm;   // EEV pulses, capacity (kBtu/h), system-load byte, which side Auto is working on
   u.offline=false;u.seen=Date.now();
@@ -2826,7 +2938,7 @@ function liveRefresh(force){
     if(!u)closeDrawer();else if(!document.getElementById("ren-inp"))drawDrawer(u);}}
 // One line above the tiles when what you see is NOT live, so old readings are never mistaken for current ones.
 function liveState(){
-  if(location.protocol==="file:")return liveTx()&&MASTER.running?"live":"demo";
+  if(IS_FILE)return liveTx()&&MASTER.running?"live":"demo";
   if(liveTx())return MASTER.running?"live":(MASTER.discovering?"scan":"idle");
   return SRV.masterAlive?"live":"stale";}
 function fillLiveBanner(){const el=document.getElementById("livebanner");if(!el)return;const st=liveState();
@@ -2884,7 +2996,7 @@ setInterval(()=>{if(bus.dirty&&view==="busscan"){bus.dirty=false;busUpdate();}},
 // a problem (error, or we're polling/scanning but the bus has gone silent); grey = not connected.
 function busHealth(){
   if(bus.port&&bus.scanning)return bus.err?"bad":"ok";       // this screen holds the adapter: a real error, or healthy (silence while scanning is normal)
-  if(location.protocol!=="file:"&&SRV.masterAlive)return "via";   // another screen is connected and polling — what we show is live
+  if(!IS_FILE&&SRV.masterAlive)return "via";   // another screen is connected and polling — what we show is live
   return "off";}
 function updateBusHealth(){
   const el=document.getElementById("bus-health");if(!el)return;
@@ -2939,6 +3051,7 @@ async function busConnect(){
   // Appliance mode: when Cortex is SERVED over http(s) by the local backend, the backend
   // owns the real serial port and we bridge over a WebSocket. On a bare file:// page we
   // use the browser's Web Serial directly. Same send paths work in both.
+  if(DEMO){demoConnect();return;}
   if(location.protocol==='http:'||location.protocol==='https:'){if(bus.port)return;return busConnectBackend();}
   if(!("serial" in navigator)){bus.err="Web Serial isn't available here. Use the paste box below, or open Cortex from the local file in Chrome.";renderBusScan();return;}
   const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
@@ -2961,19 +3074,20 @@ async function busConnect(){
 /* Remember that this screen is "the one connected to the equipment". After a reload, an update, a
    controller restart or a network blip it reconnects and resumes polling on its own — nobody has to
    walk back to Bus scan and press Connect. Pressing Disconnect or Stop polling turns that off. */
-function busAuto(on){try{if(on)localStorage.setItem("airow_bus_auto","1");else localStorage.removeItem("airow_bus_auto");}catch(e){}
+function busAuto(on){try{if(on)LS.setItem("airow_bus_auto","1");else LS.removeItem("airow_bus_auto");}catch(e){}
   // tell the controller whether Cortex is the bus master here — it only runs schedules on its own when it is
-  if(location.protocol!=="file:")fetch('/api/master-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({on:!!on})}).catch(()=>{});}
-function busAutoWanted(){try{return localStorage.getItem("airow_bus_auto")==="1";}catch(e){return false;}}
+  if(!IS_FILE)fetch('/api/master-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({on:!!on})}).catch(()=>{});}
+function busAutoWanted(){try{return LS.getItem("airow_bus_auto")==="1";}catch(e){return false;}}
 let busRetryT=null,busRetryN=0;
 function busAutoStart(){
-  if(location.protocol==="file:"||!busAutoWanted()||bus.port||bus.userClosed||!units.length)return;
+  if(IS_FILE||!busAutoWanted()||bus.port||bus.userClosed||!units.length)return;
   busConnectBackend(true);}
 function busRetryLater(){
   if(busRetryT||!busAutoWanted()||bus.userClosed)return;
   const wait=bus.inUse?20000:Math.min(30000,2000*Math.pow(2,Math.min(busRetryN,4)));busRetryN++;
   busRetryT=setTimeout(()=>{busRetryT=null;busAutoStart();},wait);}
 function busConnectBackend(auto){
+  if(DEMO){demoConnect();return;}
   const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
   if(auto!==true)bus.userClosed=false;
   try{
@@ -3071,7 +3185,7 @@ async function filterResetClick(u,btn){if(!canReach()){toast("Not connected to t
   btn.disabled=true;u.filterReset=true;let n=0;try{n=await sendUnits([u]);}finally{delete u.filterReset;}
   toast(n?"Filter reset sent to "+dispName(u)+" — the sign should clear within a minute":"Couldn’t reach the unit");}
 function holdUnits(list){const until=Date.now()+18000+list.length*900;list.forEach(u=>{rt(u.addr).hold=until;});}
-function relayOk(){return location.protocol!=="file:"&&!liveTx()&&SRV.masterAlive;}
+function relayOk(){return !IS_FILE&&!liveTx()&&SRV.masterAlive;}
 function canReach(){return liveTx()||relayOk();}                // can a command from THIS screen get to the equipment right now?
 /* Send the current state of one or more units to the equipment. Returns how many were sent.
    - this screen is connected → transmit (taking the bus politely, see busExclusive)
@@ -3509,7 +3623,7 @@ function renderSchedule(){renderGroupNav();const list=schedules();
 const SCH_RESULT={sent:"sent to the units",queued:"handed to the connected screen","skipped-not-master":"skipped — Cortex is not running the bus","no-units":"no matching units",error:"failed"};
 async function schedStatus(){
   const st=document.getElementById("sch-status"),hi=document.getElementById("sch-hist");if(!st)return;
-  if(location.protocol==="file:"){st.innerHTML='<span style="color:var(--text-faint)">demo copy — runs while this page is open</span>';return;}
+  if(IS_FILE){st.innerHTML='<span style="color:var(--text-faint)">demo copy — runs while this page is open</span>';return;}
   try{const r=await fetch('/api/sched',{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json();
     const ready=j.masterAlive||j.masterMode;
     st.innerHTML=ready?'<span style="color:var(--ok)">● ready</span>':`<span style="color:var(--warn)">● waiting</span>${tip("Schedules will not send anything until Cortex is running the bus. A technician starts that once on the Bus scan page (guided setup); after that the controller keeps running schedules on its own, even with every browser closed.")}`;
@@ -3596,13 +3710,13 @@ async function applyAndSendAs(list,mut){
 /* Which run of each schedule has already happened is remembered by THIS screen (not in the shared
    config), so firing a schedule never rewrites site settings from a screen with an old copy. */
 const SCH_GRACE=10*60000;
-function loadFired(){try{return JSON.parse(localStorage.getItem("airow_sched_fired"))||{};}catch(e){return {};}}
-function saveFired(f){try{localStorage.setItem("airow_sched_fired",JSON.stringify(f));}catch(e){}}
+function loadFired(){try{return JSON.parse(LS.getItem("airow_sched_fired"))||{};}catch(e){return {};}}
+function saveFired(f){try{LS.setItem("airow_sched_fired",JSON.stringify(f));}catch(e){}}
 function schDue(s,now){const m=/^(\d\d):(\d\d)$/.exec(s.time||"");if(!m)return null;const d=new Date(now);d.setHours(+m[1],+m[2],0,0);return d;}
 function schKey(s,now){return now.toDateString()+" "+s.time;}
 function schTick(){if(!CFG||!CFG.schedules||!CFG.schedules.length)return;
   // Only the screen connected to the equipment runs schedules; other screens just display them.
-  if(location.protocol!=="file:")return;                        // served by a controller: the controller runs schedules itself (appliance/scheduler.js)
+  if(!IS_FILE)return;                        // served by a controller: the controller runs schedules itself (appliance/scheduler.js)
   const now=new Date(),fired=loadFired();let dirty=false;
   CFG.schedules.forEach(s=>{
     if(!s.enabled)return;
@@ -3661,7 +3775,7 @@ function devStat(label,val,sub){return `<div class="gauge"><div class="gv mono">
 let DEVLIVE=null,DEVERR=null,DEVLOADING=false;
 async function loadDevice(){
   DEVLIVE=null;DEVERR=null;DEVLOADING=true;
-  if(location.protocol==='file:'){DEVERR="Cortex is running from a local file on this computer, so there's no appliance to read. Hardware vitals are reported by the Cortex service running on the mini-PC — install it there to see live device health.";DEVLOADING=false;if(view==='device')renderDevice();return;}
+  if(IS_FILE){DEVERR="Cortex is running from a local file on this computer, so there's no appliance to read. Hardware vitals are reported by the Cortex service running on the mini-PC — install it there to see live device health.";DEVLOADING=false;if(view==='device')renderDevice();return;}
   try{const r=await fetch('/api/device',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);DEVLIVE=await r.json();}
   catch(e){DEVERR="Couldn't reach the appliance's device service (/api/device). The Cortex backend may be stopped or an older build — check the cortex service on the mini-PC (sudo systemctl status cortex-appliance).";}
   DEVLOADING=false;if(view==='device')renderDevice();
@@ -3771,7 +3885,7 @@ function drawDrawer(u){
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
     ${u.filterSign&&isStaff()?`<div class="field"><div class="lbl">Filter${tip("The unit counts fan hours and raises this sign when its filter is due. Reset it <b>after</b> the filter has been cleaned. The reset is one message to this unit carrying its current settings plus the reset flag; nothing else changes.")}</div><div class="note-box warn" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:160px">This unit is asking for its filter to be cleaned.</span><button class="btn sm" id="flt-reset" ${dis}>Filter cleaned — reset sign</button></div></div>`:""}
     <div class="field"><div class="lbl">Locks${tip("<b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat. <b>Temp</b> blocks every temperature change. <b>Hard</b> locks the whole wall controller. <b>Temp range</b>: when locked, the thermostat can only be set between the two temperatures; unlocked, there is no range limit.")} ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('rangeLock')||(p.rangeLock&&(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)))||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
-      <div class="opts"><button class="opt ${p.modeLock?'sel':''}" id="lk-mode" ${dis}>${p.modeLock?'🔒':'🔓'} Mode</button><button class="opt ${p.fanLock?'sel':''}" id="lk-fan" ${dis}>${p.fanLock?'🔒':'🔓'} Fan</button><button class="opt ${p.tempLock?'sel':''}" id="lk-temp" ${dis}>${p.tempLock?'🔒':'🔓'} Temp</button><button class="opt ${p.hardLock?'sel':''}" id="lk-hard" ${dis}>${p.hardLock?'🔒':'🔓'} Hard</button></div>
+      <div class="opts">${[["modeLock","lk-mode","Mode"],["fanLock","lk-fan","Fan"],["tempLock","lk-temp","Temp"],["hardLock","lk-hard","Hard"]].map(([k,id,l])=>`<button class="opt lkbtn ${p[k]?'sel':''}" id="${id}" ${dis} style="${stg(k)?STG:''}"><span class="lk-ic">${p[k]?'🔒':'🔓'}</span> ${l}<small>${stg(k)?(p[k]?"will lock":"will unlock"):(p[k]?"locked":"unlocked")}</small></button>`).join("")}</div>
       <div style="margin-top:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="opt ${p.rangeLock?'sel':''}" id="lk-range" ${dis}>${p.rangeLock?'🔒':'🔓'} Temp range</button>
@@ -3868,8 +3982,8 @@ function drawDrawer(u){
     g("swon",()=>{p.swing=true;re2();});g("swoff",()=>{p.swing=false;re2();});
     drawer.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{p.mode=b.dataset.mode;re2();});
     drawer.querySelectorAll("[data-fan]").forEach(b=>b.onclick=()=>{p.fan=b.dataset.fan;re2();});
-    g("spup",()=>{setActiveC(p,spStep(activeC(p),+1));re2();});
-    g("spdn",()=>{setActiveC(p,spStep(activeC(p),-1));re2();});
+    g("spup",()=>{setActiveC(p,spStep(activeC(p),+1));re2();const v=drawer.querySelector(".stepper .val");if(v)v.classList.add("bump");});
+    g("spdn",()=>{setActiveC(p,spStep(activeC(p),-1));re2();const v=drawer.querySelector(".stepper .val");if(v)v.classList.add("bump");});
     g("cup",()=>{p.coolC=spStep(p.coolC,+1);re2();});
     g("cdn",()=>{p.coolC=spStep(p.coolC,-1);re2();});
     g("hup",()=>{p.heatC=spStep(p.heatC,+1);re2();});
@@ -3907,12 +4021,12 @@ function startRename(u){const box=document.getElementById("dname");if(!box)retur
 
 /* ---- modal system ---- */
 const mroot=document.getElementById("modal-root");
-function modal(html,wide){mroot.innerHTML=`<div class="modal-scrim" id="ms"><div class="modal ${wide?'wide':''}">${html}</div></div>`;
+function modal(html,wide){const fresh=!mroot.innerHTML;mroot.innerHTML=`<div class="modal-scrim ${fresh?'pop':''}" id="ms"><div class="modal ${wide?'wide':''} ${fresh?'pop':''}">${html}</div></div>`;
   document.getElementById("ms").onclick=e=>{if(e.target.id==="ms")closeModal();};}
 function closeModal(){mroot.innerHTML="";}
 function head(title){return `<div class="modal-head"><h3>${title}</h3><button class="icon-btn" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;}
 
-function openError(code){const e=errInfo(code);
+function openError(code){code=errKey(code);const e=errInfo(code);
   const units_err=units.filter(u=>u.code===code).map(u=>ue(dispName(u)));
   modal(head(`${code} — ${e.t}`)+`<div class="modal-body">
     <span class="sev" style="background:var(--${SEVC[e.sev]}-soft);color:var(--${SEVC[e.sev]})">${e.sev.toUpperCase()}</span>
@@ -3977,7 +4091,7 @@ function renderChannelRow(el,chan){
 }
 async function loadChannelRow(){
   const el=document.getElementById("setchan");if(!el)return;
-  if(location.protocol==="file:"){el.innerHTML="";return;}     // no controller behind a local file — nothing to switch
+  if(IS_FILE){el.innerHTML="";return;}     // no controller behind a local file — nothing to switch
   let chan='stable';
   try{const r=await fetch('/api/update-channel',{cache:'no-store'});if(r.ok)chan=(await r.json()).channel||'stable';}catch(e){}
   renderChannelRow(el,chan);
@@ -3993,10 +4107,10 @@ async function setUpdateChannel(beta){
     loadSettingsUpdates();}   // refresh the available-version area for the new channel (may be slow)
   else{toast("Couldn't save the channel — check the appliance");loadChannelRow();}   // revert to server truth
 }
-let _skipVer=null;try{_skipVer=localStorage.getItem("airow_skipver");}catch(e){}
+let _skipVer=null;try{_skipVer=LS.getItem("airow_skipver");}catch(e){}
 async function loadSettingsUpdates(){
   loadChannelRow();   // paint the channel toggle immediately, independent of the (slow) update check
-  let st;if(location.protocol==="file:")st={error:"Updates are handled by the Cortex controller. This copy was opened as a file on this computer."};
+  let st;if(IS_FILE)st={error:"Updates are handled by the Cortex controller. This copy was opened as a file on this computer."};
   else{try{const r=await fetch('/api/update/check',{cache:'no-store'});st=await r.json();}catch(e){st={error:"Couldn't reach the controller to check for updates."};}}
   const el=document.getElementById("setupd");if(!el)return;
   const cur=st.current||"—";
@@ -4030,8 +4144,8 @@ async function loadSettingsUpdates(){
     try{await fetch('/api/update/apply',{method:"POST"});}catch(e){}
     el.innerHTML='<div class="note-box">Update started — the controller will download, install, and restart. This page reloads by itself when the new version is running, and the controller rolls back on its own if the new version has a problem.</div>';updFollow("Updating Cortex");};
   const skip=document.getElementById("upd-skip");if(skip)skip.onclick=()=>{
-    if(st.latest===_skipVer){try{localStorage.removeItem("airow_skipver");}catch(e){}_skipVer=null;}
-    else{try{localStorage.setItem("airow_skipver",st.latest);}catch(e){}_skipVer=st.latest;}
+    if(st.latest===_skipVer){try{LS.removeItem("airow_skipver");}catch(e){}_skipVer=null;}
+    else{try{LS.setItem("airow_skipver",st.latest);}catch(e){}_skipVer=st.latest;}
     loadSettingsUpdates();};
   const revS=document.getElementById("rev-stable");if(revS)revS.onclick=async()=>{revS.disabled=true;revS.textContent="Starting…";
     try{await fetch('/api/update/revert',{method:"POST"});}catch(e){}
@@ -4063,7 +4177,7 @@ function displayTab(){setTimeout(drawPushRow,0);const nk=(k,l,d)=>row(l,d,`<butt
   ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"]].concat(isStaff()?[["events","Fault history"],["device","Device health"]]:[]).concat(session.tech?[["cycle","Outdoor / cycle"]]:[]).map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
   ${isStaff()?row("Outdoor / cycle opens on","",`<div class="segmented"><button data-set="cycleView" data-val="data" class="${settings.cycleView!=='diagram'?'on':''}">Data</button><button data-set="cycleView" data-val="diagram" class="${settings.cycleView==='diagram'?'on':''}">Diagram</button></div>`):""}
   ${row("Text size","",`<div class="segmented"><button data-set="textSize" data-val="normal" class="${settings.textSize!=='large'?'on':''}">Normal</button><button data-set="textSize" data-val="large" class="${settings.textSize==='large'?'on':''}">Large</button></div>`)}
-  ${row("Animations","Spinning fans, moving refrigerant, compressors",tog("motion",settings.motion!==false))}
+  ${row("Animations","Screens easing in, numbers counting up, spinning fans, moving refrigerant",tog("motion",settings.motion!==false))}
   ${row("Summary tiles","Running / off / errors row",tog("showTiles",settings.showTiles))}
   ${row("Weather card","Local weather for the site",tog("showWeather",settings.showWeather))}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Show on each card</div>
@@ -4100,9 +4214,12 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   ${row("Outdoor temp override","For testing weather schedules. Forces the outdoor temp; blank = live weather.",`<input class="inp" style="width:84px;margin:0" type="number" placeholder="live" value="${(CFG&&CFG.wxOverride!=null)?CFG.wxOverride:''}" onchange="setWxOverride(this.value)">`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Comfort limits</div>
   ${row("Setpoint range","Lowest/highest temperature customers and schedules can set (°F)",`<span style="display:flex;gap:6px;align-items:center"><input class="inp" style="width:58px;margin:0" type="number" value="${(CFG&&CFG.spMinF!=null)?CFG.spMinF:61}" onchange="setSpLimit('min',this.value)"><span style="color:var(--text-faint)">–</span><input class="inp" style="width:58px;margin:0" type="number" value="${(CFG&&CFG.spMaxF!=null)?CFG.spMaxF:86}" onchange="setSpLimit('max',this.value)"><span style="color:var(--text-faint)">°F</span></span>`)}
+  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Occupant view</div>
+  ${row("Room pages for occupants",occOn()?`On · ${occCfg().rooms.length} room link${occCfg().rooms.length===1?"":"s"}. Each link shows one room and allows small temperature changes inside limits you set.`:"Off. Nobody can open a room page. Meant for buildings such as condos where each owner adjusts their own unit.",`<span style="display:flex;gap:10px;align-items:center">${occOn()?'<button class="linklike" onclick="openOccupant()">Manage rooms</button>':''}<button class="toggle ${occOn()?'on':''}" onclick="occToggle()"></button></span>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Backup</div>
-  ${row("Back up configuration","Download site config, users, groups, and schedules","<button class=\"linklike\" onclick=\"exportBackup()\">Download</button>")}
-  ${row("Restore from backup","Replace the current setup with a backup file","<button class=\"linklike\" onclick=\"importBackup()\">Restore…</button>")}
+  ${row("Back up configuration","Choose what to save: site details, logins, units, schedules, floor plans, preferences","<button class=\"linklike\" onclick=\"exportBackup()\">Download</button>")}
+  ${row("Restore from backup","Bring back all or part of a backup file","<button class=\"linklike\" onclick=\"importBackup()\">Restore…</button>")}
+  ${row("Demo building",DEMO?"You are in the demo building now":"A pretend site for training and showing people around. Nothing reaches real equipment, and your real site is not touched.",DEMO?"<button class=\"linklike\" onclick=\"demoExit()\">Exit demo</button>":"<button class=\"linklike\" onclick=\"demoEnter()\">Open</button>")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
   ${row("Restart controller","Reboot the device — back online in ~1 min",`<button class="linklike" onclick="powerCtl('reboot')">Restart</button>`)}
   ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}
@@ -4122,7 +4239,7 @@ function changePin(kind){if(!canAdmin()||!CFG){toast("Admins only");return;}
 function setSiteName(){if(!canAdmin()){toast("Admins only");return;}const cur=(CFG&&CFG.site&&CFG.site.name)||"";
   const v=prompt("Site name",cur);if(v==null)return;const n=v.trim();if(!n)return;
   if(CFG&&CFG.site){CFG.site.name=n;saveCfg(CFG);
-    if(location.protocol!=="file:"){try{fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});}catch(e){}}}
+    if(!IS_FILE){try{fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});}catch(e){}}}
   renderWho();drawSettings();toast("Site renamed");}
 function setManualLocation(){const cur=(CFG&&CFG.site&&CFG.site.lat!=null)?CFG.site.lat+", "+CFG.site.lon:"";
   const v=prompt("Enter latitude, longitude (e.g. 40.37, -111.74)",cur);if(v==null)return;
@@ -4205,7 +4322,7 @@ async function viewProtocolDoc(){
     :`<div class="note-box">The protocol reference ships with the installed appliance — open Cortex from the device to read it here.</div>`;
 }
 function fillVersion(){const el=document.getElementById('verline');if(!el)return;
-  if(location.protocol==="file:"){el.textContent="local file (no controller)";return;}
+  if(IS_FILE){el.textContent="local file (no controller)";return;}
   fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.version)el.textContent='v'+j.version;}).catch(()=>{});}
 function wireSettings(){fillVersion();
   mroot.querySelectorAll("[data-set]").forEach(el=>{
@@ -4286,6 +4403,7 @@ function askPin(kind){const want=kind==="admin"?(CFG&&CFG.adminPin):(CFG&&CFG.te
   window.addEventListener("resize",()=>{if(window.innerWidth>860)close();});})();
 /* ---- fun + alerts + extra views ---- */
 let toastT;function toast(msg){let t=document.getElementById("toast");if(!t){t=document.createElement("div");t.id="toast";t.className="toast";document.body.appendChild(t);}
+  t.classList.toggle("ok",/^(Command sent|Backup (downloaded|restored)|Link copied|Room (saved|added)|CSV downloaded|Notes copied|Imported|Saved|Schedule saved|Filter)/i.test(String(msg)));
   t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2600);}
 (function(){let box=null,cur=null;
   const show=el=>{if(!box){box=document.createElement("div");box.id="tipbox";document.body.appendChild(box);}
@@ -4406,7 +4524,7 @@ let mapEdit=false, fpDrag=null;
 let fpGrid=40, fpSnapOn=true;                                  // snap grid: cells across the picture; snap can be turned off for free placement
 function fpGet(leaf){const f=CFG&&CFG.floorplans&&CFG.floorplans[leaf];return (f&&f.id)?f:null;}
 function fpLocalKey(id){return "airow_fp_"+id;}
-function fpSrc(f){try{const d=localStorage.getItem(fpLocalKey(f.id));if(d)return d;}catch(e){}
+function fpSrc(f){try{const d=LS.getItem(fpLocalKey(f.id));if(d)return d;}catch(e){}
   return "/api/floorplan/"+encodeURIComponent(f.id)+"?v="+(f.v||0);}
 function fpSnap(f,x,y){const cl=v=>Math.max(0,Math.min(1,v));
   if(!fpSnapOn)return [+cl(x).toFixed(4),+cl(y).toFixed(4)];                 // snap off → place exactly where dropped
@@ -4431,17 +4549,17 @@ function fpReadImage(file,maxSide,quality,rot){rot=((rot||0)%360+360)%360;return
     }catch(e){rej(new Error("Couldn't process that image"));}};
   img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error("Couldn't read that image — try a PNG or JPG"));};
   img.src=url;});}
-function fpDeleteImage(id){try{localStorage.removeItem(fpLocalKey(id));}catch(e){}
-  if(location.protocol!=="file:"){try{fetch("/api/floorplan/"+encodeURIComponent(id),{method:"DELETE"}).catch(()=>{});}catch(e){}}}
+function fpDeleteImage(id){try{LS.removeItem(fpLocalKey(id));}catch(e){}
+  if(!IS_FILE){try{fetch("/api/floorplan/"+encodeURIComponent(id),{method:"DELETE"}).catch(()=>{});}catch(e){}}}
 async function fpUpload(leaf,file,rot){
-  if(!isStaff()||!CFG)return;const local=location.protocol==="file:";
+  if(!isStaff()||!CFG)return;const local=IS_FILE;
   const wrap=[...document.querySelectorAll(".floor-wrap")].find(w=>w.dataset.leaf===encodeURIComponent(leaf));
   const slot=wrap&&wrap.querySelector(".fpslot");if(slot)slot.innerHTML=brainLoader(72,"Preparing the floor plan…");
   try{
     const r=await fpReadImage(file,local?1400:2000,local?0.8:0.86,rot);
     const old=fpGet(leaf),id="fp"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     if(local){                                                 // no appliance: keep it in this browser
-      try{localStorage.setItem(fpLocalKey(id),r.canvas.toDataURL("image/jpeg",0.8));}
+      try{LS.setItem(fpLocalKey(id),r.canvas.toDataURL("image/jpeg",0.8));}
       catch(e){throw new Error("That picture is too big to keep in this browser — try a smaller one");}
     }else{
       let resp=null;try{resp=await fetch("/api/floorplan/"+id,{method:"PUT",headers:{"Content-Type":"image/jpeg"},body:r.blob});}catch(e){}
@@ -4589,10 +4707,10 @@ async function drawTrends(){const {ids,opts}=trendCtx;const us=units.filter(u=>i
   const title=(opts.odu?"Pipe-out temperature · ":"Trends · ")+(us.length>1?us.length+" units":ue(dispName(us[0])));
   const bar=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
       ${[["24 h",DAY],["7 days",7*DAY],["30 days",30*DAY]].map(r=>`<button class="btn sm ${trendRange===r[1]?'primary':''}" data-range="${r[1]}">${r[0]}</button>`).join("")}
-      <div style="flex:1"></div><div style="font-size:12px;color:var(--text-dim)">${opts.odu?"Refrigerant pipe-out temperature":"Room temperature"} (°${settings.unit})</div></div>`;
+      <div style="flex:1"></div><div style="font-size:12px;color:var(--text-dim)">${opts.odu?"Refrigerant pipe-out temperature":"Room temperature"} (°${settings.unit})</div><button class="btn sm" id="tr-csv" style="display:none">⬇ CSV</button></div>`;
   const show=inner=>{modal(head(title)+`<div class="modal-body">${bar}${inner}</div>`,true);
     mroot.querySelectorAll("[data-range]").forEach(b=>b.onclick=()=>{trendRange=+b.dataset.range;drawTrends();});};
-  if(location.protocol==="file:"){show(`<div class="note-box">Trends are recorded by the Cortex controller. This copy was opened as a file on this computer, so there is no log to show.</div>`);return;}
+  if(IS_FILE){show(`<div class="note-box">Trends are recorded by the Cortex controller. This copy was opened as a file on this computer, so there is no log to show.</div>`);return;}
   show(brainLoader(64,"Loading the readings…","row"));
   const my=trendCtx;let j=null;
   try{const r=await fetch(`/api/history?addrs=${us.map(u=>u.addr).join(",")}&days=${Math.round(trendRange/DAY)}`,{cache:"no-store"});if(r.ok)j=await r.json();}catch(e){}
@@ -4604,6 +4722,7 @@ async function drawTrends(){const {ids,opts}=trendCtx;const us=units.filter(u=>i
       if(i%step===0&&r[col]!=null&&isFinite(r[col]))pts.push({t:r[0],y:tnum(r[col])});});
     return {name:ue(dispName(u)),pts,markers:marks,err:u.err};});
   const total=series.reduce((n,s)=>n+s.pts.length,0);
+  setTimeout(()=>{const cb=document.getElementById("tr-csv");if(cb&&total){cb.style.display="";cb.onclick=()=>{csvDownload("cortex-trends-"+new Date().toISOString().slice(0,10)+".csv",trendCsvRows(us,j.series));toast("CSV downloaded: every reading, every column");};}},0);
   show(total
     ?trendChart(series,trendRange)+`<div class="note-box" style="margin-top:12px">Real readings from this controller’s log — one every ${Math.round((j.every||300000)/60000)} minutes while Cortex is connected to the equipment, kept about a month. A dashed line marks the moment a unit reported an error. Gaps mean Cortex wasn’t connected then.</div>`
     :`<div class="note-box">No readings in this period yet. Cortex logs each unit every ${Math.round((j.every||300000)/60000)} minutes while it is connected to the equipment — check back after it has been running for a while.</div>`);}
@@ -4612,7 +4731,14 @@ async function drawTrends(){const {ids,opts}=trendCtx;const us=units.filter(u=>i
 document.addEventListener("keydown",onKey);
 document.getElementById("bell").onclick=openAlerts;
 let brandTaps=0;document.querySelector(".brand").onclick=()=>{brandTaps++;if(brandTaps>=5){brandTaps=0;showCredits();}};
-document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;renderAll();});
+/* Opening a screen: let it ease in and count its headline numbers up. Never called by the live refresh. */
+function enterAnim(){const m=document.getElementById("main");if(!m||settings.motion===false||matchMedia("(prefers-reduced-motion:reduce)").matches)return;
+  m.classList.remove("enter");void m.offsetWidth;m.classList.add("enter");clearTimeout(enterAnim.t);enterAnim.t=setTimeout(()=>m.classList.remove("enter"),900);
+  setTimeout(()=>countUp(m),0);setTimeout(()=>countUp(m),450);}   // second pass catches screens that load their numbers a moment later
+function countUp(root){root.querySelectorAll(".gauge .gv, .sum-n, .stat-n").forEach(el=>{if(el.dataset.cu||el.children.length>1)return;const node=[...el.childNodes].find(n=>n.nodeType===3&&/^\s*\d+\s*$/.test(n.nodeValue));if(!node)return;
+    const to=parseInt(node.nodeValue,10);if(!(to>1)||to>9999)return;el.dataset.cu="1";const t0=performance.now(),dur=Math.min(700,260+to*12);
+    const step=t=>{const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);if(!node.parentNode)return;node.nodeValue=String(Math.round(to*e));if(k<1)requestAnimationFrame(step);else node.nodeValue=String(to);};requestAnimationFrame(step);});}
+document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.onclick=()=>{const was=view;view=b.dataset.view;renderAll();if(was!==view)enterAnim();});
 document.getElementById("settingsbtn").onclick=openSettings;
 document.getElementById("devbtn").onclick=()=>{if(!isStaff())return;closeDrawer();view="device";DEVLIVE=null;DEVERR=null;renderAll();};
 document.getElementById("lockbtn").onclick=()=>{elev={admin:false,tech:false};recomputeSession();if(view==="cycle"&&!session.tech)view="units";renderWho();renderAll();};
@@ -4665,17 +4791,17 @@ function brandScanState(){const on=!!(typeof MASTER!=="undefined"&&MASTER.discov
   _brandScan=on;const bl=document.getElementById("brandlogo");if(bl)bl.innerHTML=on?brainMark(22,"live"):LOGO;}
 setInterval(brandScanState,300);
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
-function loadCfg(){try{const c=JSON.parse(localStorage.getItem("airow_cfg"));if(c&&!c.protocols)c.protocols=["lg"];return c;}catch(e){return null;}}
+function loadCfg(){try{const c=JSON.parse(LS.getItem("airow_cfg"));if(c&&!c.protocols)c.protocols=["lg"];return c;}catch(e){return null;}}
 /* Site settings are ONE shared document on the appliance. Saves go up one at a time, each carrying the
    revision this screen started from; if another screen saved first, the appliance answers "conflict"
    and we show its newer copy instead of silently wiping the other person's change (a user they just
    added, a schedule, a floor plan). Screens also re-read the settings every 20 s, so a rename or a new
    schedule made on one computer shows up on the others without a reload. */
 let cfgBusy=false,cfgAgain=false,cfgDirty=false;
-function cfgStore(){try{localStorage.setItem("airow_cfg",JSON.stringify(CFG));}catch(e){}}
+function cfgStore(){try{LS.setItem("airow_cfg",JSON.stringify(CFG));}catch(e){}}
 function saveCfg(c){if(c&&c!==CFG)CFG=c;
   try{if(CFG&&CFG.site&&!CFG.site.tz)CFG.site.tz=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(e){}   // schedules run on the controller in the SITE's time zone
-  cfgStore();if(location.protocol!=="file:")cfgPush();}
+  cfgStore();if(!IS_FILE)cfgPush();}
 async function cfgPush(){
   if(cfgBusy){cfgAgain=true;return;}cfgBusy=true;
   try{do{cfgAgain=false;if(!CFG)break;
@@ -4695,7 +4821,7 @@ function cfgAdopt(c,conflict){
   if(conflict)toast("These settings were just changed on another screen — showing the latest. Please make your change again.");
   if(currentUser&&!fpDrag){renderWho();if(!mroot.innerHTML)renderAll();}}
 async function cfgPull(){
-  if(location.protocol==="file:"||cfgBusy||!CFG||!CFG.provisioned)return;
+  if(IS_FILE||cfgBusy||!CFG||!CFG.provisioned)return;
   if(cfgDirty){cfgPush();return;}
   try{const r=await fetch('/api/appconfig',{cache:'no-store'});if(!r.ok)return;const j=await r.json();
     if(cfgBusy||cfgDirty)return;
@@ -4707,10 +4833,10 @@ setInterval(()=>{if(BOOTED&&document.visibilityState!=="hidden")cfgPull();},2000
    (once nobody is in the middle of something), so nobody keeps working on last week's page. */
 // UART is an experimental, pre-release-only feature. A pre-release build carries a version suffix
 // (1.7.0-beta.1); a stable build (1.6.0) has none. file:// = local dev, always shows it.
-let IS_BETA=(location.protocol==="file:");
+let IS_BETA=(IS_FILE);
 let LOADED_VER=null;
 async function versionWatch(){
-  if(location.protocol==="file:")return;
+  if(IS_FILE||DEMO)return;
   try{const r=await fetch('/version',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.version)return;
     const beta=/-/.test(j.version); if(beta!==IS_BETA){IS_BETA=beta;if(currentUser)renderWho();}
     if(LOADED_VER===null){LOADED_VER=j.version;return;}
@@ -4728,7 +4854,7 @@ function updBanner(html,done){let b=document.getElementById("upd-banner");if(!ht
   b.innerHTML=(done?"":'<span class="upd-spin" style="flex:none;width:14px;height:14px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:updspin .9s linear infinite"></span>')+"<span>"+html+"</span>"+(done?'<button class="btn sm" style="margin-left:auto" onclick="updBanner()">OK</button>':"");
   if(!document.getElementById("upd-kf")){const st=document.createElement("style");st.id="upd-kf";st.textContent="@keyframes updspin{to{transform:rotate(360deg)}}";document.head.appendChild(st);}}
 function updReload(ver){try{sessionStorage.setItem("airow_updated",ver);}catch(e){}UPD=null;updBanner("Updated to v"+ue(ver)+" — reloading…");setTimeout(()=>location.reload(),900);}
-function updFollow(what){if(location.protocol==="file:"||UPD)return;UPD={from:LOADED_VER,at:Date.now(),down:false,what:what||"Updating"};
+function updFollow(what){if(IS_FILE||UPD)return;UPD={from:LOADED_VER,at:Date.now(),down:false,what:what||"Updating"};
   const tick=async()=>{if(!UPD)return;const mins=(Date.now()-UPD.at)/60000;let v=null;
     try{const r=await fetch('/version',{cache:'no-store',signal:AbortSignal.timeout(2500)});if(r.ok)v=(await r.json()).version;}catch(e){}
     if(!UPD)return;
@@ -4746,10 +4872,10 @@ function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admi
 function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}
 /* ---- session: persisted in localStorage so a refresh (within the timeout) stays signed in ---- */
 function sessTimeoutMs(){const m=(CFG&&CFG.sessionTimeoutMin!=null)?CFG.sessionTimeoutMin:60;return m>0?m*60000:0;}  // 0 = never
-function saveSession(username){try{localStorage.setItem("airow_session",JSON.stringify({username,loginAt:Date.now(),last:Date.now()}));}catch(e){}}
-function touchSession(){try{const s=JSON.parse(localStorage.getItem("airow_session"));if(s){s.last=Date.now();localStorage.setItem("airow_session",JSON.stringify(s));}}catch(e){}}
-function clearSession(){try{localStorage.removeItem("airow_session");}catch(e){}}
-function sessionValid(){try{const s=JSON.parse(localStorage.getItem("airow_session"));if(!s||!s.username)return null;
+function saveSession(username){try{LS.setItem("airow_session",JSON.stringify({username,loginAt:Date.now(),last:Date.now()}));}catch(e){}}
+function touchSession(){try{const s=JSON.parse(LS.getItem("airow_session"));if(s){s.last=Date.now();LS.setItem("airow_session",JSON.stringify(s));}}catch(e){}}
+function clearSession(){try{LS.removeItem("airow_session");}catch(e){}}
+function sessionValid(){try{const s=JSON.parse(LS.getItem("airow_session"));if(!s||!s.username)return null;
   const to=sessTimeoutMs();if(to&&(Date.now()-(s.last||s.loginAt))>to){clearSession();return null;}return s;}catch(e){return null;}}
 let lastTouch=0;
 function noteActivity(){if(!currentUser)return;const now=Date.now();if(now-lastTouch>15000){lastTouch=now;touchSession();}}
@@ -4762,7 +4888,7 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();
   view=(settings.landing&&["units","map","schedule","device","events","cycle"].includes(settings.landing))?settings.landing:"units";if(settings.cycleView)cycView=settings.cycleView;prefsPull();
   if(view==="device"&&!isStaff())view="units";
-  renderAll();loadWeather();}
+  renderAll();loadWeather();enterAnim();}
 function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
 /* Clear unit data: start the unit list over without a factory reset. Nothing is sent to the equipment. */
 function clearUnitData(){
@@ -4784,7 +4910,7 @@ function clearUnitData(){
     document.getElementById("cu-go").disabled=true;
     try{await masterHalt();}catch(e){}                              // stop this screen polling the old list
     let rev=null;
-    if(location.protocol!=="file:"){
+    if(!IS_FILE){
       try{const r=await fetch('/api/clear-units',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:"CLEAR",odu:opt.odu,history:opt.history,events:opt.events})});
         if(!r.ok)throw new Error("refused");const j=await r.json();rev=j.rev;if(j.cfgRev!=null&&CFG)CFG._rev=j.cfgRev;}
       catch(e){err.textContent="The controller didn’t accept it, so nothing was cleared. Check the connection (and that the controller is up to date) and try again.";document.getElementById("cu-go").disabled=false;return;}
@@ -4796,7 +4922,7 @@ function clearUnitData(){
       if(CFG.floorplans&&typeof CFG.floorplans==="object")Object.values(CFG.floorplans).forEach(fp=>{if(fp&&fp.pos)fp.pos={};});
       if(opt.sched)CFG.schedules=[];
       saveCfg(CFG);}
-    try{["airow_units","airow_units_prev","airow_sched_fired"].forEach(k=>localStorage.removeItem(k));localStorage.setItem("airow_units","[]");if(rev!=null)localStorage.setItem("airow_units_rev",String(rev));}catch(e){}
+    try{["airow_units","airow_units_prev","airow_sched_fired"].forEach(k=>LS.removeItem(k));LS.setItem("airow_units","[]");if(rev!=null)LS.setItem("airow_units_rev",String(rev));}catch(e){}
     try{sessionStorage.setItem("airow_cleared",String(n));}catch(e){}
     for(let i=0;i<40&&(typeof cfgBusy!=="undefined"&&cfgBusy);i++)await sleep(100);   // let the config save reach the controller before reloading
     await sleep(300);location.reload();};}
@@ -4811,12 +4937,12 @@ function factoryReset(){
   document.getElementById("fr-go").onclick=async()=>{
     if(document.getElementById("fr-inp").value.trim().toUpperCase()!=="RESET"){document.getElementById("fr-err").textContent="Type RESET (in capitals) to confirm.";return;}
     busAuto(false);try{await busDisconnect();}catch(e){}
-    if(location.protocol!=="file:"){
+    if(!IS_FILE){
       let ok=false;try{const r=await fetch('/api/appconfig',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({_reset:true})});ok=r.ok;}catch(e){}
       if(!ok){document.getElementById("fr-err").textContent="The controller didn't accept the reset — nothing was erased. Check the connection and try again.";return;}
       try{await fetch('/api/units',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({units:[]})});}catch(e){}
     }
-    try{["airow_cfg","airow_units","airow_units_prev","airow_units_rev","airow_session","airow_bus_auto","airow_sched_fired"].forEach(k=>localStorage.removeItem(k));}catch(e){}
+    try{["airow_cfg","airow_units","airow_units_prev","airow_units_rev","airow_session","airow_bus_auto","airow_sched_fired"].forEach(k=>LS.removeItem(k));}catch(e){}
     location.reload();};}
 function setSpLimit(which,v){if(!CFG)return;let n=parseInt(v,10);if(!isFinite(n))return;
   n=Math.max(61,Math.min(86,n));                               // the equipment itself accepts 16–30°C (61–86°F)
@@ -4824,28 +4950,324 @@ function setSpLimit(which,v){if(!CFG)return;let n=parseInt(v,10);if(!isFinite(n)
   if(lo>=hi){toast("The lowest setting must be below the highest");drawSettings();return;}
   CFG[which==="min"?"spMinF":"spMaxF"]=n;saveCfg(CFG);drawSettings();toast("Setpoint "+(which==="min"?"lowest":"highest")+": "+n+"°F");}
 function setWxOverride(v){if(!CFG)return;const t=v===""?null:parseInt(v,10);CFG.wxOverride=(t!=null&&isFinite(t))?t:null;saveCfg(CFG);toast(CFG.wxOverride!=null?("Outdoor temp forced to "+CFG.wxOverride+"° (testing)"):"Override cleared — using live weather");if(view==="units")renderAll();}
-function exportBackup(){try{const data={_cortex:"backup",v:1,ts:new Date().toISOString(),cfg:CFG,units:units,settings:settings};
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);a.download="cortex-backup-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  toast("Backup downloaded");}catch(e){toast("Backup failed: "+e.message);}}
+/* ===== Occupant view (off by default) =====
+   Settings ▸ Advanced. CFG.occupant = {on, rooms:[{id,key,name,addrs,loC,hiC,power}]}. The controller serves
+   room.html#<key> and answers /api/room/<key> only while `on` is true; see appliance/occupant.js for the rules. */
+function occCfg(){const o=(CFG&&CFG.occupant)||{};return {on:o.on===true,rooms:Array.isArray(o.rooms)?o.rooms:[]};}
+function occOn(){return occCfg().on;}
+function occSave(o){CFG.occupant={on:!!o.on,rooms:o.rooms};saveCfg(CFG);}
+function occKey(){const A="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789",b=new Uint8Array(22);crypto.getRandomValues(b);return Array.from(b,x=>A[x%A.length]).join("");}
+function occUrl(r){return (location.protocol==="file:"?"https://<this controller>":location.origin)+"/room.html#"+r.key;}
+function occToggle(){const o=occCfg();
+  if(o.on){o.on=false;occSave(o);drawSettings();toast("Occupant view is off. Every room link has stopped working.");return;}
+  modal(head("Turn on occupant view?")+`<div class="modal-body">
+    <div class="note-box" style="margin-bottom:12px">This lets you make a <b>link for a room</b>. Anyone who has the link can see that room's temperature and change it inside the range you choose. They cannot see other rooms, schedules, faults or settings.</div>
+    <div class="note-box warn" style="margin-bottom:12px"><b>Treat a link like a key.</b> It works for anyone who can reach this controller on the network, with no password. Give each link only to the people in that room, and make a new link when someone moves out. Turning occupant view off stops every link at once.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="drawSettings()">Cancel</button><button class="btn primary" id="occ-on">Turn on</button></div></div>`);
+  document.getElementById("occ-on").onclick=()=>{o.on=true;occSave(o);openOccupant();};}
+function openOccupant(){const o=occCfg(),U=settings.unit,d=c=>U==="C"?c:Math.round(c*9/5+32);
+  modal(head("Occupant room links")+`<div class="modal-body">
+    ${o.rooms.length?o.rooms.map(r=>{const us=r.addrs.map(a=>units.find(u=>u.addr===a)).filter(Boolean);
+      return `<div class="occ-room"><div style="min-width:0;flex:1"><b>${ue(r.name)}</b><small>${us.length?us.map(u=>ue(dispName(u))).join(", "):"no units"} · ${d(r.loC)}–${d(r.hiC)}°${U}${r.power===false?" · no on/off":""}</small>
+        <input class="inp mono" readonly value="${ue(occUrl(r))}" style="margin:6px 0 0;font-size:11.5px" onclick="this.select()"></div>
+        <div class="occ-act"><button class="btn sm" data-occcopy="${r.id}">Copy link</button><button class="btn sm" data-occedit="${r.id}">Edit</button><button class="btn sm" data-occnew="${r.id}" title="Stop the old link and make a new one">New link</button><button class="btn sm" data-occdel="${r.id}" style="color:var(--err)">Remove</button></div></div>`;}).join("")
+      :'<div class="note-box">No rooms yet. Add one, choose its units and limits, then give the link to the people in that room.</div>'}
+    <div style="display:flex;gap:10px;justify-content:space-between;margin-top:14px"><button class="btn primary" id="occ-add">+ Add a room</button><button class="btn" onclick="drawSettings()">Done</button></div></div>`,true);
+  const R=id=>o.rooms.find(r=>r.id===id),q=(sel,fn)=>mroot.querySelectorAll(sel).forEach(b=>b.onclick=()=>fn(b));
+  document.getElementById("occ-add").onclick=()=>occEdit(null);
+  q("[data-occedit]",b=>occEdit(b.dataset.occedit));
+  q("[data-occcopy]",b=>{const u=occUrl(R(b.dataset.occcopy));(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>toast("Link copied"),()=>toast("Couldn't copy. Select the link text instead."));});
+  q("[data-occnew]",b=>{const r=R(b.dataset.occnew);r.key=occKey();occSave(o);openOccupant();toast("New link made. The old one no longer works.");});
+  q("[data-occdel]",b=>{o.rooms=o.rooms.filter(r=>r.id!==b.dataset.occdel);occSave(o);openOccupant();toast("Room removed. Its link no longer works.");});}
+function occEdit(id){const o=occCfg(),U=settings.unit,r=id?o.rooms.find(x=>x.id===id):null,d=c=>U==="C"?c:Math.round(c*9/5+32),toC=v=>U==="C"?v:(v-32)*5/9;
+  const lo=r?r.loC:Math.max(16,Math.round(spMinC())),hi=r?r.hiC:Math.min(30,Math.round(spMaxC())),have=new Set(r?r.addrs:[]);
+  modal(head(r?"Edit room":"Add a room")+`<div class="modal-body">
+    <label class="flabel">Room name (what the occupant sees)</label><input class="inp" id="occ-name" maxlength="60" value="${ue(r?r.name:"")}" placeholder="Apartment 4B">
+    <label class="flabel">Units in this room</label><div class="occ-units">${units.slice().sort((a,b)=>dispName(a).localeCompare(dispName(b),undefined,{numeric:true})).map(u=>`<label><input type="checkbox" data-occu="${u.addr}" ${have.has(u.addr)?"checked":""}> ${ue(dispName(u))}</label>`).join("")||'<div class="note-box">No units yet.</div>'}</div>
+    <label class="flabel">Lowest and highest temperature they can set (°${U})</label>
+    <div style="display:flex;gap:8px;align-items:center"><input class="inp" id="occ-lo" type="number" style="width:90px;margin:0" value="${d(lo)}"><span>to</span><input class="inp" id="occ-hi" type="number" style="width:90px;margin:0" value="${d(hi)}"></div>
+    <label class="bk-row" style="border:0;margin-top:10px"><input type="checkbox" id="occ-pw" ${!r||r.power!==false?"checked":""}><span><b>Allow turning the unit on and off</b><small>Untick to allow temperature changes only.</small></span></label>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="openOccupant()">Cancel</button><button class="btn primary" id="occ-save">Save</button></div></div>`);
+  document.getElementById("occ-save").onclick=()=>{const name=document.getElementById("occ-name").value.trim(),addrs=[...mroot.querySelectorAll("[data-occu]:checked")].map(c=>+c.dataset.occu);
+    let l=Math.round(toC(parseFloat(document.getElementById("occ-lo").value))),h=Math.round(toC(parseFloat(document.getElementById("occ-hi").value)));
+    if(!name){toast("Give the room a name");return;}if(!addrs.length){toast("Tick at least one unit");return;}if(addrs.length>16){toast("A room can hold up to 16 units");return;}
+    if(!isFinite(l)||!isFinite(h)||l>h){toast("The lowest temperature must be below the highest");return;}
+    l=Math.max(16,Math.min(30,l));h=Math.max(l,Math.min(30,h));
+    const rec={id:r?r.id:"r"+Date.now().toString(36),key:r?r.key:occKey(),name,addrs,loC:l,hiC:h,power:document.getElementById("occ-pw").checked};
+    if(r)o.rooms[o.rooms.indexOf(r)]=rec;else o.rooms.push(rec);occSave(o);openOccupant();toast(r?"Room saved":"Room added. Copy its link to share it.");};}
+/* ===== Backup and restore =====
+   A backup is one JSON file made of independent sections; any subset can be saved and any subset of
+   what a file holds can be restored. Version 1 files (cfg + units + settings, everything in one lump)
+   still restore: backupParts() reads both shapes. Restoring a section replaces just that section. */
+const BK_SECTIONS=[
+  ["site","Site details and limits","Name, location, system type, temperature limits, sign-out timer, weather location, customer permissions, occupant room links"],
+  ["users","Logins and access codes","Every login, the admin and technician codes, and the recovery answer"],
+  ["units","Units","The unit list with names, groups, types, tags, service notes and outdoor unit addresses"],
+  ["schedules","Schedules","Every schedule and its exceptions"],
+  ["floorplans","Floor plans","Building-map pictures and where each unit sits on them"],
+  ["prefs","My display preferences","Theme, colour, layout and other choices for this login"]];
+const BK_USERKEYS=["users","adminPin","techPin","recovery"], BK_UNITKEYS=["unitMeta","oduAddrs","ignoreAddrs"], BK_SKIP=["_rev","provisioned","schedules","floorplans"];
+function bkSiteOf(cfg){const o={};for(const k in (cfg||{})){if(!BK_USERKEYS.includes(k)&&!BK_UNITKEYS.includes(k)&&!BK_SKIP.includes(k))o[k]=cfg[k];}return o;}
+function bkPick(cfg,keys){const o={};keys.forEach(k=>{if(cfg&&cfg[k]!==undefined)o[k]=cfg[k];});return o;}
+function backupBuild(sel,cfg,unitList,prefs,images){
+  const d={_cortex:"backup",v:2,ts:new Date().toISOString(),site:(cfg&&cfg.site&&cfg.site.name)||"",parts:{}};
+  if(sel.site)d.parts.site=bkSiteOf(cfg);
+  if(sel.users)d.parts.users=bkPick(cfg,BK_USERKEYS);
+  if(sel.units)d.parts.units=Object.assign({list:unitList||[]},bkPick(cfg,BK_UNITKEYS));
+  if(sel.schedules)d.parts.schedules={list:(cfg&&cfg.schedules)||[]};
+  if(sel.floorplans)d.parts.floorplans={plans:(cfg&&cfg.floorplans)||{},images:images||{}};
+  if(sel.prefs)d.parts.prefs=prefs||{};
+  return d;}
+/* Any backup file -> {parts, ts, site} or null. Tolerant: a section that is missing or the wrong shape is simply not offered. */
+function backupParts(d){
+  if(!d||typeof d!=="object")return null;
+  let parts=null;
+  if(d._cortex==="backup"&&d.parts&&typeof d.parts==="object")parts=Object.assign({},d.parts);
+  else if(d.cfg&&typeof d.cfg==="object"){const c=d.cfg;parts={site:bkSiteOf(c),users:bkPick(c,BK_USERKEYS),schedules:{list:c.schedules||[]},floorplans:{plans:c.floorplans||{},images:{}}};
+    if(Array.isArray(d.units))parts.units=Object.assign({list:d.units},bkPick(c,BK_UNITKEYS));
+    if(d.settings&&typeof d.settings==="object")parts.prefs=d.settings;}
+  if(!parts)return null;
+  const ok={};
+  if(parts.site&&typeof parts.site==="object"&&!Array.isArray(parts.site)&&Object.keys(parts.site).length)ok.site=parts.site;
+  if(parts.users&&Array.isArray(parts.users.users)&&parts.users.users.some(u=>u&&u.username&&u.passhash))ok.users=parts.users;
+  if(parts.units&&Array.isArray(parts.units.list))ok.units=parts.units;
+  if(parts.schedules&&Array.isArray(parts.schedules.list))ok.schedules=parts.schedules;
+  if(parts.floorplans&&parts.floorplans.plans&&typeof parts.floorplans.plans==="object"&&Object.keys(parts.floorplans.plans).length)ok.floorplans={plans:parts.floorplans.plans,images:(parts.floorplans.images&&typeof parts.floorplans.images==="object")?parts.floorplans.images:{}};
+  if(parts.prefs&&typeof parts.prefs==="object"&&!Array.isArray(parts.prefs)&&Object.keys(parts.prefs).length)ok.prefs=parts.prefs;
+  return Object.keys(ok).length?{parts:ok,ts:d.ts||"",site:d.site||(d.cfg&&d.cfg.site&&d.cfg.site.name)||(ok.site&&ok.site.site&&ok.site.site.name)||""}:null;}
+/* Merge the chosen sections into a copy of the current config. Returns {cfg, units|null, prefs|null}. Pure. */
+function backupApply(cur,parts,sel){
+  const cfg=JSON.parse(JSON.stringify(cur||{}));let outUnits=null,outPrefs=null;
+  if(sel.site&&parts.site){Object.keys(bkSiteOf(cfg)).forEach(k=>delete cfg[k]);Object.assign(cfg,JSON.parse(JSON.stringify(bkSiteOf(parts.site))));}
+  if(sel.users&&parts.users){BK_USERKEYS.forEach(k=>{if(parts.users[k]!==undefined)cfg[k]=JSON.parse(JSON.stringify(parts.users[k]));});
+    if(!cfg.users.some(u=>u.role==="owner")){cfg.users[0].role="owner";}}                 // never leave a site nobody can administer
+  if(sel.units&&parts.units){outUnits=JSON.parse(JSON.stringify(parts.units.list));BK_UNITKEYS.forEach(k=>{if(parts.units[k]!==undefined)cfg[k]=JSON.parse(JSON.stringify(parts.units[k]));else delete cfg[k];});}
+  if(sel.schedules&&parts.schedules)cfg.schedules=JSON.parse(JSON.stringify(parts.schedules.list));
+  if(sel.floorplans&&parts.floorplans)cfg.floorplans=JSON.parse(JSON.stringify(parts.floorplans.plans));
+  if(sel.prefs&&parts.prefs)outPrefs=JSON.parse(JSON.stringify(parts.prefs));
+  if(!cfg.protocols)cfg.protocols=["lg"];
+  cfg.provisioned=true;delete cfg._rev;
+  return {cfg,units:outUnits,prefs:outPrefs};}
+function bkChecks(avail,pre){return BK_SECTIONS.filter(x=>!avail||avail[x[0]]).map(x=>`<label class="bk-row"><input type="checkbox" data-bk="${x[0]}" ${(!pre||pre[x[0]])?"checked":""}><span><b>${x[1]}</b><small>${x[2]}</small></span></label>`).join("");}
+function bkSel(){const o={};document.querySelectorAll("[data-bk]").forEach(c=>{o[c.dataset.bk]=c.checked;});return o;}
+async function bkImages(){const out={};if(IS_FILE||!CFG||!CFG.floorplans)return out;
+  for(const f of Object.values(CFG.floorplans)){if(!f||!f.id||out[f.id])continue;
+    try{const r=await fetch("/api/floorplan/"+encodeURIComponent(f.id),{cache:"no-store"});if(!r.ok)continue;const bl=await r.blob();
+      out[f.id]=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(bl);});}catch(e){}}
+  return out;}
+function exportBackup(){
+  modal(head("Back up this site")+`<div class="modal-body"><div class="note-box" style="margin-bottom:12px">Choose what goes in the file. Each part can be restored on its own later, on this controller or a new one.</div>
+    ${bkChecks()}
+    <div class="note-box warn" style="margin:12px 0">A backup with logins holds the scrambled passwords and the access codes. Keep the file somewhere private.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="bk-go">Download</button></div></div>`);
+  document.getElementById("bk-go").onclick=async()=>{const sel=bkSel();if(!Object.values(sel).some(Boolean)){toast("Tick at least one part");return;}
+    try{const btn=document.getElementById("bk-go");btn.disabled=true;btn.textContent="Preparing…";
+      const data=backupBuild(sel,CFG,cleanUnits(),settings,sel.floorplans?await bkImages():{});
+      const blob=new Blob([JSON.stringify(data)],{type:"application/json"});const a=document.createElement("a");
+      const nm=((CFG.site&&CFG.site.name)||"site").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"site";
+      a.href=URL.createObjectURL(blob);a.download="cortex-backup-"+nm+"-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+      closeModal();toast("Backup downloaded");}catch(e){toast("Backup failed: "+e.message);}};}
+async function bkPutImages(images){let n=0;if(IS_FILE)return n;
+  for(const [id,url] of Object.entries(images||{})){try{if(!/^[A-Za-z0-9_-]{1,48}$/.test(id)||!/^data:image\/(jpeg|png|webp);base64,/.test(url))continue;
+      const bl=await (await fetch(url)).blob();const r=await fetch("/api/floorplan/"+id,{method:"PUT",headers:{"Content-Type":bl.type},body:bl});if(r.ok)n++;}catch(e){}}
+  return n;}
 function importBackup(){const inp=document.createElement("input");inp.type="file";inp.accept="application/json,.json";
   inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();
-    r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||!d.cfg||!Array.isArray(d.units)){toast("Not a Cortex backup file");return;}
-      modal(head("Restore backup?")+`<div class="modal-body"><div class="note-box" style="margin-bottom:12px">This replaces the current configuration, users, units, groups, and schedules with the backup from <b>${ue((d.ts||"").slice(0,10))}</b>. It does not change the controller's software.</div>
-        <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="rb-go">Restore</button></div></div>`);
-      document.getElementById("rb-go").onclick=()=>{CFG=d.cfg;delete CFG._rev;users=CFG.users||users;units=normalizeIds(d.units);migrateUnits(true);if(d.settings){settings=Object.assign({},DEF_SETTINGS,d.settings);saveSettings();}
-        saveCfg(CFG);try{localStorage.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}pushUnits(true);
-        MASTER.found.clear();applyTheme();closeModal();renderWho();renderAll();toast("Backup restored");};
-    }catch(e){toast("Couldn't read that backup file");}};
+    r.onload=()=>{let B=null;try{B=backupParts(JSON.parse(r.result));}catch(e){}
+      if(!B){toast("That is not a Cortex backup file");return;}
+      const avail={};Object.keys(B.parts).forEach(k=>avail[k]=true);
+      modal(head("Restore from backup")+`<div class="modal-body"><div class="note-box" style="margin-bottom:12px">Backup${B.site?" of <b>"+ue(B.site)+"</b>":""}${B.ts?" from <b>"+ue(String(B.ts).slice(0,10))+"</b>":""}. It holds the parts below. Tick the ones to bring back; each one <b>replaces</b> what this controller has now, and anything unticked is left alone.</div>
+        ${bkChecks(avail)}
+        ${avail.users?`<div class="note-box warn" style="margin-top:12px">Restoring logins replaces every login here. If yours is not in the backup you will be signed out.</div>`:""}
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="rb-go">Restore</button></div></div>`);
+      document.getElementById("rb-go").onclick=async()=>{const sel=bkSel();if(!Object.values(sel).some(Boolean)){toast("Tick at least one part");return;}
+        const btn=document.getElementById("rb-go");btn.disabled=true;btn.textContent="Restoring…";
+        try{const out=backupApply(CFG,B.parts,sel);
+          if(sel.floorplans&&B.parts.floorplans)await bkPutImages(B.parts.floorplans.images);
+          CFG=out.cfg;users=CFG.users||users;
+          if(out.units){units=normalizeIds(out.units);migrateUnits(true);try{LS.setItem("airow_units",JSON.stringify(cleanUnits()));}catch(e){}pushUnits(true);MASTER.found.clear();}
+          if(out.prefs){settings=Object.assign({},DEF_SETTINGS,out.prefs);saveSettings();}
+          saveCfg(CFG);applyTheme();closeModal();
+          const me=currentUser&&CFG.users.find(u=>u.username===currentUser.username);
+          if(sel.users&&!me){toast("Backup restored. Sign in with a login from the backup.");setTimeout(()=>{clearSession();location.reload();},1800);return;}
+          if(me)currentUser=me;
+          renderWho();renderAll();toast("Backup restored: "+BK_SECTIONS.filter(x=>sel[x[0]]&&B.parts[x[0]]).map(x=>x[1].toLowerCase()).join(", "));
+        }catch(e){btn.disabled=false;btn.textContent="Restore";toast("Restore failed: "+e.message);}};
+    };
     r.readAsText(f);};
   inp.click();}
+/* ===== Demo building =====
+   A pretend site for training and showing people around. It runs entirely inside this browser tab:
+     - LS is a memory store, so the real saved site in this browser is never read or changed;
+     - every controller call (/api/…) is answered here by demoApi() and never leaves the page;
+     - the "bus" is DEMOSIM, which answers Cortex's own poll and command frames with correctly formed
+       LGAP replies, so the real decoder, diagnosis rules and screens are what you see working.
+   Nothing in demo mode can reach a controller, an adapter or real equipment. */
+function demoEnter(){try{sessionStorage.setItem("cortex_demo","1");}catch(e){}location.reload();}
+function demoExit(){try{sessionStorage.removeItem("cortex_demo");}catch(e){}location.reload();}
+const DEMO_ROOMS=[  // addr, name, floor, outdoor unit, flags
+  [0x01,"Lobby","1st floor",192],[0x02,"Reception","1st floor",192],[0x03,"Conference A","1st floor",192],[0x04,"Conference B","1st floor",192,{err:4}],
+  [0x05,"Open office north","1st floor",192],[0x06,"Open office south","1st floor",192],[0x07,"Break room","1st floor",192,{filter:1}],[0x08,"Manager's office","1st floor",192],
+  [0x09,"Server room","1st floor",192,{lock:1,set:20}],[0x0A,"Print room","1st floor",192,{off:1}],[0x0B,"Corridor 1","1st floor",192,{fanOnly:1}],[0x0C,"Training room","1st floor",192,{off:1}],
+  [0x11,"Suite 200","2nd floor",193],[0x12,"Suite 210","2nd floor",193],[0x13,"Suite 220","2nd floor",193],[0x14,"Suite 230","2nd floor",193,{off:1}],[0x15,"Suite 240","2nd floor",193],
+  [0x16,"Boardroom","2nd floor",193],[0x17,"Wellness room","2nd floor",193],[0x18,"Storage","2nd floor",193,{silent:1}],[0x19,"Corridor 2","2nd floor",193,{fanOnly:1}],[0x1A,"Executive office","2nd floor",193]];
+const DEMO_PAGE0="40 70 a0 c0 01 00 80 0e 1d 00 00 61 57 00 96 21 29 29 00 00 1a 1a 5a 61 52 67 a4 dc 73 58 1f 4a b0 a7 04 f3 05 08 01 01 15 62 00 60 84 87 01 01 44 00 00 00 50 04 2d 0e 00 00 82 03 46 0a 00 00".split(" ").map(x=>parseInt(x,16));
+function demoNi(tb,v){let b=1,bd=Infinity;for(let i=1;i<tb.length&&i<256;i++){const x=tb[i];if(x==null||!isFinite(x))continue;const d=Math.abs(x-v);if(d<bd){bd=d;b=i;}}return b;}
+function demoRand(seed){let x=(seed*2654435761)>>>0;return ()=>{x^=x<<13;x>>>=0;x^=x>>17;x^=x<<5;x>>>=0;return x/4294967296;};}
+/* One outdoor page from plain numbers: v = {hp,lp (kPa), sh, sc (K), d1,d2 (°C), hz1,hz2, fan (rpm), air (°C), mode 0..2, err, idus} */
+function demoPage(addr,page,v){const f=DEMO_PAGE0.slice(),T=ODU_T;f[4]=addr;f[5]=page;f[10]=v.err||0;f[15]=(v.mode==null?1:v.mode)&3;
+  if(page===5){for(let i=6;i<63;i++)f[i]=0;f[7]=0x0E;f[63]=lgapCk(f,63);return f;}
+  f[23]=demoNi(T.hp,v.hp);f[24]=demoNi(T.lp,v.lp);const cond=T.cond[f[23]]/10,evap=T.evap[f[24]]/10;
+  f[25]=demoNi(T.suct,(evap+v.sh)*10);f[28]=demoNi(T.pipe,(cond-v.sc)*10);f[29]=demoNi(T.pipe,(v.hex!=null?v.hex:cond-2)*10);f[32]=f[28];f[33]=demoNi(T.pipe,(cond-v.sc-3)*10);
+  f[26]=demoNi(T.disch,v.d1);f[27]=v.hz2?demoNi(T.disch,v.d2||v.d1):demoNi(T.disch,Math.max(30,(v.d1||60)-25));
+  f[16]=f[17]=Math.max(0,Math.min(120,Math.round(v.hz1)));f[18]=f[19]=Math.max(0,Math.min(120,Math.round(v.hz2||0)));
+  f[20]=f[21]=Math.max(0,Math.min(250,Math.round((v.fan||0)/10)));f[22]=demoNi(T.air,(v.air==null?31:v.air)*10);
+  f[40]=Math.round(v.hz1*0.9);f[42]=Math.round((v.hz2||0)*0.9);f[53]=v.idus||0;f[63]=lgapCk(f,63);return f;}
+const DEMOSIM={units:new Map(),buf:[],t:null,
+  init(){DEMO_ROOMS.forEach(r=>{const x=r[4]||{},rnd=demoRand(r[0]);
+      this.units.set(r[0],{addr:r[0],odu:r[3],on:!x.off&&!x.silent,mode:x.fanOnly?2:0,fan:1+Math.floor(rnd()*3),swing:false,set:x.set||21+Math.floor(rnd()*4),half:false,room:(x.set||22)+1+rnd()*2.5,amb:25+rnd()*2.5,
+        lock:!!x.lock,err:x.err||0,filter:!!x.filter,silent:!!x.silent,eev:0,c4:[x.lock?0x02:0,0x03,0x0F],rnd});});
+    for(let i=0;i<40;i++)this.tick();if(!this.t)this.t=setInterval(()=>this.tick(),4000);},
+  tick(){for(const u of this.units.values()){const n=(u.rnd()-0.5)*0.08;
+      if(u.err)u.on=false;                                       // a faulted unit has stopped
+      if(u.on&&u.mode===0)u.room+=((u.set-0.4)-u.room)*0.04+n;else if(u.on&&u.mode===4)u.room+=((u.set+0.4)-u.room)*0.04+n;else u.room+=(u.amb-u.room)*0.015+n;
+      const run=u.on&&(u.mode===0||u.mode===4||u.mode===3||u.mode===7),low=u.odu===193;
+      const want=run?Math.max(120,Math.min(low?1350:900,(low?1150:380)+Math.abs(u.room-u.set)*220)):0;u.eev+=(want-u.eev)*0.25;
+      u.pin=run?(u.mode===4?38:(low?u.room-2.4:9))+n*4:u.room-0.8;u.pout=run?(u.mode===4?33:(low?u.room-1.2:12.5))+n*4:u.room-0.5;}},   // system B's coils are starved, so its pipes sit near room temperature
+  load(odu){const us=[...this.units.values()].filter(u=>u.odu===odu&&!u.silent);const on=us.filter(u=>u.on&&u.mode!==2);
+    return {n:us.length,frac:us.length?on.length/us.length:0,demand:on.reduce((s,u)=>s+Math.min(1.5,Math.abs(u.room-u.set)+0.5),0)/(us.length||1)};},
+  oduVals(odu){const L=this.load(odu),k=Math.min(1,L.frac*0.75+L.demand*0.35),w=Math.sin(Date.now()/9000)*0.5;
+    if(!L.frac)return {hp:1750,lp:1700,sh:0.5,sc:0.5,d1:38,d2:36,hz1:0,hz2:0,fan:0,air:31,mode:0,idus:L.n};
+    return odu===193   // system B is short of refrigerant: low suction pressure, high superheat, almost no subcooling, hot discharge
+      ?{hp:1880+60*k,lp:560-40*k+w*6,sh:17.5+w,sc:1.2,d1:101+3*k,d2:99+3*k,hz1:62+20*k,hz2:40+18*k,fan:640+120*k,air:31,hex:32.4,mode:1,idus:L.n}
+      :{hp:2520+520*k+w*10,lp:880-90*k+w*5,sh:6+w*0.6,sc:6.2,d1:70+20*k,d2:68+20*k,hz1:28+55*k,hz2:k>0.45?22+45*k:0,fan:520+360*k,air:31,mode:1,idus:L.n};},
+  reply(u){const f=[0x10,0x02|(u.on?1:0)|(u.lock?4:0)|(u.half?0x80:0),0xA0,0x40,u.addr,u.err||0,((u.fan&7)<<4)|(u.swing?8:0)|(u.mode&7),((u.set-15)&0x0F)|(u.filter?0x80:0),
+      demoNi(ODU_T.air,u.room*10),demoNi(ODU_T.pipe,u.pin*10),demoNi(ODU_T.pipe,u.pout*10),Math.round(u.eev)&0xFF,(Math.round(u.eev)>>8)&0xFF,0x28,u.odu===193?1:0,0];f[15]=lgapCk(f,15);return f;},
+  rx(bytes,ms){setTimeout(()=>{try{if(bus.port&&bus.port._demo)ingestBytes(Uint8Array.from(bytes));}catch(e){}},ms||35);},
+  tx(u8){for(const b of u8)this.buf.push(b);
+    while(this.buf.length>=8){const f=this.buf.slice(0,8);
+      if(f[2]!==0xA0||lgapCk(f,7)!==f[7]){this.buf.shift();continue;}
+      this.buf.splice(0,8);this.frame(f);}
+    if(this.buf.length>64)this.buf=[];},
+  frame(f){
+    if((f[0]===0x80||f[0]===0x84)&&f[1]===0x00){const u=this.units.get(f[3]);if(!u||u.silent)return;
+      if(f[4]&0x02){u.on=!!(f[4]&1)&&!u.err;u.lock=!!(f[4]&4);u.mode=f[5]&7;u.swing=!!(f[5]&8);const fn=(f[5]>>4)&7;if(fn)u.fan=fn;if(f[5]&0x80)u.filter=false;u.set=15+(f[6]&0x0F);u.half=!!(f[0]&0x04);}
+      this.rx(this.reply(u));}
+    else if(f[0]===0xA0&&f[1]===0x00){const u=this.units.get(f[3]);if(!u||u.silent)return;u.c4=[f[4]&0x0E,f[5]&0x7F,f[6]];
+      const r=[0x09,0x20,0xA0,0x40,u.addr,u.c4[0],u.c4[1],u.c4[2],0];r[8]=lgapCk(r,8);this.rx(r);}
+    else if(f[0]===0xF0&&f[1]===0xC0&&!f[5]&&!f[6]){const a=f[3];if(a!==192&&a!==193)return;if(f[4]!==0&&f[4]!==5)return;this.rx(demoPage(a,f[4],this.oduVals(a)),60);}}};
+function demoConnect(){if(!DEMO||bus.port)return;bus.err="";bus.inUse=false;bus.userClosed=false;
+  bus.port={_demo:true,writable:{getWriter:()=>({write:async u8=>{DEMOSIM.tx(u8);},releaseLock:()=>{}})},close:async()=>{bus.port=null;bus.scanning=false;}};
+  bus.scanning=true;bus.dirty=true;
+  setTimeout(()=>{if(bus.port&&bus.port._demo&&!MASTER.running&&!MASTER.discovering&&units.length)masterLoopRun({auto:true});},300);}
+function demoSeed(){
+  const meta={},list=[];
+  DEMO_ROOMS.forEach((r,i)=>{const u=makeDiscoveredUnit(r[0],r[2],i+1);u.odu=r[3];u.discovered=false;meta[u.name]={alias:r[1],floor:r[2],tags:[]};list.push(u);});
+  const cfg={provisioned:true,_rev:1,site:{name:"Harbor Point Offices (demo)",location:"Salt Lake City, UT",unit:"F",lat:40.7608,lon:-111.891},protocols:["lg"],adminPin:"0000",techPin:"0000",remote:{enabled:false},
+    unitMeta:meta,schedules:[
+      {id:"sdemo1",name:"Open the building",enabled:true,target:{type:"all",val:0},action:{power:"on",mode:"cool",fan:"",sp:73},time:"06:30",days:[1,2,3,4,5],nth:"every",cond:{op:"",temp:null}},
+      {id:"sdemo2",name:"Close for the night",enabled:true,target:{type:"all",val:0},action:{power:"off",mode:"",fan:"",sp:null},time:"18:30",days:[1,2,3,4,5],nth:"every",cond:{op:"",temp:null}},
+      {id:"sdemo3",name:"Weekend setback",enabled:false,target:{type:"all",val:0},action:{power:"on",mode:"cool",fan:"low",sp:80},time:"08:00",days:[0,6],nth:"every",cond:{op:"",temp:null}}],
+    users:[{id:1,name:"Demo Guide",username:"demo",passhash:hash("demo"),role:"owner",protected:true}],gen:"4",baud:4800,oduAddrs:[192,193]};
+  LS.setItem("airow_cfg",JSON.stringify(cfg));LS.setItem("airow_units",JSON.stringify(list));LS.setItem("airow_units_rev","1");LS.setItem("airow_bus_auto","1");
+  LS.setItem("airow_session",JSON.stringify({username:"demo",loginAt:Date.now(),last:Date.now()}));
+  DEMOSRV.cfg=cfg;DEMOSRV.units=list;DEMOSIM.init();
+  const now=Date.now(),H=3600000;
+  DEMOSRV.events=[{id:"demo-ch04",kind:"unit",addr:0x04,code:"CH04",at:now-52*60000,cleared:0},
+    {id:"demo-ch34",kind:"odu",addr:192,code:"CH34",at:now-2*24*H-3*H,cleared:now-2*24*H-3*H+18*60000},
+    {id:"demo-silent",kind:"silent",addr:0x18,code:null,at:now-6*H,cleared:0},
+    {id:"demo-ch01",kind:"unit",addr:0x12,code:"CH01",at:now-9*24*H,cleared:now-9*24*H+2*H}];}
+const DEMOSRV={cfg:null,units:[],rev:1,events:[],prefs:{},
+  eventDetail(id){const e=this.events.find(x=>x.id===id);if(!e)return null;const d=Object.assign({},e,{pre:[],post:[]});
+    const odu=e.kind==="odu"?e.addr:((DEMO_ROOMS.find(r=>r[0]===e.addr)||[])[3]||192),mates=DEMO_ROOMS.filter(r=>r[3]===odu).map(r=>r[0]);
+    for(let i=-40;i<=12;i++){const t=e.at+i*15000,k=Math.max(0,Math.min(1,(i+40)/40)),after=i>0;
+      // CH34 story: the condenser fan slows and stops, head pressure climbs until the high-pressure trip, then everything stops
+      const v=e.code==="CH34"?(after?{hp:2600-i*40,lp:1300,sh:1,sc:1,d1:92-i,d2:90-i,hz1:0,hz2:0,fan:0,air:33,mode:0,err:34,idus:mates.length}
+                                   :{hp:2900+k*k*1250,lp:900+k*60,sh:6+k*2,sc:7+k*5,d1:84+k*22,d2:82+k*22,hz1:82-k*20,hz2:60-k*20,fan:Math.max(0,820*(1-k*1.25)),air:33,mode:1,idus:mates.length})
+              :{hp:2750,lp:850,sh:6,sc:6,d1:80,d2:78,hz1:60,hz2:35,fan:760,air:31,mode:1,idus:mates.length};
+      const rows=mates.map((a,j)=>{const me=a===e.addr,gone=me&&after&&e.kind!=="odu";const run=!(after&&e.code==="CH34")&&!gone;
+        const F=c=>Math.round(c*9/5+32);
+        return [a,run?1:0,0,22,F(23+((a*7)%5)/3+(me?k*1.2:0)),F(run?9+(me&&e.code==="CH04"?k*3:0):22),F(run?13:22.5),run?Math.round(520+j*17+(me?k*200:0)):0];});
+      (after?d.post:d.pre).push({t,u:e.kind==="silent"&&after?rows.filter(r=>r[0]!==e.addr):rows,o:{[odu]:{"0":demoPage(odu,0,v).map(mhex).join("")}}});}
+    return d;},
+  history(addrs,days){const now=Date.now(),step=300000,series={};
+    addrs.forEach(a=>{const r=DEMO_ROOMS.find(x=>x[0]===a);if(!r){series[a]=[];return;}const x=r[4]||{},rnd=demoRand(a*31+days),set=x.set||22+(a%3),rows=[];
+      for(let t=now-days*86400000;t<=now;t+=step){const dt=new Date(t),h=dt.getHours()+dt.getMinutes()/60,wk=dt.getDay()%6!==0,occ=wk&&h>=6.5&&h<18.5&&!x.off;
+        if(x.silent&&now-t<6*3600000)continue;
+        const sun=Math.max(0,Math.sin((h-7)/12*Math.PI)),room=(occ?set+0.3+sun*0.9:set+1.5+sun*3.2)+(rnd()-0.5)*0.5;
+        const err=(x.err&&now-t<52*60000)?("CH0"+x.err):0,run=occ&&!err;
+        const F=c=>Math.round(c*9/5+32),low=r[3]===193;                 // the controller's log keeps room and pipe temperatures in °F and the setpoint in °C
+        rows.push([t,F(room),set,run?1:0,err,F(run?(low?room-2.4:9+rnd()):room-0.8),F(run?(low?room-1.2:12.5+rnd()):room-0.5),run?Math.round((low?1200:480)+rnd()*120):0]);}
+      series[a]=rows;});
+    return {from:now-days*86400000,to:now,every:step,series};},
+  oduHistory(addr,days){const now=Date.now(),step=days>2?900000:300000,rows=[],rnd=demoRand(addr+days);
+    for(let t=now-days*86400000;t<=now;t+=step){const dt=new Date(t),h=dt.getHours()+dt.getMinutes()/60,wk=dt.getDay()%6!==0,occ=wk&&h>=6.5&&h<18.5,k=occ?0.45+Math.max(0,Math.sin((h-7)/12*Math.PI))*0.5+(rnd()-0.5)*0.08:0;
+      const air=22+Math.max(0,Math.sin((h-8)/14*Math.PI))*10;
+      const v=!k?{hp:1750,lp:1700,sh:0.5,sc:0.5,d1:38,d2:36,hz1:0,hz2:0,fan:0,air,mode:0,idus:10}
+        :(addr===193?{hp:1900+60*k,lp:600-60*k,sh:14+k*3.5,sc:1.6-k*0.5,hex:air+1.5,d1:96+8*k,d2:94+8*k,hz1:60+22*k,hz2:38+20*k,fan:620+140*k,air,mode:1,idus:10}
+                    :{hp:2500+540*k,lp:890-100*k,sh:6+rnd(),sc:6,d1:70+20*k,d2:68+20*k,hz1:28+55*k,hz2:k>0.6?22+45*k:0,fan:520+360*k,air,mode:1,idus:12});
+      rows.push([t,{"0":demoPage(addr,0,v).map(mhex).join("")}]);}
+    return {addr,days,rows};},
+  diag(){const adv=[],health={},t=Date.now();
+    for(const o of ODU.values()){try{const d=cycleDiagnose(o),hs=sysHealth(o);if(hs!=null)health[o.addr]={score:hs,at:t};
+        (d.list||[]).forEach(f=>{if(f.lvl!=="likely"&&f.lvl!=="possible")return;const strip=h=>String(h==null?"":h).replace(/<[^>]+>/g,"");
+          adv.push({id:"demo-"+o.addr+"-"+f.id,key:o.addr+":"+f.id,at:t-5*3600000,last:t,cleared:0,addr:o.addr,who:f.who==null?null:f.who,title:strip(f.title),lvl:f.lvl,hit:f.hit,total:f.total,
+            signs:(f.signs||[]).filter(x=>x.hit).map(x=>strip(x.t)+(x.now?" ("+strip(x.now)+")":"")),what:strip(f.what),todo:strip(f.todo)});});}catch(e){}}
+    return {advisories:adv,health,state:{ok:true}};}};
+function demoApi(u,init){const p=u.pathname.replace(/^.*?(\/api\/|\/version$|\/health$)/,"$1"),m=(init.method||"GET").toUpperCase();
+  let body=null;try{if(typeof init.body==="string")body=JSON.parse(init.body);}catch(e){}
+  const J=(o,st)=>new Response(JSON.stringify(o),{status:st||200,headers:{"Content-Type":"application/json"}});
+  const no=()=>J({ok:false,err:"That is switched off in the demo building."},400);
+  const S=DEMOSRV;
+  if(p==="/version"||p==="/health")return J({ok:true,version:DEMO_VER||"demo",running:DEMO_VER||"demo",name:S.cfg&&S.cfg.site.name,demo:true});
+  if(p==="/api/appconfig"){if(m==="GET")return J(S.cfg||{});if(body&&body._reset)return no();
+    if(body){const rev=(S.cfg&&S.cfg._rev||0)+1;S.cfg=Object.assign({},body,{_rev:rev});return J({ok:true,_rev:rev});}return J({ok:true});}
+  if(p==="/api/units"){if(m==="GET")return J({rev:S.rev,ts:Date.now(),units:S.units,masterAlive:false,pending:0,sched:true});
+    if(body&&Array.isArray(body.units)){S.units=body.units;S.rev++;}return J({ok:true,rev:S.rev,ts:Date.now()});}
+  if(p==="/api/config")return J({name:S.cfg&&S.cfg.site.name,ok:true});
+  if(p==="/api/odu")return m==="GET"?J({odu:{},poller:{active:false},cleared:0}):J({ok:true});
+  if(p==="/api/diag")return J(S.diag());
+  if(p==="/api/events")return J({events:S.events});
+  if(p.indexOf("/api/events/")===0){const d=S.eventDetail(decodeURIComponent(p.slice(12)));return d?J(d):J({err:"no such event"},404);}
+  if(p==="/api/history/odu")return J(S.oduHistory(parseInt(u.searchParams.get("addr"),10),Math.max(1,Math.min(31,parseInt(u.searchParams.get("days"),10)||1))));
+  if(p==="/api/history")return J(S.history(String(u.searchParams.get("addrs")||"").split(",").map(x=>parseInt(x,10)).filter(x=>isFinite(x)).slice(0,32),Math.max(1,Math.min(31,parseInt(u.searchParams.get("days"),10)||1))));
+  if(p==="/api/prefs"){if(m==="GET")return J({ts:0,prefs:null});return J({ok:true});}
+  if(p==="/api/sched"){const d0=new Date();d0.setHours(6,30,0,0);const t=d0.getTime()>Date.now()?d0.getTime()-86400000:d0.getTime();
+    return J({ok:true,masterAlive:true,masterMode:true,history:[{at:t,id:"sdemo1",name:"Open the building",result:"sent",units:21},{at:t-12*3600000,id:"sdemo2",name:"Close for the night",result:"sent",units:21}]});}
+  if(p==="/api/master-mode")return J({on:true,ok:true});
+  if(p==="/api/cmd/drain")return J({cmds:[]});
+  if(p==="/api/cmd")return J({ok:true,queued:0,masterAlive:false});
+  if(p==="/api/update-channel")return J({channel:"stable",ok:true});
+  if(p==="/api/update/check")return J({ok:true,current:DEMO_VER||"demo",latest:DEMO_VER||"demo",available:false,channel:"stable",demo:true});
+  if(p==="/api/push")return J({key:null,devices:0,subscribed:false,kinds:[]});
+  if(p==="/api/fleet")return J({ok:true,sites:[],state:{},devices:0});
+  if(p==="/api/device")return J({live:true,demo:true,host:"cortex-demo",os:"Demo controller",uptime:"12d 4h",cpu:7,temp:44,mem:31,disk:22,cores:4,serial:"demo adapter",serialPresent:true,tailscale:null,masterAlive:true,lastUpdate:"",busActive:true,busBytes:bus.bytes||0,busLastMs:400,version:DEMO_VER||"demo",port:8080,https:{enabled:false,active:false}});
+  if(p.indexOf("/api/floorplan/")===0)return m==="GET"?J({err:"none"},404):no();
+  if(m!=="GET")return no();                                       // reboot, update, clear, factory reset, anything else that changes a controller
+  return J({ok:true});}
+let DEMO_VER=null;
+if(DEMO){
+  const realFetch=window.fetch.bind(window);
+  if(!IS_FILE&&location.protocol!=="file:")realFetch("/version",{cache:"no-store"}).then(r=>r.json()).then(j=>{if(j&&j.version)DEMO_VER=j.version;}).catch(()=>{});
+  window.fetch=(input,init)=>{let u;try{u=new URL(typeof input==="string"?input:input.url,location.href);}catch(e){return realFetch(input,init);}
+    const same=u.origin===location.origin||u.protocol==="file:";
+    if(same&&/(\/api\/|\/version$|\/health$)/.test(u.pathname)){try{return Promise.resolve(demoApi(u,init||{}));}catch(e){return Promise.reject(e);}}
+    return realFetch(input,init);};
+  try{window.WebSocket=function(){throw new Error("no controller link in the demo building");};}catch(e){}
+  try{if(navigator.serial)navigator.serial.requestPort=()=>Promise.reject(new Error("no adapter in the demo building"));}catch(e){}
+  demoSeed();
+  setInterval(()=>{if(currentUser&&!bus.port&&!bus.userClosed)demoConnect();},1500);
+  window.addEventListener("DOMContentLoaded",()=>{},{once:true});
+  const chip=document.createElement("div");chip.id="demo-chip";chip.innerHTML=`<b>Demo building</b><span>Pretend equipment. Nothing here reaches a real unit.</span><button id="demo-exit">Exit demo</button>`;
+  document.body.appendChild(chip);chip.querySelector("#demo-exit").onclick=demoExit;
+}
 async function boot(){applyTheme();showThinking("Loading your site…");
   try{await bootMain();}finally{hideThinking();}}
 async function bootMain(){
   // Shared setup/accounts come from the appliance first, so a NEW browser or computer sees the
   // same state (login screen), not the first-run wizard. Falls back to local for the file:// demo.
   let server=null;
-  if(location.protocol!=="file:"){
+  if(!IS_FILE){
     // Served by the controller: wait for it. A network blip or a controller that is still starting
     // must never drop someone into the first-time setup wizard (where they could overwrite the site).
     for(let i=0;;i++){
@@ -4855,7 +5277,7 @@ async function bootMain(){
   }
   if(server&&server.provisioned){CFG=server;if(typeof CFG._rev!=="number")CFG._rev=0;if(!CFG.protocols)CFG.protocols=["lg"];cfgStore();}
   else if(server&&typeof server._rev==="number"){               // the controller was factory-reset: don't resurrect this browser's old copy
-    CFG=null;try{localStorage.removeItem("airow_cfg");localStorage.removeItem("airow_session");}catch(e){}}
+    CFG=null;try{LS.removeItem("airow_cfg");LS.removeItem("airow_session");}catch(e){}}
   else{CFG=loadCfg();
     // this browser is already set up but the appliance never was -> migrate it up once
     if(CFG&&CFG.provisioned&&server!==null){delete CFG._rev;cfgPush();}
@@ -4878,7 +5300,7 @@ function showLogin(err){showScreen("login");const site=(CFG&&CFG.site&&CFG.site.
     <div class="err-text" id="li-err">${ue(err||"")}</div>
     <button class="btn primary" id="li-go" style="width:100%;justify-content:center;padding:12px">Sign in</button>
     <div style="display:flex;justify-content:space-between;margin-top:14px">
-      <button class="linklike" id="li-recover">Trouble signing in?</button></div>
+      <button class="linklike" id="li-recover">Trouble signing in?</button><button class="linklike" onclick="demoEnter()" title="A pretend building to explore. Nothing reaches real equipment.">Open the demo building</button></div>
    </div></div></div>`;
   // (The old "Re-run setup" link is gone from this screen: it let anyone who could reach the login page
   //  replace every account and wipe the site without a password. Setup is re-run from Settings ▸ Advanced.)
@@ -4924,7 +5346,7 @@ function resetOwner(){const owner=CFG.users.find(u=>u.protected)||CFG.users[0];
 /* ---- first-time setup wizard ---- */
 let WZ=null, WZi=0;
 function startWizard(){WZ={site:{name:(CFG&&CFG.site&&CFG.site.name)||"",location:(CFG&&CFG.site&&CFG.site.location)||"",unit:(CFG&&CFG.site&&CFG.site.unit)||"F"},owner:{name:"",username:"",pass:"",confirm:""},adminPin:"",techPin:"",team:[],remote:{enabled:!!(CFG&&CFG.remote&&CFG.remote.enabled)},protocols:["lg"]};WZi=0;showScreen("setup");renderWizard();
-  if(location.protocol!=="file:"&&!WZ.site.name){const w=WZ;fetch('/api/config',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name&&WZ===w&&!w.site.name&&WZi<=1){w.site.name=j.name;if(WZi===1&&!v("wz-name"))renderWizard();}}).catch(()=>{});}}
+  if(!IS_FILE&&!WZ.site.name){const w=WZ;fetch('/api/config',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name&&WZ===w&&!w.site.name&&WZi<=1){w.site.name=j.name;if(WZi===1&&!v("wz-name"))renderWizard();}}).catch(()=>{});}}
 function v(id){const el=document.getElementById(id);return el?el.value:"";}
 const WSTEPS=[
  {title:"Welcome",sub:"Let's commission this Cortex controller for the site.",
@@ -5046,7 +5468,8 @@ function renderWizard(){const s=WSTEPS[WZi];
     <div class="wiz-steps">${WSTEPS.map((_,i)=>`<div class="wiz-dot ${i<WZi?'done':''} ${i===WZi?'cur':''}"></div>`).join("")}</div>
     <div class="auth-body"><div class="step-num">Step ${WZi+1} of ${WSTEPS.length}</div>
       <h2>${s.title}</h2>${s.sub?`<div class="auth-sub">${s.sub}</div>`:""}
-      <div id="wzerr" class="err-text"></div>${s.body()}</div>
+      <div id="wzerr" class="err-text"></div>${s.body()}
+      ${WZi===0&&!DEMO?`<div style="margin-top:16px;font-size:12.5px;color:var(--text-dim)">Just looking? <button class="linklike" onclick="demoEnter()">Open the demo building</button> — a pretend site, nothing is set up or sent.</div>`:""}</div>
     <div class="wiz-foot"><button class="btn" id="wback" ${WZi===0?'style="visibility:hidden"':''}>Back</button>
       <button class="btn primary" id="wnext">${WZi===WSTEPS.length-1?'Finish setup':'Continue'}</button></div>
   </div></div>`;
@@ -5073,7 +5496,7 @@ function provision(){
   WZ=null;
   saveSettings();saveCfg(CFG);
   // keep the appliance's own site name (used by /health and the fleet console) in step with this one
-  if(location.protocol!=="file:"){try{fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:CFG.site.name})}).catch(()=>{});}catch(e){}}
+  if(!IS_FILE){try{fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:CFG.site.name})}).catch(()=>{});}catch(e){}}
   enterApp(CFG.users[0]);
   if(scanned&&MASTER.found&&MASTER.found.size){masterImport(); // add units found by the wizard's bus scan…
     if(bus.port&&!MASTER.running)masterLoopRun();}             // …and go live straight away (the scan step already had the LG central disconnected)

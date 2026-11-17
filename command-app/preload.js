@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld('cmdApp', {
   installUpdate: () => ipcRenderer.invoke('update:install'),
   onUpdate: (cb) => ipcRenderer.on('update:state', (_e, s) => { try { cb(s); } catch (_) {} }),
   notify: (title, body) => ipcRenderer.invoke('app:notify', { title: String(title || '').slice(0, 120), body: String(body || '').slice(0, 300) }),
-  show: () => ipcRenderer.invoke('app:show')
+  show: () => ipcRenderer.invoke('app:show'),
+  // { base, method, path, body } -> { ok, status, json, err }. The app only sends what bridge.js allows.
+  controller: (req) => ipcRenderer.invoke('ctl:request', req)
 });

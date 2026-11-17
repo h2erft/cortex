@@ -48,7 +48,8 @@ Windows** starts it hidden in the tray at sign-in.
 ## How it is built
 
 - `command-app/` is a small Electron app: `main.js` (window, tray, updater), `preload.js` (the few
-  things the page may ask the app to do), `updater.js` (which release to pick; plain Node, tested by
+  things the page may ask the app to do), `bridge.js` (the short list of requests it will send to a
+  controller), `updater.js` (which release to pick; plain Node, tested by
   `tests/command-updater.test.js`).
 - `.github/workflows/release.yml` has a `command-win` job: on a version tag it builds the installer on
   a Windows runner and attaches `Cortex-Command-Setup-<version>.exe` and `command-manifest.json` to the
@@ -56,6 +57,36 @@ Windows** starts it hidden in the tray at sign-in.
 - `.github/workflows/command-build.yml` builds the installer on every push that touches the app or the
   page, as a check, and keeps it as a build artifact for 14 days.
 - The page talks to the app only through `window.cmdApp`. Everything else in the page works without it.
+
+## What the app can do that a browser copy cannot
+
+A controller refuses changes from web pages it did not serve. That protects a building from any random
+page open in a browser on the same network. It also means a browser copy of Command can only look at
+other controllers. The app sends two kinds of request itself, and nothing else
+(`command-app/bridge.js`, tested by `tests/command-bridge.test.js`):
+
+| Request | Used by |
+|---|---|
+| `POST /api/update/apply` | Settings ▸ Controller software ▸ **Update** / **Update all** |
+| `GET` / `PUT /api/command-data` | Settings ▸ Sync between computers |
+
+Commands to the heating and cooling, reboots, factory resets and settings changes are not on the list.
+
+## Sync between computers
+
+Settings ▸ **Sync between computers**. Enter the address of one controller that is always on (the home
+controller) and turn it on. Every Command pointed at the same home controller then shows the same
+buildings, notes and service logs, technicians, access grants, acknowledged and snoozed alerts, audit
+log, and sign-in. Trend history, display preferences and the recovery code stay on each computer.
+
+- A second computer: on the first screen choose **Already use Cortex Command on another computer?** and
+  enter the home controller's address. It picks up the sign-in and the list.
+- Two computers changing things at the same moment: the first save wins; the second computer is told,
+  takes the saved copy, and the person repeats their last change if it is missing.
+- Command opened in a browser from the home controller itself can sync too (same origin). A copy opened
+  as a file cannot.
+- The shared copy is readable by anyone who can reach that controller on the network, like the rest of a
+  controller's settings. Keep controllers on a private network or Tailscale.
 
 ## Not verified yet
 

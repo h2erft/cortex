@@ -418,5 +418,45 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   `siteCard`, `siteDetail`, `renderSettings` (sections in `SET_SECS`), `briefing`, `brandMark`.
   The brain mark's constants and `brainMark()` are copied from `cortex.html`; if the logo changes
   there, copy it again.
-- Command still only reads from controllers. Nothing added here sends a command to a building.
+- (Superseded by the next addendum.) As of beta.15 Command only read from controllers.
+
+## Unreleased addendum (after beta.15) — demo building, occupant view, Command sync and more
+
+Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAND_APP.md` (sync, bridge).
+
+**Cortex (`cortex.html`)**
+- Three names are defined at the very top of the script and used everywhere: `DEMO`, `IS_FILE`, `LS`.
+  Never write `localStorage.` or `location.protocol==="file:"` in new code; use `LS.` and `IS_FILE`.
+  `tests/demo.test.js` fails if demo mode touches real storage or asks a controller for anything.
+- Error codes 1-9 are named with two digits everywhere (`CH04`). `errKey()` normalises old `CH4` values;
+  the decoder (`cortex.html`), `busmaster.js` and `recorder.js` all pad. Before this, a live CH04 showed
+  as "CH4" and the error page said "Unrecognized code".
+- Error table corrections checked against LG's Multi V S and Multi V IV service manuals: CH27 (it is a
+  PSC/PFC inverter-input fault, not a high-pressure trip), CH59, CH71, CH105, CH116 added, notes on
+  CH35/36/38/46/51/60/242. Codes that are still not checked against an LG table: 501, 502, the hydro kit
+  codes (8, 11, 13-18, 187), CH12, CH28 (seen only in a search snippet), CH38.
+- Locks: the multi-unit dialog shows what the selected units have now and a tap flips it; "Unlock
+  everything" / "Lock everything" stage all four. Hard lock is read back on every poll; Mode/Fan/Temp
+  cannot be read (there is no read-only cmd4) so they show what Cortex last sent. Do not add a cmd4 "ask".
+- Backup is sectioned (`BK_SECTIONS`, `backupBuild`, `backupParts`, `backupApply`; pure, in
+  `tests/backup.test.js`). Version 1 files still restore. Floor-plan pictures travel as data URLs.
+- `printDoc()` prints one document in the light theme; the fault report (`faultReportHtml`) uses it.
+- Occupant view: `appliance/occupant.js` (rules, tested), routes `/api/room/:key`, page `room.html`,
+  admin UI `occToggle/openOccupant/occEdit`. `room.html`, `occupant.js` and `commandstore.js` are in both
+  release copy lists and `install.sh`.
+- Motion: entrance effects only run when `enterAnim()` sets `.enter` (screen opened) or a dialog opens
+  fresh (`.pop`). Never attach an animation to something the 3-second live refresh re-renders.
+
+**Cortex Command (`command-center.html`)**
+- New per-site live data: `L.list` (units with display names), `L.meta` (only `unitMeta` is kept from
+  `/api/appconfig`), `L.upd` (the controller's own `/api/update/check`).
+- `alertItems()` is the one source of alerts (keys `off:`, `ev:`, `adv:`); acknowledgements in `DB.acks`,
+  snoozes in `DB.snooze`; `ackPrune()` drops them when the alert is gone.
+- `HISTD` = daily roll-up kept 120 days (`cortex_cmd_histd`) for the monthly report (`siteReportHtml`).
+- Changes on a controller go through `ctlSend()`: same-origin fetch, or the Windows app's
+  `window.cmdApp.controller` which only sends what `command-app/bridge.js` allows (update apply, the
+  shared Command data). Do not widen that list casually; controllers refuse cross-site writes on purpose.
+- Sync: `SYNC`, `syncDoc()` (no live fields, no "Alert:" audit lines, no recovery code), `syncNow()`,
+  `syncAdopt()`. A save always carries the revision it started from; a 409 means "adopt theirs, tell the
+  user". Server side is `appliance/commandstore.js` (`/api/command-data`, 240 KB cap).
 

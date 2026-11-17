@@ -18,7 +18,7 @@
   "build": {
     "appId": "com.airow.cortexcommand",
     "productName": "Cortex Command",
-    "files": ["main.js", "preload.js", "updater.js", "command-center.html", "icon.png"],
+    "files": ["main.js", "preload.js", "updater.js", "bridge.js", "command-center.html", "icon.png"],
     "directories": { "output": "dist" },
     "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "icon.png" },
     "nsis": {

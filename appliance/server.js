@@ -485,6 +485,23 @@ app.post('/api/cmd/drain', (_req, res) => {            // called by the master s
   res.json({ cmds: out });
 });
 
+// --- shared Cortex Command data (Command ▸ Settings ▸ Sync). See commandstore.js. ---
+// Reading is open like the rest of the read API; saving goes through the same-origin rule above, so only
+// Command opened from this controller, or the Command Windows app, can change it.
+const { createCommandStore } = require('./commandstore');
+const commandStore = createCommandStore({ file: path.join(DATA, 'command-data.json') });
+app.get('/api/command-data', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json(commandStore.get()); });
+app.put('/api/command-data', (req, res) => { cors(res); const r = commandStore.put(req.body); res.status(r.status).json(r.body); });
+
+// --- occupant view: a one-room page for the people in the room. Off unless an admin turns it on. ---
+// All rules live in occupant.js (limits, which units, rate limit). An accepted change joins the same
+// short-lived queue as a command from any Cortex screen, so nothing here talks to the bus directly.
+const { createOccupant } = require('./occupant');
+const occupant = createOccupant({ getCfg: () => readJsonSafe(APPCFG), getUnits: () => unitsDoc.units, ready: () => masterAlive(),
+  queue: (addr, state) => { cmdQueue = cmdQueue.filter(c => Date.now() - c.ts < CMD_TTL && c.addr !== addr); cmdQueue.push({ id: ++cmdSeq, ts: Date.now(), addr, state }); } });
+app.get('/api/room/:key', (req, res) => { res.set('Cache-Control', 'no-store'); const r = occupant.state(req.params.key); res.status(r.status).json(r.body); });
+app.post('/api/room/:key', (req, res) => { res.set('Cache-Control', 'no-store'); const r = occupant.command(req.params.key, req.body); res.status(r.status).json(r.body); });
+
 // --- floor-plan images (building map) -------------------------------------------
 // The picture for a map group is far too big for appconfig.json, so each one is a file under
 // <DATA>/floorplans/<id>.<ext>. Positions of the units stay in the shared app config. The browser
