@@ -734,6 +734,8 @@ svg.ug{width:100%;height:100%;display:block}
 <script>
 /* Demo mode flag and the stores every part of the page uses. See "Demo building" further down. */
 const DEMO=(()=>{try{if(/[?&]demo\b/.test(location.search)){sessionStorage.setItem("cortex_demo","1");history.replaceState(null,"",location.pathname);}return sessionStorage.getItem("cortex_demo")==="1";}catch(e){return false;}})();
+const APPL=location.protocol!=="file:"&&!DEMO;                  // served by a real controller: the controller owns the adapter and every screen shares it
+let LINK={on:false,open:false,polling:false,master:false,holder:null,error:null,mine:false,waiting:false,at:0};   // the controller's shared bus status (see "The shared bus link")
 const IS_FILE=location.protocol==="file:"&&!DEMO;               // opened as a bare file (no controller behind it) - the demo building behaves like a hosted page
 const LS=DEMO?(()=>{const m=new Map();return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v));},removeItem:k=>{m.delete(k);},clear:()=>m.clear(),key:i=>[...m.keys()][i]||null,get length(){return m.size;}};})():window.localStorage;
 
@@ -969,7 +971,7 @@ async function pullUnits(){
   if(IS_FILE)return;
   const was=SRV.masterAlive;
   try{const r=await fetch('/api/units',{cache:'no-store'});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();
-    SRV.masterAlive=!!j.masterAlive;SRV.at=Date.now();
+    SRV.masterAlive=!!j.masterAlive;SRV.at=Date.now();if(j.bus&&typeof linkSet==="function")linkSet(j.bus,false);
     if(j.rev!==unitsRev&&!unitsPushing&&!unitsPushT){
       if(units.length&&(j.rev===0||(!j.units.length&&!unitsSynced()))){unitsRev=j.rev;await pushUnits();}   // first screen with a unit list shares it
       else adoptUnits(j);}
@@ -1708,7 +1710,7 @@ function handleReply16(f){
   if(applyReplyToUnit(p))passiveDirty=true;
   const d={addr:p.addr,type:"reply",hex:R.lastRx,label:p.text};
   bus.log.unshift(d);if(bus.log.length>80)bus.log.pop();bus.raw.push(d.hex);if(bus.raw.length>8000)bus.raw.shift();bus.dirty=true;}
-setInterval(()=>{if(passiveDirty){passiveDirty=false;saveUnits();liveRefresh();}},3000);
+setInterval(()=>{if(passiveDirty){passiveDirty=false;if(APPL&&!bus.port){liveRefresh();return;}saveUnits();liveRefresh();}},3000);   // a screen that only listens does not rewrite the shared unit list: the controller (or the screen using the bus tools) does
 /* ===== Outdoor unit (ODU) pages — cmd14 =====
    Request  F0 C0 A0 <odu> <page> 00 00 ck   (bytes 5-6 MUST stay 0: non-zero is an action/oil-return write;
    address 0xFF is a broadcast to every ODU and is refused). Reply = 64 bytes: 40 70 A0 C0 <odu> <page> …
@@ -2769,6 +2771,7 @@ async function masterHalt(){
   await sleep(MASTER.turnaround+40);
   MASTER.abort=false;}
 async function masterDiscover(){
+  if(APPL&&!bus.port&&!(await busTake()))return;
   if(!bus.port){toast("Connect the adapter first");return;}
   const probe=buildQuery(MASTER.lo);
   if(!isSafeReadQuery(probe)){toast("Unsafe query — discovery needs a cmd0 read like 80 00 A0 AA 00 00 00");
@@ -2786,6 +2789,10 @@ async function masterDiscover(){
   return MASTER.found.size;}
 async function masterLoopRun(opts){
   const auto=!!(opts&&opts.auto);
+  if(APPL&&!bus.port){if(auto)return;                           // no screen needs the wire for live polling: the controller does it
+    if(!LINK.open){toast("Connect the adapter first");return;}
+    if(!units.length){toast("Import the units first — there is nothing to poll yet");return;}
+    busAuto(true);toast("Live polling started. The controller is asking the units itself.");setTimeout(pullUnits,2500);return;}
   if(!bus.port){if(!auto)toast("Connect the adapter first");return;}
   // resuming after a reload / restart: poll the units we already have, no new discovery needed
   if(!MASTER.found.size)units.forEach(u=>{if(u.addr!==0xFF)MASTER.found.set(u.addr,{addr:u.addr});});
@@ -2945,7 +2952,7 @@ function liveRefresh(force){
 function liveState(){
   if(IS_FILE)return liveTx()&&MASTER.running?"live":"demo";
   if(liveTx())return MASTER.running?"live":(MASTER.discovering?"scan":"idle");
-  return SRV.masterAlive?"live":"stale";}
+  return SRV.masterAlive?"live":(APPL&&LINK.open?"idle":"stale");}
 function fillLiveBanner(){const el=document.getElementById("livebanner");if(!el)return;const st=liveState();
   if(!units.length||st==="live"||st==="demo"||st==="scan"){el.innerHTML="";return;}
   const msg=st==="idle"
@@ -3001,14 +3008,16 @@ setInterval(()=>{if(bus.dirty&&view==="busscan"){bus.dirty=false;busUpdate();}},
 // a problem (error, or we're polling/scanning but the bus has gone silent); grey = not connected.
 function busHealth(){
   if(bus.port&&bus.scanning)return bus.err?"bad":"ok";       // this screen holds the adapter: a real error, or healthy (silence while scanning is normal)
-  if(!IS_FILE&&SRV.masterAlive)return "via";   // another screen is connected and polling — what we show is live
+  if(!IS_FILE&&SRV.masterAlive)return "via";   // the controller (or another screen) is polling — what we show is live
+  if(APPL&&LINK.open)return "idle";            // the adapter is connected on the controller, nothing is polling yet
+  if(APPL&&LINK.on&&LINK.error)return "bad";   // meant to be connected, but the adapter will not open
   return "off";}
 function updateBusHealth(){
   const el=document.getElementById("bus-health");if(!el)return;
-  const h=busHealth();el.classList.remove("ok","bad","off");el.classList.add(h==="via"?"ok":h);
+  const h=busHealth();el.classList.remove("ok","bad","off");el.classList.add(h==="via"||h==="idle"?"ok":h);
   const es=effSerial&&bus.scanning?effSerial():null;const ser=(es&&isTechView())?` · ${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"";
   const lbl=document.getElementById("bus-label");
-  const txt=h==="off"?"Bus offline":h==="bad"?"Bus problem":h==="via"?"Live":(MASTER.running?"Bus online":(MASTER.discovering?"Scanning…":"Bus connected"));
+  const txt=h==="off"?"Bus offline":h==="bad"?"Bus problem":h==="via"?"Live":h==="idle"?"Bus connected":(MASTER.running?"Bus online":(MASTER.discovering?"Scanning…":"Bus connected"));
   if(lbl)lbl.innerHTML=txt+(ser?`<span class="mono" style="color:var(--text-faint)">${ser}</span>`:"");
 }
 setInterval(updateBusHealth,1000);
@@ -3019,7 +3028,8 @@ function busPopClose(){const p=document.getElementById("buspop");if(p)p.remove()
 function busPopFill(){const p=document.getElementById("buspop");if(!p)return;
   const h=busHealth(),tech=isTechView();
   const why=h==="off"?"Cortex isn’t connected to the equipment right now. You can still see the last known readings, but changes can’t be sent."
-    :h==="bad"?"Cortex is connected to the adapter but the equipment isn’t answering properly."
+    :h==="bad"?(APPL&&!LINK.open&&LINK.error?"The controller can’t open its bus adapter ("+ue(LINK.error)+").":"Cortex is connected to the adapter but the equipment isn’t answering properly.")
+    :h==="idle"?"The controller’s adapter is connected. Live updates haven’t been started yet."
     :h==="via"?(POLLER.active?"The controller is polling the equipment itself. What you see is live, and your changes are sent through it.":"Another Cortex screen is connected to the equipment. What you see is live, and your changes are sent through it.")
     :(MASTER.running?"Connected and talking to the equipment. Readings are live.":"Connected to the adapter. Live updates haven’t been started yet.");
   if(!tech){
@@ -3029,7 +3039,7 @@ function busPopFill(){const p=document.getElementById("buspop");if(!p)return;
   const rows=bus.log.slice(0,9).map(busLogRow).join("");
   const body=p.querySelector(".labbody");const html=`
       <div class="buspop-grid">
-        <div><small>link</small><b>${bus.port?(bus.scanning?"adapter open":"adapter idle"):(POLLER.active?"controller polling":(SRV.masterAlive?"via another screen":"closed"))}</b></div>
+        <div><small>link</small><b>${bus.port?(bus.scanning?(APPL?"bus tools here":"adapter open"):"adapter idle"):(APPL&&LINK.polling?"controller polling":APPL&&LINK.holder==="screen"?"tools on another screen":APPL&&LINK.open?"connected":POLLER.active?"controller polling":(SRV.masterAlive?"via another screen":"closed"))}</b></div>
         <div><small>serial</small><b>${es?`${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"—"}</b></div>
         <div><small>master</small><b>${MASTER.running?"polling "+MASTER.found.size:(MASTER.discovering?"scanning":"stopped")}</b></div>
         <div><small>pass</small><b>${MASTER.cycleMs?(MASTER.cycleMs/1000).toFixed(1)+" s":"—"}</b></div>
@@ -3057,7 +3067,7 @@ async function busConnect(){
   // owns the real serial port and we bridge over a WebSocket. On a bare file:// page we
   // use the browser's Web Serial directly. Same send paths work in both.
   if(DEMO){demoConnect();return;}
-  if(location.protocol==='http:'||location.protocol==='https:'){if(bus.port)return;return busConnectBackend();}
+  if(APPL)return busLinkSet(true);
   if(!("serial" in navigator)){bus.err="Web Serial isn't available here. Use the paste box below, or open Cortex from the local file in Chrome.";renderBusScan();return;}
   const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
   try{
@@ -3085,6 +3095,7 @@ function busAuto(on){try{if(on)LS.setItem("airow_bus_auto","1");else LS.removeIt
 function busAutoWanted(){try{return LS.getItem("airow_bus_auto")==="1";}catch(e){return false;}}
 let busRetryT=null,busRetryN=0;
 function busAutoStart(){
+  if(APPL)return;                                              // the controller keeps the adapter and polls by itself; no screen takes it on its own any more
   if(IS_FILE||!busAutoWanted()||bus.port||bus.userClosed||!units.length)return;
   busConnectBackend(true);}
 function busRetryLater(){
@@ -3148,7 +3159,69 @@ async function busReadLoop(){
     }
   }
   bus.reader=null;}
-async function busDisconnect(){bus.userClosed=true;busAuto(false);MASTER.running=false;MASTER.seq=(MASTER.seq||0)+1;bus.scanning=false;ctrl.running=false;
+/* ===== The shared bus link (served by a controller) =====
+   The controller owns the adapter. This screen only:
+     - reads the shared status (LINK) and shows it, like every other screen and app;
+     - flips the shared switch (Connect / Disconnect) when a technician asks;
+     - LISTENS to the bytes while Bus scan is open;
+     - may BORROW the wire for the technician tools (discover, raw frames). Only then does bus.port exist,
+       so everything written for "this screen holds the adapter" keeps working, and nothing else can transmit. */
+const linkSig=()=>JSON.stringify([LINK.on,LINK.open,LINK.opening,LINK.polling,LINK.master,LINK.holder,LINK.error,LINK.mine,LINK.waiting]);
+function linkSet(i,fromWs){if(!APPL||!i)return;
+  if(!fromWs&&busWsOpen()&&LINK.at)return;                       // the live feed is newer than any polled or posted answer
+  const was=linkSig();
+  LINK=Object.assign({},i,{mine:fromWs?!!i.mine:LINK.mine,waiting:fromWs?!!i.waiting:LINK.waiting,at:Date.now()});
+  leaseSync();if(was!==linkSig()){if(view==="busscan")renderBusScan();fillLiveBanner();updateBusHealth();}}
+function busWsOpen(){return !!(bus.ws&&bus.ws.readyState===1);}
+function leaseDrop(){MASTER.abort=true;MASTER.running=false;MASTER.discovering=false;MASTER.seq=(MASTER.seq||0)+1;ctrl.running=false;txState.armed=false;
+  setTimeout(()=>{MASTER.abort=false;},MASTER.turnaround+MASTER.timeout+80);}
+function leaseSync(){if(!APPL)return;
+  if(!busWsOpen())LINK.mine=LINK.waiting=false;
+  bus.scanning=busWsOpen()&&!!LINK.open;
+  if(LINK.mine&&!bus.port){const ws=bus.ws;bus.err="";
+    bus.port={_ws:ws,writable:{getWriter:()=>({write:async(u8)=>{if(ws.readyState===1&&LINK.mine)ws.send(u8);else throw new Error("this screen no longer has the bus tools");},releaseLock:()=>{}})},close:async()=>{busRelease();}};
+    // taken on purpose with the button on a site Cortex is master of: this screen carries on the polling while it has the wire
+    if(bus.resumeLoop&&LINK.master&&units.length)setTimeout(()=>{if(bus.port&&LINK.mine&&!MASTER.running&&!MASTER.discovering)masterLoopRun({auto:true});},300);
+    bus.resumeLoop=false;}
+  else if(!LINK.mine&&bus.port){bus.port=null;leaseDrop();}}
+function busListen(){if(!APPL||bus.ws)return;
+  try{const ws=new WebSocket(`${location.protocol==="https:"?"wss":"ws"}://${location.host}/bus`);ws.binaryType="arraybuffer";bus.ws=ws;
+    ws.onopen=()=>{leaseSync();if(view==="busscan")renderBusScan();};
+    ws.onmessage=ev=>{if(typeof ev.data!=="string"){ingestBytes(new Uint8Array(ev.data));return;}
+      let m;try{m=JSON.parse(ev.data);}catch(_){return;}
+      if(m.bus)linkSet(m.bus,true);
+      if(m.lease===false){bus.takeErr=m.inUse?"inUse":(m.err||"refused");
+        if(m.taken){LINK.mine=false;leaseSync();toast("The bus tools were taken back from this screen. The controller carries on.");if(view==="busscan")renderBusScan();}}};
+    const gone=()=>{if(bus.ws!==ws)return;bus.ws=null;leaseSync();if(view==="busscan"){renderBusScan();setTimeout(()=>{if(view==="busscan"&&session&&session.tech)busListen();},3000);}};
+    ws.onclose=gone;ws.onerror=()=>{};
+  }catch(e){bus.ws=null;}}
+async function busLinkSet(on){
+  if(on)bus.err="";
+  try{const es=effSerial(),r=await fetch("/api/bus",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(on?{on:true,serial:{baud:es.baud,parity:es.parity,stop:es.stopBits,data:es.dataBits}}:{on:false})});
+    if(!r.ok)throw new Error("HTTP "+r.status);linkSet(await r.json(),false);busListen();
+    toast(on?"Adapter connected on the controller. Every screen now shows it connected.":"Adapter disconnected on the controller. Nothing is listening or polling now.");
+  }catch(e){bus.err="Couldn’t reach the controller to "+(on?"connect":"disconnect")+" the adapter ("+e.message+").";}
+  if(view==="busscan")renderBusScan();}
+/* Borrow the wire for the technician tools. Resolves true once this screen really has it. */
+async function busTake(force){
+  if(!APPL)return !!bus.port;if(bus.port&&LINK.mine)return true;
+  busListen();const until=async(f,ms)=>{const t0=Date.now();while(!f()&&Date.now()-t0<ms)await sleep(60);return f();};
+  if(!(await until(busWsOpen,4000))){toast("Can’t reach the controller’s bus service. It may be restarting.");return false;}
+  if(!(await until(()=>LINK.open,LINK.on?6000:300))){toast(LINK.on?"The controller hasn’t opened the adapter yet. Check that it is plugged in.":"Connect the adapter first");return false;}
+  bus.takeErr="";try{bus.ws.send(JSON.stringify({take:true,force:force===true}));}catch(e){return false;}
+  await until(()=>LINK.mine||!!bus.takeErr,8000);
+  if(LINK.mine){leaseSync();return true;}
+  bus.resumeLoop=false;
+  toast(bus.takeErr==="inUse"?"Another screen is using the bus tools. Use “Take over” at the top of Bus scan if that is you.":"Couldn’t get the bus tools on this screen. Try again.");return false;}
+function busRelease(){if(!APPL)return;leaseDrop();bus.port=null;LINK.mine=false;try{if(busWsOpen())bus.ws.send(JSON.stringify({release:true}));}catch(e){}
+  if(view==="busscan")renderBusScan();fillLiveBanner();}
+/* A screen left in the background must not keep the wire: hand it back after a minute out of sight. */
+let leaseHideT=null;
+document.addEventListener("visibilitychange",()=>{clearTimeout(leaseHideT);leaseHideT=null;
+  if(APPL&&document.visibilityState==="hidden"&&LINK.mine)leaseHideT=setTimeout(()=>{if(document.visibilityState==="hidden"&&LINK.mine)busRelease();},60000);});
+async function busDisconnect(){
+  if(APPL){bus.userClosed=true;leaseDrop();bus.port=null;txState.armed=false;return busLinkSet(false);}
+  bus.userClosed=true;busAuto(false);MASTER.running=false;MASTER.seq=(MASTER.seq||0)+1;bus.scanning=false;ctrl.running=false;
   try{if(bus.reader){await bus.reader.cancel();bus.reader.releaseLock();}if(bus.port)await bus.port.close();}catch(e){}
   bus.reader=null;bus.port=null;txState.armed=false;renderBusScan();}
 /* True when the drawer's Send button will actually transmit — the adapter is connected.
@@ -3423,7 +3496,9 @@ function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.seri
   const siteBaud=(bus.proto==="lg"&&CFG&&CFG.baud)?CFG.baud:null;   // LG generation sets the site baud (4800 gen4 / 9600 gen5)
   return {baud:s.baud||siteBaud||p.baud,dataBits:s.dataBits||p.dataBits,parity:s.parity||p.parity,stopBits:s.stopBits||p.stopBits};}
 function renderBusScan(){
-  const supported="serial" in navigator;const conn=bus.scanning;
+  if(APPL&&session&&session.tech)busListen();
+  const supported=APPL||("serial" in navigator);const conn=APPL?!!LINK.open:bus.scanning;
+  const linkTxt=!APPL?(conn?"reading…":"idle"):!LINK.on?"not connected":!LINK.open?(LINK.error?"adapter problem":"opening…"):LINK.mine?"bus tools on this screen":LINK.waiting?"waiting for the controller to pause…":LINK.holder==="screen"?"bus tools in use on another screen":LINK.polling?"controller polling "+(LINK.units||0)+" unit"+(LINK.units===1?"":"s"):"listening";
   const opts=siteProtocols();if(!opts.includes(bus.proto))bus.proto=opts[0]||"lg";
   const p=PROTOCOLS[bus.proto];const isLG=bus.proto==="lg";
   const addrSel=(sel)=>`<option value="">Target address…</option>`+[...new Set([...bus.addrs.keys(),...units.map(u=>u.addr)])].sort((a,b)=>a-b).map(a=>{const u=units.find(x=>x.addr===a);return `<option value="${a}" ${sel===a?"selected":""}>${hx(a)}${u?" · "+dispName(u):""}</option>`;}).join("");
@@ -3437,9 +3512,12 @@ function renderBusScan(){
         <select class="sel-box" id="ser-data" ${conn?"disabled":""} style="padding:3px 5px">${[7,8].map(d=>`<option ${e.dataBits===d?"selected":""}>${d}</option>`).join("")}</select>
         <select class="sel-box" id="ser-par" ${conn?"disabled":""} style="padding:3px 5px">${["none","even","odd"].map(x=>`<option value="${x}" ${e.parity===x?"selected":""}>${x[0].toUpperCase()}</option>`).join("")}</select>
         <select class="sel-box" id="ser-stop" ${conn?"disabled":""} style="padding:3px 5px">${[1,2].map(s=>`<option ${e.stopBits===s?"selected":""}>${s}</option>`).join("")}</select></span>`;})():`<span class="mono" style="font-size:12px;color:var(--text-dim)">${p.baud} ${p.dataBits}${p.parity[0].toUpperCase()}${p.stopBits}</span>`}
-      ${conn?`<button class="btn danger" id="bus-dis">■ Disconnect</button>`:`<button class="btn primary" id="bus-con">▶ Connect adapter</button>`}
-      <div class="stat"><span class="pulse ${conn?'':'off'}"></span><span id="bus-count">${conn?'reading…':'idle'}</span></div>
+      ${(APPL?LINK.on:conn)?`<button class="btn danger" id="bus-dis">■ Disconnect</button>`:`<button class="btn primary" id="bus-con">▶ Connect adapter</button>`}
+      ${APPL&&LINK.open?(LINK.mine?`<button class="btn go" id="bus-give" title="Give the wire back. The controller carries on polling by itself.">✓ Done — hand back to the controller</button>`:`<button class="btn" id="bus-take" title="Discover, raw frames and the other tools need this screen to talk on the bus. The controller pauses its own polling while you do.">${LINK.holder==="screen"?"⇄ Take over the bus tools":"🛠 Use bus tools on this screen"}</button>`):""}
+      <div class="stat"><span class="pulse ${conn?'':'off'}"></span>${APPL?`<span id="bus-link-txt" style="font-weight:600">${ue(linkTxt)}</span><span style="opacity:.5;margin:0 6px">·</span>`:""}<span id="bus-count">${conn?'reading…':'idle'}</span></div>
     </div>
+    ${APPL?`<div style="font-size:12px;color:var(--text-faint);margin-top:8px">The adapter belongs to the controller, not to this screen. Every screen and app shows this same status, and any technician can connect or disconnect it from any device.</div>`:""}
+    ${APPL&&LINK.on&&!LINK.open&&LINK.error?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${ue(LINK.error)}. The controller keeps trying.</span></div>`:""}
     ${bus.err?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${bus.err}</span></div>`:""}
     </div></div>
     ${p.phys!=="RS485"?`<div class="note-box" style="margin-bottom:12px;font-size:12.5px">${p.note} <b>Note:</b> not plain RS485 — needs the adapter noted above.</div>`:''}
@@ -3477,7 +3555,7 @@ function renderBusScan(){
         </div>
         <label style="font-size:11.5px;color:#5f8a84;display:block">query bytes <input id="m-q" class="inp mono" style="width:100%;padding:4px 6px;font-size:12px" value="${MASTER.query}"></label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 6px">
-          ${MASTER.running
+          ${(MASTER.running||(APPL&&LINK.master))
             ?`<button class="btn go" id="m-stop" title="Stop live polling. Cortex stops transmitting on the bus.">■ stop polling</button>`
             :`<button class="btn primary" id="m-guide" ${bus.scanning?"":"disabled"} title="One-tap setup: reminds you to disconnect the LG central, then finds all units, imports them, and starts live polling — in order, automatically. Best choice for most techs.">▶ guided setup (recommended)</button>`}
         </div>
@@ -3485,10 +3563,10 @@ function renderBusScan(){
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px">
           <button class="btn" id="m-disc" ${bus.scanning?"":"disabled"} title="Step 1 · Roll call. Sweeps every address once and lists the units that answer. Do this FIRST, with the LG central disconnected. Read-only, safe.">① discover</button>
           <button class="btn" id="m-import" ${MASTER.found.size?"":"disabled"} title="Step 2 · Adds the units found by Discover into Cortex's unit list. Run Discover first.">② import ${MASTER.found.size} found</button>
-          ${MASTER.running?``:`<button class="btn" id="m-start" ${bus.scanning?"":"disabled"} title="Step 3 · Keep re-reading the imported units over and over for live status (temp, mode, setpoint). Run Discover + Import first.">③ start poll loop</button>`}
+          ${(MASTER.running||(APPL&&LINK.master))?``:`<button class="btn" id="m-start" ${bus.scanning?"":"disabled"} title="Step 3 · Keep re-reading the imported units over and over for live status (temp, mode, setpoint). Run Discover + Import first.">③ start poll loop</button>`}
           <button class="btn" id="m-dl" title="Save the frames Cortex sent and received to a text file you can share for debugging.${foc.length?' Only the watched unit(s).':''}">⬇ save capture</button>
         </div>
-        <div class="mono" id="m-status" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(MASTER.found.size+" responder(s) found")}</div>
+        <div class="mono" id="m-status" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(APPL&&LINK.polling?("● the controller is polling "+(LINK.units||0)+" unit(s)"):(MASTER.found.size+" responder(s) found"))}</div>
         <pre id="m-log" class="mono" style="max-height:220px;overflow:auto;border:1px solid #123a40;border-radius:8px;padding:9px;background:#05080b;font-size:11.5px;white-space:pre-wrap;margin:9px 0 0;color:#7fe8cf">${MASTER.log.slice(0,140).join("\n")}</pre>
       </div>
     </div>
@@ -3535,7 +3613,9 @@ function renderBusScan(){
   const mta=document.getElementById("m-ta");if(mta)mta.onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isFinite(v))MASTER.turnaround=Math.max(0,Math.min(2000,v));};
   const mto=document.getElementById("m-to");if(mto)mto.onchange=e=>{const v=parseInt(e.target.value,10);if(Number.isFinite(v))MASTER.timeout=Math.max(20,Math.min(5000,v));};
   const mq=document.getElementById("m-q");if(mq)mq.onchange=e=>{MASTER.query=e.target.value;};
-  const mg=document.getElementById("m-guide");if(mg)mg.onclick=masterGuided;
+  const mg=document.getElementById("m-guide");if(mg)mg.onclick=async()=>{if(APPL&&!bus.port&&!(await busTake()))return;masterGuided();};
+  const bt=document.getElementById("bus-take");if(bt)bt.onclick=()=>{bus.resumeLoop=true;busTake(LINK.holder==="screen");};
+  const bg=document.getElementById("bus-give");if(bg)bg.onclick=()=>{busRelease();toast("Handed back. The controller carries on.");};
   const md=document.getElementById("m-disc");if(md)md.onclick=masterDiscover;
   const ms=document.getElementById("m-start");if(ms)ms.onclick=masterLoopRun;
   const msp=document.getElementById("m-stop");if(msp)msp.onclick=masterStop;
@@ -5445,7 +5525,7 @@ const WSTEPS=[
 // created at provision() time (after CFG exists), so this can't touch the not-yet-provisioned app.
 async function runScan(){
   WZ.scan={prog:0,cur:0,found:[],done:false,scanning:true,error:""};renderWizard();
-  try{ if(!bus.port) await busConnect(); }catch(e){}
+  try{ if(!bus.port){await busConnect();if(APPL)await busTake(true);} }catch(e){}
   if(!bus.port){WZ.scan={prog:0,cur:0,found:[],done:false,scanning:false,
     error:"Couldn't open the adapter. Plug in your USB-RS485 adapter and try again — or skip this and scan later from Tech → Bus scan."};renderWizard();return;}
   const tick=setInterval(()=>{if(WZ.scan&&MASTER.scan){WZ.scan.cur=MASTER.scan.cur;WZ.scan.prog=MASTER.scan.done/MASTER.scan.total;

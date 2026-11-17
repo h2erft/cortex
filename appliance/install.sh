@@ -42,6 +42,7 @@ systemctl enable --now avahi-daemon 2>/dev/null || true
 # 4) lay down release $VER and point 'current' at it
 mkdir -p "$REL/$VER" "$DATA"
 cp -f "$HERE/server.js" "$HERE/package.json" "$HERE/VERSION" "$HERE/cortex-update.sh" "$HERE/cortex-https.sh" "$REL/$VER"/
+cp -f "$HERE"/*.js "$REL/$VER"/                                  # every server module (server.js needs them all)
 [ -f "$HERE/package-lock.json" ] && cp -f "$HERE/package-lock.json" "$REL/$VER"/ || true
 [ -f "$HERE/cortex.sudoers" ] && cp -f "$HERE/cortex.sudoers" "$REL/$VER"/ || true
 cp -f "$HERE/cortex-appliance.service" "$HERE/cortex-updater.service" "$HERE/cortex-updater.timer" "$REL/$VER"/ 2>/dev/null || true

@@ -2,6 +2,33 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.5 — 2026-11-17 (the bus adapter belongs to the controller; every screen shares it)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.4. Changes `appliance/server.js`,
+`cortex.html`, `appliance/install.sh`. New: `appliance/buslink.js`, `docs/BUS_LINK.md`,
+`tests/buslink.test.js`, `tests/bus-shared.test.js`, `tests/helpers/bus-sim.py`._
+
+**Changed**
+- **The adapter is owned by the controller, not by one browser.** Before, the first screen to connect
+  held the adapter and every other screen showed the bus as down. Now Connect / Disconnect is a switch
+  kept on the controller: every screen and app shows the same status, and any technician can flip it
+  from any device. It survives restarts.
+- **Every screen with Bus scan open sees the frames and the units answering**, not only one.
+- **Live polling is always done by the controller.** No browser tab has to stay open, and none takes the
+  adapter by itself any more.
+- **Technician tools borrow the wire.** Discover, guided setup and raw frames take it for one screen
+  ("Use bus tools on this screen"); the controller pauses its polling meanwhile and resumes when it is
+  handed back, the tab closes or goes to the background, or another technician takes over.
+- Connecting only listens. Nothing is transmitted until polling is started, as before.
+
+**Fixed**
+- `install.sh` copied only `server.js`, not the other server modules.
+
+**Upgrading**: a site that was polling stays connected. A site that only listens to a real LG central
+starts disconnected: press Connect adapter once.
+
+**Not yet tested on a real bus.** Tested against a simulated adapter with two browsers.
+
 ## v1.7.1-beta.4 — 2026-11-17 (the Windows app switches between the building network and the secure address by itself; phone links)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.3. Changes `desktop-app/*`,

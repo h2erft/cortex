@@ -502,3 +502,14 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
   switched on).
 - Never suggest Tailscale Funnel or port forwarding for phone access: the API has no login.
 - See `docs/REMOTE_AND_LOCAL.md`.
+
+## Addendum: the shared bus link (v1.7.1-beta.5)
+
+- `appliance/buslink.js` is the only code that opens the serial port. `busmaster.js` talks through
+  `link.facade()`; schedules through `link.transmit()`; a browser through the `/bus` WebSocket and only
+  while it holds the lease. Do not add another `new SerialPort`.
+- In `cortex.html`, `APPL` means "served by a real controller". There `bus.port` exists ONLY while this
+  screen holds the bus tools (`LINK.mine`), so `liveTx()` / `isMaster()` keep their old meaning.
+  `LINK` is the shared status. A screen that only listens must never write the shared unit list.
+- Connecting must never transmit. Polling needs the master-mode flag.
+- See `docs/BUS_LINK.md`.

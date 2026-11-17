@@ -126,6 +126,7 @@ app.get('/health', (_req, res) => {
   const c = readConfig();
   cors(res);
   res.json({ ok: true, app: 'cortex', id: controllerId(), serial: c.serial, port: PORT, port80: typeof port80 !== 'undefined' ? port80.active : false, version: readVersion(), running: BOOT_VERSION, name: c.name, configured: c.configured,
+    bus: (() => { const i = busInfo(); return { on: i.on, open: i.open, polling: i.polling, holder: i.holder }; })(),
     lan: lanAddrs(),                // this box's addresses on the building network, so an app or phone that came in over the secure address can find the local one
     https: { active: httpsState.active, port: httpsState.port, trusted: !!(httpsState.cert && !httpsState.cert.selfSigned), name: (httpsState.cert && httpsState.cert.name) || null } });
 });
@@ -403,7 +404,7 @@ function flushUnits() {
 app.get('/api/units', (_req, res) => {
   cors(res);
   res.set('Cache-Control', 'no-store');
-  res.json({ rev: unitsDoc.rev, ts: unitsDoc.ts, units: unitsDoc.units, masterAlive: masterAlive(), pending: cmdQueue.length, sched: true });
+  res.json({ rev: unitsDoc.rev, ts: unitsDoc.ts, units: unitsDoc.units, masterAlive: masterAlive(), pending: cmdQueue.length, sched: true, bus: busInfo() });
 });
 app.put('/api/units', express.json({ limit: '2mb' }), (req, res) => {
   cors(res);
@@ -674,10 +675,11 @@ app.use((req, res, next) => {
 
 app.use(express.static(DIR, { index: 'cortex.html', extensions: ['html'] }));
 
+const { createLink } = require('./buslink');
 const server = http.createServer(app);
 
-// One serial consumer at a time — the bus is a single physical port (shared by http AND https).
-let busy = false, lastScreenLeft = 0, busMaster = null;
+// The bus is a single physical port. The controller owns it (buslink.js) and shares it with every screen.
+let busMaster = null;
 
 // USB adapters don't always come back with the same name after a replug or reboot (ttyUSB0 can
 // become ttyUSB1). If the configured device is gone and exactly ONE USB serial adapter is plugged
@@ -693,13 +695,32 @@ function resolveSerial() {
   return want;
 }
 
+// --- the bus link: the controller owns the adapter; every screen shares it (buslink.js) ------
+const LINKF = path.join(DATA, 'bus-link.json');
+const busClients = new Set();
+const link = createLink({
+  open: (ser) => new Promise((resolve, reject) => { const sp = new SerialPort({ path: resolveSerial(), baudRate: ser.baud, parity: ser.parity, stopBits: ser.stop, dataBits: ser.data }, (err) => err ? reject(err) : resolve(sp)); }),
+  // a site that was already polling before this version keeps its adapter connected
+  load: () => readJsonSafe(LINKF) || { on: (() => { try { return fs.readFileSync(path.join(DATA, 'master-mode'), 'utf8').trim() === '1'; } catch (_) { return false; } })() },
+  save: (o) => writeFileAtomic(LINKF, JSON.stringify(o)),
+  onBytes: (buf) => { busRx.bytes += buf.length; busRx.last = Date.now(); for (const ws of busClients) { if (ws.readyState === 1) { try { ws.send(buf); } catch (_) {} } } },
+  onChange: () => { busRx.active = !!link.state.port; if (typeof superviseBus === 'function') superviseBus(); busTell(); },
+  log: (t) => console.log('buslink:', t),
+});
+/* What every screen and app is told about the bus. */
+function busInfo() { const i = link.info(), poll = !!(busMaster && busMaster.state.active);
+  return Object.assign(i, { master: masterMode(), polling: poll, alive: !!(busMaster && busMaster.alive()), holder: i.driver ? 'screen' : (poll ? 'controller' : null),
+    pollError: (busMaster && busMaster.state.error) || null, bytes: busRx.bytes, lastMs: busRx.last ? Date.now() - busRx.last : null, units: unitsDoc.units.length, screens: busClients.size }); }
+function busTell() { const i = busInfo(), poll = i.polling;
+  for (const ws of busClients) { if (ws.readyState !== 1) continue;
+    // "mine" only once the controller's own loop is really off the wire, so two masters never overlap
+    try { ws.send(JSON.stringify({ bus: Object.assign({}, i, { mine: link.state.driver === ws && !poll, waiting: link.state.driver === ws && poll }) })); } catch (_) {} } }
 // The same bridge is attached to the plain-http server and, when enabled, the https one (wss://).
 function attachBus(srv) {
  const wss = new WebSocketServer({ server: srv, path: '/bus',
-   verifyClient: (info) => sameOrigin(info.req) });          // only pages this appliance served may drive the bus
- // Heartbeat: a laptop that went to sleep or dropped off Wi-Fi never sends a close, and used to
- // leave the serial port marked "in use" until the service was restarted. Ping every 15 s and drop
- // any screen that didn't answer the previous ping, which frees the port for the next one.
+   verifyClient: (info) => sameOrigin(info.req) });          // only pages this appliance served may listen to or drive the bus
+ // Heartbeat: a laptop that went to sleep or dropped off Wi-Fi never sends a close. Ping every 15 s and
+ // drop any screen that didn't answer the previous ping; if it was using the bus tools, the wire is freed.
  const beat = setInterval(() => {
    for (const ws of wss.clients) {
      if (ws.isAlive === false) { try { ws.terminate(); } catch (_) {} continue; }
@@ -707,41 +728,19 @@ function attachBus(srv) {
    }
  }, 15000);
  wss.on('close', () => clearInterval(beat));
- wss.on('connection', async (ws, req) => {
+ wss.on('connection', (ws) => {
   ws.isAlive = true; ws.on('pong', () => { ws.isAlive = true; });
-  if (busMaster && busMaster.state.active) { try { await busMaster.stop(); } catch (_) {} }   // a dashboard wants the adapter: the controller's own loop lets go
-  if (ws.readyState !== 1) return;
-  if (busy) { try { ws.send(JSON.stringify({ err: 'serial already in use by another session' })); } catch (_) {} ws.close(); return; }
-  const u = new URL(req.url, 'http://x');
-  const serial = resolveSerial();                             // read fresh: wizard changes apply here
-  const baud   = parseInt(u.searchParams.get('baud') || '4800', 10);
-  const parity = u.searchParams.get('parity') || 'none';
-  const stop   = parseInt(u.searchParams.get('stop') || '1', 10);
-  const data   = parseInt(u.searchParams.get('data') || '8', 10);
-
-  let port;
-  try {
-    port = new SerialPort({ path: serial, baudRate: baud, parity, stopBits: stop, dataBits: data });
-  } catch (e) {
-    try { ws.send(JSON.stringify({ err: 'open failed: ' + e.message })); } catch (_) {}
-    ws.close(); return;
-  }
-  busy = true;
-  let opened = false;
-  port.on('open',  () => { opened = true; busRx.active = true; try { ws.send(JSON.stringify({ ok: true, port: serial, baud })); } catch (_) {} });
-  port.on('error', (e) => {
-    try { ws.send(JSON.stringify({ err: opened ? e.message : ('could not open the adapter at ' + serial + ' — ' + e.message) })); } catch (_) {}
-    if (!opened) { try { ws.close(); } catch (_) {} }           // open failed: release the port flag right away
+  busClients.add(ws); busTell();
+  ws.on('message', (msg, isBinary) => {
+    if (isBinary) { link.write(ws, msg); return; }            // bytes are accepted only from the one screen using the bus tools
+    let m; try { m = JSON.parse(String(msg)); } catch (_) { return; }
+    if (m && m.take) { const r = link.take(ws, m.force === true);
+      if (!r.ok) { try { ws.send(JSON.stringify({ lease: false, err: r.err, inUse: !!r.inUse })); } catch (_) {} }
+      else if (r.prev && r.prev.readyState === 1) { try { r.prev.send(JSON.stringify({ lease: false, taken: true })); } catch (_) {} } }
+    else if (m && m.release) link.release(ws);
   });
-  // adapter unplugged (or the port closed under us): tell the screen and free the port
-  port.on('close', () => { if (ws.readyState === 1) { try { ws.send(JSON.stringify({ err: 'the adapter was disconnected' })); } catch (_) {} try { ws.close(); } catch (_) {} } });
-  port.on('data',  (buf) => { busRx.bytes += buf.length; busRx.last = Date.now(); if (ws.readyState === 1) ws.send(buf); }); // bytes -> browser (binary)
-  ws.on('message', (msg, isBinary) => { if (isBinary && port.writable) port.write(Buffer.from(msg)); }); // browser -> bytes
-
-  let cleaned = false;
-  const cleanup = () => { if (cleaned) return; cleaned = true; busy = false; busRx.active = false; lastScreenLeft = Date.now(); try { if (port.isOpen) port.close(() => {}); } catch (_) {} };
-  ws.on('close', cleanup);
-  ws.on('error', cleanup);
+  const bye = () => { if (!busClients.delete(ws)) return; link.release(ws); busTell(); };
+  ws.on('close', bye); ws.on('error', bye);
  });
  return wss;
 }
@@ -756,32 +755,24 @@ const MASTERF = path.join(DATA, 'master-mode'), FIREDF = path.join(DATA, 'sched-
 const masterMode = () => { try { return fs.readFileSync(MASTERF, 'utf8').trim() === '1'; } catch (_) { return false; } };
 app.get('/api/master-mode', (_req, res) => { cors(res); res.json({ on: masterMode() }); });
 app.post('/api/master-mode', (req, res) => { cors(res);
-  try { fs.writeFileSync(MASTERF, (req.body && req.body.on) ? '1\n' : '0\n'); if (!(req.body && req.body.on) && busMaster) busMaster.stop(); res.json({ ok: true, on: masterMode() }); }
+  try { const on = !!(req.body && req.body.on); fs.writeFileSync(MASTERF, on ? '1\n' : '0\n');
+    if (on && !link.state.on) link.setOn(true);                 // starting live polling implies connecting the adapter
+    superviseBus(); busTell(); res.json({ ok: true, on: masterMode(), bus: busInfo() }); }
+  catch (e) { res.status(500).json({ err: e.message }); } });
+// The shared switch. Any technician's screen can flip it; every screen and app reads the same answer.
+//   POST { on: true|false, serial?: { baud, parity, stop, data } }   connect / disconnect the adapter
+//   POST { release: true }                                           take the wire back from a screen using the bus tools
+app.get('/api/bus', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json(busInfo()); });
+app.post('/api/bus', (req, res) => { cors(res); const b = req.body || {};
+  try { if (b.release === true) { const d = link.state.driver; if (link.release() && d && d.readyState === 1) { try { d.send(JSON.stringify({ lease: false, taken: true })); } catch (_) {} } }
+    if (typeof b.on === 'boolean') link.setOn(b.on, b.serial && typeof b.serial === 'object' ? b.serial : null);
+    superviseBus(); busTell(); res.json(Object.assign({ ok: true }, busInfo())); }
   catch (e) { res.status(500).json({ err: e.message }); } });
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
-// Put frames on the bus ourselves: open the adapter, send each frame three times, close it.
+// Put a schedule's frames on the bus ourselves, through the shared adapter, when nothing is polling.
 async function schedTransmit(frames) {
-  if (busy || !frames.length) return false;
-  busy = true;
-  let port = null;
-  try {
-    port = await new Promise((resolve, reject) => {
-      const sp = new SerialPort({ path: resolveSerial(), baudRate: 4800, parity: 'none', stopBits: 1, dataBits: 8 }, (err) => err ? reject(err) : resolve(sp));
-    });
-    port.on('error', () => {});
-    await wait(300);
-    for (const f of frames) {
-      for (let i = 0; i < 3; i++) {
-        await new Promise((resolve, reject) => port.write(Buffer.from(f), (e) => e ? reject(e) : port.drain((e2) => e2 ? reject(e2) : resolve())));
-        await wait(350);                                         // leave room for the outdoor unit's 16-byte reply
-      }
-      await wait(250);
-    }
-    return true;
-  } finally {
-    try { if (port && port.isOpen) await new Promise(r => port.close(() => r())); } catch (_) {}
-    busy = false;
-  }
+  if (!frames.length || (busMaster && busMaster.state.active)) return false;
+  return link.transmit(frames, wait);
 }
 let wxCache = { at: 0, key: '', temp: null };
 async function schedOutdoor(cfg, unit) {
@@ -922,6 +913,7 @@ app.get('/api/history/odu', (req, res) => { cors(res); res.set('Cache-Control', 
 // Runs whenever Cortex is the bus master on this site and no dashboard holds the adapter, so the
 // equipment is watched (and faults are recorded) with every browser closed. See busmaster.js.
 const { createMaster } = require('./busmaster');
+
 function patchUnits(patches) {
   if (!patches || !patches.length) return;
   const by = new Map(patches.map(p => [p.addr, p.fields])); let ch = false;
@@ -938,25 +930,30 @@ function patchUnits(patches) {
   unitsDirty = true; if (!unitsFlushT) unitsFlushT = setTimeout(flushUnits, 15000);
 }
 busMaster = createMaster({
-  openPort: () => new Promise((resolve, reject) => { const sp = new SerialPort({ path: resolveSerial(), baudRate: 4800, parity: 'none', stopBits: 1, dataBits: 8 }, (err) => err ? reject(err) : resolve(sp)); }),
+  openPort: async () => link.facade(),                         // the shared adapter; the loop never opens or closes the real port
   getUnits: () => unitsDoc.units,
   patchUnits,
   drain: () => { const now = Date.now(), out = cmdQueue.filter(c => now - c.ts < CMD_TTL); cmdQueue = []; return out; },
   oduAddrs: () => { const c = readJsonSafe(APPCFG) || {}; return Array.isArray(c.oduAddrs) ? c.oduAddrs.filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF) : []; },
   onOdu: (f) => recorder.onOdu(f),
   onPass: () => { histSample(); recorder.sample(unitsDoc.units); },
-  onBytes: (n) => { busRx.bytes += n; busRx.last = Date.now(); },
-  onEnd: () => { busy = false; busRx.active = false; pollerEndedAt = Date.now(); },
+  onEnd: () => { pollerEndedAt = Date.now(); setTimeout(() => { superviseBus(); busTell(); }, 0); },
   log: (t) => console.log('busmaster:', t),
 });
 function pollerInfo() { const S = busMaster.state; return { active: S.active, alive: busMaster.alive(), passMs: S.passMs, lastPassAt: S.lastPassAt, passes: S.passes, error: S.error, masterMode: masterMode() }; }
 let pollerEndedAt = 0;
-setInterval(() => {                                           // supervisor: take the bus when it is ours and nobody else has it
-  if (busMaster.state.active || busy || !masterMode()) return;
-  if (!unitsDoc.units.length || Date.now() - lastScreenLeft < 15000) return;
-  if (busMaster.state.error && Date.now() - pollerEndedAt < 60000) return;      // adapter missing or failing: try again in a minute, not every 10 s   // give a reloading dashboard a moment to come back first
-  busy = true; busRx.active = true; busMaster.start();
-}, 10000);
+// Supervisor: the controller polls exactly when the adapter is connected, Cortex is the bus master on this
+// site, there are units to ask, and no screen is using the bus tools. Anything else: stay off the wire.
+function superviseBus() {
+  if (!busMaster) return;
+  const want = !!link.state.port && !link.state.driver && masterMode() && unitsDoc.units.length > 0;
+  if (busMaster.state.active) { if (!want && !busMaster.state.stopping) busMaster.stop().then(() => busTell(), () => {}); return; }
+  if (!want) return;
+  if (busMaster.state.error && Date.now() - pollerEndedAt < 15000) return;      // failing: try again shortly, not in a tight loop
+  busMaster.start(); busTell();
+}
+setInterval(() => { link.tick(); superviseBus(); }, 2000);
+link.start();
 setInterval(() => { schedRunner.tick().catch(e => console.error('schedule tick failed:', e && e.message)); }, 20000);
 app.get('/api/sched', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store');
   res.json({ server: true, masterMode: masterMode(), masterAlive: masterAlive(), history: schedRunner.history }); });

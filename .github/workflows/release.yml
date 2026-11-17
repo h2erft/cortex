@@ -22,7 +22,7 @@ jobs:
           printf '%s\n' "$VER" > appliance/VERSION
 
           STAGE="$(mktemp -d)"
-          cp appliance/server.js appliance/scheduler.js appliance/busmaster.js appliance/recorder.js appliance/pwa.js appliance/push.js appliance/diagwatch.js appliance/fleetwatch.js appliance/occupant.js appliance/commandstore.js appliance/cortex-https.sh appliance/package.json appliance/VERSION appliance/cortex-update.sh appliance/cortex.sudoers appliance/cortex-appliance.service appliance/cortex-updater.service appliance/cortex-updater.timer "$STAGE/"
+          cp appliance/server.js appliance/scheduler.js appliance/busmaster.js appliance/buslink.js appliance/recorder.js appliance/pwa.js appliance/push.js appliance/diagwatch.js appliance/fleetwatch.js appliance/occupant.js appliance/commandstore.js appliance/cortex-https.sh appliance/package.json appliance/VERSION appliance/cortex-update.sh appliance/cortex.sudoers appliance/cortex-appliance.service appliance/cortex-updater.service appliance/cortex-updater.timer "$STAGE/"
           [ -f appliance/package-lock.json ] && cp appliance/package-lock.json "$STAGE/"
           FILES="cortex.html command-center.html room.html setup.html LGAP_reference.md"
           case "$GITHUB_REF_NAME" in *-*) FILES="$FILES uart-sniffer.html" ;; esac   # experimental UART tool ships in pre-releases only
