@@ -717,7 +717,9 @@ function renderSettings(){const el=$("tab-settings");if(!el)return;if(!SET_SECS.
   const seg=(id,fn)=>el.querySelectorAll("#"+id+" button").forEach(b=>b.onclick=()=>{fn(b.dataset.v);savePrefs();applyTheme();renderSites();renderSettings();});
   seg("st-theme",v=>PREFS.theme=v);seg("st-accent",v=>PREFS.accent=v);seg("st-text",v=>PREFS.textSize=v);seg("st-layout",v=>PREFS.layout=v);seg("st-density",v=>PREFS.density=v);seg("st-land",v=>PREFS.landing=v);seg("st-idle",v=>PREFS.idleMin=+v);seg("st-bhour",v=>PREFS.briefHour=+v);
   el.querySelectorAll("[data-sw]").forEach(b=>b.onclick=async()=>{const k=b.dataset.sw;
-    if(["background","autoStart","autoUpdate","beta"].includes(k)){if(!APP)return;const cur=!!((APPINFO&&APPINFO.options)||{})[k];try{APPINFO.options=await APP.setOptions({[k]:!cur});}catch(e){}if(k==="beta")toast(!cur?"Beta testing on. Checking for a pre-release…":"Beta testing off. Stable versions only.");renderSettings();return;}
+    if(["background","autoStart","autoUpdate","beta"].includes(k)){if(!APP)return;const cur=!!((APPINFO&&APPINFO.options)||{})[k];
+      if(k==="beta"&&cur&&APP.leaveBeta&&/-/.test((APPINFO&&APPINFO.version)||"")){leaveBetaModal();return;}   // on a beta build: ask what to do, as a controller does
+      try{APPINFO.options=await APP.setOptions({[k]:!cur});}catch(e){}if(k==="beta")toast(!cur?"Beta testing on. Checking for a pre-release…":"Beta testing off. Stable versions only.");renderSettings();return;}
     PREFS[k]=!(PREFS[k]!==false&&!!PREFS[k]);savePrefs();applyTheme();renderSites();renderSettings();});
   const on=(id,fn)=>{const x=$(id);if(x)x.onclick=fn;};
   on("st-brief",()=>briefing(true));on("st-out",()=>signOut());on("st-chk",async()=>{toast("Checking for updates…");try{APPINFO.update=await APP.checkUpdate();}catch(e){}renderSettings();});on("st-inst",()=>APP.installUpdate());
@@ -728,8 +730,23 @@ function renderSettings(){const el=$("tab-settings");if(!el)return;if(!SET_SECS.
   on("st-exp",exportData);on("st-imp",()=>$("st-file").click());const f=$("st-file");if(f)f.onchange=()=>importData(f.files[0]);
   on("st-clr",()=>{if(!confirm("Clear the saved history for every building?"))return;HIST={};HISTD={};try{localStorage.removeItem(HIST_KEY);localStorage.removeItem(HD_KEY);}catch(e){}renderSites();toast("History cleared");});
   if($("fleet-push"))drawFleetPush();}
+/* Turning Beta testing off while this install is itself a beta: go back to stable, or stay put. */
+async function leaveBetaModal(){const ver=(APPINFO&&APPINFO.version)||"";
+  openModal(`<div class="mh"><h3>Leave beta testing</h3><button class="icon-btn" onclick="closeModal()">✕</button></div><div class="mb" id="lb-body"><div class="bload">${brainMark(40,"live")}<span>Checking the latest stable release…</span></div></div>`);
+  let L;try{L=await APP.leaveBeta();}catch(e){L={ok:false,err:"no answer from the app"};}
+  const body=$("lb-body");if(!body)return;
+  const stay=async()=>{try{APPINFO.options=await APP.setOptions({beta:false});}catch(e){}closeModal();renderSettings();toast("Beta testing off. You stay on v"+ver+" and will only be offered stable releases.");};
+  if(!L||!L.ok){body.innerHTML=`<div class="note">Could not check the releases right now (${esc((L&&L.err)||"unknown error")}). You can still turn beta testing off and stay on this version.</div><div class="mf" style="padding:14px 0 0"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="lb-stay">Stay on this beta</button></div>`;$("lb-stay").onclick=stay;return;}
+  body.innerHTML=`<div class="note" style="margin-bottom:12px">You are running a beta, <b>v${esc(ver)}</b>. ${L.stableIsNewer?`A newer stable release, <b>v${esc(L.stable)}</b>, is out.`:L.canRevert?`The latest stable release is <b>v${esc(L.stable)}</b>, which is older than what you have.`:"There is no older stable release with an installer to go back to."}</div>
+    ${L.canRevert?`<div class="trow"><div class="tinfo"><div class="tname">Go back to stable v${esc(L.stable)}</div><div class="tsub">Downloads that version and installs it when you restart. Your buildings and settings are kept. Anything that only exists in the beta goes away until it reaches a stable release.</div></div><button class="btn sm" id="lb-revert">Go back</button></div>`:""}
+    <div class="trow"><div class="tinfo"><div class="tname">${L.stableIsNewer?"Switch to stable releases":"Stay on this beta"}</div><div class="tsub">${L.stableIsNewer?`Command will update to v${esc(L.stable)} and follow stable releases from now on.`:"Keep v"+esc(ver)+". From now on you are only offered stable releases, never betas."}</div></div><button class="btn primary sm" id="lb-stay">${L.stableIsNewer?"Switch":"Stay"}</button></div>
+    <div class="mf" style="padding:14px 0 0"><button class="btn" onclick="closeModal()">Cancel, keep beta testing on</button></div>`;
+  $("lb-stay").onclick=stay;
+  const rv=$("lb-revert");if(rv)rv.onclick=async()=>{rv.disabled=true;rv.textContent="Downloading…";let u;try{u=await APP.revertToStable();}catch(e){u={state:"error",error:"no answer from the app"};}
+    try{const i=await APP.info();APPINFO=i;}catch(e){}closeModal();renderSettings();updBar();
+    toast(u&&u.state==="ready"?"Stable v"+L.stable+" is downloaded. Restart Cortex Command to go back to it.":"Could not go back: "+((u&&u.error)||"the download failed"));};}
 function updText(u){const when=u.checkedAt?" Last checked "+fmtTime(u.checkedAt)+".":"";
-  return u.state==="ready"?"Version "+esc(u.latest)+" is downloaded and ready. It installs when you restart Cortex Command; your buildings and settings are kept."
+  return u.state==="ready"?(u.revert?"Stable version "+esc(u.latest)+" is downloaded. Restarting Cortex Command takes you back to it; your buildings and settings are kept.":"Version "+esc(u.latest)+" is downloaded and ready. It installs when you restart Cortex Command; your buildings and settings are kept.")
     :u.state==="downloading"?"Downloading version "+esc(u.latest)+"…":u.state==="available"?"Version "+esc(u.latest)+" is available."+when
     :u.state==="checking"?"Checking…":u.state==="error"?"Could not check: "+esc(u.error||"unknown error")+"."+when
     :u.state==="none"?"No Command installer has been published on this channel yet."+when:"You are on the newest version for this channel."+when;}

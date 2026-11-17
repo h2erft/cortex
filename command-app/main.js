@@ -51,7 +51,7 @@ async function check(manual) {
     const d = U.decide(app.getVersion(), rel, !!opts.beta);
     if (d.state !== 'available') { if (upd.state !== 'ready') setUpd({ state: d.state === 'current' ? 'current' : 'none', latest: d.latest || null, checkedAt: Date.now(), error: d.reason || null }); return upd; }
     if (upd.state === 'ready' && upd.latest === d.latest && upd.file && fs.existsSync(upd.file)) { setUpd({ checkedAt: Date.now() }); return upd; }
-    setUpd({ state: 'available', latest: d.latest, checkedAt: Date.now(), notesUrl: d.pick.notesUrl });
+    setUpd({ state: 'available', latest: d.latest, checkedAt: Date.now(), notesUrl: d.pick.notesUrl, revert: false });
     if (opts.autoUpdate || manual) await download(d.pick);
   } catch (e) { if (upd.state !== 'ready') setUpd({ state: 'error', error: String(e.message || e), checkedAt: Date.now() }); }
   finally { checking = false; }
@@ -85,6 +85,16 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     ipcMain.handle('app:options', (_e, o) => { for (const k of ['beta', 'background', 'autoStart', 'autoUpdate']) if (o && typeof o[k] === 'boolean') opts[k] = o[k]; saveOpts(); applyAutoStart(); if (o && typeof o.beta === 'boolean') check(false); return opts; });
     ipcMain.handle('update:check', () => check(true));
     ipcMain.handle('update:install', () => install());
+    // Leaving the beta channel: what are the choices, and (if asked) fetch the newest stable installer.
+    ipcMain.handle('update:leave-beta', async () => { try { const rel = await getJson('https://api.github.com/repos/' + REPO + '/releases?per_page=30'); const L = U.leaveBeta(app.getVersion(), rel);
+        return { ok: true, onBeta: L.onBeta, current: L.current, stable: L.stable ? L.stable.version : null, canRevert: L.canRevert, stableIsNewer: L.stableIsNewer }; } catch (e) { return { ok: false, err: String(e.message || e) }; } });
+    ipcMain.handle('update:revert', async () => { if (checking || upd.state === 'downloading') return upd; checking = true;
+      try { const rel = await getJson('https://api.github.com/repos/' + REPO + '/releases?per_page=30'); const L = U.leaveBeta(app.getVersion(), rel);
+        if (!L.canRevert) { setUpd({ state: 'error', error: 'There is no older stable release to go back to.' }); return upd; }
+        opts.beta = false; saveOpts(); await download(L.stable); setUpd({ revert: true }); }
+      catch (e) { setUpd({ state: 'error', error: String(e.message || e), checkedAt: Date.now() }); }
+      finally { checking = false; }
+      return upd; });
     ipcMain.handle('app:show', () => { show(); return true; });
     ipcMain.handle('ctl:request', (_e, req) => bridge.send(req));        // allow-listed requests to a building's controller (bridge.js)
     ipcMain.handle('app:notify', (_e, n) => { if (!Notification.isSupported()) return false; const x = new Notification({ title: n.title, body: n.body, icon: icon() }); x.on('click', show); x.show(); return true; });

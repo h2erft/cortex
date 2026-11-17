@@ -33,6 +33,30 @@ try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = requ
     ok(label + ': no page errors', errors.length === 0, [...new Set(errors)].join(' | '));
     await page.close();
   }
+  // Turning Beta testing off on a beta install: the two choices a controller offers
+  for (const [name, L, expect] of [['a beta newer than stable', { ok: true, onBeta: true, current: '1.7.1-beta.2', stable: '1.7.0', canRevert: true, stableIsNewer: false }, ['Go back to stable v1.7.0', 'Stay on this beta']],
+      ['a beta older than stable', { ok: true, onBeta: true, current: '1.7.1-beta.2', stable: '1.7.1', canRevert: false, stableIsNewer: true }, ['Switch to stable releases']],
+      ['no stable installer yet', { ok: true, onBeta: true, current: '1.7.1-beta.2', stable: null, canRevert: false, stableIsNewer: false }, ['Stay on this beta']],
+      ['releases unreachable', { ok: false, err: 'GitHub 403' }, ['Stay on this beta']]]) {
+    const page = await (await browser.newContext({ viewport: { width: 1200, height: 800 } })).newPage(), errors = []; page.on('pageerror', e => errors.push(String(e)));
+    await page.addInitScript((L) => {
+      localStorage.setItem('cortex_command', JSON.stringify({ sites: [], techs: [], grants: [], audit: [] })); localStorage.setItem('cortex_cmd_acct', JSON.stringify({ user: 'owner', name: 'Owner One', passhash: 'x' }));
+      localStorage.setItem('cortex_cmd_prefs_owner', JSON.stringify({ briefing: false })); sessionStorage.setItem('cortex_cmd_in', '1');
+      const o = { beta: true, background: true, autoStart: false, autoUpdate: true }; window.__calls = [];
+      window.cmdApp = { info: async () => ({ version: '1.7.1-beta.2', options: o, update: window.__upd || { state: 'current' }, platform: 'win32' }), setOptions: async x => { window.__calls.push('set ' + JSON.stringify(x)); return Object.assign(o, x); }, checkUpdate: async () => ({ state: 'current' }), installUpdate: async () => true, onUpdate: () => {}, notify: async () => true, show: async () => true, controller: async () => ({ ok: false }),
+        leaveBeta: async () => L, revertToStable: async () => { window.__calls.push('revert'); o.beta = false; window.__upd = { state: 'ready', latest: '1.7.0', revert: true }; return window.__upd; } };
+    }, L);
+    await page.goto('file://' + path.resolve(__dirname, '..', 'command-center.html')); await page.waitForTimeout(1300);
+    await page.evaluate(() => openSettings('updates')); await page.waitForTimeout(200); await page.click('[data-sw="beta"]'); await page.waitForTimeout(500);
+    const txt = await page.evaluate(() => document.getElementById('modal').innerText);
+    ok('leave beta, ' + name + ': offers ' + expect.join(' / '), expect.every(e => txt.includes(e)) && (L.canRevert || !/Go back to stable/.test(txt)), txt.slice(0, 200));
+    ok('leave beta, ' + name + ': nothing changes until a choice is made', await page.evaluate(() => window.__calls.length === 0 && document.getElementById('scrim').classList.contains('show')));
+    if (L.canRevert) { await page.click('#lb-revert'); await page.waitForTimeout(500);
+      ok('leave beta: Go back downloads stable and offers the restart', await page.evaluate(() => window.__calls.join() === 'revert' && /Restart/.test(document.body.innerText) && /take[s]? you back|go back/i.test(document.body.innerText)), await page.evaluate(() => window.__calls.join() + ' | ' + document.getElementById('tab-settings').innerText.slice(0, 300))); }
+    else { await page.click('#lb-stay'); await page.waitForTimeout(400);
+      ok('leave beta, ' + name + ': the other button turns the channel off and keeps this version', await page.evaluate(() => window.__calls.join() === 'set {"beta":false}' && !document.getElementById('scrim').classList.contains('show') && document.querySelector('[data-sw="beta"]').getAttribute('aria-checked') === 'false')); }
+    ok('leave beta, ' + name + ': no page errors', errors.length === 0, errors.join(' | ')); await page.close();
+  }
   await browser.close();
   console.log(fail ? `\n${fail} FAILED` : '\nall passed'); process.exit(fail ? 1 : 0);
 })();

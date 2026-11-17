@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('cmdApp', {
   setOptions: (o) => ipcRenderer.invoke('app:options', o),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  leaveBeta: () => ipcRenderer.invoke('update:leave-beta'),      // { ok, onBeta, current, stable, canRevert }
+  revertToStable: () => ipcRenderer.invoke('update:revert'),     // downloads the newest stable installer; then installUpdate()
   onUpdate: (cb) => ipcRenderer.on('update:state', (_e, s) => { try { cb(s); } catch (_) {} }),
   notify: (title, body) => ipcRenderer.invoke('app:notify', { title: String(title || '').slice(0, 120), body: String(body || '').slice(0, 300) }),
   show: () => ipcRenderer.invoke('app:show'),

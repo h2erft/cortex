@@ -55,6 +55,15 @@ function installerUrl(pick, manifest) {
 /* Which channel a fresh install starts on. Someone who installed a pre-release is a beta tester already:
    on the stable channel they would be told "nothing published" until the next stable release. */
 function defaultBeta(version) { const v = parseVer(version); return !!(v && v.pre); }
+/* Turning Beta testing off while running a pre-release. Two honest choices, the same two a controller
+   offers: go back to the newest stable release (an older version), or stay on this beta and hear only
+   about stable releases from now on.
+   -> { onBeta, current, stable: pick|null, canRevert, stableIsNewer } */
+function leaveBeta(current, releases) {
+  const cur = parseVer(current), stable = pickRelease(releases, false);
+  const onBeta = !!(cur && cur.pre), c = stable ? cmpVer(stable.version, current) : 0;
+  return { onBeta, current, stable, canRevert: !!(onBeta && stable && c < 0), stableIsNewer: !!(stable && c > 0) };
+}
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
-module.exports = { parseVer, cmpVer, pickRelease, decide, installerUrl, sha256, defaultBeta };
+module.exports = { parseVer, cmpVer, pickRelease, decide, installerUrl, sha256, defaultBeta, leaveBeta };

@@ -24,4 +24,12 @@ ok('a pre-release install starts on the beta channel, a stable install on stable
 // the situation that hid updates: a beta install on the stable channel while only pre-releases exist
 ok('beta install + stable channel + only pre-releases published = nothing offered', U.decide('1.7.0-beta.15', [{ tag_name: 'v1.7.0-beta.16', prerelease: true, assets: [{ name: M, browser_download_url: 'https://github.com/x/' + M }] }], false).state === 'none');
 ok('same install on the beta channel is offered beta.16', U.decide('1.7.0-beta.15', [{ tag_name: 'v1.7.0-beta.16', prerelease: true, assets: [{ name: M, browser_download_url: 'https://github.com/x/' + M }] }], U.defaultBeta('1.7.0-beta.15')).latest === '1.7.0-beta.16');
+// leaving the beta channel
+const R = (tag, pre) => ({ tag_name: tag, prerelease: pre, assets: [{ name: M, browser_download_url: 'https://github.com/x/' + M }] });
+const lb = (cur, rels) => { const L = U.leaveBeta(cur, rels); return [L.onBeta, L.stable ? L.stable.version : null, L.canRevert, L.stableIsNewer]; };
+ok('on a beta newer than stable: can go back', JSON.stringify(lb('1.7.1-beta.2', [R('v1.7.1-beta.2', true), R('v1.7.0', false), R('v1.6.0', false)])) === JSON.stringify([true, '1.7.0', true, false]));
+ok('on a beta older than stable: no going back, stable is the way forward', JSON.stringify(lb('1.7.0-beta.16', [R('v1.7.0', false), R('v1.7.0-beta.16', true)])) === JSON.stringify([true, '1.7.0', false, true]));
+ok('on a beta with no stable installer published: only stay', JSON.stringify(lb('1.7.0-beta.16', [R('v1.7.0-beta.16', true), { tag_name: 'v1.6.0', prerelease: false, assets: [] }])) === JSON.stringify([true, null, false, false]));
+ok('on a stable build: nothing to revert', JSON.stringify(lb('1.7.0', [R('v1.7.0', false)])) === JSON.stringify([false, '1.7.0', false, false]));
+ok('staying on a beta with the channel off: quiet until a newer stable, never another beta', U.decide('1.7.1-beta.2', [R('v1.7.1-beta.3', true), R('v1.7.0', false)], false).state === 'current' && U.decide('1.7.1-beta.2', [R('v1.7.1', false), R('v1.7.1-beta.3', true)], false).latest === '1.7.1');
 console.log(fail ? `\n${fail} FAILED` : '\nall passed'); process.exit(fail ? 1 : 0);

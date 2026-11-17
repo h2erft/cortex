@@ -36,8 +36,12 @@ The app updates itself the same way a controller does.
 
 Settings ▸ App and updates has: the installed version, **Check now**, **Install updates automatically**
 and **Beta testing**. An install made from a pre-release starts with Beta
-testing on; an install made from a stable release starts with it off. Turning Beta testing off does not pull a beta install back to an older stable
-version; it waits for the next stable one.
+testing on; an install made from a stable release starts with it off. Turning Beta testing off on an install that is itself a beta asks what to do, the
+same two choices a controller gives: **Go back to stable** (downloads the newest stable installer, which
+is an older version, and installs it on restart; buildings and settings are kept) or **Stay on this
+beta** (keep the version; from then on only stable releases are offered). If the newest stable release is
+already newer than the beta, the choice is simply to switch to it. The rules are `leaveBeta()` in
+`updater.js`.
 
 ## Watching from the tray
 
