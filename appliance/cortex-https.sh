@@ -53,10 +53,16 @@ if [ -s "$CERT" ]; then
   SUBJ="$(openssl x509 -in "$CERT" -noout -subject 2>/dev/null | sed 's/^subject= *//')"
   ISS="$(openssl x509 -in "$CERT" -noout -issuer 2>/dev/null | sed 's/^issuer= *//')"
   MINE=0
-  openssl x509 -in "$CERT" -noout -ext subjectAltName 2>/dev/null | grep -q "DNS:$NAME\b" && MINE=1
+  SAN="$(openssl x509 -in "$CERT" -noout -ext subjectAltName 2>/dev/null)"
+  printf '%s' "$SAN" | grep -q "DNS:$NAME\b" && MINE=1
+  # The tailnet (or the box) was renamed: the installed certificate is the one this script fetched for
+  # the OLD name. It is still ours, and it no longer matches any address, so replace it now.
+  OLD="$(cat "$TLS/.tailscale-name" 2>/dev/null)"; RENAMED=0
+  if [ "$MINE" = 0 ] && [ -n "$OLD" ] && [ "$OLD" != "$NAME" ] && printf '%s' "$OLD" | grep -Eq '^[A-Za-z0-9.-]+\.ts\.net$' \
+     && printf '%s' "$SAN" | grep -q "DNS:$OLD\b"; then RENAMED=1; log "the Tailscale name changed from $OLD to $NAME; fetching a certificate for the new name"; fi
   if [ "$MINE" = 1 ]; then
     openssl x509 -in "$CERT" -noout -checkend $((RENEW_DAYS*86400)) >/dev/null 2>&1 && exit 0     # ours, and still good
-  elif [ -n "$SUBJ" ] && [ "$SUBJ" != "$ISS" ]; then
+  elif [ "$RENAMED" = 0 ] && [ -n "$SUBJ" ] && [ "$SUBJ" != "$ISS" ]; then
     once "a certificate that Cortex did not make is installed; leaving it alone"; exit 0
   fi
 fi
@@ -74,7 +80,7 @@ B="$(openssl pkey -in "$TMP/key.pem" -pubout 2>/dev/null | openssl sha256 2>/dev
 [ -n "$A" ] && [ "$A" = "$B" ] || { once "the fetched certificate and key do not match; ignored"; exit 0; }
 chmod 600 "$TMP/key.pem"; chmod 644 "$TMP/cert.pem"
 chown "$OWNER":"$OWNER" "$TMP/key.pem" "$TMP/cert.pem" 2>/dev/null || true
-[ -s "$CERT" ] && [ ! -e "$TLS/cert.selfsigned.pem" ] && [ "${MINE:-0}" = 0 ] && { cp -p "$CERT" "$TLS/cert.selfsigned.pem" 2>/dev/null; cp -p "$KEY" "$TLS/key.selfsigned.pem" 2>/dev/null; }
+[ -s "$CERT" ] && [ ! -e "$TLS/cert.selfsigned.pem" ] && [ "${MINE:-0}" = 0 ] && [ "${RENAMED:-0}" = 0 ] && { cp -p "$CERT" "$TLS/cert.selfsigned.pem" 2>/dev/null; cp -p "$KEY" "$TLS/key.selfsigned.pem" 2>/dev/null; }
 mv -f "$TMP/key.pem" "$KEY" && mv -f "$TMP/cert.pem" "$CERT" || { once "could not install the new certificate"; exit 0; }
 printf '%s' "$NAME" > "$TLS/.tailscale-name" 2>/dev/null || true
 rm -f "$TLS/.last-note"

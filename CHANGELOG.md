@@ -2,9 +2,17 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## Unreleased (next beta)
+## v1.7.1-beta.3 — 2026-11-17 (a renamed tailnet gets a new certificate by itself; the secure link uses the right name)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.2. Changes `appliance/cortex-https.sh`,
+`cortex.html`._
 
 **Fixed**
+- **Renaming the tailnet left the controller with a certificate for the old name, for good.** The
+  certificate helper only recognised its own certificate by the box's *current* Tailscale name, so after
+  a rename it took its own certificate for somebody else's and refused to replace it. It now remembers
+  the name it fetched for, sees the rename, and fetches a certificate for the new name on its next run
+  (within about 30 minutes). A certificate somebody else installed is still never touched.
 - **The secure link in Device health pointed at the wrong name.** It reused whatever address the page
   was opened with (often the IP), which a trusted certificate never matches, so the browser warned.
   It now links to the certificate's own name, and says a browser that already accepted a warning

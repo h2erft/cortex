@@ -52,4 +52,14 @@ for (const [name, o] of [['https switched off', { env: 'CORTEX_HTTPS=0\n' }], ['
   w = world(o); w.selfSigned('cortex'); const b4 = w.info(); const rr = w.run(); ok('does nothing when ' + name, rr.status === 0 && w.info() === b4 && w.calls() === 0); w.done(); }
 // 7. no certificate at all yet -> still fetches
 w = world({}); w.run(); ok('fetches when there is no certificate yet', /Test CA/.test(w.info()) && w.calls() === 1, w.info()); w.done();
+// 8. the tailnet is renamed -> its own old-name certificate is replaced with one for the new name, once
+w = world({}); w.selfSigned('cortex'); w.run();
+{ const stub = path.join(w.root, 'bin', 'tailscale'); fs.writeFileSync(stub, fs.readFileSync(stub, 'utf8').split('tail1234').join('new-name'), { mode: 0o755 }); }
+w.run(); w.run();
+ok('fetches a certificate for the new name after a tailnet rename', /DNS:cortex-box\.new-name\.ts\.net/.test(w.info()) && w.calls() === 2 && /name changed from cortex-box\.tail1234\.ts\.net to cortex-box\.new-name\.ts\.net/.test(w.log()), w.info() + w.log());
+ok('the kept-aside pair is still the self-signed one', /CN ?= ?cortex\b/.test(execFileSync('openssl', ['x509', '-in', path.join(w.tls, 'cert.selfsigned.pem'), '-noout', '-subject'], { encoding: 'utf8' }))); w.done();
+// 9. somebody else's certificate stays untouched even if an old name was recorded
+w = world({}); execFileSync('bash', ['-c', `cd "${w.root}" && openssl req -newkey rsa:2048 -nodes -keyout "${w.tls}/key.pem" -out r.csr -subj "/CN=hvac.example.com" 2>/dev/null && printf 'subjectAltName=DNS:hvac.example.com' > e && openssl x509 -req -in r.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 90 -extfile e -out "${w.tls}/cert.pem" 2>/dev/null`]);
+fs.writeFileSync(path.join(w.tls, '.tailscale-name'), 'cortex-box.old.ts.net'); w.run();
+ok('a recorded old name does not make a foreign certificate replaceable', /hvac\.example\.com/.test(w.info()) && w.calls() === 0, w.info()); w.done();
 console.log(fail ? `\n${fail} FAILED` : '\nall passed'); process.exit(fail ? 1 : 0);
