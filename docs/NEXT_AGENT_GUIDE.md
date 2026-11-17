@@ -470,3 +470,20 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
 - The "not yet confirmed on real equipment" list in the v1.7.0 changelog entry is the checklist for the
   next site visit.
 
+## 1.7.1-beta.1 addendum (2026-11-17) — Cortex for Windows, https by default
+
+- Three programs now ship from one release: the controller tarball, Cortex Command
+  (`command-app/`, `command-manifest.json`) and Cortex for Windows (`desktop-app/`,
+  `cortex-desktop-manifest.json`). They share `command-app/updater.js`; `U.product()` selects which
+  manifest and installer name a program accepts. `desktop-app/updater.js` is copied at build time and is
+  git-ignored: edit the one in `command-app/`.
+- Read `docs/DESKTOP_APP.md`. The app's IPC handlers answer only its own `file://` pages (`own()` in
+  `main.js`); the controller's page is remote content and must never be given the bridge.
+- https: `httpsState.enabled` is now true unless `CORTEX_HTTPS` is 0/off/false/no. `cortex-https.sh` runs
+  as root at the top of every updater tick. It must stay quiet (it logs a standing condition once, via
+  `.last-note`) and must never touch a certificate it did not make. `tests/https-script.test.js` runs the
+  real script against a fake `tailscale`.
+- The server reloads the certificate by polling the two files once a minute (`setSecureContext`); do not
+  add a restart for certificate changes.
+- New appliance file `cortex-https.sh` is in both release copy lists and `install.sh`.
+

@@ -160,7 +160,13 @@ Everything a site needs is under `/opt/cortex/data/` and survives updates: setti
 
 ---
 
-## Part E — Secure access over HTTPS (optional)
+## Part E — Secure access over HTTPS
+
+> **From 1.7.1 https is on by default** (port 8443, next to plain http, which is unchanged). A controller
+> on Tailscale fetches and renews a trusted certificate for its tailnet name by itself, as long as the
+> tailnet has MagicDNS and HTTPS Certificates turned on; otherwise it uses a self-signed one. To turn
+> https off: `CORTEX_HTTPS=0` in `appliance.env`, then restart. The steps below are the manual way and
+> still work; `cortex-https.sh` never replaces a certificate it did not make.
 
 **You do not need this for Cortex to work.** Out of the box the appliance serves plain `http` on
 port 8080, and that never changes. HTTPS is an *extra* door you can open next to it:

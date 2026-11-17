@@ -88,7 +88,9 @@ function writeConfig(next) {
 
 // HTTPS status, filled in by startHttps() at the bottom of this file and reported by /api/device.
 const httpsState = {
-  enabled: /^(1|true|yes|on)$/i.test(String(process.env.CORTEX_HTTPS || '').trim()),
+  // On unless switched off (CORTEX_HTTPS=0). From 1.7.1: https is the default so remote access is encrypted and
+  // phone alerts can work; plain http stays exactly as it was. Before 1.7.1 it was opt-in (CORTEX_HTTPS=1).
+  enabled: !/^(0|false|no|off)$/i.test(String(process.env.CORTEX_HTTPS || '').trim()),
   active: false,
   port: parseInt(process.env.CORTEX_HTTPS_PORT || '8443', 10) || 8443,
   error: null,
@@ -123,7 +125,8 @@ app.use('/api', (req, res, next) => {
 app.get('/health', (_req, res) => {
   const c = readConfig();
   cors(res);
-  res.json({ ok: true, serial: c.serial, port: PORT, port80: typeof port80 !== 'undefined' ? port80.active : false, version: readVersion(), running: BOOT_VERSION, name: c.name, configured: c.configured });
+  res.json({ ok: true, app: 'cortex', serial: c.serial, port: PORT, port80: typeof port80 !== 'undefined' ? port80.active : false, version: readVersion(), running: BOOT_VERSION, name: c.name, configured: c.configured,
+    https: { active: httpsState.active, port: httpsState.port, trusted: !!(httpsState.cert && !httpsState.cert.selfSigned), name: (httpsState.cert && httpsState.cert.name) || null } });
 });
 app.get('/version', (_req, res) => {
   cors(res);
@@ -946,9 +949,9 @@ for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { flushUnit
 process.on('unhandledRejection', (e) => console.error('unhandled rejection:', e && e.message ? e.message : e));
 
 // --- optional HTTPS -------------------------------------------------------------
-// OPT-IN and ADDITIVE. Nothing here can take the plain-http listener above down: it is already
+// ON BY DEFAULT (since 1.7.1) and ADDITIVE. Nothing here can take the plain-http listener above down: it is already
 // started, there is no redirect, and every failure below is caught, logged and reported in
-// /api/device (-> Device health) instead of thrown. Turn it on with CORTEX_HTTPS=1 in
+// /api/device (-> Device health) instead of thrown. Turn it off with CORTEX_HTTPS=0 in
 // <DATA>/appliance.env. The certificate is whatever sits at <DATA>/tls/cert.pem + key.pem:
 // install.sh makes a self-signed one, or drop a real one there (e.g. from `tailscale cert`).
 // If HTTPS is enabled and NO certificate exists yet (a box that only ever updated over the air),
@@ -968,13 +971,21 @@ function startHttps() {
       console.log('HTTPS: generated a self-signed certificate at ' + certP);
     }
     const cert = fs.readFileSync(certP), key = fs.readFileSync(keyP);
-    try {
-      const x = new crypto.X509Certificate(cert);
-      httpsState.cert = { subject: String(x.subject || '').replace(/\n/g, ', '), validTo: new Date(x.validTo).toISOString(), selfSigned: x.issuer === x.subject };
-    } catch (_) {}
+    const describe = (pem) => { try { const x = new crypto.X509Certificate(pem);
+        const names = String(x.subjectAltName || '').split(',').map(t => t.trim()).filter(t => /^DNS:/.test(t)).map(t => t.slice(4));
+        httpsState.cert = { subject: String(x.subject || '').replace(/\n/g, ', '), validTo: new Date(x.validTo).toISOString(), selfSigned: x.issuer === x.subject,
+          name: names.find(n => /\.ts\.net$/i.test(n)) || null };          // the address this certificate is trusted for (a Tailscale name), if any
+      } catch (_) {} };
+    describe(cert);
     const tls = https.createServer({ cert, key }, app);
     tls.on('error', (e) => { httpsState.active = false; httpsState.error = e.message; console.error('HTTPS disabled (http still serving):', e.message); });
     tls.listen(httpsState.port, () => { attachBus(tls); httpsState.active = true; httpsState.error = null; console.log(`Cortex appliance also listening on https :${httpsState.port}`); });
+    // A new certificate (cortex-https.sh fetches and renews a trusted one) is picked up without a restart.
+    let seen = ''; try { seen = fs.statSync(certP).mtimeMs + ':' + fs.statSync(keyP).mtimeMs; } catch (_) {}
+    const reload = setInterval(() => { try { const now = fs.statSync(certP).mtimeMs + ':' + fs.statSync(keyP).mtimeMs; if (now === seen) return;
+        const c2 = fs.readFileSync(certP), k2 = fs.readFileSync(keyP); tls.setSecureContext({ cert: c2, key: k2 }); seen = now; describe(c2);
+        console.log('HTTPS: now using the updated certificate' + (httpsState.cert && httpsState.cert.name ? ' for ' + httpsState.cert.name : '')); } catch (e) { /* half-written pair: try again next time */ } }, 60000);
+    if (reload.unref) reload.unref();
   } catch (e) {
     httpsState.active = false;
     httpsState.error = (e.code === 'ENOENT' && /openssl/.test(String(e.path || e.message))) ? 'no certificate, and openssl is not installed to make one'

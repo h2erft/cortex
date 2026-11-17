@@ -10,6 +10,24 @@ present for about ten minutes).
 | **Webhook** (Settings ▸ Fault alerts) | Any URL that accepts a POST: Home Assistant, ntfy, Node-RED | Sites without https, or to feed another system |
 | **Cortex Command** | Command open in a browser that can reach the controller | A fleet view; pops a message and can beep when a building raises an alert |
 
+## The easy way on a Windows PC in the building
+
+Install **Cortex for Windows** (`docs/DESKTOP_APP.md`). It finds the controller on the network and raises
+Windows notifications by itself, over plain http. Nothing below is needed for that PC.
+
+## Remote access and phones: https is on by default (from 1.7.1)
+
+A controller now serves https on port 8443 as well as plain http, without being asked. What kind of
+certificate it has decides what works:
+
+| Certificate | How you get it | Opens without a warning | Phone/browser alerts |
+|---|---|---|---|
+| Trusted, for the controller's Tailscale name | Automatic, if the controller is on Tailscale and the tailnet has **MagicDNS** and **HTTPS Certificates** turned on (Tailscale admin console ▸ DNS). Fetched within 30 minutes and renewed by itself. | Yes, at `https://<name>.<tailnet>.ts.net:8443` | Yes |
+| Self-signed (the fallback) | Automatic | No (a warning to click through) | No |
+
+Device health in Cortex shows which one is in use and the address. To turn https off, set
+`CORTEX_HTTPS=0` in `/opt/cortex/data/appliance.env` and restart the service.
+
 ## Why push needs https
 
 Browsers only allow service workers and push on a secure page. A self-signed certificate is not enough:

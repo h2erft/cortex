@@ -1,10 +1,10 @@
 name: command-build
-# Proves the Windows installer still builds whenever the desktop app or the Command page changes.
+# Proves both Windows installers (Cortex Command, and Cortex for Windows) still build whenever they change.
 # The installer is kept as a build artifact for 14 days; real releases come from release.yml.
 on:
   push:
     branches: [main]
-    paths: ['command-app/**', 'command-center.html', '.github/workflows/command-build.yml']
+    paths: ['command-app/**', 'desktop-app/**', 'command-center.html', '.github/workflows/command-build.yml']
   workflow_dispatch:
 
 jobs:
@@ -30,3 +30,27 @@ jobs:
           name: cortex-command-installer
           path: command-app/dist/Cortex-Command-Setup-*.exe
           retention-days: 14
+
+  desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build installer
+        shell: bash
+        working-directory: desktop-app
+        run: |
+          set -euo pipefail
+          cp ../command-app/updater.js .
+          npm install --no-audit --no-fund
+          npm version "0.0.0-ci.${GITHUB_RUN_NUMBER}" --no-git-tag-version --allow-same-version
+          npx electron-builder --win nsis --publish never
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cortex-desktop-installer
+          path: desktop-app/dist/Cortex-Setup-*.exe
+          retention-days: 14
+

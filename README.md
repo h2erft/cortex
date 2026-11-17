@@ -9,6 +9,10 @@ Tailscale. No cloud, no per-controller license, no vendor lock-in.
 **Cortex Command** is the companion console: every building you look after on one screen, in a browser
 or as a Windows app.
 
+**Cortex for Windows** is a small app for the people in the building: it finds the controller on the
+network, opens it like any program, and raises a Windows notification when something needs attention.
+See [docs/DESKTOP_APP.md](docs/DESKTOP_APP.md).
+
 > **Status: v1.7.0, stable.** Cortex runs a live LG Multi V IV system as a drop-in central controller.
 > Discovery, control, locks, schedules, unattended polling, outdoor unit readings and fault recording
 > have all run on real equipment. Some newer parts have had limited real-world use so far; the
@@ -253,10 +257,11 @@ Full details, the OTA release flow, and troubleshooting are in
 ## How it works
 - **`cortex.html`** is the controller's whole interface, one file. It also contains the demo building.
 - **`command-center.html`** is Cortex Command. **`command-app/`** wraps it as the Windows app.
+- **`desktop-app/`** is Cortex for Windows, the app for a building's own users.
 - **`room.html`** is the occupant page.
 - **`appliance/`** is the mini-PC backend: the serial bridge, the poller that runs the bus by itself,
   the scheduler, the fault recorder, diagnosis, notifications, the installer and the updater.
-- **`tests/`** has fifteen suites. They run the real pages in a headless browser against reference
+- **`tests/`** has eighteen suites. They run the real pages in a headless browser against reference
   frames and the built-in simulator; nothing is transmitted on a real bus.
 - **`LGAP_reference.md`** is the decoded protocol: bus, framing, checksums, command and reply layouts.
 - **`docs/`** has the guides linked above, plus developer notes in `HANDOFF.md` and

@@ -2,6 +2,51 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.1 — 2026-11-17 (Cortex for Windows; https on by default with automatic trusted certificates)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0. Changes `appliance/server.js`,
+`cortex-update.sh`, `install.sh`, `cortex.html`, `command-app/updater.js`, both workflows; adds
+`appliance/cortex-https.sh`, `desktop-app/`, `docs/DESKTOP_APP.md`, and tests `https-script`,
+`desktop-app`, `desktop-ui`._
+
+**Added**
+- **Cortex for Windows**, an app for the people in the building. Each release now also carries
+  `Cortex-Setup-<version>.exe`.
+  - **Finds the controller by itself:** searches the PC's own network and lists every Cortex controller
+    by name. One click connects; it remembers. An address can also be typed.
+  - **Opens Cortex in its own window** from the Start menu or desktop.
+  - **Windows notifications with no https:** a unit faults, a unit stops answering, a new advisory, the
+    controller cannot be reached. Each kind has its own switch, and there is a test button.
+  - Stays by the clock after the window is closed, optional start with Windows, a "Can't reach Cortex"
+    page that keeps retrying, zoom, and the same self-updater and Beta testing switch as Command.
+  - By itself the app only reads from the controller. See `docs/DESKTOP_APP.md`.
+- **Trusted https certificates, fetched automatically.** A controller on Tailscale gets a real
+  certificate for its tailnet name and renews it before it expires, with nothing to do on the box. The
+  tailnet needs MagicDNS and HTTPS Certificates turned on once (Tailscale admin console ▸ DNS). With
+  that, the `https://…ts.net:8443` address opens with no warning and phone alerts can be turned on.
+- `/health` now says `app: "cortex"` and reports https status; Device health shows the secure address.
+
+**Changed**
+- **https is on by default** (port 8443), next to plain http, which is unchanged and never redirects.
+  Before, it had to be switched on by editing a file. Controllers that never had it on start serving it
+  after this update, with the self-signed certificate until a trusted one is available. Turn it off with
+  `CORTEX_HTTPS=0` in `appliance.env`.
+- A new certificate is picked up without restarting Cortex.
+- The firewall rule for the https port is added to match the plain port: open on the LAN where the LAN
+  already reaches Cortex, Tailscale-only where the box was locked down.
+- Settings ▸ Notifications on a plain http page now points to the Windows app.
+
+**Safety**
+- The certificate helper never replaces a certificate it did not make (only a self-signed one, or one
+  for the box's own tailnet name), keeps the self-signed pair aside, and checks the new certificate and
+  key match before installing them.
+
+**Not verified**
+- Nothing here has run on a real controller or a real Windows PC. The certificate helper was tested
+  against a pretend `tailscale` command; the app's network search and notifications against a pretend
+  network; the app's pages in a browser with a stand-in for the app. The installer build is checked by
+  GitHub.
+
 ## v1.7.0 — 2026-11-16 (stable: watches the building by itself, diagnoses, and comes with Cortex Command)
 
 **Stable release. Publish as a normal GitHub release (not a pre-release).** It is the same code as

@@ -1,0 +1,18 @@
+{
+  "name": "cortex-desktop",
+  "productName": "Cortex",
+  "version": "0.0.0",
+  "description": "Cortex for Windows: finds the Cortex controller on your network, opens it, and tells you when something needs attention.",
+  "author": "AIROW",
+  "private": true,
+  "main": "main.js",
+  "scripts": { "start": "electron .", "dist": "electron-builder --win nsis --publish never" },
+  "devDependencies": { "electron": "^33.2.0", "electron-builder": "^25.1.8" },
+  "build": {
+    "appId": "com.airow.cortex",
+    "productName": "Cortex",
+    "files": ["main.js", "preload.js", "updater.js", "discover.js", "watch.js", "finder.html", "icon.png"],
+    "win": { "target": "nsis", "icon": "icon.png" },
+    "nsis": { "oneClick": true, "perMachine": false, "artifactName": "Cortex-Setup-${version}.${ext}", "shortcutName": "Cortex", "createDesktopShortcut": true, "runAfterFinish": true }
+  }
+}

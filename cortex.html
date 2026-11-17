@@ -2508,7 +2508,7 @@ async function pushTest(){const st=await pushState();if(!st.sub){toast("Turn not
 async function pushResync(){const st=await pushState();if(st.sub)fetch("/api/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:st.sub.toJSON(),user:settingsUser,kinds:pushKinds()})}).catch(()=>{});}
 async function drawPushRow(){const el=document.getElementById("push-row");if(!el)return;
   if(IS_FILE){el.innerHTML='<span class="sd">Opened as a file — notifications come from the controller.</span>';return;}
-  if(!pushOk()){const ios=/iPhone|iPad/.test(navigator.userAgent);el.innerHTML=`<span class="sd" style="max-width:340px;display:block">${!window.isSecureContext?"Browsers only allow notifications on a secure (https) page. Open Cortex through its https address to turn them on.":ios?"On iPhone and iPad, add Cortex to the Home Screen first and open it from that icon.":"This browser does not support notifications."} <button class="linklike" onclick="pushHelp()">How</button></span>`;return;}
+  if(!pushOk()){const ios=/iPhone|iPad/.test(navigator.userAgent);el.innerHTML=`<span class="sd" style="max-width:340px;display:block">${!window.isSecureContext?"Browsers only allow notifications on a secure (https) page with a trusted certificate. On a Windows PC in the building, the Cortex app gives you alerts with no https at all: download Cortex-Setup from the Cortex releases page. For phones and remote access, open Cortex through its https address.":ios?"On iPhone and iPad, add Cortex to the Home Screen first and open it from that icon.":"This browser does not support notifications."} <button class="linklike" onclick="pushHelp()">How</button></span>`;return;}
   const st=await pushState();
   el.innerHTML=st.sub?`<span class="cy-pill run" style="margin:0 8px 0 0">on for this device</span><button class="btn sm" onclick="pushTest()">Send a test</button> <button class="btn sm" onclick="pushDisable()">Turn off</button>`
     :`<button class="btn primary sm" onclick="pushEnable()">Turn on for this device</button>${st.perm==="denied"?'<div class="sd" style="margin-top:4px">Blocked in this browser\'s site settings.</div>':""}`;}
@@ -3787,9 +3787,9 @@ function renderDevice(){renderGroupNav();
   const refBtn=`<button class="btn" id="devref">Refresh</button>`;
   const hs=(DEVLIVE&&DEVLIVE.https)||null;                       // secure (https) access, reported by the appliance
   const httpsStat=!hs?devStat("Secure access (HTTPS)","n/a","older appliance build")
-    :hs.active?devStat("Secure access (HTTPS)","On","port "+ue(hs.port)+(hs.cert?(" · "+(hs.cert.selfSigned?"self-signed":"trusted")+" certificate"+(hs.cert.validTo?" · valid until "+ue(String(hs.cert.validTo).slice(0,10)):"")):""))
+    :hs.active?devStat("Secure access (HTTPS)","On","port "+ue(hs.port)+(hs.cert&&hs.cert.name?" · https://"+ue(hs.cert.name)+":"+ue(hs.port):"")+(hs.cert?(" · "+(hs.cert.selfSigned?"self-signed":"trusted")+" certificate"+(hs.cert.validTo?" · valid until "+ue(String(hs.cert.validTo).slice(0,10)):"")):""))
     :hs.enabled?devStat("Secure access (HTTPS)",`<span style="color:var(--warn)">Error</span>`,"turned on but not running — "+ue(hs.error||"see the appliance log"))
-    :devStat("Secure access (HTTPS)","Off","opt-in · see the appliance README");
+    :devStat("Secure access (HTTPS)","Off","switched off on this controller (CORTEX_HTTPS=0)");
   if(DEVERR){
     const bad=(l)=>devStat(l,"—","unavailable");
     main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">

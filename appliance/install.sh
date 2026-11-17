@@ -41,7 +41,7 @@ systemctl enable --now avahi-daemon 2>/dev/null || true
 
 # 4) lay down release $VER and point 'current' at it
 mkdir -p "$REL/$VER" "$DATA"
-cp -f "$HERE/server.js" "$HERE/package.json" "$HERE/VERSION" "$HERE/cortex-update.sh" "$REL/$VER"/
+cp -f "$HERE/server.js" "$HERE/package.json" "$HERE/VERSION" "$HERE/cortex-update.sh" "$HERE/cortex-https.sh" "$REL/$VER"/
 [ -f "$HERE/package-lock.json" ] && cp -f "$HERE/package-lock.json" "$REL/$VER"/ || true
 [ -f "$HERE/cortex.sudoers" ] && cp -f "$HERE/cortex.sudoers" "$REL/$VER"/ || true
 cp -f "$HERE/cortex-appliance.service" "$HERE/cortex-updater.service" "$HERE/cortex-updater.timer" "$REL/$VER"/ 2>/dev/null || true
@@ -64,18 +64,19 @@ CORTEX_NAME=
 ENV
 fi
 
-# 5b) optional HTTPS — OFF by default, and plain http on CORTEX_PORT keeps working either way.
-# Add the (commented-out) switch to appliance.env once, so turning it on later is a one-line edit.
+# 5b) HTTPS — ON by default from 1.7.1, in addition to plain http (which keeps working either way).
+# Add the (commented-out) off switch to appliance.env once, so turning it off is a one-line edit.
 if ! grep -q 'CORTEX_HTTPS' "$DATA/appliance.env" 2>/dev/null; then
   cat >> "$DATA/appliance.env" <<'ENV'
 
-# Optional secure (https) access, IN ADDITION to plain http above. Remove the leading '#' from
-# the next line, then: sudo systemctl restart cortex-appliance   (see README-appliance.md, Part E)
-#CORTEX_HTTPS=1
+# Secure (https) access is ON by default, IN ADDITION to plain http above. To turn it off, remove the
+# leading '#' from the next line, then: sudo systemctl restart cortex-appliance   (README-appliance.md, Part E)
+#CORTEX_HTTPS=0
 #CORTEX_HTTPS_PORT=8443
 ENV
 fi
-# A self-signed certificate so https can be switched on without any extra steps. Created ONLY when
+# A self-signed certificate so https works straight away. cortex-https.sh swaps in a trusted one when
+# the box is on Tailscale with HTTPS certificates allowed. Created ONLY when
 # neither file exists — an existing cert/key (yours, or one from `tailscale cert`) is never touched.
 TLS="$DATA/tls"
 mkdir -p "$TLS"

@@ -49,6 +49,10 @@ AUTH=()
 CUR="$(cat "$ROOT/current/VERSION" 2>/dev/null || echo 0.0.0)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
+# --- https certificate upkeep (every tick, whether or not there is an update) ---------------------
+# Fetches and renews a trusted certificate when the box is on Tailscale. Quiet and never fatal.
+[ -f "$ROOT/current/cortex-https.sh" ] && { CORTEX_ROOT="$ROOT" CORTEX_DATA="$DATA" bash "$ROOT/current/cortex-https.sh" || true; }
+
 # Update channel: 'stable' (default) ignores pre-releases; 'beta' also accepts alpha/beta/rc.
 # Written by the UI toggle (server.js -> $DATA/update-channel). Default stable if the file is absent.
 # NOTE: the file usually does NOT exist (it is only created when someone flips the Beta toggle). Reading

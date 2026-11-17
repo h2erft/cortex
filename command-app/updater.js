@@ -27,12 +27,16 @@ function cmpVer(a, b) {
   }
   return 0;
 }
+/* Which program this is. The same release carries more than one installer (Cortex Command, and the
+   Cortex desktop app); each looks only for its own manifest and its own installer name. */
+let PRODUCT = { manifest: 'command-manifest.json', file: /^Cortex-Command-Setup-[0-9A-Za-z.+-]+\.exe$/ };
+function product(p) { PRODUCT = Object.assign({}, PRODUCT, p); return PRODUCT; }
 /* releases: GitHub's /releases list. Returns { version, tag, manifestUrl, prerelease, notesUrl } or null. */
 function pickRelease(releases, beta) {
   let best = null;
   for (const r of Array.isArray(releases) ? releases : []) {
     if (!r || r.draft || (r.prerelease && !beta)) continue;
-    const man = (r.assets || []).find(a => a && a.name === 'command-manifest.json'); if (!man) continue;
+    const man = (r.assets || []).find(a => a && a.name === PRODUCT.manifest); if (!man) continue;
     const ver = String(r.tag_name || '').replace(/^v/, ''); if (!parseVer(ver)) continue;
     if (!best || cmpVer(ver, best.version) > 0) best = { version: ver, tag: r.tag_name, manifestUrl: man.browser_download_url, prerelease: !!r.prerelease, notesUrl: r.html_url, assets: r.assets };
   }
@@ -41,14 +45,14 @@ function pickRelease(releases, beta) {
 /* Decide what to do. current: running version. Returns { state, ... }. */
 function decide(current, releases, beta) {
   const pick = pickRelease(releases, beta);
-  if (!pick) return { state: 'none', reason: 'No release with a Command installer was found on this channel.' };
+  if (!pick) return { state: 'none', reason: 'No release with an installer for this program was found on this channel.' };
   if (cmpVer(pick.version, current) <= 0) return { state: 'current', latest: pick.version };
   return { state: 'available', latest: pick.version, pick };
 }
 /* The installer named by a manifest must be one of that release's own files, from GitHub. */
 function installerUrl(pick, manifest) {
   if (!manifest || typeof manifest.file !== 'string' || !/^[0-9a-f]{64}$/i.test(String(manifest.sha256 || ''))) return null;
-  if (!/^Cortex-Command-Setup-[0-9A-Za-z.+-]+\.exe$/.test(manifest.file)) return null;
+  if (!PRODUCT.file.test(manifest.file)) return null;
   const a = (pick.assets || []).find(x => x && x.name === manifest.file); if (!a) return null;
   return /^https:\/\/github\.com\//.test(a.browser_download_url) ? a.browser_download_url : null;
 }
@@ -66,4 +70,4 @@ function leaveBeta(current, releases) {
 }
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
-module.exports = { parseVer, cmpVer, pickRelease, decide, installerUrl, sha256, defaultBeta, leaveBeta };
+module.exports = { parseVer, cmpVer, pickRelease, decide, installerUrl, sha256, defaultBeta, leaveBeta, product };
