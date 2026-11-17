@@ -695,7 +695,8 @@ const SET_SECS=[["look","Appearance"],["sites","Buildings view"],["alerts","Aler
 function segc(id,cur,opts){return `<div class="seg" id="${id}">${opts.map(o=>`<button data-v="${o[0]}" class="${String(cur)===String(o[0])?'on':''}">${o[1]}</button>`).join("")}</div>`;}
 function srow(title,sub,ctl){return `<div class="srow"><div class="tinfo"><div class="tname">${title}</div>${sub?`<div class="tsub">${sub}</div>`:""}</div><div class="sctl">${ctl}</div></div>`;}
 function sw(key,src){const v=src?!!src[key]:PREFS[key]!==false&&!!PREFS[key];return `<button class="swt ${v?'on':''}" data-sw="${key}" role="switch" aria-checked="${v}"><i></i></button>`;}
-function renderSettings(){const el=$("tab-settings");if(!el)return;const o=(APPINFO&&APPINFO.options)||{},u=(APPINFO&&APPINFO.update)||{};let body="";
+function renderSettings(){const el=$("tab-settings");if(!el)return;if(!SET_SECS.some(x=>x[0]===setSec))setSec="look";   // an unknown section must never leave the page blank
+  const o=(APPINFO&&APPINFO.options)||{},u=(APPINFO&&APPINFO.update)||{};let body="";
   if(setSec==="look")body=srow("Theme","Auto follows this computer.",segc("st-theme",PREFS.theme,[["auto","Auto"],["light","Light"],["dark","Dark"]]))+srow("Colour",(CMD_ACCENTS[PREFS.accent]||CMD_ACCENTS.slate).n,`<div class="swatches" id="st-accent">${Object.entries(CMD_ACCENTS).map(([k,a])=>`<button class="swatch ${PREFS.accent===k?"on":""}" data-v="${k}" title="${a.n}" aria-label="${a.n}" style="background:${document.documentElement.getAttribute("data-theme")==="dark"?a.d[0]:a.l[0]}"></button>`).join("")}</div>`)+srow("Text size","",segc("st-text",PREFS.textSize,[["normal","Normal"],["large","Large"]]))+srow("24-hour clock","",sw("clock24"))+srow("Compact large numbers","Show 1.2k instead of 1,200.",sw("compactNums"))+srow("Animations","Screens ease in, numbers count up, windows twinkle and the Cortex mark sparks while it works. Turn off for a still screen.",sw("motion"));
   if(setSec==="sites")body=srow("Layout","",segc("st-layout",PREFS.layout,[["grid","Cards"],["list","List"]]))+srow("Density","",segc("st-density",PREFS.density,[["comfortable","Comfortable"],["compact","Compact"]]))+srow("Picture on each card","The skyline with lit windows and the 24-hour line.",sw("cardArt"))+srow("Show health score","",sw("showHealth"))+srow("Show offline buildings","",sw("showOffline"))+srow("Refresh automatically","Reads every building about every 20 seconds.",sw("autorefresh"))+srow("Ask before opening a building","",sw("confirmOpen"))+srow("Opens on","The tab you land on after signing in.",segc("st-land",PREFS.landing,[["sites","Buildings"],["alerts","Alerts"],["techs","Technicians"]]));
   if(setSec==="alerts")body=srow("Pop up a message","When a building raises an alert while Command is on screen.",sw("popAlerts"))+srow("Play a sound","",sw("soundAlerts"))
@@ -1015,8 +1016,9 @@ function countUp(){document.querySelectorAll(".kpi .n").forEach(el=>{const node=
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{const was=tab;tab=b.dataset.tab;setTab();if(tab==="techs")tickCountdowns();if(was!==tab)enterAnim(false);});
 {const _at=applyTheme;applyTheme=function(){_at();document.documentElement.classList.toggle("no-motion",PREFS.motion===false);};}
 applyTheme();
-$("settings").onclick=openSettings;$("brief").onclick=()=>briefing(true);
-function openSettings(sec){if(sec)setSec=sec;tab="settings";setTab();window.scrollTo(0,0);}
+// never hand the click event to openSettings: it would be taken for a section name and blank the page
+$("settings").onclick=()=>openSettings();$("brief").onclick=()=>briefing(true);
+function openSettings(sec){if(typeof sec==="string"&&SET_SECS.some(x=>x[0]===sec))setSec=sec;tab="settings";setTab();window.scrollTo(0,0);}
 /* ---------- alerts while Command is closed ----------
    A closed page cannot watch anything, so the controller this page was opened from does it: Command gives
    it the list of buildings (name + address only), it looks at each one about once a minute, and it sends a

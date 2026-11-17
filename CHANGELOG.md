@@ -5,7 +5,7 @@ All notable changes to Cortex. Dates are when the work landed on `main`.
 ## v1.7.0 — 2026-11-16 (stable: watches the building by itself, diagnoses, and comes with Cortex Command)
 
 **Stable release. Publish as a normal GitHub release (not a pre-release).** It is the same code as
-v1.7.0-beta.16 apart from the version number and one Command updater fix (below). Controllers on the stable
+v1.7.0-beta.16 apart from the version number and two Cortex Command fixes (below). Controllers on the stable
 channel move here from v1.6.0. The sixteen beta entries below have the detail.
 
 What 1.7 adds to 1.6:
@@ -29,7 +29,9 @@ What 1.7 adds to 1.6:
   briefing, alerts with acknowledge and snooze, search across every unit, notes and service logs, customer
   reports, sync between computers, and a Windows app that updates itself.
 
-One change since beta.16: a Cortex Command install made from a pre-release now follows pre-releases by
+Two fixes since beta.16, both in Cortex Command. The gear button in the header opened a blank Settings
+page (and left the Settings tab blank until Command was reopened); it opens Settings again, and an
+unknown section can no longer blank the page. And a Cortex Command install made from a pre-release now follows pre-releases by
 default. Before, it sat on the stable channel, where no installer had been published yet, so it never
 offered an update until Beta testing was switched on by hand.
 
