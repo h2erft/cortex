@@ -2,6 +2,51 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0-beta.15 — 2026-11-16 (Cortex Command: Windows app with its own updates, daily briefing, richer buildings)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.14. Changes `command-center.html`,
+`.github/workflows/release.yml`; adds `command-app/`, `.github/workflows/command-build.yml`,
+`docs/COMMAND_APP.md`._
+
+**Added**
+- **Cortex Command installs like a Windows program.** Each release now carries
+  `Cortex-Command-Setup-<version>.exe`: Start menu and desktop shortcut, no administrator prompt.
+  - **Its own updater**, working like the controller's: checks GitHub for a newer release, downloads
+    and checksum-verifies the installer in the background, then offers "Restart now". **Beta testing**
+    switch in Settings: off = stable releases only, on = pre-releases too.
+  - **Keeps watching from the tray** after the window is closed, and raises **Windows notifications**
+    when a building goes offline or comes back, a unit goes into error or stops answering, or a new
+    advisory appears. Optional start with Windows.
+  - Settings ▸ Backup and data ▸ Download / Restore moves everything from the browser version.
+- **Daily briefing.** The first sign-in of each day opens one screen, grouped by building: what needs
+  attention (offline controllers, units in error, silent units, diagnosis advisories, low system
+  health), what changed since you were last here (new faults, faults that cleared, outages), things
+  worth knowing (filters due, controller updates) and temporary access ending today. The sun button in
+  the header reopens it. Per-user switch, and a setting for when "the day" starts.
+- **Building cards carry more.** A picture for each building (its own skyline, with windows lit in
+  proportion to units running and the last 24 hours drawn across it), a ring showing units on / off /
+  in error / silent, and figures for units on, errors, health, time online over 7 days, advisories and
+  silent units. A card says when its controller is behind the newest version in the fleet.
+- **Building details.** A new Details button: units on, cooling / heating split, average room
+  temperature, outdoor units, filters due, locked units, health per outdoor unit, current errors and
+  advisories, and trend charts over 24 hours or 7 days (units on, errors, health, room temperature)
+  plus faults per day for 30 days.
+- **History.** Command saves one sample per building every 15 minutes while it is running and keeps
+  7 days, on this computer. That is what the trend lines and the "online" figure come from.
+- **The Cortex logo, animated,** in the header (it sparks while Command is reading the buildings), on
+  the sign-in screen, in the briefing and in About. Switch it off in Settings ▸ Appearance.
+
+**Changed**
+- **Settings is a page now, not a dialog,** with sections: Appearance, Buildings view, Alerts, Daily
+  briefing, Sign-in and security, App and updates, Backup and data, About. The theme button left the
+  header and lives in Appearance.
+- Large dialogs (briefing, building details) are wider on a desktop.
+
+**Not verified**
+- The Windows app has not been run on Windows: not the installer, tray, notifications or a real
+  update. The page was tested in a browser with a stand-in for the app. See `docs/COMMAND_APP.md`.
+- The installer is not code-signed, so Windows SmartScreen will warn on first run.
+
 ## v1.7.0-beta.14 — 2026-11-16 (clear unit data without a factory reset)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.13. Changes `cortex.html`,

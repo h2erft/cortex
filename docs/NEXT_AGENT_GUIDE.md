@@ -406,3 +406,17 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   with `cfgRev` returned so the page's own save is not refused), and each screen's `ODU` map (dropped
   when `/api/odu`'s `cleared` timestamp changes). `recorder.onOdu` ignores pages for 20 s after a clear.
 
+## 1.7.0-beta.15 addendum (2026-11-16) — Cortex Command 2 and the Windows app
+
+- Read `docs/COMMAND_APP.md` first. `command-app/` is the Electron shell; the page reaches it only
+  through `window.cmdApp` (`APP` in the page). Every use of `APP` must still work when it is null.
+- The app's version is set from the tag at build time (`npm version`); `command-app/package.json`
+  stays at 0.0.0 in the repo. `command-app/command-center.html` is copied in by the workflow and is
+  git-ignored.
+- Updater channel logic is in `command-app/updater.js` and has tests. Keep it free of Electron imports.
+- Page additions: `HIST` (15-minute samples, 7 days, `cortex_cmd_hist`), `siteArt`/`ring`/`lineChart`,
+  `siteCard`, `siteDetail`, `renderSettings` (sections in `SET_SECS`), `briefing`, `brandMark`.
+  The brain mark's constants and `brainMark()` are copied from `cortex.html`; if the logo changes
+  there, copy it again.
+- Command still only reads from controllers. Nothing added here sends a command to a building.
+

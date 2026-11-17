@@ -1,0 +1,34 @@
+{
+  "name": "cortex-command",
+  "productName": "Cortex Command",
+  "version": "0.0.0",
+  "description": "Cortex Command: one console for every Cortex building",
+  "author": "AIROW",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.airow.cortexcommand",
+    "productName": "Cortex Command",
+    "files": ["main.js", "preload.js", "updater.js", "command-center.html", "icon.png"],
+    "directories": { "output": "dist" },
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "icon.png" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Cortex Command",
+      "artifactName": "Cortex-Command-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

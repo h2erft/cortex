@@ -62,3 +62,35 @@ jobs:
               --title "Cortex $GITHUB_REF_NAME" \
               --notes "Automated Cortex appliance release." $PRE
           fi
+
+  # Cortex Command for Windows: an installer (.exe) plus command-manifest.json, attached to the same
+  # release. The app's own updater reads that manifest; a release without it is simply skipped.
+  command-win:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build installer
+        shell: bash
+        working-directory: command-app
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          cp ../command-center.html .
+          npm install --no-audit --no-fund
+          npm version "$VER" --no-git-tag-version --allow-same-version
+          npx electron-builder --win nsis --publish never
+          EXE="Cortex-Command-Setup-$VER.exe"
+          test -f "dist/$EXE"
+          SHA="$(sha256sum "dist/$EXE" | cut -d' ' -f1)"
+          printf '{\n  "version": "%s",\n  "file": "%s",\n  "sha256": "%s"\n}\n' "$VER" "$EXE" "$SHA" > dist/command-manifest.json
+          cat dist/command-manifest.json
+      - name: Attach to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" command-app/dist/Cortex-Command-Setup-*.exe command-app/dist/command-manifest.json --clobber
+

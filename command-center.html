@@ -118,6 +118,55 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .modal{max-height:calc(100dvh - 32px);display:flex;flex-direction:column}.modal .mb{overflow:auto;-webkit-overflow-scrolling:touch}
 @media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.cx-brain{display:block;overflow:visible;flex:none}
+.cx-brain .bh{fill:currentColor;fill-opacity:.13;stroke:currentColor;stroke-linejoin:round;stroke-linecap:round}
+.cx-brain .bt{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+.cx-brain .bn{fill:currentColor}
+.cx-brain .bl{fill:none;stroke:currentColor;stroke-opacity:.3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:.1 3.4}
+.cx-brain .bp{fill:currentColor;opacity:0}
+.cx-brain .bhalo{fill:none;stroke:currentColor;opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  .cx-brain.calm .bn{animation:cxtw 5s ease-in-out infinite}
+  .cx-brain.live .bcore{transform-box:fill-box;transform-origin:center;animation:cxpulse 2.4s ease-in-out infinite}
+  .cx-brain.live .bh{animation:cxfill 2.4s ease-in-out infinite}
+  .cx-brain.live .bhalo{transform-box:fill-box;transform-origin:center;animation:cxhalo 2.4s ease-out infinite}
+  .cx-brain.live .bn{animation:cxtw 1.6s ease-in-out infinite}
+  @supports (offset-path:path("M0 0")){
+    .cx-brain.live .bp{animation:cxin 2.2s linear infinite}
+    .cx-brain.live .bp.out{animation-name:cxout}
+  }
+}
+@keyframes cxtw{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes cxpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+@keyframes cxfill{0%,100%{fill-opacity:.1}50%{fill-opacity:.26}}
+@keyframes cxhalo{0%{transform:scale(.8);opacity:.45}100%{transform:scale(1.32);opacity:0}}
+@keyframes cxin{0%{offset-distance:0%;opacity:0}12%{opacity:1}86%{opacity:1}100%{offset-distance:100%;opacity:0}}
+@keyframes cxout{0%{offset-distance:100%;opacity:0}12%{opacity:1}86%{opacity:1}100%{offset-distance:0%;opacity:0}}
+.no-motion .cx-brain *{animation:none!important}.no-motion .sbeat{animation:none!important}
+.brand .blogo{display:inline-flex;color:var(--accent);margin-right:8px;vertical-align:middle}.brand{display:flex;align-items:center}
+.bload{display:flex;flex-direction:column;align-items:center;gap:10px;padding:34px 10px;color:var(--accent);font-size:13px}.bload div{color:var(--text-dim)}
+.site{overflow:hidden}.sart{display:block;width:100%;height:74px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.sart .bld rect{fill:var(--border)}.sart .w-off{fill:var(--surface);opacity:.55}.sart .w-on{fill:var(--accent)}.sart .sline{fill:none;stroke:var(--accent);stroke-width:1.6;opacity:.9;vector-effect:non-scaling-stroke}
+.sart.err .w-on{fill:var(--warn)}.sart.err .sline{stroke:var(--err)}.sart.off .bld rect,.sart.none .bld rect{opacity:.5}.sart .sbeat{fill:var(--ok)}.sart.err .sbeat{fill:var(--err)}
+@media (prefers-reduced-motion:no-preference){.sart .sbeat{animation:sbeat 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}}@keyframes sbeat{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+.modal .sart{border:1px solid var(--border);border-radius:12px;height:90px}
+.smet{display:flex;gap:14px;align-items:center}.smg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;flex:1}.sm{display:flex;flex-direction:column;line-height:1.2}.sm b{font-size:16px;font-weight:650}.sm span{font-size:11.5px;color:var(--text-faint)}
+.rg-n{font-size:17px;font-weight:650;fill:var(--text);font-family:inherit}.rg-l{font-size:9.5px;fill:var(--text-faint);font-family:inherit}
+.pill.info{background:var(--surface-2);color:var(--text-dim)}
+.lchart{display:block;width:100%;height:auto}.lchart .ax{stroke:var(--border);stroke-width:1}.lchart .axl{font-size:10px;fill:var(--text-faint);font-family:inherit}
+.tcard{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:10px}.tcard .tl{font-size:12.5px;font-weight:600;margin-bottom:6px}
+.dgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;margin-top:10px}.drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;border-bottom:1px solid var(--border);padding:4px 0}.drow span{color:var(--text-dim)}
+.setpage{display:grid;grid-template-columns:210px minmax(0,1fr);gap:16px;align-items:start}.setnav{display:flex;flex-direction:column;gap:2px;position:sticky;top:12px}
+.setnav button{text-align:left;border:0;background:none;color:var(--text-dim);padding:9px 12px;border-radius:10px;font-size:13.5px;cursor:pointer}.setnav button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.setbody{padding:18px 20px}.srow{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--border)}.srow:first-of-type{border-top:0}.srow .tname{font-size:13.5px;font-weight:550}.sctl{flex:none;max-width:60%}.sctl .seg{margin:0;flex-wrap:wrap}
+.swt{width:44px;height:26px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);position:relative;cursor:pointer;padding:0;transition:background .15s}.swt i{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}.swt.on{background:var(--accent);border-color:var(--accent)}.swt.on i{transform:translateX(18px)}
+.brief-h{display:flex;gap:16px;align-items:center}.brief-t{font-size:22px;font-weight:650;letter-spacing:-.01em}.brief-sum{margin:16px 0 4px;padding:12px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent-ink);font-size:14px}
+.modal.wide{width:min(760px,calc(100vw - 32px));max-width:none}
+.site .foot{flex-wrap:wrap}.site .foot .grow{flex:1 1 100%}.site .foot .btn:not(.grow){flex:1}
+.bgroup{border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;background:var(--surface)}.bg-h{display:flex;gap:10px;align-items:center;margin-bottom:4px}.bg-r{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--border)}.bg-r .tname{font-size:13.5px;font-weight:550}
+.bdot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:var(--text-faint)}.bdot.err{background:var(--err)}.bdot.warn{background:var(--warn)}.bdot.ok{background:var(--ok)}.bdot.off{background:var(--text-faint)}
+.updbar{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:60;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);padding:10px 14px;font-size:13.5px;max-width:calc(100vw - 24px)}
+.login-logo{display:flex;align-items:center;gap:10px}
 /* ---- phone ---- keep this block last so it wins over the component rules above */
 @media(max-width:640px){
   html,body{overflow-x:hidden}
@@ -130,6 +179,7 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
   .tabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -12px 6px;padding:0 12px}.tabs::-webkit-scrollbar{display:none}
   .tab{white-space:nowrap;flex:none;padding:10px 14px}
   .sites{grid-template-columns:1fr}
+  .setpage{grid-template-columns:1fr}.setnav{flex-direction:row;overflow-x:auto;position:static;scrollbar-width:none}.setnav button{white-space:nowrap}.srow{flex-wrap:wrap}.sctl{max-width:100%}.dgrid{grid-template-columns:1fr}.brief-t{font-size:19px}
   .trow{flex-wrap:wrap;padding:12px}
   .btn{min-height:40px}
   input,select,textarea{font-size:16px!important}                 /* stops iOS zooming the page when a field is tapped */
@@ -150,11 +200,11 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 <!-- app -->
 <div id="app" class="hide">
   <div class="top">
-    <div class="brand"><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>Cortex Command <small>Fleet</small></div>
+    <div class="brand" id="brand"></div>
     <div class="sp"></div>
     <div class="whoami"><span id="who">Owner</span><span class="rolebadge">owner</span></div>
+    <button class="icon-btn" id="brief" title="Today's briefing">☀</button>
     <button class="icon-btn" id="settings" title="Settings">⚙</button>
-    <button class="icon-btn" id="theme" title="Theme">◑</button>
     <button class="icon-btn" id="logout" title="Sign out">⏻</button>
   </div>
   <div class="wrap">
@@ -164,11 +214,13 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
       <button class="tab" data-tab="alerts">Alerts</button>
       <button class="tab" data-tab="techs">Technicians &amp; access</button>
       <button class="tab" data-tab="audit">Audit log</button>
+      <button class="tab" data-tab="settings">Settings</button>
     </div>
     <div id="tab-sites"></div>
     <div id="tab-alerts" class="hide"></div>
     <div id="tab-techs" class="hide"></div>
     <div id="tab-audit" class="hide"></div>
+    <div id="tab-settings" class="hide"></div>
   </div>
 </div>
 
@@ -177,7 +229,6 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 <script>
 /* ---------- state ---------- */
 const OWNER={user:"",name:"Owner"};  // populated from the stored account at sign-in
-const LOGO_SVG='<span class="dot"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 16h14a3 3 0 1 1-3 3"/></svg></span>';
 /* local owner account (this console is a single file; account lives in this browser) */
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))>>>0;return h.toString(16);}
 function loadAcct(){try{return JSON.parse(localStorage.getItem("cortex_cmd_acct"))||null;}catch(e){return null;}}
@@ -186,7 +237,7 @@ function genRecovery(name){const base=(name||"CMD").toUpperCase().replace(/[^A-Z
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 let DB=load()||seed();
 /* per-user preferences (scoped to the signed-in owner account) */
-const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites",idleMin:15,accent:"slate",textSize:"normal",showHealth:true,popAlerts:true};
+const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites",idleMin:15,accent:"slate",textSize:"normal",showHealth:true,popAlerts:true,cardArt:true,motion:true,briefing:true,briefHour:4,winNotify:true};
 let PREFS=loadPrefs();
 function prefsKey(){return "cortex_cmd_prefs_"+OWNER.user;}
 function loadPrefs(){try{return Object.assign({},PREF_DEFAULTS,JSON.parse(localStorage.getItem(prefsKey())||localStorage.getItem("cortex_cmd_prefs_owner"))||{});}catch(e){return Object.assign({},PREF_DEFAULTS);}}
@@ -210,20 +261,31 @@ async function pollSite(s){const base=siteUrl(s);if(!base){s.online=false;return
   if(!s.online){delete LIVE[s.id];return;}
   const L=LIVE[s.id]||(LIVE[s.id]={});
   try{const u=(await getJ(base+"/api/units")).units||[];L.units=u.length;L.on=u.filter(x=>x.on&&!x.offline).length;L.offline=u.filter(x=>x.offline).length;
-    L.errs=u.filter(x=>x.err||x.code).map(x=>({name:x.name||("0x"+Number(x.addr).toString(16).toUpperCase()),code:x.code||("CH"+x.err)}));s.units=L.units;s.err=L.errs.length;}catch(e){}
+    L.errs=u.filter(x=>x.err||x.code).map(x=>({name:x.name||("0x"+Number(x.addr).toString(16).toUpperCase()),code:x.code||("CH"+x.err)}));s.units=L.units;s.err=L.errs.length;
+    L.cool=u.filter(x=>x.on&&!x.offline&&x.mode==="cool").length;L.heat=u.filter(x=>x.on&&!x.offline&&x.mode==="heat").length;const rs=u.filter(x=>!x.offline&&typeof x.room==="number").map(x=>x.room);L.avgRoom=rs.length?rs.reduce((a,b)=>a+b,0)/rs.length:null;
+    L.filters=u.filter(x=>x.filterSign).length;L.locked=u.filter(x=>x.hardLock||x.tempLock||x.modeLock||x.fanLock).length;}catch(e){}
+  if(!L.oduAt||Date.now()-L.oduAt>300000){try{const o=await getJ(base+"/api/odu");L.odus=Object.keys(o.odu||{}).length;L.oduAt=Date.now();}catch(e){}}
   try{L.events=(await getJ(base+"/api/events")).events||[];}catch(e){L.events=L.events||null;}
-  try{const d=await getJ(base+"/api/diag");L.adv=(d.advisories||[]).filter(a=>!a.cleared);const hs=Object.values(d.health||{}).filter(h=>Date.now()-h.at<600000).map(h=>h.score);L.health=hs.length?Math.min(...hs):null;}catch(e){L.adv=L.adv||null;L.health=null;}
-  L.at=Date.now();}
+  try{const d=await getJ(base+"/api/diag");L.adv=(d.advisories||[]).filter(a=>!a.cleared);const hs=Object.values(d.health||{}).filter(h=>Date.now()-h.at<600000).map(h=>h.score);L.health=hs.length?Math.min(...hs):null;L.healthAll=Object.entries(d.health||{}).filter(([a,h])=>h&&Date.now()-h.at<600000).map(([a,h])=>({addr:"0x"+(+a).toString(16).toUpperCase(),score:h.score}));}catch(e){L.adv=L.adv||null;L.health=null;}
+  L.at=Date.now();s.seen=L.at;}
 function siteSig(s){const L=LIVE[s.id]||{};return [s.online,s.err||0,(L.adv||[]).length,L.offline||0].join("|");}
 function fleetNotice(before){const msgs=[];DB.sites.forEach((s,i)=>{const b=before[i].split("|"),a=siteSig(s).split("|");
     if(b[0]==="true"&&a[0]==="false")msgs.push(s.name+" went offline");else if(+a[1]>+b[1])msgs.push(s.name+": "+(+a[1])+" unit"+(+a[1]>1?"s":"")+" in error");else if(+a[2]>+b[2])msgs.push(s.name+": new diagnosis advisory");else if(+a[3]>+b[3])msgs.push(s.name+": a unit stopped answering");});
-  if(!msgs.length||!fleetPrimed)return;if(PREFS.popAlerts!==false)toast(msgs[0]+(msgs.length>1?" (+"+(msgs.length-1)+" more)":""));
+  if(!msgs.length||!fleetPrimed)return;
+  if(APP&&PREFS.winNotify!==false&&(document.hidden||!document.hasFocus())){try{APP.notify(msgs.length>1?msgs.length+" building alerts":"Cortex Command",msgs.slice(0,3).join("\n")+(msgs.length>3?"\n+"+(msgs.length-3)+" more":""));}catch(e){}}
+  if(!sessionStorage.getItem("cortex_cmd_in"))return;
+  if(PREFS.popAlerts!==false)toast(msgs[0]+(msgs.length>1?" (+"+(msgs.length-1)+" more)":""));
   if(PREFS.soundAlerts){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.frequency.value=880;g.gain.value=.06;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.18);}catch(e){}}
   if(document.hidden){document.title="("+msgs.length+") Cortex Command · AIROW";}
   msgs.forEach(m=>log("Alert: "+m));}
 let fleetPrimed=false;document.addEventListener("visibilitychange",()=>{if(!document.hidden)document.title="Cortex Command · AIROW";});
-async function pollAllSites(){if(!DB.sites.length)return;const before=DB.sites.map(siteSig);
+let pollBusyAt=0;
+function brandMark(busy){const b=$("brand");if(!b)return;const want=busy?"live":"calm";if(b.dataset.m===want)return;b.dataset.m=want;b.innerHTML=`<span class="blogo">${brainMark(busy?30:28,want)}</span>Cortex Command <small>Fleet</small>`;}
+async function pollAllSites(){if(!DB.sites.length){if(briefWait){briefWait=false;}return;}const before=DB.sites.map(siteSig);
+  pollBusyAt=Date.now();brandMark(true);
   await Promise.all(DB.sites.map(pollSite));
+  setTimeout(()=>brandMark(false),Math.max(0,1400-(Date.now()-pollBusyAt)));histNote();
+  if(briefWait&&sessionStorage.getItem("cortex_cmd_in")){briefWait=false;setTimeout(()=>briefing(false),300);}
   const changed=DB.sites.some((s,i)=>siteSig(s)!==before[i]);fleetNotice(before);fleetPrimed=true;
   if(changed)save();if(!$("scrim").classList.contains("show")){if(tab==="sites"&&document.activeElement!==$("site-search"))renderSites();renderKpis();if(tab==="alerts")renderAlerts();if(changed)renderAudit();}}
 function startHealthPolling(){if(healthTimer)clearInterval(healthTimer);pollAllSites();healthTimer=setInterval(()=>{if(PREFS.autorefresh!==false)pollAllSites();},20000);}
@@ -288,25 +350,20 @@ function renderSites(){
   if(PREFS.layout==="list"){
     inner=`<div class="panel">`+list.map(s=>`<div class="trow">
       <div class="tinfo"><div class="tname">${s.name} ${sitePill(s)}</div><div class="tsub">${s.loc?s.loc+' · ':''}${siteAddr(s)}${s.ver?' · v'+s.ver:''}</div></div>
+      <button class="btn sm" data-detail="${s.id}">Details</button>
       <button class="btn sm" data-edit="${s.id}">Edit</button>
       <button class="btn sm" data-assign="${s.id}">Assign</button>
       <button class="btn primary sm" data-open="${s.id}">Open ↗</button></div>`).join("")+`</div>`;
   }else{
     const pad=PREFS.density==="compact"?"12px":"16px";
-    inner=`<div class="sites">`+list.map(s=>`<div class="site" style="padding:${pad}${canDrag?';cursor:grab':''}" ${canDrag?`draggable="true"`:''} data-drag="${s.id}">
-      <div class="h"><div><div class="nm">${canDrag?'⠿ ':''}${s.name}</div><div class="lo">${s.loc||''}</div></div>${sitePill(s)}</div>
-      <div class="stat-row"><div>${siteAddr(s)}</div>${s.ver?`<div>v${s.ver}</div>`:''}</div>${siteLive(s)}
-      <div class="foot"><button class="btn primary grow sm" data-open="${s.id}">Open dashboard ↗</button>
-        <button class="btn sm" data-assign="${s.id}">Assign</button>
-        <button class="btn sm" data-edit="${s.id}">Edit</button></div></div>`).join("")+`</div>`;
+inner=`<div class="sites">`+list.map(s=>siteCard(s,canDrag,pad)).join("")+`</div>`;
   }
   $("tab-sites").innerHTML=sitesToolbar()+(list.length?inner:`<div class="note">No buildings yet. Click <b>+ Add building</b> and enter the address of a Cortex appliance — its Tailscale name or IP with the port, like <span class="mono">cortex-site:8080</span> or <span class="mono">100.84.2.17:8080</span>.</div>`);
   $("site-search").oninput=e=>{siteQuery=e.target.value;renderSites();$("site-search").focus();};
   $("site-sort").onchange=e=>{siteSort=e.target.value;PREFS.siteSort=siteSort;savePrefs();renderSites();};
   const ab=$("add-building");if(ab)ab.onclick=()=>buildingModal(null);
-  document.querySelectorAll("#tab-sites [data-open]").forEach(b=>b.onclick=()=>{const s=DB.sites.find(x=>x.id===b.dataset.open);const u=siteUrl(s);
-    if(!u){toast("Set this building's address first");buildingModal(s.id);return;}
-    window.open(u,"_blank","noopener");log(`Opened ${s.name} (${u.replace(/^https?:\/\//,'')})`);renderAudit();});
+  document.querySelectorAll("#tab-sites [data-open]").forEach(b=>b.onclick=()=>openSite(DB.sites.find(x=>x.id===b.dataset.open)));
+  document.querySelectorAll("#tab-sites [data-detail]").forEach(b=>b.onclick=()=>siteDetail(b.dataset.detail));
   document.querySelectorAll("#tab-sites [data-edit]").forEach(b=>b.onclick=()=>buildingModal(b.dataset.edit));
   document.querySelectorAll("#tab-sites [data-assign]").forEach(b=>b.onclick=()=>grantModal(b.dataset.assign));
   if(canDrag)document.querySelectorAll("#tab-sites [data-drag]").forEach(el=>{
@@ -372,7 +429,7 @@ setInterval(()=>{if(!$("app").classList.contains("hide")&&tab==="techs")tickCoun
   else{/* still expire silently */DB.grants.forEach(g=>{if(!g.expired&&g.until<=Date.now()){g.expired=true;log(`Temporary access expired: ${siteName(g.site)} for ${techName(g.tech)}`);save();renderKpis();}});}},1000);
 
 /* ---------- modals ---------- */
-function openModal(html){$("modal").innerHTML=html;$("scrim").classList.add("show");}
+function openModal(html,wide){$("modal").className="modal"+(wide?" wide":"");$("modal").innerHTML=html;$("scrim").classList.add("show");}
 function closeModal(){$("scrim").classList.remove("show");$("modal").innerHTML="";}
 $("scrim").onclick=e=>{if(e.target.id==="scrim")closeModal();};
 function buildingModal(id){
@@ -455,48 +512,217 @@ function removeTech(tid){const t=DB.techs.find(x=>x.id===tid);if(!t)return;
   $("rt-go").onclick=()=>{DB.techs=DB.techs.filter(x=>x.id!==tid);DB.grants=DB.grants.filter(g=>g.tech!==tid);log(`Removed technician ${t.name}`);save();closeModal();render();toast("Technician removed");};
 }
 function mt(key,label){const v=!!PREFS[key];return `<div class="trow" style="padding:9px 0;border-top:1px solid var(--border)"><div class="tinfo"><div class="tname" style="font-size:13.5px;font-weight:500">${label}</div></div><button class="btn sm ${v?'primary':''}" data-mt="${key}">${v?'On':'Off'}</button></div>`;}
+/* ================= Cortex Command 2: logo, history, site graphics, detail view, settings page, briefing, desktop app ================= */
+const BRAIN_HEMI="M23 8C19 5.5 14.5 7 13.5 11C9.5 11.5 7 15 8.5 19C5.5 21.5 5.5 26.5 8.5 29C7.5 33 10.5 36.5 14.5 36C16 39.5 20.5 41 23 39Z";
+const BRAIN_T={                                                // [trace path, node x, node y]
+  big:[["M23 15H18L15.5 12.5",15.5,12.5],["M23 22H16L13 19",13,19],["M23 29H17L13.5 32.5",13.5,32.5],["M23 35H19.5",19.5,35],
+       ["M25 12H28.5",28.5,12],["M25 18H30L33 15",33,15],["M25 25H32L35 28",35,28],["M25 32H29L31.5 34.5",31.5,34.5]],
+  small:[["M23 18H17.5L14.5 21",14.5,21],["M23 29.5H18",18,29.5],["M25 16H30",30,16],["M25 26.5H30.5L33.5 29.5",33.5,29.5]]};
+const BRAIN_LEADS=[                                            // [visible lead (outside → node), full spark path (outside → node → centre)]
+  ["M-13 3H3L15.5 12.5","M-13 3H3L15.5 12.5L18 15H23"],["M-13 21H5L13 19","M-13 21H5L13 19L16 22H23"],
+  ["M-13 41H5L13.5 32.5","M-13 41H5L13.5 32.5L17 29H23"],["M61 6H44L33 15","M61 6H44L33 15L30 18H25"],
+  ["M61 25H43L35 28","M61 25H43L35 28L32 25H25"],["M61 43H41L31.5 34.5","M61 43H41L31.5 34.5L29 32H25"]];
+function brainMark(size,mode){mode=mode||"calm";const live=mode==="live",small=!live&&size<40;
+  const sw=small?2.5:1.7,tw=small?2:1.4,nr=small?2.3:1.75,T=small?BRAIN_T.small:BRAIN_T.big;
+  const traces=T.map((t,i)=>`<path class="bt" d="${t[0]}" stroke-width="${tw}"/><circle class="bn" cx="${t[1]}" cy="${t[2]}" r="${nr}" style="animation-delay:${(-i*(live?0.37:1.3)).toFixed(2)}s"/>`).join("");
+  const core=`<g class="bcore"><path class="bh" d="${BRAIN_HEMI}" stroke-width="${sw}"/><path class="bh" d="${BRAIN_HEMI}" stroke-width="${sw}" transform="translate(48 0) scale(-1 1)"/>${traces}</g>`;
+  if(!live)return `<svg class="cx-brain ${mode==="static"?"":"calm"}" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">${core}</svg>`;
+  const leads=BRAIN_LEADS.map(l=>`<path class="bl" d="${l[0]}" stroke-width="1.5"/>`).join("");
+  const sparks=BRAIN_LEADS.map((l,i)=>{const dur=(1.9+((i*37)%7)/10).toFixed(1);
+    return `<circle class="bp ${i%2?'out':''}" r="2" style="offset-path:path('${l[1]}');animation-duration:${dur}s;animation-delay:${(-i*0.55).toFixed(2)}s"/>`+
+           `<circle class="bp ${i%2?'':'out'}" r="1.5" style="offset-path:path('${l[1]}');animation-duration:${(+dur+0.9).toFixed(1)}s;animation-delay:${(-i*0.55-1.3).toFixed(2)}s"/>`;}).join("");
+  return `<svg class="cx-brain live" width="${Math.round(size*76/56)}" height="${size}" viewBox="-14 -4 76 56" aria-hidden="true"><circle class="bhalo" cx="24" cy="23.5" r="21" stroke-width="1.4"/>${leads}${core}${sparks}</svg>`;}
+
+const LOGO_SVG='<span class="dot" style="background:none;color:var(--accent);width:auto;height:auto">'+brainMark(30,"calm")+'</span>';
+const APP=window.cmdApp||null;                    // present only inside the installed Windows app
+let APPINFO=null;                                 // { version, options, update }
+if(APP){APP.info().then(i=>{APPINFO=i;if(tab==="settings")renderSettings();}).catch(()=>{});APP.onUpdate(u=>{if(APPINFO)APPINFO.update=u;updBar();if(tab==="settings"&&setSec==="updates")renderSettings();});}
+function brainLoad(label){return `<div class="bload">${brainMark(54,"live")}<div>${esc(label||"Cortex is thinking…")}</div></div>`;}
+
+/* ---------- a little history per building, kept in this browser ----------
+   One sample every 15 minutes while Command is running, kept for 7 days. It feeds the sparklines on the
+   cards, the trend charts in a building's details and the uptime figure. Sample:
+   [time, online, unitsOn, units, errors, silent, advisories, health(-1 = none), avgRoomF(-1 = none)] */
+const HIST_KEY="cortex_cmd_hist",HIST_EVERY=15*60000,HIST_KEEP=7*86400000;
+let HIST=(()=>{try{return JSON.parse(localStorage.getItem(HIST_KEY))||{};}catch(e){return {};}})();
+function histNote(){const t=Date.now();let ch=false;
+  DB.sites.forEach(s=>{if(!siteUrl(s))return;const a=HIST[s.id]||(HIST[s.id]=[]),last=a[a.length-1];if(last&&t-last[0]<HIST_EVERY)return;const L=LIVE[s.id]||{};
+    a.push([t,s.online?1:0,s.online?(L.on||0):0,L.units||s.units||0,s.online?(s.err||0):0,s.online?(L.offline||0):0,s.online?(L.adv||[]).length:0,(s.online&&L.health!=null)?L.health:-1,(s.online&&L.avgRoom!=null)?Math.round(L.avgRoom):-1]);
+    while(a.length&&t-a[0][0]>HIST_KEEP)a.shift();ch=true;});
+  Object.keys(HIST).forEach(id=>{if(!DB.sites.find(s=>s.id===id)){delete HIST[id];ch=true;}});
+  if(ch)try{localStorage.setItem(HIST_KEY,JSON.stringify(HIST));}catch(e){}}
+function histOf(s,hours){const t=Date.now()-hours*3600000;return (HIST[s.id]||[]).filter(x=>x[0]>=t);}
+function uptime(s,hours){const h=histOf(s,hours);if(h.length<4)return null;return Math.round(h.filter(x=>x[1]).length/h.length*100);}
+function newestVer(){let best="";DB.sites.forEach(s=>{if(s.ver&&cmpVer(s.ver,best)>0)best=s.ver;});return best;}
+function cmpVer(a,b){const p=v=>{const m=/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(String(v||""));return m?{n:[+m[1],+m[2],+m[3]],pre:m[4]?m[4].split(".").map(x=>/^\d+$/.test(x)?+x:x):null}:null;},x=p(a),y=p(b);if(!x||!y)return x?1:y?-1:0;
+  for(let i=0;i<3;i++)if(x.n[i]!==y.n[i])return x.n[i]<y.n[i]?-1:1;if(!x.pre&&!y.pre)return 0;if(!x.pre)return 1;if(!y.pre)return -1;
+  for(let i=0;i<Math.max(x.pre.length,y.pre.length);i++){const q=x.pre[i],r=y.pre[i];if(q===undefined)return -1;if(r===undefined)return 1;if(q===r)continue;if(typeof q==="number"&&typeof r==="number")return q<r?-1:1;return typeof q==="number"?-1:typeof r==="number"?1:(q<r?-1:1);}return 0;}
+
+/* ---------- drawings ---------- */
+function hashN(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function sparkPath(vals,w,h,pad){const v=vals.filter(x=>x!=null);if(v.length<2)return "";const mn=Math.min(...v),mx=Math.max(...v),sp=(mx-mn)||1;
+  return vals.map((y,i)=>y==null?null:[pad+i*(w-2*pad)/(vals.length-1),h-pad-(y-mn)/sp*(h-2*pad)]).filter(Boolean).map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join("");}
+/* The picture at the top of a card: a small skyline that belongs to that building (same every time, drawn
+   from its name), lit windows for units that are on, and the last 24 hours of "units on" as a line. */
+function siteArt(s){const W=320,H=74,L=LIVE[s.id]||{},st=!siteUrl(s)?"none":!s.online?"off":s.err?"err":"ok";let r=hashN(s.id+"|"+s.name);const rnd=()=>{r=(Math.imul(r,1664525)+1013904223)>>>0;return r/4294967296;};
+  const n=5+Math.floor(rnd()*3),bw=W/(n+1.2);let x=bw*0.3,b="",win="";const frac=(st==="ok"||st==="err")&&L.units?Math.min(1,(L.on||0)/L.units):0;
+  for(let i=0;i<n;i++){const w=bw*(0.7+rnd()*0.45),h=22+rnd()*40,y=H-h;b+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2"/>`;
+    for(let wy=y+6;wy<H-6;wy+=8)for(let wx=x+4;wx<x+w-5;wx+=7){const lit=rnd()<frac;win+=`<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="3.2" height="4" rx=".6" class="${lit?"w-on":"w-off"}"/>`;}
+    x+=w+bw*0.12;}
+  const h24=histOf(s,24).map(p=>p[1]?p[2]:null),sp=sparkPath(h24,W,H-8,6);
+  return `<svg class="sart ${st}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><g class="bld">${b}</g>${win}${sp?`<path d="${sp}" class="sline"/>`:""}${st==="ok"||st==="err"?`<circle class="sbeat" cx="${W-14}" cy="13" r="4"/>`:""}</svg>`;}
+/* a ring: how many units are on, off, in error or silent */
+function ring(L,size){const R=size/2-5,C=2*Math.PI*R,tot=L&&L.units||0;if(!tot)return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="var(--border)" stroke-width="7"/><text x="50%" y="54%" text-anchor="middle" class="rg-n" style="font-size:12px">–</text></svg>`;
+  const err=(L.errs||[]).length,sil=L.offline||0,on=Math.max(0,(L.on||0)-err),off=Math.max(0,tot-on-err-sil);let a=0;
+  const seg=(n,col)=>{if(!n)return "";const len=n/tot*C,o=`<circle cx="${size/2}" cy="${size/2}" r="${R}" fill="none" stroke="${col}" stroke-width="7" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-a).toFixed(2)}" transform="rotate(-90 ${size/2} ${size/2})"/>`;a+=len;return o;};
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${on} on, ${off} off, ${err} in error, ${sil} silent">${seg(on,"var(--ok)")}${seg(err,"var(--err)")}${seg(sil,"var(--warn)")}${seg(off,"var(--border)")}<text x="50%" y="50%" text-anchor="middle" class="rg-n">${tot}</text><text x="50%" y="68%" text-anchor="middle" class="rg-l">units</text></svg>`;}
+function lineChart(pts,opt){opt=opt||{};const W=560,H=opt.h||120,pl=34,pb=18,pt=8;const v=pts.filter(p=>p[1]!=null);if(v.length<2)return `<div class="note" style="margin:0">Not enough history yet. Command saves a sample every 15 minutes while it is running.</div>`;
+  const t0=pts[0][0],t1=pts[pts.length-1][0]||t0+1;let mn=opt.min!=null?opt.min:Math.min(...v.map(p=>p[1])),mx=opt.max!=null?opt.max:Math.max(...v.map(p=>p[1]));if(mx===mn){mx+=1;}
+  const X=t=>pl+(t-t0)/((t1-t0)||1)*(W-pl-6),Y=y=>pt+(1-(y-mn)/(mx-mn))*(H-pt-pb);let d="",pen=false;pts.forEach(p=>{if(p[1]==null){pen=false;return;}d+=(pen?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1);pen=true;});
+  const fmt=t=>{const D=new Date(t);return (t1-t0)>36*3600000?D.toLocaleDateString([],{weekday:"short"}):D.toLocaleTimeString([],{hour:"numeric"});};
+  return `<svg viewBox="0 0 ${W} ${H}" class="lchart"><line x1="${pl}" y1="${Y(mn)}" x2="${W-6}" y2="${Y(mn)}" class="ax"/><line x1="${pl}" y1="${Y(mx)}" x2="${W-6}" y2="${Y(mx)}" class="ax"/><text x="${pl-5}" y="${Y(mx)+4}" text-anchor="end" class="axl">${Math.round(mx)}</text><text x="${pl-5}" y="${Y(mn)+4}" text-anchor="end" class="axl">${Math.round(mn)}</text>
+    <path d="${d}" fill="none" stroke="${opt.col||"var(--accent)"}" stroke-width="2" stroke-linejoin="round"/>${[0,.5,1].map(f=>`<text x="${X(t0+f*(t1-t0))}" y="${H-3}" text-anchor="${f===0?"start":f===1?"end":"middle"}" class="axl">${fmt(t0+f*(t1-t0))}</text>`).join("")}</svg>`;}
+
+/* ---------- building card ---------- */
+function siteCard(s,canDrag,pad){const L=LIVE[s.id]||{},up=uptime(s,168),nv=newestVer(),old=s.ver&&nv&&cmpVer(s.ver,nv)<0;
+  const m=(v,l,c)=>`<div class="sm"><b${c?` style="color:${c}"`:""}>${v}</b><span>${l}</span></div>`;
+  const live=s.online&&L.units!=null;
+  return `<div class="site" style="padding:0${canDrag?';cursor:grab':''}" ${canDrag?`draggable="true"`:''} data-drag="${s.id}">
+    ${PREFS.cardArt!==false?siteArt(s):""}
+    <div style="padding:${pad};display:flex;flex-direction:column;gap:10px;flex:1">
+      <div class="h"><div><div class="nm">${canDrag?'⠿ ':''}${esc(s.name)}</div><div class="lo">${esc(s.loc||'')}</div></div>${sitePill(s)}</div>
+      ${live?`<div class="smet">${ring(L,62)}<div class="smg">${m((L.on||0)+" / "+L.units,"on")}${m((L.errs||[]).length,"in error",(L.errs||[]).length?"var(--err)":"")}${PREFS.showHealth!==false?m(L.health!=null?L.health:"–","health",L.health==null?"":L.health>=85?"var(--ok)":L.health>=65?"var(--warn)":"var(--err)"):""}${m(up!=null?up+"%":"–","online, 7 days",up!=null&&up<95?"var(--warn)":"")}${L.adv&&L.adv.length?m(L.adv.length,"advisor"+(L.adv.length>1?"ies":"y"),"var(--warn)"):""}${L.offline?m(L.offline,"silent","var(--warn)"):""}</div></div>`
+        :`<div class="note" style="margin:0">${!siteUrl(s)?"Add this building's controller address to see it here.":s.online?"Reading the controller…":"The controller is not answering."+(L.at||s.seen?" Last seen "+fmtTime(s.seen||L.at)+".":"")}</div>`}
+      <div class="stat-row"><div>${siteAddr(s)}</div>${s.ver?`<div title="${old?"The newest controller in your fleet is on v"+esc(nv):""}">v${esc(s.ver)}${old?' <span style="color:var(--warn)">· update available</span>':''}</div>`:''}</div>
+      <div class="foot"><button class="btn primary grow sm" data-open="${s.id}">Open dashboard ↗</button><button class="btn sm" data-detail="${s.id}">Details</button><button class="btn sm" data-assign="${s.id}">Assign</button><button class="btn sm" data-edit="${s.id}">Edit</button></div>
+    </div></div>`;}
+
+/* ---------- building details ---------- */
+let detRange=24;
+function siteDetail(id){const s=DB.sites.find(x=>x.id===id);if(!s)return;const L=LIVE[s.id]||{},h=histOf(s,detRange),eh=siteErrHist(s),up=uptime(s,detRange),nv=newestVer();
+  const row=(k,v)=>`<div class="drow"><span>${k}</span><b>${v}</b></div>`,series=i=>h.map(p=>[p[0],p[1]?(p[i]<0?null:p[i]):null]);
+  const bars=eh?(()=>{const mx=Math.max(1,...eh);return `<svg viewBox="0 0 300 44" class="lchart" style="max-height:60px">${eh.map((v,i)=>`<rect x="${i*10}" y="${40-Math.max(v/mx*36,v?4:1)}" width="8" height="${Math.max(v/mx*36,v?4:1)}" rx="1.5" fill="${v?'var(--err)':'var(--border)'}"/>`).join("")}</svg>`;})():"";
+  openModal(`<div class="mh"><h3>${esc(s.name)}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb">${siteArt(s)}
+      <div style="display:flex;gap:16px;align-items:center;margin:14px 0;flex-wrap:wrap">${ring(L,84)}<div style="flex:1;min-width:200px">${sitePill(s)}
+        <div class="dgrid">${row("Units on",L.units!=null?(L.on||0)+" of "+L.units:"–")}${row("Cooling / heating",L.units!=null?(L.cool||0)+" / "+(L.heat||0):"–")}${row("Average room",L.avgRoom!=null?Math.round(L.avgRoom)+" °F":"–")}${row("Outdoor units",L.odus!=null?L.odus:"–")}${row("Filters due",L.filters!=null?L.filters:"–")}${row("Locked units",L.locked!=null?L.locked:"–")}${row("Online, last "+(detRange===24?"24 h":"7 days"),up!=null?up+"%":"–")}${row("Controller",s.ver?"v"+esc(s.ver)+(nv&&cmpVer(s.ver,nv)<0?" (v"+esc(nv)+" is out)":""):"–")}</div></div></div>
+      ${(L.errs||[]).length?`<h2 class="sec">In error now</h2><div class="panel">${L.errs.map(e=>`<div class="trow"><span class="pill err"><span class="pdot"></span>${esc(e.code)}</span><div class="tinfo"><div class="tname">${esc(e.name)}</div></div></div>`).join("")}</div>`:""}
+      ${(L.adv||[]).length?`<h2 class="sec">Diagnosis advisories</h2><div class="panel">${L.adv.map(a=>`<div class="trow"><span class="pill warn"><span class="pdot"></span>${a.lvl==="likely"?"Likely":"Possible"}</span><div class="tinfo"><div class="tname">${esc(a.title)}</div><div class="tsub">since ${fmtTime(a.at)}</div></div></div>`).join("")}</div>`:""}
+      ${(L.healthAll||[]).length?`<h2 class="sec">System health by outdoor unit</h2><div class="panel">${L.healthAll.map(x=>`<div class="trow"><div class="tinfo"><div class="tname">Outdoor unit ${esc(x.addr)}</div></div><span class="pill ${x.score>=85?'ok':x.score>=65?'warn':'err'}">${x.score} / 100</span></div>`).join("")}</div>`:""}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px;flex-wrap:wrap"><h2 class="sec" style="margin:0">Trends</h2><div class="seg" id="det-range" style="margin:0">${[[24,"24 hours"],[168,"7 days"]].map(r=>`<button data-r="${r[0]}" class="${detRange===r[0]?'on':''}">${r[1]}</button>`).join("")}</div></div>
+      <div class="tcard"><div class="tl">Units on</div>${lineChart(series(2),{min:0})}</div>
+      <div class="tcard"><div class="tl">Units in error</div>${lineChart(series(4),{min:0,col:"var(--err)"})}</div>
+      <div class="tcard"><div class="tl">Lowest system health</div>${lineChart(series(7),{max:100,col:"var(--ok)"})}</div>
+      <div class="tcard"><div class="tl">Average room temperature (°F)</div>${lineChart(series(8),{col:"var(--warn)"})}</div>
+      <div class="tcard"><div class="tl">Faults per day, last 30 days</div>${eh?bars+`<div class="tsub">${eh.reduce((a,b)=>a+b,0)} recorded by the controller</div>`:`<div class="note" style="margin:0">${s.online?"This controller does not report fault history.":"No data while offline."}</div>`}</div>
+      <div class="note" style="margin-top:12px">The trend lines come from samples Command saves in this ${APP?"app":"browser"} every 15 minutes while it is running, for 7 days. Fault history comes from the building's own controller.</div>
+    </div>
+    <div class="mf"><button class="btn" data-edit2="${s.id}">Edit</button><button class="btn" onclick="closeModal()">Close</button><button class="btn primary" data-open2="${s.id}">Open dashboard ↗</button></div>`,true);
+  document.querySelectorAll("#det-range button").forEach(b=>b.onclick=()=>{detRange=+b.dataset.r;siteDetail(id);});
+  const o=document.querySelector("[data-open2]");if(o)o.onclick=()=>openSite(s);
+  const e=document.querySelector("[data-edit2]");if(e)e.onclick=()=>buildingModal(s.id);}
+function openSite(s){const u=siteUrl(s);if(!u){toast("Set this building's address first");buildingModal(s.id);return;}
+  if(PREFS.confirmOpen&&!confirm("Open "+s.name+"?"))return;window.open(u,"_blank","noopener");log(`Opened ${s.name} (${u.replace(/^https?:\/\//,'')})`);renderAudit();}
+
+/* ---------- settings page ---------- */
+let setSec="look";
+const SET_SECS=[["look","Appearance"],["sites","Buildings view"],["alerts","Alerts"],["brief","Daily briefing"],["security","Sign-in and security"],["updates","App and updates"],["data","Backup and data"],["about","About"]];
+function segc(id,cur,opts){return `<div class="seg" id="${id}">${opts.map(o=>`<button data-v="${o[0]}" class="${String(cur)===String(o[0])?'on':''}">${o[1]}</button>`).join("")}</div>`;}
+function srow(title,sub,ctl){return `<div class="srow"><div class="tinfo"><div class="tname">${title}</div>${sub?`<div class="tsub">${sub}</div>`:""}</div><div class="sctl">${ctl}</div></div>`;}
+function sw(key,src){const v=src?!!src[key]:PREFS[key]!==false&&!!PREFS[key];return `<button class="swt ${v?'on':''}" data-sw="${key}" role="switch" aria-checked="${v}"><i></i></button>`;}
+function renderSettings(){const el=$("tab-settings");if(!el)return;const o=(APPINFO&&APPINFO.options)||{},u=(APPINFO&&APPINFO.update)||{};let body="";
+  if(setSec==="look")body=srow("Theme","Auto follows this computer.",segc("st-theme",PREFS.theme,[["auto","Auto"],["light","Light"],["dark","Dark"]]))+srow("Colour","",segc("st-accent",PREFS.accent,Object.entries(CMD_ACCENTS).map(([k,a])=>[k,a.n])))+srow("Text size","",segc("st-text",PREFS.textSize,[["normal","Normal"],["large","Large"]]))+srow("24-hour clock","",sw("clock24"))+srow("Compact large numbers","Show 1.2k instead of 1,200.",sw("compactNums"))+srow("Logo animation","The Cortex mark breathes and sparks while it works. Turn off for a still logo.",sw("motion"));
+  if(setSec==="sites")body=srow("Layout","",segc("st-layout",PREFS.layout,[["grid","Cards"],["list","List"]]))+srow("Density","",segc("st-density",PREFS.density,[["comfortable","Comfortable"],["compact","Compact"]]))+srow("Picture on each card","The skyline with lit windows and the 24-hour line.",sw("cardArt"))+srow("Show health score","",sw("showHealth"))+srow("Show offline buildings","",sw("showOffline"))+srow("Refresh automatically","Reads every building about every 20 seconds.",sw("autorefresh"))+srow("Ask before opening a building","",sw("confirmOpen"))+srow("Opens on","The tab you land on after signing in.",segc("st-land",PREFS.landing,[["sites","Buildings"],["alerts","Alerts"],["techs","Technicians"]]));
+  if(setSec==="alerts")body=srow("Pop up a message","When a building raises an alert while Command is on screen.",sw("popAlerts"))+srow("Play a sound","",sw("soundAlerts"))
+    +(APP?srow("Windows notifications","A notification from Windows when a building goes offline or comes back, a unit goes into error or stops answering, or a new advisory appears.",sw("winNotify"))+srow("Keep watching after the window is closed","Command stays in the tray by the clock and keeps checking the buildings. Right-click the tray icon to quit.",sw("background",o))+srow("Start with Windows","Starts hidden in the tray when you sign in to Windows.",sw("autoStart",o))
+      :`<div class="srow" style="display:block"><div class="tname">Alerts while Command is closed</div><div id="fleet-push" class="note" style="margin:8px 0 0">Checking…</div></div>`);
+  if(setSec==="brief")body=srow("Show the daily briefing","The first time you sign in each day: what needs attention, what changed since you were last here, and what is fine.",sw("briefing"))+srow("Earliest time","A sign-in before this hour counts as the day before, for night shifts.",segc("st-bhour",PREFS.briefHour,[[0,"Midnight"],[4,"4 am"],[6,"6 am"]]))+srow("See it now","",`<button class="btn sm" id="st-brief">Open briefing</button>`);
+  if(setSec==="security")body=srow("Sign out after no activity","",segc("st-idle",+PREFS.idleMin||0,[[5,"5 min"],[15,"15 min"],[30,"30 min"],[60,"1 hour"],[0,"Never"]]))+srow("Signed in as",esc(OWNER.name)+" ("+esc(OWNER.user)+")",`<button class="btn sm" id="st-out">Sign out</button>`)+`<div class="note" style="margin-top:12px">Forgot the password? Use <b>Recover account</b> on the sign-in screen with the recovery code you saved when this console was set up.</div>`;
+  if(setSec==="updates")body=APP?srow("Installed version","Cortex Command "+esc((APPINFO&&APPINFO.version)||"…"),`<button class="btn sm" id="st-chk">Check now</button>`)
+      +`<div class="srow" style="display:block"><div class="note" style="margin:0" id="st-upd">${updText(u)}</div>${u.state==="ready"?`<div style="margin-top:10px"><button class="btn primary" id="st-inst">Restart and install v${esc(u.latest)}</button></div>`:""}</div>`
+      +srow("Install updates automatically","Downloads a new version in the background, then asks you to restart.",sw("autoUpdate",o))+srow("Beta testing","Get pre-release versions as soon as they are published. Leave off for stable versions only.",sw("beta",o))
+    :`<div class="note" style="margin:0">${location.protocol==="file:"?"You are running Cortex Command as a single file. Install the Windows app (Cortex-Command-Setup from the Cortex releases page) to get a Start menu entry, automatic updates and alerts from the tray.":"This copy of Cortex Command is served by a Cortex controller and updates when that controller updates. For a program in the Start menu with its own updates, install the Windows app from the Cortex releases page."}</div>`;
+  if(setSec==="data")body=srow("Download a backup","Buildings, technicians, access grants, your preferences and the saved history, in one file.",`<button class="btn sm" id="st-exp">Download</button>`)+srow("Restore from a backup","Replaces what is in this "+(APP?"app":"browser")+". Use this to move from the browser version to the Windows app.",`<button class="btn sm" id="st-imp">Choose file…</button><input type="file" id="st-file" accept="application/json,.json" style="display:none">`)+srow("Clear saved history","The 7 days of samples behind the trend lines. Buildings and settings stay.",`<button class="btn sm danger" id="st-clr">Clear</button>`);
+  if(setSec==="about")body=`<div style="display:flex;gap:16px;align-items:center;color:var(--accent)">${brainMark(64,"live")}<div style="color:var(--text)"><div style="font-weight:650;font-size:16px">Cortex Command</div><div class="tsub">${APP?"Windows app · version "+esc((APPINFO&&APPINFO.version)||"…"):location.protocol==="file:"?"Single-file version":"Served by "+esc(location.host)}</div><div class="tsub">by AIROW</div></div></div><div class="note" style="margin-top:14px">One console for every Cortex building. Command only reads from each building's controller; to change anything at a building, open its dashboard.</div>`;
+  el.innerHTML=`<div class="setpage"><div class="setnav">${SET_SECS.map(x=>`<button class="${setSec===x[0]?'on':''}" data-sec="${x[0]}">${x[1]}</button>`).join("")}</div><div class="panel setbody"><h2 class="sec" style="margin:0 0 6px">${SET_SECS.find(x=>x[0]===setSec)[1]}</h2>${body}<div class="tsub" style="margin-top:14px">Preferences are saved for <b>${esc(OWNER.user)}</b>. Each person who signs in keeps their own.</div></div></div>`;
+  el.querySelectorAll("[data-sec]").forEach(b=>b.onclick=()=>{setSec=b.dataset.sec;renderSettings();});
+  const seg=(id,fn)=>el.querySelectorAll("#"+id+" button").forEach(b=>b.onclick=()=>{fn(b.dataset.v);savePrefs();applyTheme();renderSites();renderSettings();});
+  seg("st-theme",v=>PREFS.theme=v);seg("st-accent",v=>PREFS.accent=v);seg("st-text",v=>PREFS.textSize=v);seg("st-layout",v=>PREFS.layout=v);seg("st-density",v=>PREFS.density=v);seg("st-land",v=>PREFS.landing=v);seg("st-idle",v=>PREFS.idleMin=+v);seg("st-bhour",v=>PREFS.briefHour=+v);
+  el.querySelectorAll("[data-sw]").forEach(b=>b.onclick=async()=>{const k=b.dataset.sw;
+    if(["background","autoStart","autoUpdate","beta"].includes(k)){if(!APP)return;const cur=!!((APPINFO&&APPINFO.options)||{})[k];try{APPINFO.options=await APP.setOptions({[k]:!cur});}catch(e){}if(k==="beta")toast(!cur?"Beta testing on. Checking for a pre-release…":"Beta testing off. Stable versions only.");renderSettings();return;}
+    PREFS[k]=!(PREFS[k]!==false&&!!PREFS[k]);savePrefs();applyTheme();renderSites();renderSettings();});
+  const on=(id,fn)=>{const x=$(id);if(x)x.onclick=fn;};
+  on("st-brief",()=>briefing(true));on("st-out",()=>signOut());on("st-chk",async()=>{toast("Checking for updates…");try{APPINFO.update=await APP.checkUpdate();}catch(e){}renderSettings();});on("st-inst",()=>APP.installUpdate());
+  on("st-exp",exportData);on("st-imp",()=>$("st-file").click());const f=$("st-file");if(f)f.onchange=()=>importData(f.files[0]);
+  on("st-clr",()=>{if(!confirm("Clear the saved history for every building?"))return;HIST={};try{localStorage.removeItem(HIST_KEY);}catch(e){}renderSites();toast("History cleared");});
+  if($("fleet-push"))drawFleetPush();}
+function updText(u){const when=u.checkedAt?" Last checked "+fmtTime(u.checkedAt)+".":"";
+  return u.state==="ready"?"Version "+esc(u.latest)+" is downloaded and ready. It installs when you restart Cortex Command; your buildings and settings are kept."
+    :u.state==="downloading"?"Downloading version "+esc(u.latest)+"…":u.state==="available"?"Version "+esc(u.latest)+" is available."+when
+    :u.state==="checking"?"Checking…":u.state==="error"?"Could not check: "+esc(u.error||"unknown error")+"."+when
+    :u.state==="none"?"No Command installer has been published on this channel yet."+when:"You are on the newest version for this channel."+when;}
+function updBar(){let b=$("updbar");const u=(APPINFO&&APPINFO.update)||{};if(u.state!=="ready"){if(b)b.remove();return;}
+  if(!b){b=document.createElement("div");b.id="updbar";b.className="updbar";document.body.appendChild(b);}
+  b.innerHTML=`<span style="color:var(--accent);display:flex">${brainMark(22,"calm")}</span><span>Cortex Command ${esc(u.latest)} is ready to install.</span><button class="btn primary sm" onclick="APP.installUpdate()">Restart now</button><button class="btn sm" onclick="this.parentNode.remove()">Later</button>`;}
+function exportData(){const out={kind:"cortex-command-backup",v:1,at:Date.now(),db:DB,acct:loadAcct(),prefs:{},hist:HIST};
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf("cortex_cmd_prefs")===0)out.prefs[k]=localStorage.getItem(k);}
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:"application/json"}));a.download="cortex-command-backup-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);log("Downloaded a backup");
+  toast("Backup downloaded. It contains the sign-in for this console, so keep it somewhere safe.");}
+async function importData(file){if(!file)return;try{const j=JSON.parse(await file.text());if(j.kind!=="cortex-command-backup"||!j.db||!Array.isArray(j.db.sites))throw new Error("that file is not a Cortex Command backup");
+    if(!confirm("Replace everything in this "+(APP?"app":"browser")+" with the backup from "+new Date(j.at).toLocaleString()+"? ("+j.db.sites.length+" building"+(j.db.sites.length===1?"":"s")+")"))return;
+    localStorage.setItem("cortex_command",JSON.stringify(j.db));if(j.acct)localStorage.setItem("cortex_cmd_acct",JSON.stringify(j.acct));Object.keys(j.prefs||{}).forEach(k=>{if(k.indexOf("cortex_cmd_prefs")===0)localStorage.setItem(k,j.prefs[k]);});if(j.hist)localStorage.setItem(HIST_KEY,JSON.stringify(j.hist));
+    sessionStorage.removeItem("cortex_cmd_in");location.reload();}catch(e){toast("Couldn't restore: "+e.message);}}
+
+/* ---------- daily briefing ----------
+   The first sign-in of each day opens one screen: what needs attention, what changed since you were last
+   here, and what is fine. Everything on it is read from the buildings' controllers a moment ago. */
+function briefDay(){const d=new Date(Date.now()-(+PREFS.briefHour||0)*3600000);return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();}
+function briefKey(){return "cortex_cmd_brief_"+OWNER.user;}
+function briefState(){try{return JSON.parse(localStorage.getItem(briefKey()))||{};}catch(e){return {};}}
+function briefing(force){const st=briefState();if(!force&&(PREFS.briefing===false||st.day===briefDay()))return;if(!DB.sites.length&&!force)return;
+  const since=st.at||Date.now()-86400000,hr=new Date().getHours(),hello=hr<12?"Good morning":hr<18?"Good afternoon":"Good evening",first=(OWNER.name||"").split(/\s+/)[0]||"";
+  const need=[],news=[],fyi=[];let fine=0,unitsOn=0,units=0;const nv=newestVer();
+  DB.sites.forEach(s=>{const L=LIVE[s.id]||{},n=[];if(!siteUrl(s))return;
+    if(!s.online){need.push({s,cls:"off",t:"Controller is not answering",sub:(s.seen?"Last seen "+fmtTime(s.seen)+". ":"")+"Check its power and its network or Tailscale link."});return;}
+    units+=L.units||0;unitsOn+=L.on||0;
+    if((L.errs||[]).length)n.push({cls:"err",t:L.errs.length+" unit"+(L.errs.length>1?"s":"")+" in error",sub:L.errs.slice(0,4).map(e=>e.name+" "+e.code).join(" · ")+(L.errs.length>4?" · +"+(L.errs.length-4)+" more":"")});
+    if(L.offline)n.push({cls:"warn",t:L.offline+" unit"+(L.offline>1?"s are":" is")+" not answering",sub:"The controller can't reach "+(L.offline>1?"them":"it")+" on the bus."});
+    (L.adv||[]).forEach(a=>n.push({cls:"warn",t:(a.lvl==="likely"?"Likely: ":"Possible: ")+a.title,sub:"Diagnosis advisory since "+fmtTime(a.at)}));
+    if(L.health!=null&&L.health<65)n.push({cls:"warn",t:"System health is "+L.health+" out of 100",sub:"Open the building's Outdoor / cycle page and press Health for the reasons."});
+    if(L.filters)n.push({cls:"info",t:L.filters+" filter"+(L.filters>1?"s":"")+" due for cleaning",sub:""});
+    if(s.ver&&nv&&cmpVer(s.ver,nv)<0)n.push({cls:"info",t:"Controller update available",sub:"On v"+s.ver+"; another building is already on v"+nv+"."});
+    const ev=(L.events||[]).filter(e=>e.at>since),nf=ev.filter(e=>e.kind!=="silent"),cl=(L.events||[]).filter(e=>e.cleared&&e.cleared>since&&e.at<=since);
+    if(nf.length)news.push({s,t:nf.length+" new fault"+(nf.length>1?"s":"")+" recorded",sub:[...new Set(nf.map(e=>e.code).filter(Boolean))].slice(0,5).join(" · ")+(nf.every(e=>e.cleared)?" · all cleared since":"")});
+    if(cl.length)news.push({s,t:cl.length+" earlier fault"+(cl.length>1?"s":"")+" cleared",sub:""});
+    const h=histOf(s,Math.min(168,Math.max(1,(Date.now()-since)/3600000))),downs=h.filter((p,i)=>i&&!p[1]&&h[i-1][1]).length;if(downs)news.push({s,t:"Went offline "+downs+" time"+(downs>1?"s":"")+" and came back",sub:""});
+    n.filter(x=>x.cls==="info").forEach(x=>fyi.push(Object.assign({s},x)));const real=n.filter(x=>x.cls!=="info");
+    if(real.length)real.forEach(x=>need.push(Object.assign({s},x)));else fine++;});
+  const soon=activeGrants().filter(g=>g.until-Date.now()<24*3600000);
+  const group=(list,calm)=>{const by=new Map();list.forEach(x=>{if(!by.has(x.s.id))by.set(x.s.id,[]);by.get(x.s.id).push(x);});
+    return [...by.values()].map(xs=>{const s=xs[0].s;return `<div class="bgroup"><div class="bg-h"><b>${esc(s.name)}</b>${calm?"":sitePill(s)}<span style="flex:1"></span>${s.online?`<button class="btn sm" data-bopen="${s.id}">Open ↗</button>`:""}</div>${xs.map(x=>`<div class="bg-r"><i class="bdot ${calm?"ok":x.cls}"></i><div><div class="tname">${esc(x.t)}</div>${x.sub?`<div class="tsub">${esc(x.sub)}</div>`:""}</div></div>`).join("")}</div>`;}).join("");};
+  const total=DB.sites.filter(s=>siteUrl(s)).length,bad=new Set(need.map(x=>x.s.id)).size;
+  openModal(`<div class="mb" style="padding-top:22px"><div class="brief-h"><span style="color:var(--accent)">${brainMark(56,"live")}</span><div><div class="brief-t">${hello}${first?", "+esc(first):""}.</div><div class="tsub">${new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})} · ${st.at?"since you were last here "+fmtTime(st.at):"your first briefing"}</div></div></div>
+      <div class="brief-sum">${total?`<b>${total-bad}</b> of <b>${total}</b> building${total===1?"":"s"} ${total-bad===1?"is":"are"} running with nothing to look at.${units?" "+unitsOn+" of "+units+" indoor units are on.":""}`:"No buildings have a controller address yet."}</div>
+      <h2 class="sec">Needs attention${need.length?" · "+bad+" building"+(bad===1?"":"s"):""}</h2>${need.length?group(need):'<div class="panel"><div class="trow"><div class="tsub">✓ Nothing needs you right now.</div></div></div>'}
+      <h2 class="sec">Since you were last here</h2>${news.length?group(news,true):'<div class="panel"><div class="trow"><div class="tsub">No new faults, outages or advisories.</div></div></div>'}
+      ${fyi.length?`<h2 class="sec">Worth knowing</h2>${group(fyi)}`:""}
+      ${soon.length?`<h2 class="sec">Temporary access ending today</h2><div class="panel">${soon.map(g=>`<div class="trow"><div class="tinfo"><div class="tname">${esc(techName(g.tech))} · ${esc(siteName(g.site))}</div><div class="tsub">ends ${fmtTime(g.until)}</div></div></div>`).join("")}</div>`:""}
+      <div class="tsub" style="margin-top:12px">Read from each building's controller a moment ago. Turn the briefing off, or change when the day starts, in Settings ▸ Daily briefing.</div></div>
+    <div class="mf"><button class="btn" id="br-alerts">Go to alerts</button><button class="btn primary" id="br-ok">Start the day</button></div>`,true);
+  const done=()=>{try{localStorage.setItem(briefKey(),JSON.stringify({day:briefDay(),at:Date.now()}));}catch(e){}closeModal();};
+  $("br-ok").onclick=done;$("br-alerts").onclick=()=>{done();tab="alerts";setTab();renderAlerts();};
+  document.querySelectorAll("[data-bopen]").forEach(b=>b.onclick=()=>openSite(DB.sites.find(x=>x.id===b.dataset.bopen)));
+  if(!force)log("Read the daily briefing");}
+let briefWait=false;
+
 /* ---------- tabs / chrome ---------- */
 function setTab(){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
-  ["sites","alerts","techs","audit"].forEach(t=>$("tab-"+t).classList.toggle("hide",tab!==t));}
+  ["sites","alerts","techs","audit","settings"].forEach(t=>$("tab-"+t).classList.toggle("hide",tab!==t));if(tab==="settings")renderSettings();}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;setTab();if(tab==="techs")tickCountdowns();});
-$("theme").onclick=()=>{const dark=document.documentElement.getAttribute("data-theme")==="dark";PREFS.theme=dark?"light":"dark";savePrefs();applyTheme();};
+{const _at=applyTheme;applyTheme=function(){_at();document.documentElement.classList.toggle("no-motion",PREFS.motion===false);};}
 applyTheme();
-$("settings").onclick=openSettings;
-function openSettings(){const _sc=document.querySelector("#modal .mb"),_y=_sc?_sc.scrollTop:0;   // toggles redraw this dialog; keep the place
-  setTimeout(()=>{const e=document.querySelector("#modal .mb");if(e&&_y)e.scrollTop=_y;},0);
-  openModal(`<div class="mh"><h3>Settings</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
-    <div class="mb">
-      <label class="flabel">Theme</label>
-      <div class="seg" id="st-theme">${["auto","light","dark"].map(t=>`<button data-t="${t}" class="${PREFS.theme===t?'on':''}">${t[0].toUpperCase()+t.slice(1)}</button>`).join("")}</div>
-      <label class="flabel">Buildings layout</label>
-      <div class="seg" id="st-layout">${[["grid","Grid"],["list","List"]].map(l=>`<button data-l="${l[0]}" class="${PREFS.layout===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
-      <label class="flabel">Density</label>
-      <div class="seg" id="st-density">${[["comfortable","Comfortable"],["compact","Compact"]].map(d=>`<button data-d="${d[0]}" class="${PREFS.density===d[0]?'on':''}">${d[1]}</button>`).join("")}</div>
-      <label class="flabel">Default landing tab</label>
-      <div class="seg" id="st-land">${[["sites","Buildings"],["alerts","Alerts"],["techs","Techs"]].map(l=>`<button data-land="${l[0]}" class="${PREFS.landing===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
-      <label class="flabel">Colour</label>
-      <div class="seg" id="st-accent">${Object.entries(CMD_ACCENTS).map(([k,a])=>`<button data-ac="${k}" class="${PREFS.accent===k?'on':''}">${a.n}</button>`).join("")}</div>
-      <label class="flabel">Text size</label>
-      <div class="seg" id="st-text">${[["normal","Normal"],["large","Large"]].map(l=>`<button data-tx="${l[0]}" class="${PREFS.textSize===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
-      <label class="flabel">Sign out after no activity</label>
-      <div class="seg" id="st-idle">${[[5,"5 min"],[15,"15 min"],[30,"30 min"],[60,"1 hour"],[0,"Never"]].map(l=>`<button data-idle="${l[0]}" class="${(+PREFS.idleMin||0)===l[0]?'on':''}">${l[1]}</button>`).join("")}</div>
-      <label class="flabel">More</label>
-      <div>${mt("showOffline","Show offline buildings")}${mt("autorefresh","Auto-refresh fleet status")}${mt("clock24","24-hour clock")}${mt("confirmOpen","Confirm before opening a site remotely")}${mt("compactNums","Compact large numbers")}${mt("showHealth","Show health score on buildings")}${mt("popAlerts","Pop up a message when a building raises an alert")}${mt("soundAlerts","Sound on new alert")}</div>
-      <label class="flabel">Alerts while Command is closed</label>
-      <div id="fleet-push" class="note" style="margin:0">Checking…</div>
-      <div class="note" style="margin-top:14px">These preferences are saved to your account (<b>${OWNER.user}</b>). Each person who logs in keeps their own theme and layout.</div>
-      <div class="mf"><button class="btn primary" onclick="closeModal()">Done</button></div>
-    </div>`);
-  document.querySelectorAll("#st-theme button").forEach(b=>b.onclick=()=>{PREFS.theme=b.dataset.t;savePrefs();applyTheme();openSettings();});
-  document.querySelectorAll("#st-layout button").forEach(b=>b.onclick=()=>{PREFS.layout=b.dataset.l;savePrefs();renderSites();openSettings();});
-  document.querySelectorAll("#st-density button").forEach(b=>b.onclick=()=>{PREFS.density=b.dataset.d;savePrefs();renderSites();openSettings();});
-  document.querySelectorAll("#st-accent button").forEach(b=>b.onclick=()=>{PREFS.accent=b.dataset.ac;savePrefs();applyTheme();openSettings();});
-  document.querySelectorAll("#st-text button").forEach(b=>b.onclick=()=>{PREFS.textSize=b.dataset.tx;savePrefs();applyTheme();openSettings();});
-  document.querySelectorAll("#st-idle button").forEach(b=>b.onclick=()=>{PREFS.idleMin=+b.dataset.idle;savePrefs();openSettings();});
-  document.querySelectorAll("#st-land button").forEach(b=>b.onclick=()=>{PREFS.landing=b.dataset.land;savePrefs();openSettings();});
-  document.querySelectorAll("[data-mt]").forEach(b=>b.onclick=()=>{const k=b.dataset.mt;PREFS[k]=!PREFS[k];savePrefs();renderSites();openSettings();});
-  drawFleetPush();
-}
+$("settings").onclick=openSettings;$("brief").onclick=()=>briefing(true);
+function openSettings(sec){if(sec)setSec=sec;tab="settings";setTab();window.scrollTo(0,0);}
 /* ---------- alerts while Command is closed ----------
    A closed page cannot watch anything, so the controller this page was opened from does it: Command gives
    it the list of buildings (name + address only), it looks at each one about once a minute, and it sends a
@@ -531,7 +757,8 @@ async function drawFleetPush(){const el=$("fleet-push");if(!el)return;
   const st=await fleetPushState();if(!$("fleet-push"))return;const n=DB.sites.filter(s=>siteUrl(s)).length;
   el.innerHTML=st.on?`<b>On for this device.</b> This controller checks ${n} building${n!==1?"s":""} about once a minute and notifies you when one goes offline or comes back, a unit goes into error or stops answering, or a new diagnosis advisory appears.<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" onclick="fleetPushTest()">Send a test</button><button class="btn" onclick="fleetPushOff()">Turn off</button></div>`
     :`Off on this device. Turn it on and this controller will check your buildings about once a minute and notify this device, even with Command closed.<div style="margin-top:10px"><button class="btn primary" onclick="fleetPushOn()">Turn on alerts</button></div>`;}
-function signOut(msg){sessionStorage.removeItem("cortex_cmd_in");if(healthTimer){clearInterval(healthTimer);healthTimer=null;}closeModal();$("app").classList.add("hide");$("login").style.display="flex";showSignin(msg);}
+function signOut(msg){sessionStorage.removeItem("cortex_cmd_in");const bg=APP&&APPINFO&&APPINFO.options&&APPINFO.options.background;   // the Windows app keeps watching from the tray while signed out
+  if(healthTimer&&!bg){clearInterval(healthTimer);healthTimer=null;}closeModal();$("app").classList.add("hide");$("login").style.display="flex";showSignin(msg);}
 $("logout").onclick=()=>signOut();
 /* sign out after a period with no mouse, key or touch activity (per-user setting) */
 let lastTouch=Date.now();["pointerdown","keydown","wheel","touchstart"].forEach(ev=>document.addEventListener(ev,()=>{lastTouch=Date.now();try{sessionStorage.setItem("cortex_cmd_touch",String(lastTouch));}catch(e){}},{passive:true}));
@@ -539,7 +766,7 @@ setInterval(()=>{if(!sessionStorage.getItem("cortex_cmd_in"))return;const m=+PRE
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 
 /* ---------- auth: first-run setup wizard, sign-in, recovery ---------- */
-function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";render();setTab();if(tab==="techs")tickCountdowns();startHealthPolling();pollAllSites();homeCheck().then(ok=>{if(ok)fleetSync();});}
+function enter(){$("login").style.display="none";$("app").classList.remove("hide");$("who").textContent=OWNER.name;tab=PREFS.landing||"sites";brandMark(false);render();setTab();if(tab==="techs")tickCountdowns();briefWait=true;updBar();startHealthPolling();homeCheck().then(ok=>{if(ok)fleetSync();});}
 function signedIn(acct){OWNER.user=acct.user;OWNER.name=acct.name;sessionStorage.setItem("cortex_cmd_in","1");PREFS=loadPrefs();siteSort=PREFS.siteSort||"custom";applyTheme();lastTouch=Date.now();fleetPrimed=false;enter();}
 const CARD=()=>$("login-card");
 function head(title,sub){return `<div class="login-logo">${LOGO_SVG}Cortex Command</div><div class="login-sub">${esc(sub||"Fleet console")}</div>${title?`<h2 style="margin:4px 0 14px;font-size:18px">${esc(title)}</h2>`:""}`;}
