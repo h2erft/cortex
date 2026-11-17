@@ -2,6 +2,23 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.2 — 2026-11-17 (Cortex Command can use a secure address; the certificate arrives right after an update)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.1. Changes `command-center.html`,
+`appliance/cortex-update.sh`._
+
+**Fixed**
+- **Cortex Command could not use an https address.** Saving a building removed `https://` from its
+  address, so Command talked plain http to the secure port and the building showed as offline. A secure
+  address is now kept as typed, and an address ending in `:8443` with nothing in front is taken to mean
+  https. The help text under the address box said to leave the prefix off; it now shows a secure example.
+  Found on a live controller: the certificate was trusted and the address opened in a browser, but
+  Command said "not answering".
+
+**Changed**
+- A controller fetches its trusted certificate straight after an update, instead of at the next update
+  check up to 30 minutes later.
+
 ## v1.7.1-beta.1 — 2026-11-17 (Cortex for Windows; https on by default with automatic trusted certificates)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0. Changes `appliance/server.js`,

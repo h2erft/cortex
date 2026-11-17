@@ -33,6 +33,17 @@ try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = requ
     ok(label + ': no page errors', errors.length === 0, [...new Set(errors)].join(' | '));
     await page.close();
   }
+  // Building addresses: https must survive a save (1.7.1-beta.1 stripped it, so a secure address always showed offline)
+  { const page = await (await browser.newContext({ viewport: { width: 1200, height: 800 } })).newPage(), errors = []; page.on('pageerror', e => errors.push(String(e)));
+    await page.addInitScript(() => { localStorage.setItem('cortex_command', JSON.stringify({ sites: [{ id: 's1', name: 'Test Building', loc: '', addr: '10.0.0.5:8080' }], techs: [], grants: [], audit: [] })); localStorage.setItem('cortex_cmd_acct', JSON.stringify({ user: 'owner', name: 'Owner One', passhash: 'x' })); localStorage.setItem('cortex_cmd_prefs_owner', JSON.stringify({ briefing: false })); sessionStorage.setItem('cortex_cmd_in', '1'); });
+    await page.goto('file://' + path.resolve(__dirname, '..', 'command-center.html')); await page.waitForTimeout(1200);
+    const norm = await page.evaluate(() => ['https://box.tail1.ts.net:8443', 'HTTPS://box.tail1.ts.net:8443/', 'box.tail1.ts.net:8443', 'http://10.0.0.5:8080/', '10.0.0.5:8080', 'cortex-site', '  100.84.2.17  ', ''].map(normAddr));
+    ok('addresses: https is kept, :8443 means https, http is the default', JSON.stringify(norm) === JSON.stringify(['https://box.tail1.ts.net:8443', 'https://box.tail1.ts.net:8443', 'https://box.tail1.ts.net:8443', '10.0.0.5:8080', '10.0.0.5:8080', 'cortex-site', '100.84.2.17', '']), JSON.stringify(norm));
+    for (const [typed, want] of [['https://box.tail1.ts.net:8443', 'https://box.tail1.ts.net:8443'], ['box.tail1.ts.net:8443', 'https://box.tail1.ts.net:8443'], ['http://10.0.0.9', 'http://10.0.0.9']]) {
+      await page.click('[data-edit="s1"]'); await page.fill('#b-addr', typed); await page.click('#b-save'); await page.waitForTimeout(250);
+      ok('saving "' + typed + '" polls ' + want, await page.evaluate(() => siteUrl(DB.sites[0])) === want, await page.evaluate(() => DB.sites[0].addr + ' -> ' + siteUrl(DB.sites[0]))); }
+    await page.click('[data-edit="s1"]'); await page.waitForTimeout(200); ok('the dialog shows the secure address back with https://', await page.evaluate(() => { document.getElementById('b-addr').value = 'https://x.ts.net:8443'; document.getElementById('b-save').click(); return true; }) && await page.evaluate(() => { buildingModal('s1'); return document.getElementById('b-addr').value; }) === 'https://x.ts.net:8443');
+    ok('addresses: no page errors', errors.length === 0, errors.join(' | ')); await page.close(); }
   // Turning Beta testing off on a beta install: the two choices a controller offers
   for (const [name, L, expect] of [['a beta newer than stable', { ok: true, onBeta: true, current: '1.7.1-beta.2', stable: '1.7.0', canRevert: true, stableIsNewer: false }, ['Go back to stable v1.7.0', 'Stay on this beta']],
       ['a beta older than stable', { ok: true, onBeta: true, current: '1.7.1-beta.2', stable: '1.7.1', canRevert: false, stableIsNewer: true }, ['Switch to stable releases']],

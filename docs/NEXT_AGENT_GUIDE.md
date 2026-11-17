@@ -487,3 +487,7 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
   add a restart for certificate changes.
 - New appliance file `cortex-https.sh` is in both release copy lists and `install.sh`.
 
+
+- beta.2: building addresses in Command go through `normAddr()`. Never strip `https://` from one.
+  `tests/command-ui.test.js` saves addresses through the real dialog. First field result for the
+  certificate helper: it fetched a trusted certificate on a live controller by itself at the next tick.

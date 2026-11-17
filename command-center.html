@@ -294,6 +294,11 @@ function seed(){
   return {sites:[],techs:[],grants:[],audit:[{t:Date.now(),m:"Fleet console provisioned"}]};
 }
 /* normalize a building's appliance address into a reachable base URL */
+/* What gets saved for a building's address. Plain http is the default, so "http://" is dropped. A secure
+   address must keep its "https://": without it Command would talk plain http to the secure port and the
+   building would show as offline. Port 8443 is Cortex's secure port, so an address ending in :8443 with
+   no scheme is taken to mean https. */
+function normAddr(v){let a=String(v||"").trim().replace(/\/+$/,"");if(/^https:\/\//i.test(a))return "https://"+a.slice(8);a=a.replace(/^http:\/\//i,"");return /:8443$/.test(a)?"https://"+a:a;}
 function siteUrl(s){let u=(s&&(s.addr||s.url)||"").trim();if(!u)return "";if(!/^https?:\/\//i.test(u))u="http://"+u;return u.replace(/\/+$/,"");}
 /* poll each building's Cortex appliance /health to set online + version live */
 let healthTimer=null;
@@ -503,14 +508,14 @@ function buildingModal(id){
       <input class="inp" id="b-loc" placeholder="City, ST" value="${s&&s.loc?s.loc.replace(/"/g,'&quot;'):''}">
       <label class="fl" style="margin-top:12px">Cortex appliance address</label>
       <input class="inp mono" id="b-addr" placeholder="cortex-site:8080" value="${s&&s.addr?s.addr.replace(/"/g,'&quot;'):''}">
-      <div class="note" style="margin-top:8px">The Tailscale name or IP of the Cortex box in this building, with its port. Examples: <span class="mono">cortex-site:8080</span> or <span class="mono">100.84.2.17:8080</span>. Leave off <span class="mono">http://</span> — it's added for you.</div>
+      <div class="note" style="margin-top:8px">The Tailscale name or IP of the Cortex box in this building, with its port. Examples: <span class="mono">cortex-site:8080</span> or <span class="mono">100.84.2.17:8080</span>. For the secure address, include <span class="mono">https://</span>, for example <span class="mono">https://cortex-site.your-tailnet.ts.net:8443</span>.</div>
     </div>
     <div class="mf">${s?'<button class="btn danger" id="b-del" style="margin-right:auto">Remove</button>':''}<button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="b-save">${s?'Save':'Add building'}</button></div>`);
   $("b-name").focus();
   $("b-save").onclick=()=>{
     const name=$("b-name").value.trim();if(!name){$("b-name").focus();toast("Give the building a name");return;}
     const loc=$("b-loc").value.trim();
-    let addr=$("b-addr").value.trim().replace(/^https?:\/\//,'').replace(/\/+$/,'');
+    let addr=normAddr($("b-addr").value);
     if(s){s.name=name;s.loc=loc;s.addr=addr;log(`Edited building ${name}`);}
     else{const ns={id:"s"+Date.now(),name,loc,addr,online:false,ver:"",units:0,run:0,sys:0,err:0};DB.sites.push(ns);PREFS.siteOrder=[...(PREFS.siteOrder||[]),ns.id];savePrefs();log(`Added building ${name}`);}
     save();closeModal();render();toast(s?"Building saved":"Building added");

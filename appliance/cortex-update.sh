@@ -244,6 +244,9 @@ done
 if [ -n "$ok" ]; then
   log "update OK — now running $NEW"
   rm -f "$FAILED"
+  # the certificate helper that came with THIS release: run it now instead of at the next tick, so a
+  # controller that just gained https gets its trusted certificate within a minute, not half an hour
+  [ -f "$ROOT/current/cortex-https.sh" ] && { CORTEX_ROOT="$ROOT" CORTEX_DATA="$DATA" bash "$ROOT/current/cortex-https.sh" || true; }
   # prune old releases, keeping the newest $KEEP (never the live one)
   live="$(basename "$(readlink -f "$ROOT/current")")"
   # shellcheck disable=SC2012
