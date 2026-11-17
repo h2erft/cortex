@@ -2,9 +2,9 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## Unreleased (next: v1.7.0-beta.16)
+## v1.7.0-beta.16 — 2026-11-16 (demo building, occupant view, fault report; Command sync, search, acknowledgements)
 
-_Collecting changes; not tagged yet. Changes `cortex.html`, `command-center.html`, `appliance/server.js`,
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.15. Changes `cortex.html`, `command-center.html`, `appliance/server.js`,
 `busmaster.js`, `recorder.js`, `command-app/`; adds `room.html`, `appliance/occupant.js`,
 `appliance/commandstore.js`, `command-app/bridge.js`, `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`,
 and tests `backup`, `occupant`, `commandstore`, `command-bridge`, `demo`._
@@ -49,6 +49,10 @@ and tests `backup`, `occupant`, `commandstore`, `command-bridge`, `demo`._
   is set as main". CH71 is the converter-side current sensor. CH105 names the right boards for each
   generation. CH116 (oil level sensor) added. CH35, CH36, CH46, CH51, CH60 gained LG's thresholds and
   checks. CH38 is flagged as not in LG's tables. CH242 explains the outdoor display's different meaning.
+- **Hydro kit codes checked against LG's Multi V 5 service manual, Multi V Water IV manual and hydro kit
+  installation manual.** CH12 was listed as an indoor "middle pipe sensor"; LG's Multi V tables give 12
+  as the hydro kit's inverter PCB fault. CH17 (hydro kit water inlet sensor) was missing and is added.
+  CH15 gained LG's 185 °F (85 °C) limit, CH14 and CH16 say what LG says, CH08 names the plug (CN-TH4).
 
 ### Cortex Command
 

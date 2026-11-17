@@ -779,14 +779,15 @@ const ERRORS={
  "CH07":{t:"Mode conflict",cause:"Indoor units on a heat pump system are asking for different modes (heat pump systems only).",act:"Set the indoor units on this system to the same mode.",sev:"low",who:"System"},
  "CH09":{t:"Indoor PCB EEPROM",cause:"The indoor PCB cannot read its memory chip or option card.",act:"Reseat the option card on the indoor PCB; if it persists replace the PCB, then re-run auto-addressing and set the central address.",sev:"high",who:"Indoor"},
  "CH10":{t:"Indoor fan motor",cause:"The indoor BLDC fan motor is not turning or not reporting back.",act:"Check the fan plug and harness; on a new install make sure paperwork was removed from the fan shroud. Replace the motor or PCB if checks fail.",chk:"Motor unplugged from the PCB: terminals 4–5 should read above 35 kΩ and 4–7 above 230 kΩ. Running supply is about 308 V DC (±45).",sev:"high",who:"Indoor"},
- "CH12":{t:"Indoor pipe (middle) sensor",cause:"Mid-coil pipe thermistor is open, shorted or unplugged.",act:"Check the plug on the indoor PCB, then the thermistor.",chk:TH_CHK,sev:"medium",who:"Indoor"},
-"CH08":{t:"Hydro kit tank sensor",cause:"Hot-water tank temperature sensor on a hydro kit is open or shorted.",act:"Check the sensor plug and resistance at the hydro kit.",sev:"medium",who:"Indoor"},
- "CH11":{t:"Hydro kit inverter comms",cause:"The hydro kit's main and inverter boards are not talking.",act:"Check the cable between the hydro kit boards.",lv:"comm",sev:"high",who:"Indoor"},
+ "CH12":{t:"Hydro kit inverter PCB",cause:"The inverter (compressor) PCB inside a hydro kit has a fault. LG's Multi V tables list 12 only as a hydro kit code.",act:"Check the plugs and wiring at the hydro kit's inverter PCB, then the PCB itself.",sev:"high",who:"Indoor"},
+ "CH08":{t:"Hydro kit tank sensor",cause:"Hot-water tank temperature sensor on a hydro kit is open, shorted or unplugged.",act:"Check the tank sensor plug (CN-TH4, red, on the hydro kit PCB) and the sensor's resistance. The tank sensor is only needed for hot-water mode; floor heating runs without it.",sev:"medium",who:"Indoor"},
+ "CH11":{t:"Hydro kit inverter comms",cause:"The hydro kit's main board is receiving nothing from its inverter (compressor) PCB.",act:"Check the cable and plugs between the two hydro kit boards.",lv:"comm",sev:"high",who:"Indoor"},
  "CH13":{t:"Hydro kit solar pipe sensor",cause:"Solar pipe temperature sensor on a hydro kit is open or shorted.",act:"Check the sensor plug and resistance.",sev:"medium",who:"Indoor"},
- "CH14":{t:"Hydro kit flow switch",cause:"The hydro kit sees no water flow.",act:"Check the pump, strainer, valves and air in the water circuit, then the flow switch.",sev:"high",who:"Indoor"},
- "CH15":{t:"Hydro kit water overheating",cause:"Water pipe temperature at the hydro kit is too high.",act:"Check water flow and the water temperature sensors.",sev:"high",who:"Indoor"},
- "CH16":{t:"Hydro kit water sensors",cause:"Water inlet and outlet sensors on a hydro kit are both faulty.",act:"Check both sensor plugs and resistances.",sev:"medium",who:"Indoor"},
- "CH18":{t:"Hydro kit water outlet sensor",cause:"Water outlet temperature sensor on a hydro kit is open or shorted.",act:"Check the sensor plug and resistance.",sev:"medium",who:"Indoor"},
+ "CH14":{t:"Hydro kit flow switch",cause:"The hydro kit's water flow switch did not close: no water flow was proven.",act:"Check the pump runs, then the strainer, valves and air in the water circuit, then the flow switch and its wiring.",sev:"high",who:"Indoor"},
+ "CH15":{t:"Hydro kit water overheating",cause:"Leaving water temperature at the hydro kit went above 185 °F (85 °C), or the water sensor is reading wrong.",act:"Check water flow, whether hotter water is entering from another source, and the water temperature sensors.",sev:"high",who:"Indoor"},
+ "CH16":{t:"Hydro kit water sensors",cause:"A hydro kit water pipe temperature sensor (inlet or outlet) is open, shorted or unplugged.",act:"Check both water sensor plugs and their resistance.",sev:"medium",who:"Indoor"},
+ "CH17":{t:"Hydro kit water inlet sensor",cause:"Water inlet temperature sensor on a hydro kit is open, shorted or unplugged.",act:"Check the sensor plug and resistance.",sev:"medium",who:"Indoor"},
+ "CH18":{t:"Hydro kit water outlet sensor",cause:"Water outlet temperature sensor on a hydro kit is open, shorted or unplugged.",act:"Check the sensor plug and resistance.",sev:"medium",who:"Indoor"},
  "CH28":{t:"DC link over-voltage",cause:"Inverter DC bus voltage went too high.",act:"Check incoming voltage for surges or a high leg, then the inverter PCB.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH33":{t:"Compressor 2 discharge too hot",cause:"Second compressor's discharge gas overheated.",act:"Same checks as CH32: charge and leaks first, then EEVs, injection, and the discharge sensor.",lv:"auto",sev:"critical",who:"Outdoor"},
  "CH47":{t:"Compressor 2 discharge sensor",cause:"Second compressor's discharge thermistor is open, shorted or unplugged.",act:"Check the sensor is fitted and plugged in, then its resistance.",chk:TH_CHK,sev:"high",who:"Outdoor"},
@@ -2168,7 +2169,7 @@ const FIG={
    return fgSvg(540,180,box(20,"Cooling",false,"L")+box(290,"Heating",true,"R"));}}
 };
 /* Which drawings help with which code. */
-const ERR_FIG=[[["CH01","CH02","CH06","CH12","CH41","CH44","CH45","CH46","CH47","CH65","CH113","CH114","CH115","CH153","CH154"],["therm"]],[["CH42","CH43"],["press"]],[["CH10"],["fanidu"]],
+const ERR_FIG=[[["CH01","CH02","CH06","CH41","CH44","CH45","CH46","CH47","CH65","CH113","CH114","CH115","CH153","CH154"],["therm"]],[["CH42","CH43"],["press"]],[["CH10"],["fanidu"]],
   [["CH21","CH22","CH26","CH29"],["ipm","comp"]],[["CH23","CH25","CH62","CH67"],["ipm"]],[["CH05","CH53","CH104","CH200","CH204","CH242"],["term"]],[["CH151"],["fourway"]],[["CH150","CH32"],["eev6","eev5","therm"]],[["CH34","CH35","CH24"],["press"]]];
 function errFigs(code){const out=[];ERR_FIG.forEach(([cs,fs])=>{if(cs.includes(code))fs.forEach(f=>{if(!out.includes(f))out.push(f);});});return out;}
 function fig(k){const f=FIG[k];if(!f)return "";return `<figure class="fg"><figcaption class="fg-h">${f.t}</figcaption><div class="fg-w" onclick="this.classList.toggle('zoom')" title="Tap to enlarge">${f.svg()}</div><div class="fg-z">Tap the drawing to enlarge it</div><div class="fg-c">${f.cap}</div></figure>`;}
@@ -2396,7 +2397,7 @@ const DIAG={
   CH204:[{q:"Is the HR box powered (208/230 V) with its green comm LED blinking?",how:"",bad:"no",fix:"Restore power or fix the comm wiring. If the LED is on solid while indoor comms are fine, replace the HR box PCB."},
     {q:"Are the HR box rotary and DIP switches correct?",how:"",bad:"no",fix:"Correct them."},
     {q:"Has outdoor unit power been reset since?",how:"An HR comm fault does not release until the outdoor unit is power-cycled.",bad:"no",fix:"Reset power to the outdoor unit and HR boxes."}]};
-["CH01","CH02","CH06","CH12"].forEach(c=>DIAG[c]=DG_SENSOR(c==="CH01"?"indoor air":"indoor pipe",c==="CH01"?"air":"pipe","At the indoor PCB."));
+["CH01","CH02","CH06"].forEach(c=>DIAG[c]=DG_SENSOR(c==="CH01"?"indoor air":"indoor pipe",c==="CH01"?"air":"pipe","At the indoor PCB."));
 DIAG.CH41=DIAG.CH47=DG_SENSOR("compressor discharge","disch","At the outdoor PCB. This code can also appear when cooling in very cold weather without a low-ambient kit.");
 DIAG.CH44=DG_SENSOR("outdoor air","air","At the outdoor PCB.");
 ["CH45","CH46","CH113","CH114","CH115","CH153","CH154"].forEach(c=>DIAG[c]=DG_SENSOR("outdoor pipe","pipe","At the outdoor PCB."));

@@ -420,7 +420,7 @@ The firmware-engine reading earlier in this section was done with capstone, no R
   there, copy it again.
 - (Superseded by the next addendum.) As of beta.15 Command only read from controllers.
 
-## Unreleased addendum (after beta.15) — demo building, occupant view, Command sync and more
+## 1.7.0-beta.16 addendum (2026-11-16) — demo building, occupant view, Command sync and more
 
 Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAND_APP.md` (sync, bridge).
 
@@ -433,8 +433,9 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
   as "CH4" and the error page said "Unrecognized code".
 - Error table corrections checked against LG's Multi V S and Multi V IV service manuals: CH27 (it is a
   PSC/PFC inverter-input fault, not a high-pressure trip), CH59, CH71, CH105, CH116 added, notes on
-  CH35/36/38/46/51/60/242. Codes that are still not checked against an LG table: 501, 502, the hydro kit
-  codes (8, 11, 13-18, 187), CH12, CH28 (seen only in a search snippet), CH38.
+  CH35/36/38/46/51/60/242. Hydro kit codes 8 and 11-18 were then checked against LG's Multi V 5
+  service manual and Multi V Water IV manual (CH12 is the hydro kit inverter PCB, CH17 added). Still not
+  checked against an LG table: 501, 502, CH187, CH28 (seen only in a search snippet), CH38.
 - Locks: the multi-unit dialog shows what the selected units have now and a tap flips it; "Unlock
   everything" / "Lock everything" stage all four. Hard lock is read back on every poll; Mode/Fan/Temp
   cannot be read (there is no read-only cmd4) so they show what Cortex last sent. Do not add a cmd4 "ask".
