@@ -461,3 +461,12 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
   `syncAdopt()`. A save always carries the revision it started from; a 409 means "adopt theirs, tell the
   user". Server side is `appliance/commandstore.js` (`/api/command-data`, 240 KB cap).
 
+## 1.7.0 stable (2026-11-16)
+
+- v1.7.0 is v1.7.0-beta.16 with the version changed. Tag without a suffix, **not** a pre-release.
+- The UART page hides itself in a build whose version has no suffix; nothing else is gated by version.
+- Cortex Command's stable channel now has its first installer (v1.7.0). Betas continue as 1.7.1-beta.N
+  or 1.8.0-beta.N; never tag a beta lower than the newest stable.
+- The "not yet confirmed on real equipment" list in the v1.7.0 changelog entry is the checklist for the
+  next site visit.
+

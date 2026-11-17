@@ -2,6 +2,45 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.0 — 2026-11-16 (stable: watches the building by itself, diagnoses, and comes with Cortex Command)
+
+**Stable release. Publish as a normal GitHub release (not a pre-release).** It is the same code as
+v1.7.0-beta.16 with the version number changed; nothing was added or removed. Controllers on the stable
+channel move here from v1.6.0. The sixteen beta entries below have the detail.
+
+What 1.7 adds to 1.6:
+
+- **The controller works with every browser closed.** It polls the equipment itself, runs schedules,
+  records faults with the readings from before and after, and keeps trend history across restarts and
+  updates.
+- **Outdoor unit and refrigerant cycle.** Live pressures, temperatures, compressors, fans and valves, a
+  refrigerant diagram, a charge check, cycle diagnosis with plain-language advisories, and a health score
+  per system.
+- **Guided fault finding.** Step-by-step checks for the common codes, a field reference, and drawings of
+  the plugs, pins and wire colours to measure. The error reference was checked against LG's Multi V IV,
+  Multi V S and Multi V 5 service manuals. A printable fault report.
+- **Alerts on a phone** (needs HTTPS turned on) for faults, silent units and advisories.
+- **Everyday control.** Lock buttons that show what is set, unlock or lock everything in one tap, filter
+  sign reset, a phone layout, and reaching Cortex on the standard web port.
+- **Looking after a site.** Backup and restore by section, clear unit data without a factory reset, an
+  update that shows when it has finished, trends to CSV, a demo building for training, and an optional
+  page for occupants (off unless you turn it on).
+- **Cortex Command.** One console for every building: cards with live figures and trends, a daily
+  briefing, alerts with acknowledge and snooze, search across every unit, notes and service logs, customer
+  reports, sync between computers, and a Windows app that updates itself.
+
+Not in the stable build: the experimental outdoor-unit service-port (UART / LGMV) page. It stays in
+pre-release builds.
+
+**Tested on a live site during the betas:** discovery, control, locks, schedules, the controller polling
+by itself, outdoor unit pages on Multi V IV, fault recording, updates between betas.
+
+**Built and tested here, not yet confirmed on real equipment or a real PC:** filter sign reset; Multi V S
+and Multi V 5 handling (only Multi V IV has been seen); phone push delivery; the standard web port under
+the installed service; clear unit data; the new lock buttons; occupant view; the Windows app's installer,
+tray, self-update, sync and "start update"; the service drawings against real boards. If any of these
+misbehave, the fix ships as 1.7.1.
+
 ## v1.7.0-beta.16 — 2026-11-16 (demo building, occupant view, fault report; Command sync, search, acknowledgements)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.15. Changes `cortex.html`, `command-center.html`, `appliance/server.js`,
