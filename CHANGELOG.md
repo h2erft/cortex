@@ -2,6 +2,14 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## Unreleased (next: v1.7.0-beta.16)
+
+_Collecting changes; not tagged yet._
+
+**Changed**
+- Cortex Command ▸ Settings ▸ Appearance: the colour choice is a row of colour circles, as in Cortex,
+  instead of named buttons.
+
 ## v1.7.0-beta.15 — 2026-11-16 (Cortex Command: Windows app with its own updates, daily briefing, richer buildings)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.0-beta.14. Changes `command-center.html`,
