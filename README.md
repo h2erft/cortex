@@ -23,6 +23,8 @@ real screens. You can open it yourself from the sign-in screen.
 
 ---
 
+> **New in the 1.7.1 betas:** Rheem / Ruud equipment over EcoNet as a second system beside LG. See [docs/ECONET.md](docs/ECONET.md). Not yet tested on real equipment.
+
 ## Day to day
 
 **Dashboard.** Every indoor unit at a glance: what it is set to, the room temperature, mode, locks and

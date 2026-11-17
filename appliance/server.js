@@ -699,7 +699,10 @@ function resolveSerial() {
 const LINKF = path.join(DATA, 'bus-link.json');
 const busClients = new Set();
 const link = createLink({
-  open: (ser) => new Promise((resolve, reject) => { const sp = new SerialPort({ path: resolveSerial(), baudRate: ser.baud, parity: ser.parity, stopBits: ser.stop, dataBits: ser.data }, (err) => err ? reject(err) : resolve(sp)); }),
+  open: (ser) => new Promise((resolve, reject) => { const dev = resolveSerial();
+    const eco = typeof ecoSystems !== 'undefined' ? [...ecoSystems.values()].find(x => x.cfg.on && realDev(x.cfg.port) === realDev(dev)) : null;
+    if (eco) return reject(new Error('that adapter belongs to the Rheem/Ruud system “' + eco.cfg.name + '”. Set the LG adapter in the controller settings'));
+    const sp = new SerialPort({ path: dev, baudRate: ser.baud, parity: ser.parity, stopBits: ser.stop, dataBits: ser.data }, (err) => err ? reject(err) : resolve(sp)); }),
   // a site that was already polling before this version keeps its adapter connected
   load: () => readJsonSafe(LINKF) || { on: (() => { try { return fs.readFileSync(path.join(DATA, 'master-mode'), 'utf8').trim() === '1'; } catch (_) { return false; } })() },
   save: (o) => writeFileAtomic(LINKF, JSON.stringify(o)),
@@ -768,6 +771,44 @@ app.post('/api/bus', (req, res) => { cors(res); const b = req.body || {};
     if (typeof b.on === 'boolean') link.setOn(b.on, b.serial && typeof b.serial === 'object' ? b.serial : null);
     superviseBus(); busTell(); res.json(Object.assign({ ok: true }, busInfo())); }
   catch (e) { res.status(500).json({ err: e.message }); } });
+// --- EcoNet (Rheem / Ruud): one adapter per system, alongside the LG bus (econet.js, econetlink.js) ---
+const ECO = require('./econet'), { createSystem: createEcoSystem } = require('./econetlink');
+const ECOF = path.join(DATA, 'econet.json'), ecoSystems = new Map(), ECO_MAX = 8;
+const realDev = (p) => { try { return fs.realpathSync(p); } catch (_) { return String(p || ''); } };
+const ecoSave = () => { try { writeFileAtomic(ECOF, JSON.stringify({ systems: [...ecoSystems.values()].map(x => x.cfg) })); } catch (e) { console.error('econet save failed:', e.message); } };
+function ecoStart(cfg) {
+  const sys = createEcoSystem(cfg, { log: (t) => console.log('econet:', t),
+    open: (port, ser) => new Promise((resolve, reject) => {
+      if (link.state.on && realDev(port) === realDev(resolveSerial())) return reject(new Error('that adapter is the one the LG bus is using'));
+      const sp = new SerialPort({ path: port, baudRate: ser.baud, parity: ser.parity, stopBits: ser.stop, dataBits: ser.data }, (err) => err ? reject(err) : resolve(sp)); }) });
+  ecoSystems.set(cfg.id, sys); sys.start(); return sys; }
+function ecoClean(b, old) { b = b || {};
+  const name = String(b.name == null ? (old ? old.name : '') : b.name).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60), kind = old ? old.kind : b.kind, port = String(b.port == null ? (old ? old.port : '') : b.port).trim();
+  if (!name) return { err: 'give the system a name' }; if (!ECO.KINDS[kind]) return { err: 'pick the kind of equipment' };
+  if (!/^\/dev\/[A-Za-z0-9._\/:+@-]{1,200}$/.test(port) || port.includes('..')) return { err: 'pick the adapter' };
+  for (const x of ecoSystems.values()) if ((!old || x.cfg.id !== old.id) && realDev(x.cfg.port) === realDev(port)) return { err: 'that adapter is already used by “' + x.cfg.name + '”' };
+  return { cfg: { id: old ? old.id : crypto.randomBytes(4).toString('hex'), name, kind, port, on: typeof b.on === 'boolean' ? b.on : (old ? !!old.on : true), talk: typeof b.talk === 'boolean' ? b.talk : (old ? !!old.talk : false), src: ECO.ADDR.WIFI } }; }
+(() => { const j = readJsonSafe(ECOF); for (const c of (j && Array.isArray(j.systems) ? j.systems : []).slice(0, ECO_MAX)) { try { if (c && ECO.KINDS[c.kind] && c.id) ecoStart(c); } catch (e) { console.error('econet: could not start', c && c.name, e.message); } } })();
+app.get('/api/econet', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ systems: [...ecoSystems.values()].map(x => x.info()) }); });
+app.get('/api/econet/catalog', (_req, res) => { cors(res); res.json({ kinds: ECO.KINDS }); });
+// The USB serial adapters plugged into this controller, by their stable names, and who uses each.
+app.get('/api/econet/ports', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); const out = [], lg = realDev(resolveSerial());
+  try { const dir = '/dev/serial/by-id'; for (const n of fs.readdirSync(dir).sort()) { const p = path.join(dir, n), r = realDev(p), used = [...ecoSystems.values()].find(x => realDev(x.cfg.port) === r);
+      out.push({ path: p, label: n.replace(/^usb-/, '').replace(/-if\d+.*$/, '').replace(/_/g, ' '), dev: r, usedBy: used ? used.cfg.name : (r === lg && link.state.on ? 'the LG bus' : null), lg: r === lg }); } } catch (_) {}
+  res.json({ ports: out }); });
+app.post('/api/econet/systems', (req, res) => { cors(res); const b = req.body || {}, old = b.id ? ecoSystems.get(String(b.id)) : null;
+  if (b.id && !old) return res.status(404).json({ err: 'no such system' }); if (!old && ecoSystems.size >= ECO_MAX) return res.status(400).json({ err: 'at most ' + ECO_MAX + ' systems on one controller' });
+  const c = ecoClean(b, old && old.cfg); if (c.err) return res.status(400).json({ err: c.err });
+  if (old && (old.cfg.port !== c.cfg.port)) { old.stop(); ecoSystems.delete(old.cfg.id); ecoStart(c.cfg); }                 // a different adapter: start afresh
+  else if (old) { old.cfg.name = c.cfg.name; old.setFlags({ on: c.cfg.on, talk: c.cfg.talk }); }
+  else ecoStart(c.cfg);
+  ecoSave(); res.json({ ok: true, system: ecoSystems.get(c.cfg.id).info() }); });
+app.delete('/api/econet/systems/:id', (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' }); x.stop(); ecoSystems.delete(req.params.id); ecoSave(); res.json({ ok: true }); });
+app.post('/api/econet/systems/:id/write', async (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' });
+  const b = req.body || {}; try { const r = await x.write(String(b.name || ''), b.value); res.status(r.ok ? 200 : 409).json(r); } catch (e) { res.status(500).json({ ok: false, err: e.message }); } });
+app.post('/api/econet/systems/:id/read', async (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' });
+  const b = req.body || {}; try { const r = await x.readOne(String(b.name || '').toUpperCase(), Number(b.at)); res.status(r.ok ? 200 : 409).json(r); } catch (e) { res.status(500).json({ ok: false, err: e.message }); } });
+app.get('/api/econet/systems/:id/frames', (req, res) => { cors(res); res.set('Cache-Control', 'no-store'); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' }); res.json({ frames: x.frames() }); });
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 // Put a schedule's frames on the bus ourselves, through the shared adapter, when nothing is polling.
 async function schedTransmit(frames) {

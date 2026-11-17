@@ -513,3 +513,14 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
   `LINK` is the shared status. A screen that only listens must never write the shared unit list.
 - Connecting must never transmit. Polling needs the master-mode flag.
 - See `docs/BUS_LINK.md`.
+
+## Addendum: Rheem / Ruud EcoNet (v1.7.1-beta.6)
+
+- `appliance/econet.js` + `econetlink.js`. One adapter per system; see `docs/ECONET.md`.
+- Licensing: esphome-econet's C++ is GPLv3. Do NOT copy or translate it into Cortex. Work from wire
+  behaviour and from real captures (the Messages tool).
+- Safety rules to keep: a new system only listens; no transmit before a valid message has been heard;
+  writes only through `checkWrite()` (allowed list + limits); never add RESETDEV / ALRESET / ALHISCLR
+  to the allowed list without the user asking.
+- Untested on real equipment as of this version. The CRC variant, the addresses and the value names
+  come from the community project and need confirming on the first real unit.

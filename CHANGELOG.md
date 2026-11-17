@@ -2,6 +2,28 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.6 — 2026-11-17 (Rheem / Ruud EcoNet equipment as a second system)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.5. Changes `appliance/server.js`,
+`cortex.html`. New: `appliance/econet.js`, `appliance/econetlink.js`, `docs/ECONET.md`,
+`tests/econet.test.js`, `tests/econet-ui.test.js`, `tests/helpers/econet-sim.py`._
+
+**Added**
+- **Rheem / Ruud equipment over EcoNet.** A controller can now also read and control EcoNet heating
+  & cooling systems (thermostat, air handler / furnace, outdoor unit), heat pump water heaters, electric
+  tank water heaters and tankless water heaters. Each system uses its own USB RS-485 adapter (38400
+  baud) on the equipment's RJ11 service port, alongside the LG bus.
+- **Rheem / Ruud page.** Room or tank temperature, what the system is doing, mode, setpoints, fan,
+  humidity, alarms, and the equipment readings it reports. Technicians add systems, pick the adapter,
+  see every message on the bus, and can read any value by name.
+- **Brought up in steps.** A new system only listens. Cortex transmits only after a technician allows
+  it, and never before it has heard a valid message. Changes are limited to an allowed list with limits.
+
+The protocol was worked out by the esphome-econet community; Cortex's code for it is its own.
+
+**Not yet tested on real equipment.** Not done yet: EcoNet alarms in Fault history and notifications,
+schedules, Cortex Command, multi-zone systems.
+
 ## v1.7.1-beta.5 — 2026-11-17 (the bus adapter belongs to the controller; every screen shares it)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.4. Changes `appliance/server.js`,

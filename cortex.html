@@ -116,6 +116,18 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(244px,1fr));gap:12px}
+.eco-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start}
+.eco{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.eco h3{margin:0;font-size:16px;letter-spacing:-.2px}.eco .sub{font-size:12px;color:var(--text-faint);margin-top:1px}
+.eco-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}.eco-top .pill{margin-left:auto}
+.eco-big{display:flex;align-items:baseline;gap:10px;margin:2px 0 12px}.eco-big b{font-size:40px;font-weight:650;letter-spacing:-1.5px;line-height:1}.eco-big span{color:var(--text-dim);font-size:13.5px}
+.eco-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);font-size:13.5px}.eco-row>label{flex:1;color:var(--text-dim);min-width:64px}
+.eco-step{display:inline-flex;align-items:center;gap:6px}.eco-step b{min-width:58px;text-align:center;font-size:15px}.eco-step button{width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:17px;line-height:1}
+.eco-step button:disabled,.eco .segmented button:disabled{opacity:.45;cursor:default}
+.eco details{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}.eco summary{cursor:pointer;font-size:13px;color:var(--text-dim);font-weight:500}
+.eco table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}.eco td{padding:4px 0;border-top:1px solid var(--border)}.eco td:last-child{text-align:right;font-variant-numeric:tabular-nums}.eco th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);padding:9px 0 3px;font-weight:600}
+.eco-tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-strong)}.eco-tools .btn{padding:5px 9px;font-size:12px}
+.eco-alarm{background:var(--err-soft);color:var(--err);border-radius:9px;padding:8px 11px;font-size:13px;margin-bottom:10px;font-weight:500}
 .grid.compact{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px}
 .card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 14px 14px 16px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .12s,transform .12s;overflow:hidden;display:flex;flex-direction:column;gap:11px;min-width:0}
 .card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
@@ -714,6 +726,7 @@ svg.ug{width:100%;height:100%;display:block}
       <button class="nav-item active" data-view="units"><span>❄ Indoor units</span></button>
       <button class="nav-item" data-view="map"><span>🗺 Building map</span></button>
       <button class="nav-item" data-view="schedule"><span>🗓 Schedule</span></button>
+      <button class="nav-item hide" id="nav-econet" data-view="econet"><span>🔥 Rheem / Ruud</span></button>
       <button class="nav-item hide" id="nav-events" data-view="events"><span>🕘 Fault history</span></button>
       <button class="nav-item hide" id="nav-busscan" data-view="busscan"><span>📡 Bus scan</span><span class="tech-tag">TECH</span></button>
       <button class="nav-item hide" id="nav-cycle" data-view="cycle"><span>⚙ Outdoor / cycle</span><span class="tech-tag">TECH</span></button>
@@ -1206,6 +1219,7 @@ function renderWho(){
   document.getElementById("nav-uart").classList.toggle("hide",!(session.tech&&IS_BETA));   // UART is experimental — pre-release builds only
   if((!session.tech||!IS_BETA)&&view==="uart")view="units";
   document.getElementById("nav-busscan").classList.toggle("hide",!session.tech);
+  ecoNav();
   {const staff=session.tech||session.admin;document.getElementById("nav-events").classList.toggle("hide",!staff);if(!staff&&view==="events")view="units";}
   if(!session.tech&&view==="busscan")view="units";
   const db=document.getElementById("devbtn");if(db){db.classList.toggle("hide",!isStaff());db.classList.toggle("lit",view==="device");}
@@ -3014,7 +3028,11 @@ function busHealth(){
   return "off";}
 function updateBusHealth(){
   const el=document.getElementById("bus-health");if(!el)return;
-  const h=busHealth();el.classList.remove("ok","bad","off");el.classList.add(h==="via"||h==="idle"?"ok":h);
+  let h=busHealth();
+  // a site with only Rheem / Ruud equipment has no LG bus to be "offline": the light follows those systems instead
+  const ecoOnly=APPL&&h==="off"&&!units.length&&ECOS.systems.length>0,ecoLive=ecoOnly?ECOS.systems.filter(x=>x.state==="live"||x.state==="listening").length:0;
+  if(ecoOnly){el.classList.remove("ok","bad","off");el.classList.add(ecoLive?"ok":"bad");const l=document.getElementById("bus-label");if(l)l.textContent=ecoLive?("Rheem / Ruud · "+ecoLive+" of "+ECOS.systems.length+" connected"):"Rheem / Ruud not connected";return;}
+  el.classList.remove("ok","bad","off");el.classList.add(h==="via"||h==="idle"?"ok":h);
   const es=effSerial&&bus.scanning?effSerial():null;const ser=(es&&isTechView())?` · ${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"";
   const lbl=document.getElementById("bus-label");
   const txt=h==="off"?"Bus offline":h==="bad"?"Bus problem":h==="via"?"Live":h==="idle"?"Bus connected":(MASTER.running?"Bus online":(MASTER.discovering?"Scanning…":"Bus connected"));
@@ -3910,8 +3928,116 @@ function renderAll(){
   if(view==="device"&&!isStaff())view="units";
   const _db=document.getElementById("devbtn");if(_db)_db.classList.toggle("lit",view==="device");
   if(view==="units")renderUnits();else if(view==="cycle")renderCycle();else if(view==="uart")renderUart();else if(view==="events")renderEvents();else if(view==="updates")renderUpdates();
-  else if(view==="device")renderDevice();else if(view==="map")renderMap();else if(view==="busscan")renderBusScan();else renderSchedule();
+  else if(view==="device")renderDevice();else if(view==="map")renderMap();else if(view==="busscan")renderBusScan();else if(view==="econet")renderEconet();else renderSchedule();
   updateBell();}
+
+/* ===== Rheem / Ruud (EcoNet) =====
+   A second kind of equipment beside the LG bus. Each system (a thermostat with its air handler / furnace /
+   outdoor unit, or a water heater) has its own bus and its own USB adapter on the controller, which does all
+   the talking (appliance/econet.js, econetlink.js). This page only shows what the controller reports and
+   passes on the changes a person makes. See docs/ECONET.md. */
+let ECOS={systems:[],catalog:null,ports:[],at:0,err:"",pend:{},open:{}};
+function ecoNav(){const el=document.getElementById("nav-econet");if(!el)return;const show=APPL&&(ECOS.systems.length>0||!!session.tech);el.classList.toggle("hide",!show);if(!show&&view==="econet")view="units";}
+async function ecoPull(){if(!APPL||!currentUser)return;
+  try{const r=await fetch("/api/econet",{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();ECOS.systems=j.systems||[];ECOS.at=Date.now();ECOS.err="";
+    if(!ECOS.catalog&&ECOS.systems.length){try{ECOS.catalog=(await (await fetch("/api/econet/catalog")).json()).kinds;}catch(e){}}
+  }catch(e){ECOS.err=e.message;}
+  ecoNav();if(view==="econet"){const a=document.activeElement;if(!(a&&/^(INPUT|SELECT)$/.test(a.tagName)&&a.closest&&a.closest("#main")))renderEconet();}}
+setInterval(()=>{if(BOOTED&&APPL&&document.visibilityState==="visible"&&(view==="econet"?Date.now()-ECOS.at>4000:Date.now()-ECOS.at>60000))ecoPull();},2000);
+const ECO_STATE={live:["Live","run"],listening:["Listening only","stop"],starting:["Starting…","stop"],silent:["Nothing heard yet","noresp"],unanswered:["Not answering","noresp"],opening:["Opening adapter…","stop"],problem:["Adapter problem","err"],off:["Off","stop"]};
+function ecoPoints(sys){return (ECOS.catalog&&ECOS.catalog[sys.kind]&&ECOS.catalog[sys.kind].points)||[];}
+function ecoRole(sys,role){return ecoPoints(sys).find(p=>p.role===role)||null;}
+function ecoVal(sys,n){const k=sys.id+":"+n,pd=ECOS.pend[k];if(pd&&Date.now()-pd.at<6000)return {v:pd.v,text:pd.text,pending:true};return sys.values[n]||null;}
+function ecoFmt(p,x){if(!x)return "—";if(p.kind==="num")return x.v==null?"—":((Math.round(x.v*10)/10)+(p.unit?" "+p.unit:""));return ue(x.text||(x.v!=null?String(x.v):"—"));}
+const ecoCan=sys=>sys.talk&&sys.open&&(sys.state==="live"||sys.state==="starting"||sys.state==="unanswered");
+let ecoSendT={};
+/* A change: shown at once, sent once after the person stops tapping, then replaced by what the equipment reports. */
+function ecoSet(sys,p,v,text){const k=sys.id+":"+p.n;ECOS.pend[k]={v,text:text||null,at:Date.now()};renderEconet();clearTimeout(ecoSendT[k]);
+  ecoSendT[k]=setTimeout(async()=>{try{const r=await fetch("/api/econet/systems/"+sys.id+"/write",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:p.n,value:v})});const j=await r.json();
+      if(!j.ok){delete ECOS.pend[k];toast("Couldn’t change “"+p.label+"”: "+(j.err||"no answer"));}else{ECOS.pend[k].at=Date.now();toast(p.label+" → "+(text||v+(p.unit?" "+p.unit:"")));}}
+    catch(e){delete ECOS.pend[k];toast("Couldn’t reach the controller");}
+    setTimeout(ecoPull,1800);},p.kind==="num"?700:0);}
+function ecoStepper(sys,p){if(!p)return "";const x=ecoVal(sys,p.n);if(!x)return "";const can=ecoCan(sys)&&p.w;
+  return `<div class="eco-row"><label>${ue(p.label)}</label><span class="eco-step"><button data-eco="${sys.id}" data-n="${p.n}" data-d="-1" ${can?"":"disabled"} aria-label="lower">−</button><b style="${x.pending?"opacity:.6":""}">${ecoFmt(p,x)}</b><button data-eco="${sys.id}" data-n="${p.n}" data-d="1" ${can?"":"disabled"} aria-label="raise">+</button></span></div>`;}
+function ecoChoice(sys,p,seg){if(!p||!p.options)return "";const x=ecoVal(sys,p.n);if(!x)return "";const can=ecoCan(sys)&&p.w,opts=Object.keys(p.options);
+  if(seg&&opts.length<=5)return `<div class="eco-row" style="flex-wrap:wrap"><label>${ue(p.label)}</label><span class="segmented">${opts.map(o=>`<button class="${String(x.v)===o?"on":""}" data-eco="${sys.id}" data-n="${p.n}" data-v="${o}" ${can?"":"disabled"}>${ue(p.options[o])}</button>`).join("")}</span></div>`;
+  return `<div class="eco-row"><label>${ue(p.label)}</label><select class="sel-box" data-ecosel="${sys.id}" data-n="${p.n}" ${can?"":"disabled"}>${opts.map(o=>`<option value="${o}" ${String(x.v)===o?"selected":""}>${ue(p.options[o])}</option>`).join("")}</select></div>`;}
+function ecoCard(sys){const st=ECO_STATE[sys.state]||[sys.state,"stop"],pts=ecoPoints(sys),R=r=>ecoRole(sys,r),temp=R("temp"),act=R("action"),hum=R("humidity");
+  const tv=temp?ecoVal(sys,temp.n):null,av=act?ecoVal(sys,act.n):null,hv=hum?ecoVal(sys,hum.n):null,sched=R("schedule"),sv=sched?ecoVal(sys,sched.n):null;
+  const fan=sv&&String(sv.v)==="1"?R("fan"):(R("fan2")&&ecoVal(sys,"STATNFAN")?R("fan2"):R("fan"));
+  const shown=new Set(["temp","action","humidity","heat","cool","setpoint","mode","power","fan","fan2","schedule"]);
+  const groups=[["air","Air"],["outdoor","Outdoor unit"],["furnace","Furnace"],["readings","Readings"],["settings","Settings"],["main","Other"],["about","About"]];
+  const rows=groups.map(([g,title])=>{const ps=pts.filter(p=>p.group===g&&!shown.has(p.role)&&sys.values[p.n]);return ps.length?`<tr><th colspan="2">${title}</th></tr>`+ps.map(p=>`<tr><td>${ue(p.label)}</td><td style="${sys.values[p.n].stale?"color:var(--text-faint)":""}">${ecoFmt(p,sys.values[p.n])}</td></tr>`).join(""):"";}).join("");
+  const why=sys.state==="listening"?"Cortex is only listening on this system, so it shows what it overhears and cannot change anything yet."
+    :sys.state==="silent"?"The adapter is open but nothing has been heard. Check the cable to the equipment’s service port and that the equipment has power."
+    :sys.state==="problem"?"The controller can’t open this adapter"+(sys.error?" ("+ue(sys.error)+")":"")+"."
+    :sys.state==="unanswered"?"The equipment is not answering Cortex’s questions. It can be heard, so the wiring is right; this kind of equipment or its address may differ."
+    :sys.state==="off"?"This system is switched off in Cortex.":"";
+  return `<div class="eco" data-sys="${sys.id}"><div class="eco-top"><div><h3>${ue(sys.name)}</h3><div class="sub">${ue(sys.kindLabel)}</div></div><span class="pill ${st[1]}">${st[0]}</span></div>
+    ${(sys.alarms||[]).map(a=>`<div class="eco-alarm">⚠ ${ue(a)}</div>`).join("")}
+    ${tv?`<div class="eco-big"><b>${tv.v==null?"—":Math.round(tv.v*10)/10}°</b><span>${ue(temp.label)}${av?" · "+ecoFmt(act,av):""}${hv&&hv.v!=null?" · "+Math.round(hv.v)+"% humidity":""}</span></div>`:(Object.keys(sys.values).length?"":`<div class="eco-big"><span>No readings yet.</span></div>`)}
+    ${why?`<div class="note-box" style="margin-bottom:8px;font-size:12.5px">${why}</div>`:""}
+    ${ecoChoice(sys,R("power"),true)}${ecoChoice(sys,R("mode"),sys.kind==="hvac")}${ecoStepper(sys,R("setpoint"))}${ecoStepper(sys,R("heat"))}${ecoStepper(sys,R("cool"))}${ecoChoice(sys,fan,false)}${ecoChoice(sys,sched,true)}
+    ${rows?`<details ${ECOS.open[sys.id]?"open":""} data-ecod="${sys.id}"><summary>More readings</summary><table>${rows}</table></details>`:""}
+    ${session.tech?`<div class="eco-tools"><span class="tech-tag" style="align-self:center">TECH</span>
+      <button class="btn" data-ecot="on" data-id="${sys.id}">${sys.on?"Disconnect adapter":"Connect adapter"}</button>
+      <button class="btn" data-ecot="talk" data-id="${sys.id}" ${sys.on?"":"disabled"} title="Listening only never transmits. Talking lets Cortex ask for values and send changes.">${sys.talk?"Switch to listening only":"Let Cortex talk on this bus"}</button>
+      <button class="btn" data-ecot="frames" data-id="${sys.id}">Messages</button><button class="btn" data-ecot="read" data-id="${sys.id}" ${ecoCan(sys)?"":"disabled"}>Read a value</button>
+      <button class="btn" data-ecot="edit" data-id="${sys.id}">Rename</button><button class="btn" data-ecot="del" data-id="${sys.id}">Remove</button>
+      <span style="font-size:11px;color:var(--text-faint);align-self:center">heard ${sys.heard} · asked ${sys.sent}${sys.unanswered?" · "+sys.unanswered+" unanswered":""}</span></div>`:""}</div>`;}
+function renderEconet(){const m=document.getElementById("main");if(!APPL){m.innerHTML=`<div class="note-box">Rheem / Ruud systems are shown when Cortex is opened from a controller.</div>`;return;}
+  if(!ECOS.at){m.innerHTML=`<div class="note-box">Loading…</div>`;ecoPull();return;}
+  m.innerHTML=`<div class="toolbar" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:19px">Rheem / Ruud</h2><span style="color:var(--text-faint);font-size:13px">EcoNet systems on this controller</span>
+      <div style="flex:1"></div>${session.tech?`<button class="btn primary" id="eco-add">+ Add a system</button>`:""}</div>
+    ${ECOS.err?`<div class="note-box warn" style="margin-bottom:12px">Can’t reach the controller (${ue(ECOS.err)}). Showing the last readings.</div>`:""}
+    ${ECOS.systems.length?`<div class="eco-grid">${ECOS.systems.map(ecoCard).join("")}</div>`
+      :`<div class="note-box">No Rheem / Ruud system has been added yet.${session.tech?" Plug a USB RS-485 adapter into the controller, connect it to the equipment’s EcoNet service port, then press <b>Add a system</b>.":" A technician can add one."}</div>`}
+    ${session.tech?`<div class="note-box" style="margin-top:14px;font-size:12.5px"><b>How a system is brought up.</b> ① <b>Connect adapter</b>: Cortex only listens, and shows what the thermostat and equipment say to each other. Nothing is sent. ② <b>Let Cortex talk</b>: Cortex also asks for values and can send changes. It never sends anything until it has heard a good message, which proves the wiring is right. ③ Changes are sent only when someone makes one here.</div>`:""}`;
+  const sysOf=id=>ECOS.systems.find(x=>x.id===id),ptOf=(sys,n)=>ecoPoints(sys).find(p=>p.n===n&&p.w);
+  m.querySelectorAll("button[data-eco]").forEach(b=>b.onclick=()=>{const sys=sysOf(b.dataset.eco),p=sys&&ptOf(sys,b.dataset.n);if(!p)return;
+    if(b.dataset.v!=null){ecoSet(sys,p,+b.dataset.v,p.options[b.dataset.v]);return;}
+    const cur=ecoVal(sys,p.n);if(!cur||cur.v==null)return;const v=Math.max(p.w.min,Math.min(p.w.max,Math.round((cur.v+(+b.dataset.d)*p.w.step)/p.w.step)*p.w.step));if(v!==cur.v)ecoSet(sys,p,v);});
+  m.querySelectorAll("select[data-ecosel]").forEach(el=>el.onchange=()=>{const sys=sysOf(el.dataset.ecosel),p=sys&&ptOf(sys,el.dataset.n);if(p)ecoSet(sys,p,+el.value,p.options[el.value]);el.blur();});
+  m.querySelectorAll("details[data-ecod]").forEach(d=>d.ontoggle=()=>{ECOS.open[d.dataset.ecod]=d.open;});
+  m.querySelectorAll("button[data-ecot]").forEach(b=>b.onclick=()=>ecoTool(b.dataset.ecot,sysOf(b.dataset.id)));
+  const add=document.getElementById("eco-add");if(add)add.onclick=ecoAdd;}
+async function ecoPost(body){const r=await fetch("/api/econet/systems",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.err||("HTTP "+r.status));return j;}
+async function ecoTool(what,sys){if(!sys||!session.tech)return;
+  try{
+    if(what==="on"){await ecoPost({id:sys.id,on:!sys.on});toast(sys.on?"Adapter disconnected":"Adapter connected. Cortex is listening.");}
+    else if(what==="talk"){if(!sys.talk){modal(head("Let Cortex talk on “"+ue(sys.name)+"”?")+`<div class="modal-body"><div style="font-size:13.5px;color:var(--text-dim);margin-bottom:12px">Cortex will ask the equipment for its values about every 30 seconds and can send the changes people make here. It uses the address of Rheem’s own Wi-Fi module, so <b>if a Rheem EcoNet Wi-Fi module is fitted to this system, unplug it first</b>: two devices must not share one address.</div>
+          <div class="note-box" style="margin-bottom:14px;font-size:12.5px">${sys.heard?"Cortex has heard "+sys.heard+" good message"+(sys.heard===1?"":"s")+" on this adapter, so the wiring and speed are right.":"Nothing has been heard on this adapter yet. Cortex will stay silent until it hears the equipment."}</div>
+          <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="eco-talk-go">Let Cortex talk</button></div></div>`);
+        document.getElementById("eco-talk-go").onclick=async()=>{closeModal();try{await ecoPost({id:sys.id,talk:true});toast("Cortex now asks this system for its values");}catch(e){toast(e.message);}ecoPull();};return;}
+      await ecoPost({id:sys.id,talk:false});toast("Listening only. Cortex no longer transmits on this bus.");}
+    else if(what==="edit"){modal(head("Rename system")+`<div class="modal-body"><input class="inp" id="eco-name" maxlength="60" value="${ue(sys.name)}"><div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="eco-name-go">Save</button></div></div>`);
+      document.getElementById("eco-name-go").onclick=async()=>{const v=document.getElementById("eco-name").value;closeModal();try{await ecoPost({id:sys.id,name:v});}catch(e){toast(e.message);}ecoPull();};return;}
+    else if(what==="del"){modal(head("Remove “"+ue(sys.name)+"”?")+`<div class="modal-body"><div style="font-size:13.5px;color:var(--text-dim);margin-bottom:14px">Cortex closes this adapter and forgets the system. The equipment itself is not changed.</div><div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" id="eco-del-go">Remove</button></div></div>`);
+      document.getElementById("eco-del-go").onclick=async()=>{closeModal();try{await fetch("/api/econet/systems/"+sys.id,{method:"DELETE"});toast("Removed");}catch(e){toast("Couldn’t reach the controller");}ecoPull();};return;}
+    else if(what==="frames"){const fill=async()=>{const el=document.getElementById("eco-frames");if(!el)return;try{const j=await (await fetch("/api/econet/systems/"+sys.id+"/frames",{cache:"no-store"})).json();
+          el.textContent=(j.frames||[]).map(f=>new Date(f.at).toLocaleTimeString()+"  "+(f.dir==="tx"?"CORTEX":"0x"+f.from.toString(16).toUpperCase().padStart(3,"0"))+" → 0x"+f.to.toString(16).toUpperCase().padStart(3,"0")+"  "+f.what+"\n    "+f.hex).join("\n")||"No messages yet. If this stays empty, nothing on the wire is a valid EcoNet message: check the cable, and swap the two wires (A and B).";}catch(e){}setTimeout(fill,2000);};
+      modal(head("Messages on “"+ue(sys.name)+"”")+`<div class="modal-body"><div style="font-size:12.5px;color:var(--text-dim);margin-bottom:8px">Every valid message on this bus, newest first. 0x380 is the thermostat, 0x400 the outdoor unit, 0x1C0 the furnace, 0x340 the Wi-Fi module address Cortex uses.</div><pre id="eco-frames" class="mono" style="max-height:52vh;overflow:auto;font-size:11.5px;white-space:pre-wrap;border:1px solid var(--border);border-radius:9px;padding:10px;background:var(--surface-2);margin:0">Loading…</pre></div>`,true);fill();return;}
+    else if(what==="read"){modal(head("Read a value from “"+ue(sys.name)+"”")+`<div class="modal-body"><div style="font-size:12.5px;color:var(--text-dim);margin-bottom:8px">Type an EcoNet value name (up to 8 letters, for example <span class="mono">SW_VERSN</span>). Reading never changes anything.</div>
+        <div style="display:flex;gap:8px"><input class="inp mono" id="eco-rn" maxlength="8" placeholder="NAME" style="margin:0;text-transform:uppercase"><input class="inp mono" id="eco-ra" placeholder="address (hex, optional)" style="margin:0;width:190px"><button class="btn primary" id="eco-rgo">Read</button></div>
+        <pre id="eco-rout" class="mono" style="font-size:12.5px;margin:12px 0 0;white-space:pre-wrap;min-height:22px"></pre></div>`);
+      document.getElementById("eco-rgo").onclick=async()=>{const out=document.getElementById("eco-rout"),n=document.getElementById("eco-rn").value.trim().toUpperCase(),a=parseInt(document.getElementById("eco-ra").value.trim().replace(/^0x/i,""),16);out.textContent="Asking…";
+        try{const j=await (await fetch("/api/econet/systems/"+sys.id+"/read",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:n,at:isFinite(a)?a:undefined})})).json();
+          out.textContent=!j.ok?("No: "+(j.err||"no answer")):j.item.type==="none"?(n+": this device does not have that value"):j.item.type==="num"?(n+" = "+j.item.value):j.item.type==="enum"?(n+" = "+j.item.value+" ("+j.item.text+")"):j.item.type==="text"?(n+" = “"+j.item.text+"”"):(n+": "+JSON.stringify(j.item));}catch(e){out.textContent="Couldn’t reach the controller";}};return;}
+  }catch(e){toast(e.message);}
+  ecoPull();}
+async function ecoAdd(){let ports=[],kinds=ECOS.catalog;
+  try{ports=(await (await fetch("/api/econet/ports",{cache:"no-store"})).json()).ports||[];if(!kinds){kinds=ECOS.catalog=(await (await fetch("/api/econet/catalog")).json()).kinds;}}catch(e){toast("Couldn’t reach the controller");return;}
+  const free=ports.filter(p=>!p.usedBy);
+  modal(head("Add a Rheem / Ruud system")+`<div class="modal-body">
+    <label style="font-size:12.5px;color:var(--text-dim)">Name</label><input class="inp" id="eco-n" maxlength="60" placeholder="e.g. Front office heat pump">
+    <label style="font-size:12.5px;color:var(--text-dim)">Kind of equipment</label><select class="inp" id="eco-k">${Object.keys(kinds).map(k=>`<option value="${k}">${ue(kinds[k].label)}</option>`).join("")}</select>
+    <label style="font-size:12.5px;color:var(--text-dim)">USB adapter on the controller</label>
+    ${ports.length?`<select class="inp" id="eco-p">${ports.map(p=>`<option value="${ue(p.path)}" ${p.usedBy?"disabled":""}>${ue(p.label)}${p.usedBy?" — used by "+ue(p.usedBy):p.lg?" — the LG bus adapter (not connected)":""}</option>`).join("")}</select>`:`<div class="note-box warn" style="margin-bottom:12px">No USB serial adapter is plugged into the controller.</div>`}
+    <div class="note-box" style="font-size:12.5px;margin-bottom:14px">Each Rheem / Ruud system has its own bus, so it needs its own adapter: RS-485, wired to the equipment’s EcoNet service port (the phone-style RJ11 jack). The system starts in <b>listening only</b>. Nothing is sent until you choose to let Cortex talk.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="eco-go" ${free.length?"":"disabled"}>Add and start listening</button></div></div>`);
+  const sel=document.getElementById("eco-p");if(sel&&free.length)sel.value=(free.find(p=>!p.lg)||free[0]).path;
+  document.getElementById("eco-go").onclick=async()=>{const name=document.getElementById("eco-n").value.trim()||kinds[document.getElementById("eco-k").value].label;
+    try{await ecoPost({name,kind:document.getElementById("eco-k").value,port:document.getElementById("eco-p").value,on:true,talk:false});closeModal();toast("Added. Cortex is listening on that adapter.");}catch(e){toast(e.message);}ecoPull();};}
 
 /* ---- control drawer ---- */
 const drawer=document.getElementById("drawer"),scrim=document.getElementById("scrim");
