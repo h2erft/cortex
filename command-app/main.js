@@ -9,10 +9,11 @@ const bridge = require('./bridge');
 const REPO = 'h2erft/cortex';
 const OPT_FILE = () => path.join(app.getPath('userData'), 'app-options.json');
 let win = null, tray = null, quitting = false;
-let opts = { beta: false, background: true, autoStart: false, autoUpdate: true };
+let opts = { beta: null, background: true, autoStart: false, autoUpdate: true };   // beta: null = not chosen yet, see loadOpts
 let upd = { state: 'idle', current: app.getVersion(), latest: null, error: null, checkedAt: 0, file: null, progress: 0 };
 
-function loadOpts() { try { opts = Object.assign(opts, JSON.parse(fs.readFileSync(OPT_FILE(), 'utf8'))); } catch (_) {} }
+function loadOpts() { try { opts = Object.assign(opts, JSON.parse(fs.readFileSync(OPT_FILE(), 'utf8'))); } catch (_) {}
+  if (typeof opts.beta !== 'boolean') opts.beta = U.defaultBeta(app.getVersion()); }   // a pre-release install follows pre-releases until told otherwise
 function saveOpts() { try { fs.writeFileSync(OPT_FILE(), JSON.stringify(opts)); } catch (_) {} }
 function send() { if (win && !win.isDestroyed()) win.webContents.send('update:state', upd); }
 function setUpd(p) { upd = Object.assign({}, upd, p); send(); }

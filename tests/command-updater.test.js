@@ -20,4 +20,8 @@ ok('odd file names and bad checksums are refused', U.installerUrl(pick, { file: 
 const off = U.pickRelease([{ tag_name: 'v2.0.0', assets: [{ name: M, browser_download_url: 'https://github.com/x/' + M }, { name: X('2.0.0'), browser_download_url: 'https://evil.example/' + X('2.0.0') }] }], false);
 ok('an installer hosted anywhere but GitHub is refused', U.installerUrl(off, { file: X('2.0.0'), sha256: sha }) === null);
 ok('checksum', U.sha256(Buffer.from('abc')) === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+ok('a pre-release install starts on the beta channel, a stable install on stable', U.defaultBeta('1.7.0-beta.15') === true && U.defaultBeta('1.7.0') === false && U.defaultBeta('junk') === false);
+// the situation that hid updates: a beta install on the stable channel while only pre-releases exist
+ok('beta install + stable channel + only pre-releases published = nothing offered', U.decide('1.7.0-beta.15', [{ tag_name: 'v1.7.0-beta.16', prerelease: true, assets: [{ name: M, browser_download_url: 'https://github.com/x/' + M }] }], false).state === 'none');
+ok('same install on the beta channel is offered beta.16', U.decide('1.7.0-beta.15', [{ tag_name: 'v1.7.0-beta.16', prerelease: true, assets: [{ name: M, browser_download_url: 'https://github.com/x/' + M }] }], U.defaultBeta('1.7.0-beta.15')).latest === '1.7.0-beta.16');
 console.log(fail ? `\n${fail} FAILED` : '\nall passed'); process.exit(fail ? 1 : 0);

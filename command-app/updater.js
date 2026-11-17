@@ -52,6 +52,9 @@ function installerUrl(pick, manifest) {
   const a = (pick.assets || []).find(x => x && x.name === manifest.file); if (!a) return null;
   return /^https:\/\/github\.com\//.test(a.browser_download_url) ? a.browser_download_url : null;
 }
+/* Which channel a fresh install starts on. Someone who installed a pre-release is a beta tester already:
+   on the stable channel they would be told "nothing published" until the next stable release. */
+function defaultBeta(version) { const v = parseVer(version); return !!(v && v.pre); }
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
-module.exports = { parseVer, cmpVer, pickRelease, decide, installerUrl, sha256 };
+module.exports = { parseVer, cmpVer, pickRelease, decide, installerUrl, sha256, defaultBeta };

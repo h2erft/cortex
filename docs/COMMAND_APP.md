@@ -35,7 +35,8 @@ The app updates itself the same way a controller does.
    Buildings and settings live in the user's app-data folder and are not touched.
 
 Settings ▸ App and updates has: the installed version, **Check now**, **Install updates automatically**
-and **Beta testing**. Turning Beta testing off does not pull a beta install back to an older stable
+and **Beta testing**. An install made from a pre-release starts with Beta
+testing on; an install made from a stable release starts with it off. Turning Beta testing off does not pull a beta install back to an older stable
 version; it waits for the next stable one.
 
 ## Watching from the tray
