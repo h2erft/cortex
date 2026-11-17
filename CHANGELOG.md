@@ -2,6 +2,14 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## Unreleased (next beta)
+
+**Fixed**
+- **The secure link in Device health pointed at the wrong name.** It reused whatever address the page
+  was opened with (often the IP), which a trusted certificate never matches, so the browser warned.
+  It now links to the certificate's own name, and says a browser that already accepted a warning
+  needs a restart to show the padlock.
+
 ## v1.7.1-beta.2 — 2026-11-17 (Cortex Command can use a secure address; the certificate arrives right after an update)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.1. Changes `command-center.html`,

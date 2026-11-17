@@ -863,6 +863,8 @@ const ERRORS={
 };
 // Always return something, even for a code we don't have a reference for, so the UI never crashes.
 /* Codes 1-9 are written with two digits (CH04). Anything stored or heard as CH4 is the same code. */
+// The address a secure link must use: a trusted certificate only matches its own name, never the IP or cortex.local.
+function secureHost(hs){return (hs&&hs.cert&&!hs.cert.selfSigned&&hs.cert.name)||location.hostname;}
 function errKey(code){const m=/^CH(\d)$/i.exec(String(code||""));return m?"CH0"+m[1]:code;}
 function errInfo(code){code=errKey(code);return ERRORS[code]||{t:"Unrecognized code",cause:"No reference for "+code+" yet — check the unit's service manual for this model.",act:"Look up "+code+" in the LG service manual.",sev:"medium",who:"Unit"};}
 const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
@@ -3815,7 +3817,7 @@ function renderDevice(){renderGroupNav();
      ${devStat("Live link to equipment",d.masterAlive?"Polling":"Not polling",d.masterAlive?"a Cortex screen is connected":"no screen is connected to the equipment")}
      ${httpsStat}
    </div>
-   ${hs&&hs.active&&location.protocol==="http:"?`<div class="note-box" style="margin-top:14px">Secure access is on. Open <a href="https://${ue(location.hostname)}:${ue(hs.port)}/" style="color:var(--accent)">https://${ue(location.hostname)}:${ue(hs.port)}</a> to use it${hs.cert&&hs.cert.selfSigned?" — with the built-in self-signed certificate your browser shows a one-time warning you accept":""}. This plain http address keeps working too.</div>`:""}
+   ${hs&&hs.active&&location.protocol==="http:"?`<div class="note-box" style="margin-top:14px">Secure access is on. Open <a href="https://${ue(secureHost(hs))}:${ue(hs.port)}/" style="color:var(--accent)">https://${ue(secureHost(hs))}:${ue(hs.port)}</a> to use it${hs.cert&&hs.cert.selfSigned?" — with the built-in self-signed certificate your browser shows a warning you accept. If a trusted certificate arrives later, restart the browser so it forgets that warning":(hs.cert&&hs.cert.name?" — the certificate only matches this exact name, not the IP address":"")}. This plain http address keeps working too.</div>`:""}
    ${d.lastUpdate?`<div class="note-box" style="margin-top:14px;font-size:12.5px"><b>Last update check:</b> <span class="mono">${ue(d.lastUpdate)}</span></div>`:""}
    <div class="cyc-note" style="margin-top:16px">⚙ Live vitals read from the appliance OS. Values marked "no sensor" / "n/a" just mean this hardware doesn't expose that reading.</div>`;
   document.getElementById("devref").onclick=loadDevice;}
