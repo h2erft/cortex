@@ -2494,6 +2494,8 @@ function healthHtml(c){const S=healthStats(c.rows),f=cyFmt(),from=Date.now()-c.d
     ${adv.length?`<div style="margin-top:14px;font-weight:650;font-size:13.5px">Diagnosis advisories</div><div class="cy-dxs" style="margin-top:4px">${adv.slice(0,8).map(a=>`<div class="hit"><span>●</span><span>${ue(a.title)} <i>(${new Date(a.at).toLocaleDateString()}${a.cleared?", cleared":", still present"})</i></span></div>`).join("")}</div>`:""}`;}
 /* ---- notifications on this device (Web Push) ---- */
 const pushOk=()=>("serviceWorker" in navigator)&&("PushManager" in window)&&window.isSecureContext&&!IS_FILE;
+// On the secure address, keep the small "can't reach it" page ready: a phone with no route to the controller then offers the building-network address.
+if(("serviceWorker" in navigator)&&location.protocol==="https:"&&!IS_FILE&&!DEMO){try{navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(()=>{});}catch(e){}}
 async function pushState(){if(!pushOk())return {ok:false};try{const reg=await navigator.serviceWorker.getRegistration("/");const sub=reg?await reg.pushManager.getSubscription():null;return {ok:true,sub,perm:Notification.permission};}catch(e){return {ok:true,sub:null,perm:Notification.permission,err:e.message};}}
 function pushKinds(){const n=settings.notif||{};return ["fault","silent","diag"].filter(k=>n[k]!==false);}
 async function pushEnable(){try{if(!pushOk())throw new Error("not available on this page");

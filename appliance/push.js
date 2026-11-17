@@ -91,8 +91,13 @@ function createPush(opts) {
 }
 
 // The service worker the browser installs. Kept tiny: show the notification, open Cortex on tap.
-const SW_JS = `self.addEventListener('install',e=>self.skipWaiting());
+// It also keeps one small page (/offline.html) for when the secure address cannot be reached: that page offers the
+// building-network address. Nothing else is cached, so Cortex itself is always fresh from the controller.
+const SW_JS = `const KEEP='cortex-offline-1';const keep=()=>fetch('/offline.html',{cache:'no-store'}).then(r=>r.ok?caches.open(KEEP).then(c=>c.put('/offline.html',r)):null).catch(()=>null);
+self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(keep());});
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',e=>{if(e.request.mode!=='navigate')return;
+  e.respondWith(fetch(e.request).then(r=>{keep();return r;}).catch(()=>caches.match('/offline.html').then(r=>r||Response.error())));});
 self.addEventListener('push',e=>{let d={};try{d=e.data?e.data.json():{};}catch(_){d={body:e.data?e.data.text():''};}
   e.waitUntil(self.registration.showNotification(d.title||'Cortex',{body:d.body||'',tag:d.tag||undefined,renotify:!!d.tag,icon:'/icon-256.png',badge:'/icon-256.png',data:{url:d.url||'/'}}));});
 self.addEventListener('notificationclick',e=>{e.notification.close();const url=(e.notification.data&&e.notification.data.url)||'/';

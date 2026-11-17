@@ -2,6 +2,34 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.4 — 2026-11-17 (the Windows app switches between the building network and the secure address by itself; phone links)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.3. Changes `desktop-app/*`,
+`appliance/server.js`, `appliance/push.js`, `cortex.html`. New: `desktop-app/route.js`, `qr.js`,
+`qr-lib.js` (MIT QR Code Generator by Kazuhiko Arase, unchanged), `docs/REMOTE_AND_LOCAL.md`,
+`tests/offline-page.test.js`._
+
+**Added**
+- **Cortex for Windows uses the building network when it can and the secure address when it cannot.**
+  It learns both addresses from the controller, prefers the building network, and switches by itself:
+  at start, when the controller stops answering, and when the PC wakes up somewhere else. A laptop
+  taken home connects over the secure address; back in the office it returns to the local one. The
+  sign-in is carried over. Before switching it checks that the other address really is the same
+  controller (`id` in `/health`).
+- **On your phone** page in the app: QR codes for the secure link and the building-only link, with the
+  steps to add Cortex to the home screen.
+- **A phone that cannot reach the secure address is offered the building network.** On https, Cortex
+  keeps a small page that appears instead of a browser error, with a button to open the local address;
+  it goes back by itself when the secure link works again.
+- `/health` now reports `id` and `lan`.
+
+**Fixed**
+- **The app's search page flashed while searching.** It was rebuilt on every progress update, which
+  replayed its fade-in several times a second. Progress now only moves the bar.
+
+**Not yet tested on real hardware**: the switching on a real laptop moved between networks, and the
+kept page on a real iPhone and Android phone.
+
 ## v1.7.1-beta.3 — 2026-11-17 (a renamed tailnet gets a new certificate by itself; the secure link uses the right name)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.2. Changes `appliance/cortex-https.sh`,

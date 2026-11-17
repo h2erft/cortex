@@ -20,15 +20,16 @@ h1{font-size:21px;margin:0 0 4px;letter-spacing:-.3px}h2{font-size:12px;text-tra
 .center{text-align:center}.bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden;margin:14px auto 0;max-width:320px}.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .3s}
 .row{display:flex;align-items:center;gap:12px;padding:13px 2px;border-top:1px solid var(--border)}.row:first-child{border-top:0}.row .info{flex:1;min-width:0}.row .name{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .sub{font-size:12.5px;color:var(--dim)}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);flex:none;box-shadow:0 0 0 4px var(--accent-soft)}.dot.off{background:var(--faint);box-shadow:none}
-.found{animation:rise .3s ease both}.inp{flex:1;min-width:0;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px;padding:9px 12px;font:inherit}.inp:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.found{animation:rise .3s ease both}.still .card,.still .found{animation:none}.inp{flex:1;min-width:0;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px;padding:9px 12px;font:inherit}.inp:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
 .msg{font-size:13px;margin-top:8px;min-height:18px}.msg.err{color:var(--err)}.note{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:11px 13px;font-size:13px;color:var(--dim);margin-top:10px}.note b{color:var(--text)}
 .sw{position:relative;width:42px;height:24px;border-radius:12px;border:0;background:var(--border);flex:none;transition:background .15s;padding:0}.sw i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s cubic-bezier(.2,1.3,.4,1);box-shadow:0 1px 3px rgba(0,0,0,.25)}.sw.on{background:var(--accent)}.sw.on i{transform:translateX(18px)}
 .sub2{padding-left:22px}.pill{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 9px;background:var(--accent-soft);color:var(--accent)}.pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.qr{width:190px;height:190px;border-radius:14px;background:#fff;padding:8px;margin:12px auto 8px;box-shadow:var(--shadow)}.qr svg{display:block;width:100%;height:100%}.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:620px){.two{grid-template-columns:1fr}}.two .card{margin:0}.addr{font:12.5px ui-monospace,Consolas,monospace;color:var(--text);word-break:break-all;user-select:all}ol.steps{margin:8px 0 0;padding-left:20px;color:var(--dim)}ol.steps li{margin:5px 0}
 .hide{display:none!important}.choices .row{align-items:flex-start}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head><body><div class="wrap">
 <header><img src="icon.png" alt=""><div><b>Cortex</b><small>by AIROW</small></div>
-  <nav><button class="tabbtn" data-view="find">Controllers</button><button class="tabbtn" data-view="settings">App settings</button><button class="btn primary hide" id="back">Open Cortex</button></nav></header>
+  <nav><button class="tabbtn" data-view="find">Controllers</button><button class="tabbtn" data-view="phone">On your phone</button><button class="tabbtn" data-view="settings">App settings</button><button class="btn primary hide" id="back">Open Cortex</button></nav></header>
 <main id="main"></main></div>
 <script>
 /* Cortex for Windows: the app's own pages. Finding a controller, the "can't reach it" page, and app settings.
@@ -43,7 +44,13 @@ function go(v){view=v;clearInterval(retryT);render();}
 function foundRows(){const saved=new Set((INFO.controllers||[]).map(c=>c.url));
   return FIND.found.map(c=>`<div class="row found"><span class="dot"></span><div class="info"><div class="name">${esc(c.name)}</div><div class="sub">${esc(host(c.url))} · version ${esc(c.version)}${c.configured?"":" · new, not set up yet"}${saved.has(c.url)?" · saved":""}</div></div>
     <button class="btn primary" data-connect="${esc(c.url)}">${c.configured?(INFO.current===c.url?"Open":"Connect"):"Set up"}</button></div>`).join("");}
-function renderFind(){const saved=(INFO.controllers||[]).filter(c=>!FIND.found.some(f=>f.url===c.url)),pct=FIND.total?Math.round(FIND.done/FIND.total*100):0,none=!FIND.running&&!FIND.found.length;
+let findSig="";
+const findKey=()=>JSON.stringify([FIND.running,FIND.found.map(c=>[c.url,c.name,c.version,c.configured]),(INFO.controllers||[]).map(c=>c.url),INFO.current]);
+/* A progress tick: nothing new to show, so only the bar moves. Rebuilding the page here replayed its fade-in
+   several times a second, which is the flashing people saw while it searched. */
+function tickFind(){const k=findKey(),bar=document.querySelector("#main .bar i");if(k!==findSig||view!=="find"||(FIND.running&&!bar))return false;
+  if(bar)bar.style.width=(FIND.total?Math.round(FIND.done/FIND.total*100):0)+"%";return true;}
+function renderFind(){findSig=findKey();const saved=(INFO.controllers||[]).filter(c=>!FIND.found.some(f=>f.url===c.url)),pct=FIND.total?Math.round(FIND.done/FIND.total*100):0,none=!FIND.running&&!FIND.found.length;
   $("main").innerHTML=`<div class="card center"><div class="radar ${FIND.running?"on":""}"><i></i><i></i><i></i><img src="icon.png" alt=""></div>
       <h1>${FIND.running?"Looking for Cortex on your network…":FIND.found.length?(FIND.found.length===1?"Found your Cortex controller":"Found "+FIND.found.length+" Cortex controllers"):"No Cortex controller found"}</h1>
       <p>${FIND.running?"Checking each device on this network. This takes about ten seconds.":FIND.found.length?"Pick one to open it. Cortex will remember it next time.":"Nothing on this network answered as a Cortex controller."}</p>
@@ -52,7 +59,7 @@ function renderFind(){const saved=(INFO.controllers||[]).filter(c=>!FIND.found.s
     ${none?`<div class="card"><h2 style="margin-top:0">Things to check</h2><p>• This PC is on the same network as the controller (the same Wi-Fi or switch, not a guest network).</p><p>• The controller has power and its network cable is plugged in.</p><p>• If your building's network is split into several parts, type the controller's address below. Your installer can tell you what it is.</p></div>`:""}
     ${saved.length?`<div class="card" style="padding:8px 20px"><h2 style="margin:12px 0 2px">Saved controllers</h2>${saved.map(c=>`<div class="row"><span class="dot off"></span><div class="info"><div class="name">${esc(c.name||"Cortex")}</div><div class="sub">${esc(host(c.url))} · not found in this search</div></div><button class="btn" data-connect="${esc(c.url)}">Try it</button><button class="btn link" data-forget="${esc(c.url)}">Forget</button></div>`).join("")}</div>`:""}
     <div class="card"><h2 style="margin-top:0">Know the address?</h2><div style="display:flex;gap:8px"><input class="inp" id="addr" placeholder="e.g. 192.168.1.50" spellcheck="false" autocomplete="off"><button class="btn primary" id="manual">Connect</button></div><div class="msg" id="msg"></div></div>`;
-  wireFind();}
+  $("main").classList.toggle("still",!!renderFind.again);renderFind.again=FIND.running;wireFind();}
 function wireFind(){const again=$("again");if(again)again.onclick=startFind;
   document.querySelectorAll("[data-connect]").forEach(b=>b.onclick=()=>doConnect(b.dataset.connect,b));
   document.querySelectorAll("[data-forget]").forEach(b=>b.onclick=async()=>{const r=await A.forget(b.dataset.forget);INFO.controllers=r.controllers;INFO.current=r.current;nav();renderFind();});
@@ -62,17 +69,26 @@ async function doConnect(url,btn){if(!String(url||"").trim()){$("msg").className
   let r;try{r=await A.connect(url);}catch(e){r={ok:false,err:"The app did not answer."};}
   if(r&&r.ok)return;                                                   // the window is now loading the controller
   btn.disabled=false;btn.textContent=t;$("msg").className="msg err";$("msg").textContent=(r&&r.err)||"Could not connect.";$("msg").scrollIntoView({block:"nearest"});}
-function startFind(){FIND={running:true,done:0,total:0,found:[]};renderFind();A.findStart();}
+function startFind(){FIND={running:true,done:0,total:0,found:[]};renderFind.again=false;renderFind();A.findStart();}
 /* ---------- can't reach it ---------- */
 function renderLost(){const addr=Q.get("addr")||INFO.current||"";let n=10;
   $("main").innerHTML=`<div class="card center"><div class="radar on"><i></i><i></i><i></i><img src="icon.png" alt=""></div><h1>Can't reach Cortex</h1>
-      <p>The controller at <b style="color:var(--text)">${esc(host(addr))}</b> is not answering from this PC.</p><p id="cd">Trying again in ${n} seconds…</p>
+      <p>The controller at <b style="color:var(--text)">${esc(host(addr))}</b> is not answering from this PC.</p><p>Cortex tried the building network and the secure remote address.</p><p id="cd">Trying again in ${n} seconds…</p>
       <div style="display:flex;gap:10px;justify-content:center;margin-top:16px"><button class="btn primary" id="retry">Try now</button><button class="btn" id="search">Search the network</button></div>
       <div class="msg" id="msg"></div></div>
-    <div class="card"><h2 style="margin-top:0">Usually one of these</h2><p>• This PC changed networks (a different Wi-Fi, a VPN, a guest network).</p><p>• The controller is restarting after an update. That takes about a minute.</p><p>• The controller got a new address from the network. <b>Search the network</b> will find it again.</p></div>`;
-  const tryNow=async()=>{$("retry").disabled=true;$("retry").textContent="Trying…";let r;try{r=await A.connect(addr);}catch(e){r={ok:false};}if(r&&r.ok)return;$("retry").disabled=false;$("retry").textContent="Try now";n=10;};
+    <div class="card"><h2 style="margin-top:0">Usually one of these</h2><p>• This PC is away from the building and Tailscale is off or signed out on it. The secure remote address needs Tailscale running.</p><p>• This PC changed networks (a different Wi-Fi, a VPN, a guest network).</p><p>• The controller is restarting after an update. That takes about a minute.</p><p>• The controller got a new address from the network. <b>Search the network</b> will find it again.</p></div>`;
+  const tryNow=async()=>{$("retry").disabled=true;$("retry").textContent="Trying…";let r;try{r=await A.retry();}catch(e){r={ok:false};}if(r&&r.ok)return;$("retry").disabled=false;$("retry").textContent="Try now";n=10;};
   $("retry").onclick=tryNow;$("search").onclick=()=>{go("find");startFind();};
   retryT=setInterval(()=>{if(view!=="lost")return;n--;if(n<=0){tryNow();n=10;}const c=$("cd");if(c)c.textContent="Trying again in "+n+" second"+(n===1?"":"s")+"…";},1000);}
+/* ---------- on your phone ---------- */
+async function renderPhone(){$("main").innerHTML=`<div class="card center"><p>Getting the links…</p></div>`;let P;try{P=await A.phone();}catch(e){P=null;}if(view!=="phone")return;
+  if(!P||(!P.remote&&!P.local)){$("main").innerHTML=`<div class="card"><h1>Connect to a controller first</h1><p>Once this app is connected, this page shows the links to open the same Cortex on a phone.</p><div style="margin-top:12px"><button class="btn primary" id="tofind">Find it</button></div></div>`;$("tofind").onclick=()=>{go("find");if(!FIND.found.length)startFind();};return;}
+  const one=(x,title,sub)=>x?`<div class="card center"><h2 style="margin-top:0">${title}</h2><div class="qr">${x.svg}</div><div class="addr">${esc(x.url)}</div><p style="font-size:13px">${sub}</p></div>`:"";
+  $("main").innerHTML=`<div class="card"><h1>${esc(P.name||"Cortex")} on your phone</h1><p>Point the phone's camera at a code below and tap the link that appears.</p>
+      <ol class="steps"><li>Open the link in the phone's browser.</li><li><b style="color:var(--text)">iPhone:</b> tap Share, then <b style="color:var(--text)">Add to Home Screen</b>. <b style="color:var(--text)">Android:</b> tap the ⋮ menu, then <b style="color:var(--text)">Add to Home screen</b>.</li><li>Cortex now opens from its own icon, like an app.</li></ol></div>
+    <div class="two">${one(P.remote,"Anywhere","The secure link. Works in the building and away from it, and it is the one that can send alerts to the phone. The phone needs the <b>Tailscale</b> app, signed in to an account that can see this controller.")}
+      ${one(P.local,"In the building only","Works when the phone is on the building's own Wi-Fi. Nothing else is needed, and it keeps working if the internet is down.")}</div>
+    ${P.remote?`<div class="note"><b>One icon is enough.</b> Add the <b>Anywhere</b> link to the home screen. If the secure link cannot be reached (no internet, Tailscale off), Cortex shows a button that opens it on the building network instead.</div>`:`<div class="note"><b>No secure link yet.</b> This controller has no trusted certificate, so there is nothing to use away from the building. Your installer sets that up with Tailscale.</div>`}`;}
 /* ---------- settings ---------- */
 function sw(k,on){return `<button class="sw ${on?"on":""}" data-sw="${k}" role="switch" aria-checked="${on?"true":"false"}"><i></i></button>`;}
 function srow(t,sub,right,cls){return `<div class="row ${cls||""}"><div class="info"><div class="name" style="white-space:normal">${t}</div>${sub?`<div class="sub">${sub}</div>`:""}</div>${right||""}</div>`;}
@@ -83,7 +99,7 @@ function updLine(u){const v=INFO.version;if(!u)return "";
 let leave=null;
 function renderSettings(){const o=INFO.options||{},k=o.kinds||{},u=INFO.update||{},cur=(INFO.controllers||[]).find(c=>c.url===INFO.current),st=INFO.status;
   $("main").innerHTML=`<div class="card" style="padding:8px 20px"><h2 style="margin:12px 0 2px">Your controller</h2>
-      ${cur?srow(esc(cur.name||"Cortex"),esc(host(cur.url))+(st&&st.up?" · connected · "+st.on+" of "+st.total+" units on":" · not connected right now"),`<button class="btn" data-go="find">Change</button>`):srow("No controller chosen yet","Search the network to find it.",`<button class="btn primary" data-go="find">Find it</button>`)}</div>
+      ${cur?srow(esc(cur.name||"Cortex"),esc(host(cur.url))+(st&&st.up?" · connected "+(INFO.via==="remote"?"over the secure remote address":INFO.via==="local"?"on the building network":"")+" · "+st.on+" of "+st.total+" units on":" · not connected right now")+(cur.remote&&(cur.local||[]).length?"<br>Uses the building network when this PC is on it, and the secure address when it is not.":cur.remote?"":"<br>No secure remote address yet, so this works on the building network only."),`<button class="btn" data-go="find">Change</button>`):srow("No controller chosen yet","Search the network to find it.",`<button class="btn primary" data-go="find">Find it</button>`)}</div>
     <div class="card" style="padding:8px 20px"><h2 style="margin:12px 0 2px">Notifications</h2>
       ${srow("Tell me when something needs attention","Windows notifications from this PC. No browser, https or account needed.",sw("notify",o.notify!==false))}
       <div class="${o.notify===false?"hide":""}">${[["fault","A unit or outdoor unit reports a fault"],["silent","A unit stops answering"],["advisory","Cortex spots a problem pattern in the system readings"],["offline","The controller cannot be reached from this PC"],["cleared","A fault clears"]].map(x=>srow(x[1],"",sw("k:"+x[0],k[x[0]]!==false),"sub2")).join("")}
@@ -121,11 +137,11 @@ function wireLeave(){document.querySelectorAll("[data-leave]").forEach(b=>b.oncl
   b.disabled=true;b.textContent="Downloading…";let u;try{u=await A.revertToStable();}catch(e){u={state:"error",error:"the app did not answer"};}
   leave=null;await refresh();INFO.update=u||INFO.update;renderSettings();});}
 /* ---------- wiring ---------- */
-function render(){nav();if(view==="settings")renderSettings();else if(view==="lost")renderLost();else renderFind();}
+function render(){nav();$("main").classList.remove("still");renderFind.again=false;if(view==="settings")renderSettings();else if(view==="phone")renderPhone();else if(view==="lost")renderLost();else renderFind();}
 document.querySelectorAll(".tabbtn").forEach(b=>b.onclick=()=>{go(b.dataset.view);if(view==="find"&&!FIND.running&&!FIND.found.length)startFind();});
 $("back").onclick=()=>A.open();
 if(!A){$("main").innerHTML='<div class="card"><h1>This page belongs to the Cortex app</h1><p>Open Cortex from the Start menu.</p></div>';}
-else{A.onFind(s=>{FIND=s;if(view==="find"){const a=document.activeElement,keep=a&&a.id==="addr"?[a.value,a.selectionStart]:null;renderFind();if(keep){const n=$("addr");n.value=keep[0];n.focus();try{n.setSelectionRange(keep[1],keep[1]);}catch(e){}}}});
+else{A.onFind(s=>{FIND=s;if(view==="find"){if(tickFind())return;const a=document.activeElement,keep=a&&a.id==="addr"?[a.value,a.selectionStart]:null;renderFind();if(keep){const n=$("addr");n.value=keep[0];n.focus();try{n.setSelectionRange(keep[1],keep[1]);}catch(e){}}}});
   A.onUpdate(u=>{if(INFO){INFO.update=u;if(view==="settings"&&!leave)renderSettings();}});
   refresh().then(()=>{render();if(view==="find")startFind();});}
 </script></body></html>

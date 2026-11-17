@@ -23,6 +23,8 @@ function hosts(prefixes) { const out = []; for (const pre of prefixes) for (let 
 function identify(j) { if (!j || typeof j !== 'object' || j.ok !== true || typeof j.version !== 'string') return null;
   if (j.app !== 'cortex' && !('serial' in j && 'port' in j && 'configured' in j)) return null;
   return { name: typeof j.name === 'string' && j.name ? j.name.slice(0, 80) : 'Cortex', version: j.version.slice(0, 40), configured: j.configured !== false,
+    id: typeof j.id === 'string' && /^[a-f0-9]{16}$/.test(j.id) ? j.id : null, port: +j.port || 8080, port80: j.port80 === true,
+    lan: (Array.isArray(j.lan) ? j.lan : []).filter(a => typeof a === 'string' && isPrivate(a) && +a.split('.')[0] !== 100).slice(0, 4),
     https: j.https && j.https.active ? { port: j.https.port, trusted: !!j.https.trusted, name: j.https.name || null } : null }; }
 function cleanAddress(a) { let s = String(a || '').trim().replace(/\/+$/, ''); if (!s) return null;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) && !/^https?:\/\//i.test(s)) return null;

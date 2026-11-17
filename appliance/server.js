@@ -125,7 +125,8 @@ app.use('/api', (req, res, next) => {
 app.get('/health', (_req, res) => {
   const c = readConfig();
   cors(res);
-  res.json({ ok: true, app: 'cortex', serial: c.serial, port: PORT, port80: typeof port80 !== 'undefined' ? port80.active : false, version: readVersion(), running: BOOT_VERSION, name: c.name, configured: c.configured,
+  res.json({ ok: true, app: 'cortex', id: controllerId(), serial: c.serial, port: PORT, port80: typeof port80 !== 'undefined' ? port80.active : false, version: readVersion(), running: BOOT_VERSION, name: c.name, configured: c.configured,
+    lan: lanAddrs(),                // this box's addresses on the building network, so an app or phone that came in over the secure address can find the local one
     https: { active: httpsState.active, port: httpsState.port, trusted: !!(httpsState.cert && !httpsState.cert.selfSigned), name: (httpsState.cert && httpsState.cert.name) || null } });
 });
 app.get('/version', (_req, res) => {
@@ -156,6 +157,23 @@ function diskPct() {
       catch (_) { resolve(null); }
     });
   });
+}
+// This box's own addresses on the building network (never Tailscale's, never public ones).
+function lanAddrs() {
+  const out = [];
+  try { for (const [name, list] of Object.entries(os.networkInterfaces())) { if (/^(tailscale|docker|veth|br-|virbr|lo)/.test(name)) continue;
+      for (const a of list || []) { if (a.internal || (a.family !== 'IPv4' && a.family !== 4)) continue; const p = a.address.split('.').map(Number);
+        if (p[0] === 10 || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 192 && p[1] === 168)) out.push(a.address); } } } catch (_) {}
+  return out.slice(0, 4);
+}
+// A random name for this one controller, made once. It lets the Windows app be sure that the box answering at the
+// local address and the box answering at the secure address are the same controller before it switches between them.
+let _cid = null;
+function controllerId() {
+  if (_cid) return _cid; const f = path.join(DATA, 'controller-id');
+  try { const v = fs.readFileSync(f, 'utf8').trim(); if (/^[a-f0-9]{16}$/.test(v)) return (_cid = v); } catch (_) {}
+  _cid = crypto.randomBytes(8).toString('hex'); try { fs.writeFileSync(f, _cid + '\n'); } catch (_) {}
+  return _cid;
 }
 function tailscaleIp() {
   try { const t = os.networkInterfaces().tailscale0 || []; const a = t.find(x => x.family === 'IPv4' || x.family === 4); return a ? a.address : null; }
@@ -809,6 +827,21 @@ function alertOut(kind, text, ev, url) {
   }
   if (push.count()) push.send({ title: site, body: text, tag: kind + ':' + (ev && (ev.key || ev.addr) != null ? (ev.key || ev.addr) : ''), url: url || '/' }, kind).catch(e => console.error('push failed:', e.message));
 }
+// What a phone shows when the secure address cannot be reached (no internet, Tailscale off): the service worker
+// keeps this page, and it offers the building-network address instead. See docs/REMOTE_AND_LOCAL.md.
+app.get('/offline.html', (_req, res) => {
+  const c = readConfig(), p80 = typeof port80 !== 'undefined' && port80.active, esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const links = lanAddrs().map(ip => 'http://' + ip + (p80 ? '' : ':' + PORT)).concat(['http://cortex.local' + (p80 ? '' : ':' + PORT)]);
+  res.set('Cache-Control', 'no-cache').type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cortex</title>
+<style>html,body{margin:0;height:100%;background:#0f1318;color:#e7ebf0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}.w{max-width:440px;margin:0 auto;padding:44px 22px}h1{font-size:22px;margin:18px 0 6px}p{color:#9aa4b2;margin:8px 0}
+img{width:64px;height:64px;border-radius:16px}a.b{display:block;text-align:center;text-decoration:none;font-weight:650;border-radius:12px;padding:14px;margin-top:12px;background:#0e7c66;color:#fff}a.b.s{background:none;border:1px solid #27303b;color:#e7ebf0}small{color:#6b7585;display:block;margin-top:4px;font-weight:400}#st{margin-top:22px;font-size:14px}</style></head>
+<body><div class="w"><img src="/icon-256.png" alt=""><h1>Can't reach ${esc(c.name || 'Cortex')} over the secure link</h1>
+<p>This phone has no route to the controller right now. That usually means no internet, or Tailscale is switched off on this phone.</p>
+<p><b style="color:#e7ebf0">In the building?</b> Join its Wi-Fi and open Cortex directly:</p>
+${links.map((u, i) => `<a class="b${i ? ' s' : ''}" href="${esc(u)}/">Open on the building network<small>${esc(u.replace(/^http:\/\//, ''))}</small></a>`).join('')}
+<p id="st">Still trying the secure link…</p></div>
+<script>setInterval(function(){fetch('/health',{cache:'no-store'}).then(function(r){if(r.ok)location.replace('/');}).catch(function(){});},5000);</script></body></html>`);
+});
 app.get('/sw.js', (_req, res) => { res.set('Cache-Control', 'no-cache').type('application/javascript').send(SW_JS); });
 app.get('/api/push', (req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ key: push.publicKey(), devices: push.count(), subscribed: req.query.endpoint ? push.has(String(req.query.endpoint)) : undefined, fleet: req.query.endpoint ? !!(push.info(String(req.query.endpoint)) || {}).fleet : undefined }); });
 app.post('/api/push/subscribe', (req, res) => { cors(res); const b = req.body || {}; if (!push.subscribe(b.subscription, b.user, b.kinds, typeof b.fleet === 'boolean' ? { fleet: b.fleet } : undefined)) return res.status(400).json({ err: 'bad subscription' }); res.json({ ok: true, devices: push.count() }); });

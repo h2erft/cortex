@@ -38,5 +38,28 @@ const asked = []; const fakeFetch = async (url) => { asked.push(url); if (!(url 
   eq('unreachable is announced on the second miss only', [W.diff(S([]), down, 1).length, W.diff(S([]), down, 2).map(n => n.title), W.diff(S([]), down, 3).length], [0, ['Cortex is not answering'], 0]);
   eq('coming back is announced only if the outage was, and old faults are not replayed', [W.diff(Object.assign({}, down, { told: true }), S([e1]), 0).map(n => n.title), W.diff(down, S([e1]), 0)], [['Cortex is back'], []]);
   eq('tray tooltip', [W.tooltip(S([e1])), W.tooltip(down)], ['Cortex — Harbor Point\n1 of 3 units on · 1 not answering', 'Cortex — not connected']);
+  // --- which address: building network first, the secure address when that does not answer
+  const R = require('../desktop-app/route'), QR = require('../desktop-app/qr');
+  eq('knows a building-network address from a remote one', ['http://192.168.1.50', 'http://10.0.0.9:8080', 'http://cortex.local', 'http://cortex-box', 'https://box.net.ts.net:8443', 'http://100.71.3.5', 'http://8.8.8.8', 'https://192.168.1.50:8443'].map(R.isLocal), [true, true, true, true, false, false, false, false]);
+  const H = (o) => D.identify(Object.assign({ ok: true, app: 'cortex', version: '1.7.1', name: 'Harbor Point', id: 'aaaaaaaaaaaaaaaa', port: 8080, port80: true, lan: ['192.168.1.50'], https: { active: true, port: 8443, trusted: true, name: 'harbor.example-net.ts.net' } }, o || {}));
+  let en = { url: 'http://192.168.1.50', name: 'Harbor Point' };
+  eq('found in the office: learns its secure address', [R.learn(en, H(), 'http://192.168.1.50'), en.remote, en.local, en.id], [true, 'https://harbor.example-net.ts.net:8443', ['http://192.168.1.50'], 'aaaaaaaaaaaaaaaa']);
+  eq('learning the same thing again changes nothing', R.learn(en, H(), 'http://192.168.1.50'), false);
+  let en2 = { url: 'https://harbor.example-net.ts.net:8443', name: 'Harbor Point' }; R.learn(en2, H({ port80: false }), en2.url);
+  eq('added by its secure address: learns the office address', [en2.local, R.candidates(en2)], [['http://192.168.1.50:8080'], ['http://192.168.1.50:8080', 'https://harbor.example-net.ts.net:8443']]);
+  let en3 = { url: 'http://192.168.1.50', name: 'X' }; R.learn(en3, H({ https: { active: true, port: 8443, trusted: false, name: null }, lan: ['8.8.8.8', '100.70.1.1', 'nope'] }), en3.url);
+  eq('a self-signed controller has no secure address; odd addresses are ignored', [en3.remote || null, en3.local], [null, ['http://192.168.1.50']]);
+  eq('a strange certificate name is never turned into a link', (() => { const e = { url: 'http://192.168.1.50' }; R.learn(e, H({ https: { active: true, port: 8443, trusted: true, name: 'evil.example/x?y' } }), e.url); return e.remote || null; })(), null);
+  const net = (up) => async (b) => up[b] || null;
+  const pick = async (e, up) => { const r = await R.choose(e, net(up)); return r ? [r.base, r.via] : null; };
+  eq('in the office: uses the building network even though the secure address also answers', await pick(en, { 'http://192.168.1.50': H(), 'https://harbor.example-net.ts.net:8443': H() }), ['http://192.168.1.50', 'local']);
+  eq('at home: the office address is silent, so it uses the secure address', await pick(en, { 'https://harbor.example-net.ts.net:8443': H() }), ['https://harbor.example-net.ts.net:8443', 'remote']);
+  eq('at home: something ELSE answering at the office address is not mistaken for the controller', await pick(en, { 'http://192.168.1.50': H({ id: 'bbbbbbbbbbbbbbbb', name: 'Somebody Else' }), 'https://harbor.example-net.ts.net:8443': H() }), ['https://harbor.example-net.ts.net:8443', 'remote']);
+  eq('internet down in the office: the building network still works', await pick(en, { 'http://192.168.1.50': H() }), ['http://192.168.1.50', 'local']);
+  eq('nothing answers: says so', await pick(en, {}), null);
+  eq('an older controller without an id is matched by name', [await pick({ url: 'http://192.168.1.50', name: 'Harbor Point', remote: 'https://harbor.example-net.ts.net:8443' }, { 'https://harbor.example-net.ts.net:8443': H({ id: undefined }) }), await pick({ url: 'http://192.168.1.50', name: 'Harbor Point', remote: 'https://harbor.example-net.ts.net:8443' }, { 'https://harbor.example-net.ts.net:8443': H({ id: undefined, name: 'Other' }) })], [['https://harbor.example-net.ts.net:8443', 'remote'], null]);
+  eq('phone links', [R.phoneLinks(en), R.phoneLinks(en3).remote, R.phoneLinks(null)], [{ remote: 'https://harbor.example-net.ts.net:8443', local: 'http://192.168.1.50' }, null, { remote: null, local: null }]);
+  const m = QR.modules('https://harbor.example-net.ts.net:8443/');
+  eq('a link becomes a square code with the three corner markers', [m.length >= 21 && m.every(r => r.length === m.length), m[0].slice(0, 7), m[0].slice(-7), m[m.length - 1].slice(0, 7), /^<svg /.test(QR.svg('http://192.168.1.50/'))], [true, '1111111', '1111111', '1111111', true]);
   console.log(fail ? `\n${fail} FAILED` : '\nall passed'); process.exit(fail ? 1 : 0);
 })();

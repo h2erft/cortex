@@ -59,3 +59,9 @@ Links to anywhere else open in the normal browser.
   `tests/desktop-ui.test.js` (the pages, clicked through with a stand-in for the app).
 - **Not run on Windows yet:** the installer, the real network search, the tray, notifications and
   self-update. The build is checked by `.github/workflows/command-build.yml`.
+
+## Local or secure, by itself (1.7.1-beta.4)
+
+The app keeps a controller's building-network address and its secure (Tailscale) address, prefers the
+building network, and switches when one stops answering. **On your phone** shows QR codes for both
+links. How it decides, and what phones can and cannot do: [REMOTE_AND_LOCAL.md](REMOTE_AND_LOCAL.md).

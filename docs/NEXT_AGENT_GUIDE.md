@@ -491,3 +491,14 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
 - beta.2: building addresses in Command go through `normAddr()`. Never strip `https://` from one.
   `tests/command-ui.test.js` saves addresses through the real dialog. First field result for the
   certificate helper: it fetched a trusted certificate on a live controller by itself at the next tick.
+
+## Addendum: local/secure switching (v1.7.1-beta.4)
+
+- `desktop-app/route.js` decides the address (building network first). Never switch to an address
+  without the identity check in `choose()`; `/health.id` exists for that.
+- The service worker (`SW_JS` in `appliance/push.js`) now handles navigations and keeps `/offline.html`.
+  It must keep caching nothing else: Cortex has to come fresh from the controller.
+- `cortex.html` registers the service worker on every https load (it used to be only when alerts were
+  switched on).
+- Never suggest Tailscale Funnel or port forwarding for phone access: the API has no login.
+- See `docs/REMOTE_AND_LOCAL.md`.
