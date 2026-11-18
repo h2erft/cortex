@@ -787,7 +787,8 @@ function ecoClean(b, old) { b = b || {};
   if (!name) return { err: 'give the system a name' }; if (!ECO.KINDS[kind]) return { err: 'pick the kind of equipment' };
   if (!/^\/dev\/[A-Za-z0-9._\/:+@-]{1,200}$/.test(port) || port.includes('..')) return { err: 'pick the adapter' };
   for (const x of ecoSystems.values()) if ((!old || x.cfg.id !== old.id) && realDev(x.cfg.port) === realDev(port)) return { err: 'that adapter is already used by “' + x.cfg.name + '”' };
-  return { cfg: { id: old ? old.id : crypto.randomBytes(4).toString('hex'), name, kind, port, on: typeof b.on === 'boolean' ? b.on : (old ? !!old.on : true), talk: typeof b.talk === 'boolean' ? b.talk : (old ? !!old.talk : false), src: ECO.ADDR.WIFI } }; }
+  const tidy = (v, prev) => String(v == null ? (prev || '') : v).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
+  return { cfg: { id: old ? old.id : crypto.randomBytes(4).toString('hex'), name, kind, port, group: tidy(b.group, old && old.group), sub: tidy(b.sub, old && old.sub), on: typeof b.on === 'boolean' ? b.on : (old ? !!old.on : true), talk: typeof b.talk === 'boolean' ? b.talk : (old ? !!old.talk : false), src: ECO.ADDR.WIFI } }; }
 (() => { const j = readJsonSafe(ECOF); for (const c of (j && Array.isArray(j.systems) ? j.systems : []).slice(0, ECO_MAX)) { try { if (c && ECO.KINDS[c.kind] && c.id) ecoStart(c); } catch (e) { console.error('econet: could not start', c && c.name, e.message); } } })();
 app.get('/api/econet', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ systems: [...ecoSystems.values()].map(x => x.info()) }); });
 app.get('/api/econet/catalog', (_req, res) => { cors(res); res.json({ kinds: ECO.KINDS }); });
@@ -800,7 +801,7 @@ app.post('/api/econet/systems', (req, res) => { cors(res); const b = req.body ||
   if (b.id && !old) return res.status(404).json({ err: 'no such system' }); if (!old && ecoSystems.size >= ECO_MAX) return res.status(400).json({ err: 'at most ' + ECO_MAX + ' systems on one controller' });
   const c = ecoClean(b, old && old.cfg); if (c.err) return res.status(400).json({ err: c.err });
   if (old && (old.cfg.port !== c.cfg.port)) { old.stop(); ecoSystems.delete(old.cfg.id); ecoStart(c.cfg); }                 // a different adapter: start afresh
-  else if (old) { old.cfg.name = c.cfg.name; old.setFlags({ on: c.cfg.on, talk: c.cfg.talk }); }
+  else if (old) { old.cfg.name = c.cfg.name; old.cfg.group = c.cfg.group; old.cfg.sub = c.cfg.sub; old.setFlags({ on: c.cfg.on, talk: c.cfg.talk }); }
   else ecoStart(c.cfg);
   ecoSave(); res.json({ ok: true, system: ecoSystems.get(c.cfg.id).info() }); });
 app.delete('/api/econet/systems/:id', (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' }); x.stop(); ecoSystems.delete(req.params.id); ecoSave(); res.json({ ok: true }); });

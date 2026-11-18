@@ -126,7 +126,10 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .eco-step button:disabled,.eco .segmented button:disabled{opacity:.45;cursor:default}
 .eco details{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}.eco summary{cursor:pointer;font-size:13px;color:var(--text-dim);font-weight:500}
 .eco table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}.eco td{padding:4px 0;border-top:1px solid var(--border)}.eco td:last-child{text-align:right;font-variant-numeric:tabular-nums}.eco th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);padding:9px 0 3px;font-weight:600}
+table.ecobus{width:100%;border-collapse:collapse;font-size:12.5px}table.ecobus th{position:sticky;top:0;background:var(--surface);text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);padding:8px 12px;border-bottom:1px solid var(--border)}
+table.ecobus td{padding:6px 12px;border-bottom:1px solid var(--border);vertical-align:top;white-space:nowrap}table.ecobus .hexcol{white-space:normal;color:var(--text-faint);font-size:11px;margin-top:2px;word-break:break-word}table.ecobus tr.tx td{background:var(--accent-soft)}
 .eco-tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-strong)}.eco-tools .btn{padding:5px 9px;font-size:12px}
+.modal .eco{border:0;box-shadow:none;padding:0;background:none}
 .eco-alarm{background:var(--err-soft);color:var(--err);border-radius:9px;padding:8px 11px;font-size:13px;margin-bottom:10px;font-weight:500}
 .grid.compact{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px}
 .card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 14px 14px 16px;box-shadow:var(--shadow);cursor:pointer;transition:border-color .12s,transform .12s;overflow:hidden;display:flex;flex-direction:column;gap:11px;min-width:0}
@@ -412,6 +415,7 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .sumrow .k{color:var(--text-dim)}
 
 /* sections, weather, tags, schedules, updates */
+.brand-h{font-size:15px;font-weight:650;letter-spacing:-.2px;margin:22px 0 2px;padding-bottom:7px;border-bottom:2px solid var(--border-strong);display:flex;align-items:baseline;gap:9px}.brand-h:first-child{margin-top:4px}.brand-h span{font-size:12px;font-weight:500;color:var(--text-faint)}
 .section-h{display:flex;align-items:center;gap:10px;margin:18px 0 10px}
 .section-h:first-child{margin-top:0}
 .section-h .st{font-size:14px;font-weight:600}
@@ -732,7 +736,7 @@ svg.ug{width:100%;height:100%;display:block}
       <button class="nav-item active" data-view="units"><span>❄ Indoor units</span></button>
       <button class="nav-item" data-view="map"><span>🗺 Building map</span></button>
       <button class="nav-item" data-view="schedule"><span>🗓 Schedule</span></button>
-      <button class="nav-item hide" id="nav-econet" data-view="econet"><span>🔥 Rheem / Ruud</span></button>
+      
       <button class="nav-item hide" id="nav-events" data-view="events"><span>🕘 Fault history</span></button>
       <button class="nav-item hide" id="nav-busscan" data-view="busscan"><span>📡 Bus scan</span><span class="tech-tag">TECH</span></button>
       <button class="nav-item hide" id="nav-cycle" data-view="cycle"><span>⚙ Outdoor / cycle</span><span class="tech-tag">TECH</span></button>
@@ -902,6 +906,29 @@ const ACCENTS={
   grape:{n:"Grape",c:"#7a4fd0",l:["#7a4fd0","#55369a","#ece4fb"],d:["#a98cf0","#d7c8f7","#241a3a"]}};
 const DIMS=[["location","Groups (your layout)"],["system","System (physical)"],["floor","Floor"],["suite","Suite"],["tag","Tag"]];
 const TREESEP=" ▸ ";                                       // separates group ▸ subgroup in a leaf key
+/* ===== One home for every manufacturer =====
+   Cortex shows a building, not a brand. Whatever a piece of equipment speaks on its wire (LG's LGAP, Rheem / Ruud's
+   EcoNet, and later others), it appears as a unit on Indoor units and the Building map, in the group it was put in.
+   LG units live in `units`. Other brands are turned into the same shape by a small adapter (ecoAsUnit) and joined in
+   by allU(). A unit's `brand` says which protocol carries its commands; everything that draws or groups asks allU(). */
+let ECOS={systems:[],catalog:null,ports:[],at:0,err:"",pend:{},open:{},modal:null};      // Rheem / Ruud systems as the controller reports them
+const BRANDS={lg:{label:"LG",short:"LG"},econet:{label:"Rheem / Ruud",short:"Rheem / Ruud"}};
+let brandFilter="all";
+function brandOf(u){return u.brand||"lg";}
+function ecoAsUnit(sys){const num=n=>{const x=sys.values[n];return x&&!x.stale&&x.v!=null?x.v:null;},txt=n=>{const x=sys.values[n];return x&&x.text?x.text:"";},hv=sys.kind==="hvac";
+  const live=sys.state==="live"||(sys.state==="listening"&&Object.keys(sys.values).length>0);
+  let on=false,mode="heat",setF=null,coolF=null,heatF=null,room=null,doing="";
+  if(hv){const m=num("STATMODE");on=m!=null&&m!==4;mode=({0:"heat",1:"cool",2:"auto",3:"fan"})[m]||"auto";coolF=num("COOLSETP");heatF=num("HEATSETP");setF=mode==="heat"?heatF:(mode==="cool"?coolF:null);room=num("SPT");doing=txt("HVACMODE");}
+  else{const e=num("WHTRENAB");on=e==null?num("WHTRSETP")!=null:e===1;setF=num("WHTRSETP");room=num("UPHTRTMP");if(room==null)room=num("TEMP_OUT");doing=txt("WHTRMODE");}
+  return {id:"e:"+sys.id,eco:sys.id,brand:"econet",name:"econet:"+sys.id,label:sys.name,grp:sys.group||"",subgrp:sys.sub||"",system:"Rheem / Ruud",group:0,addr:null,kind:"eco_"+sys.kind,
+    on:on&&live,mode,fan:"auto",err:(sys.alarms||[]).length>0,code:(sys.alarms||[])[0]||null,offline:!live||!(hv?num("STATMODE")!=null:(num("WHTRSETP")!=null||num("WHTRENAB")!=null)),   // until its own state is known, show how it is connected, not "Off"
+    room,setF,coolF,heatF,doing,sys};}
+function ecoUnits(){return (APPL&&typeof ECOS!=="undefined"&&can("eco"))?ECOS.systems.map(ecoAsUnit):[];}
+function brandsHere(){const b=[];if(units.length)b.push("lg");if(ecoUnits().length)b.push("econet");return b;}
+/* Every unit on this controller, whatever its make, narrowed by the manufacturer filter when one is picked. */
+function allU(){const multi=brandsHere().length>1,f=multi?brandFilter:"all";return (f==="econet"?[]:units).concat(f==="lg"?[]:ecoUnits());}
+function unitById(raw){const s=String(raw);if(s.startsWith("e:"))return ecoUnits().find(u=>u.id===s)||null;return units.find(x=>x.id===+s)||null;}
+function openUnit(raw){const s=String(raw);if(s.startsWith("e:"))openEco(s.slice(2));else openDrawer(+s);}
 function grpOf(u){return (u.grp&&u.grp.trim())||"Ungrouped";}
 function subOf(u){return (u.subgrp&&u.subgrp.trim())||"General";}
 function leafKey(u){return grpOf(u)+TREESEP+subOf(u);}
@@ -1048,9 +1075,9 @@ function catVals(u,dim){const m=getMeta(u);
   if(dim==="suite")return[m.suite||"No suite set"];
   if(dim==="tag")return m.tags.length?m.tags.slice():["Untagged"];
   return["All"];}
-function catList(dim){const s=new Set();units.forEach(u=>catVals(u,dim).forEach(c=>s.add(c)));
+function catList(dim){const s=new Set();allU().forEach(u=>catVals(u,dim).forEach(c=>s.add(c)));
   return [...s].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));}
-function unitsInCat(cat,dim){return units.filter(u=>catVals(u,dim).includes(cat));}
+function unitsInCat(cat,dim){return allU().filter(u=>catVals(u,dim).includes(cat));}
 
 /* ---- helpers ---- */
 let settingsUser=null; // per-user preferences are scoped to the signed-in user
@@ -1180,7 +1207,8 @@ function ago(t){if(!t)return "never";const s=Math.max(0,Math.round((Date.now()-t
   return s<90?s+"s ago":(s<5400?Math.round(s/60)+" min ago":(s<172800?Math.round(s/3600)+" h ago":Math.round(s/86400)+" days ago"));}
 // May the signed-in person change this unit? Customers can be switched to view-only for the whole site
 // (Settings ▸ Advanced) and are locked out of a unit a technician has marked "in service".
-function ctlAllowed(u){if(!can("ctl"))return false;return can("ctl_service")||!inService(u);}
+function ctlAllowed(u){if(brandOf(u)!=="lg")return false;         // "send to many" (All on/off, Select) speaks LGAP; other makes are changed from their own panel
+  if(!can("ctl"))return false;return can("ctl_service")||!inService(u);}
 function isDemo(){return IS_FILE&&!liveTx();}   // opened as a bare file with no adapter: a local demo
 function notConnMsg(){return isTechView()?"Bus not connected — nothing was sent":"Cortex isn’t connected to the equipment right now, so nothing was sent.";}
 /* Change a set of units and send it. mut(u) applies the change. Nothing is changed on screen unless the
@@ -1196,7 +1224,7 @@ async function applyAndSend(list,mut){
   if(liveTx()||isDemo())saveUnits();
   liveRefresh(true);return n;}
 function statusOf(u){return u.err?"err":(u.on?"run":"stop");}
-function counts(){const c={run:0,stop:0,err:0};units.forEach(u=>c[statusOf(u)]++);return c;}
+function counts(){const c={run:0,stop:0,err:0};allU().forEach(u=>c[statusOf(u)]++);return c;}
 function hx(n){return "0x"+n.toString(16).padStart(2,"0").toUpperCase();}
 const main=document.getElementById("main");
 
@@ -1242,18 +1270,18 @@ function renderGroupNav(){
   const cats=catList(dim);const label=(DIMS.find(d=>d[0]===dim)||["","Group"])[1];
   const item=(val,txt,n,active)=>`<button class="nav-item ${active?'active':''}" data-cat="${encodeURIComponent(val)}"><span class="nm">${ue(txt)}</span><span class="count">${n}</span></button>`;
   nav.innerHTML=`<div class="nav-label">${ue(label)}</div>`+
-    item("all","All units",units.length,groupFilter==="all"&&view==="units")+
+    item("all","All units",allU().length,groupFilter==="all"&&view==="units")+
     cats.map(c=>item(c,c,unitsInCat(c,dim).length,groupFilter===c&&view==="units")).join("");
   nav.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{view="units";groupFilter=decodeURIComponent(b.dataset.cat);renderAll();});
 }
 function renderLocationTree(nav){
   const canEdit=can("unit_edit");
-  const groups=new Map();units.forEach(u=>{const g=grpOf(u),s=subOf(u);if(!groups.has(g))groups.set(g,new Set());groups.get(g).add(s);});
+  const groups=new Map();allU().forEach(u=>{const g=grpOf(u),s=subOf(u);if(!groups.has(g))groups.set(g,new Set());groups.get(g).add(s);});
   const gnames=[...groups.keys()].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   if(treeExpanded===null)treeExpanded=new Set(gnames);
   const act=k=>groupFilter===k&&view==="units";
   let html=`<div class="nav-label">Groups</div>`+
-    `<button class="nav-item ${groupFilter==="all"&&view==="units"?'active':''}" data-cat="${encodeURIComponent("all")}"><span class="nm">All units</span><span class="count">${units.length}</span></button>`;
+    `<button class="nav-item ${groupFilter==="all"&&view==="units"?'active':''}" data-cat="${encodeURIComponent("all")}"><span class="nm">All units</span><span class="count">${allU().length}</span></button>`;
   for(const g of gnames){
     const subs=[...groups.get(g)].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
     const realSubs=subs.filter(s=>s!=="General"), hasGeneral=subs.includes("General");
@@ -1328,26 +1356,59 @@ function unitRow(u){
     <div class="mono lc-hide" style="color:var(--text-dim)">room ${temp(u.room)}</div></div>`;
 }
 function applyFilters(l){return l.filter(u=>statusFilter==="all"||statusOf(u)===statusFilter)
-  .filter(u=>!query||(dispName(u)+" "+getMeta(u).tags.join(" ")+(isTechView()?" "+u.name+" "+hx(u.addr):"")).toLowerCase().includes(query.toLowerCase()));}
-function filtered(){const base=groupFilter==="all"?units.slice():unitsInCat(groupFilter,gdim());return applyFilters(base);}
+  .filter(u=>!query||(dispName(u)+" "+getMeta(u).tags.join(" ")+" "+BRANDS[brandOf(u)].label+(isTechView()&&u.addr!=null?" "+u.name+" "+hx(u.addr):"")).toLowerCase().includes(query.toLowerCase()));}
+function filtered(){const base=groupFilter==="all"?allU():unitsInCat(groupFilter,gdim());return applyFilters(base);}
 function weatherCard(){const w=WEATHER;const loc=(CFG&&CFG.site&&CFG.site.location)||w.place;
   const t=w.now==null?"—":w.now+"°"+settings.unit;
   return `<div class="weather"><div><div class="wt mono">${t}</div><div class="wmeta">${ue(w.cond)} · ${ue(loc)}</div></div>
     <div class="whr">${w.hours.map(h=>`<div class="wh">${h[0]}<b class="mono">${h[1]}°</b></div>`).join("")}${w.hi!=null?`<div class="wh">Hi / Lo<b class="mono">${w.hi} / ${w.lo}°</b></div>`:""}</div>
     ${w.live?"":`<span class="wsample">${w.now==null?"no data":"offline"}</span>`}</div>`;}
 function renderCards(list){if(!list.length)return '<div style="color:var(--text-faint);padding:8px 2px">None</div>';
-  if(settings.view==="list")return `<div class="listv">${list.map(unitRow).join("")}</div>`;
-  return `<div class="grid ${settings.density==='compact'?'compact':''}">${list.map(unitCard).join("")}</div>`;}
+  if(settings.view==="list")return `<div class="listv">${list.map(u=>brandOf(u)==="econet"?ecoUnitRow(u):unitRow(u)).join("")}</div>`;
+  return `<div class="grid ${settings.density==='compact'?'compact':''}">${list.map(u=>brandOf(u)==="econet"?ecoUnitCard(u):unitCard(u)).join("")}</div>`;}
+/* A Rheem / Ruud system drawn as a unit: same card, same place in the grid. */
+const ECO_ICON={hvac:`<svg viewBox="0 0 40 40" width="100%" height="100%"><rect x="9" y="8" width="22" height="24" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 12v2.5M20 25.5V28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  water:`<svg viewBox="0 0 40 40" width="100%" height="100%"><rect x="12" y="6" width="16" height="28" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 15c-2.6 3.3-3.6 5-3.6 6.7a3.6 3.6 0 0 0 7.2 0c0-1.7-1-3.4-3.6-6.7z" fill="currentColor" opacity=".75"/></svg>`};
+const ecoIcon=u=>`<span style="display:block;width:100%;height:100%;color:${u.offline?"var(--warn)":u.err?"var(--err)":u.on?"var(--accent)":"var(--text-faint)"}">${ECO_ICON[u.sys.kind==="hvac"?"hvac":"water"]}</span>`;
+const ecoT=f=>f==null?"--":(settings.unit==="C"?Math.round((f-32)*5/9):Math.round(f));
+function ecoStateTxt(u){const s=u.sys;return u.offline?(ECO_STATE[s.state]||[s.state])[0]:u.err?"Alarm":(u.on?((u.doing||(MODES.find(m=>m[0]===u.mode)||["",""])[1])+(u.setF!=null?" · "+ecoT(u.setF)+"°"+settings.unit:"")):"Off");}
+function ecoUnitCard(u){const s=u.sys,hv=s.kind==="hvac",st=ECO_STATE[s.state]||[s.state,"stop"],stripe=u.offline?"var(--warn)":(u.err?"var(--err)":(u.on?"var(--accent)":"var(--stopped)"));
+  const pill=u.offline?`<span class="pill ${st[1]}" title="${ue(st[0])}">${st[0]}</span>`:(u.err?`<span class="pill err">Alarm</span>`:(u.on?'<span class="pill run">Running</span>':'<span class="pill stop">Off</span>'));
+  const deg=`<small>°${settings.unit}</small>`,V=f=>f==null?`<div class="rd-v mono idle">--</div>`:`<div class="rd-v mono">${ecoT(f)}${deg}</div>`;
+  const dual=hv&&u.mode==="auto"&&u.on&&u.coolF!=null&&u.heatF!=null;
+  const setV=!u.on?`<div class="rd-v mono idle">--</div>`:(dual?`<div class="rd-v mono"><span style="color:var(--cool)">${ecoT(u.coolF)}</span><i>/</i><span style="color:var(--heat)">${ecoT(u.heatF)}</span>${deg}</div>`:V(u.setF));
+  const ml=MODES.find(m=>m[0]===u.mode)||MODES[0],mv=u.mode==="fan"?"fanm":MC[u.mode];
+  const chipRow=[hv&&settings.show.mode&&u.on?`<span class="modechip" style="background:var(--${mv}-soft);color:var(--${u.mode==="fan"?"text-dim":mv})">${ml[2]} ${ml[1]}</span>`:"",u.on&&u.doing?`<span class="chip">${ue(u.doing)}</span>`:"",brandsHere().length>1?`<span class="chip">${BRANDS.econet.short}</span>`:""].filter(Boolean).join("");
+  const nm=ue(dispName(u));
+  return `<div class="card ${u.on?'':'off'}" style="--stripe:${stripe}" data-id="${u.id}">
+    <div class="card-top"><div class="ugmini">${ecoIcon(u)}</div><div class="card-id"><div class="card-name" title="${nm}">${nm}</div><div class="card-meta">${ue(s.kindLabel)}</div></div>${pill}</div>
+    <div class="card-read ${settings.show.room?(dual?'dual':''):'one'}"><div class="rd"><div class="rd-l">${dual?'Cool / Heat':'Set to'}</div>${setV}</div>${settings.show.room?`<div class="rd"><div class="rd-l">${hv?"Room":(s.kind==="tankless"?"Outlet":"Tank")}</div>${V(u.room)}</div>`:''}</div>
+    ${chipRow?`<div class="card-chips">${chipRow}</div>`:''}
+    ${u.err?`<div class="err-note"><span>⚠</span><span>${ue(u.code)} — tap for details</span></div>`:""}
+  </div>`;}
+function ecoUnitRow(u){const c=u.offline?"var(--warn)":(u.err?"var(--err)":(u.on?"var(--ok)":"var(--stopped)"));
+  return `<div class="lrow" data-id="${u.id}"><span class="st" style="background:${c}"></span>
+    <div style="min-width:0"><div class="lname">${ue(dispName(u))}</div><div class="lsub">${ue(u.sys.kindLabel)} · ${BRANDS.econet.short}${u.offline?' · '+ue((ECO_STATE[u.sys.state]||[u.sys.state])[0]).toLowerCase():''}</div></div>
+    <div class="lc-hide">${u.err?`<span class="pill err">Alarm</span>`:(u.on?ue(u.doing||"on"):'<span style="color:var(--text-faint)">off</span>')}</div>
+    <div class="mono">${u.on&&u.setF!=null?ecoT(u.setF)+'°'+settings.unit:"--"}</div>
+    <div class="mono lc-hide" style="color:var(--text-dim)">${u.room!=null?ecoT(u.room)+'°'+settings.unit:"--"}</div></div>`;}
 function sectionSelBtn(c){return selMode?`<button class="linklike" data-selgroup="${encodeURIComponent(c)}" style="font-size:12px">Select all</button>`:"";}
 function renderBody(){const w=document.getElementById("listwrap");if(!w)return;const dim=gdim();
+  if(groupFilter==="all"&&settings.brandSplit&&brandFilter==="all"&&brandsHere().length>1){       // each manufacturer in its own section, groups inside
+    let html="",any=false;const pool=allU();
+    brandsHere().forEach(b=>{const mine=pool.filter(u=>brandOf(u)===b),cats=[...new Set([].concat(...mine.map(u=>dim==="location"?[leafKey(u)]:catVals(u,dim))))].sort((x,y)=>x.localeCompare(y,undefined,{numeric:true}));let part="";
+      cats.forEach(c=>{const l=applyFilters(mine.filter(u=>(dim==="location"?leafKey(u)===c:catVals(u,dim).includes(c))));if(!l.length)return;
+        part+=`<div class="section-h"><span class="st">${ue(c)}</span><span class="sc">${l.length}</span><span class="ln"></span>${b==="lg"?sectionSelBtn(c):""}</div>`+renderCards(l);});
+      if(part){any=true;html+=`<div class="brand-h" data-brand="${b}">${BRANDS[b].label}<span>${applyFilters(mine).length}</span></div>`+part;}});
+    w.innerHTML=any?html:'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();return;}
   if(groupFilter!=="all"){const l=applyFilters(unitsInCat(groupFilter,dim));
     w.innerHTML=l.length?renderCards(l):'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();return;}
-  const cats=(dim==="location"?[...new Set(units.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})):catList(dim));let html="",any=false;
+  const cats=(dim==="location"?[...new Set(allU().map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})):catList(dim));let html="",any=false;
   cats.forEach(c=>{const l=applyFilters(unitsInCat(c,dim));if(!l.length)return;any=true;
     html+=`<div class="section-h"><span class="st">${ue(c)}</span><span class="sc">${l.length}</span><span class="ln"></span>${sectionSelBtn(c)}</div>`+renderCards(l);});
   w.innerHTML=any?html:'<div style="color:var(--text-dim);padding:30px">No units match.</div>';bindUnitClicks();bindGroupSel();}
 function bindGroupSel(){document.querySelectorAll("[data-selgroup]").forEach(b=>b.onclick=e=>{e.stopPropagation();
-  const c=decodeURIComponent(b.dataset.selgroup);const l=applyFilters(unitsInCat(c,gdim()));
+  const c=decodeURIComponent(b.dataset.selgroup);const l=applyFilters(unitsInCat(c,gdim())).filter(u=>brandOf(u)==="lg");
   const allSel=l.every(u=>selSet.has(u.id));l.forEach(u=>{if(allSel)selSet.delete(u.id);else selSet.add(u.id);});
   renderBody();renderBatchBar();});}
 function renderUnits(){
@@ -1361,12 +1422,14 @@ function renderUnits(){
     ${settings.showWeather?weatherCard():""}
     ${settings.showTiles?`<div class="tiles">
       ${tile("run",c.run,"var(--ok)","Running")}${tile("stop",c.stop,"var(--stopped)","Off")}
-      ${tile("err",c.err,"var(--err)","Errors")}${tile("all",units.length,"",(()=>{const n=new Set(units.map(u=>u.system)).size;return "All units"+(units.length&&isTechView()?` · ${n} ODU${n!==1?"s":""}`:"");})())}
+      ${tile("err",c.err,"var(--err)","Errors")}${tile("all",allU().length,"",(()=>{const n=new Set(units.map(u=>u.system)).size;return "All units"+(units.length&&isTechView()?` · ${n} ODU${n!==1?"s":""}`:"");})())}
     </div>`:""}
     <div class="toolbar">
       <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="q" placeholder="Search units…" value="${ue(query)}"></div>
       <select class="sel-box" id="groupby">${userDims().map(d=>`<option value="${d[0]}" ${gdim()===d[0]?'selected':''}>Group by: ${d[1]}</option>`).join("")}</select>
+      ${brandsHere().length>1?`<div class="segmented" id="brandseg" title="Show every manufacturer, or just one">${[["all","All makes"]].concat(brandsHere().map(b=>[b,BRANDS[b].short])).map(o=>`<button data-b="${o[0]}" class="${brandFilter===o[0]?'on':''}">${o[1]}</button>`).join("")}</div>
+      <button class="btn ${settings.brandSplit?'primary':''}" id="brandsplit" title="Keep each manufacturer in its own section, or mix them together in your groups">${settings.brandSplit?"Split by make":"Makes together"}</button>`:""}
       <div class="segmented" id="viewseg"><button data-v="grid" class="${settings.view==='grid'?'on':''}">Grid</button><button data-v="list" class="${settings.view==='list'?'on':''}">List</button></div>
       <button class="btn ${selMode?'primary':''}" id="selbtn">${selMode?'Done selecting':'Select'}</button>
       ${canAll?`<button class="btn" id="alloff">All off</button><button class="btn primary" id="allon">All on</button>`:''}
@@ -1379,6 +1442,8 @@ function renderUnits(){
   document.getElementById("groupby").onchange=e=>{settings.groupBy=e.target.value;groupFilter="all";saveSettings();renderUnits();};
   document.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>{statusFilter=(statusFilter===b.dataset.filter&&b.dataset.filter!=="all")?"all":b.dataset.filter;renderUnits();});
   document.querySelectorAll("#viewseg button").forEach(b=>b.onclick=()=>{settings.view=b.dataset.v;saveSettings();renderUnits();});
+  document.querySelectorAll("#brandseg button").forEach(b=>b.onclick=()=>{brandFilter=b.dataset.b;groupFilter="all";renderUnits();});
+  {const bs=document.getElementById("brandsplit");if(bs)bs.onclick=()=>{settings.brandSplit=!settings.brandSplit;saveSettings();renderUnits();};}
   const aon=document.getElementById("allon"),aoff=document.getElementById("alloff");
   if(aon)aon.onclick=()=>allPower(true);if(aoff)aoff.onclick=()=>allPower(false);
 }
@@ -1386,7 +1451,7 @@ function renderUnits(){
    asks first, and really sends the command to every unit — it used to only flip the tiles. */
 function allPower(on){
   const scoped=(groupFilter!=="all"||statusFilter!=="all"||!!query);
-  const list=(scoped?filtered():units.slice()).filter(ctlAllowed);
+  const list=(scoped?filtered():allU()).filter(ctlAllowed);
   if(!list.length){toast("No units to change here");return;}
   if(!canReach()&&!isDemo()){toast(notConnMsg());return;}
   const where=scoped?(groupFilter!=="all"?"in “"+groupFilter+"”":"shown here"):"at this site";
@@ -1401,6 +1466,7 @@ function bindUnitClicks(){
   document.querySelectorAll("[data-id]").forEach(el=>el.onclick=e=>{
     const code=e.target.closest("[data-code]");
     if(code){e.stopPropagation();openError(code.dataset.code);return;}
+    if(String(el.dataset.id).startsWith("e:")){if(selMode){toast(BRANDS.econet.label+" systems are changed one at a time, from their own panel");return;}openUnit(el.dataset.id);return;}
     const id=+el.dataset.id;
     if(selMode){if(selSet.has(id))selSet.delete(id);else selSet.add(id);renderBody();renderBatchBar();return;}
     openDrawer(id);});
@@ -1417,7 +1483,7 @@ function renderBatchBar(){const bar=document.getElementById("batchbar");if(!bar)
     <button class="btn" id="bdel" ${n?'':'disabled style="opacity:.5"'} style="${n?'border-color:var(--err,#e5484d);color:var(--err,#e5484d)':''}">🗑 Delete ${n}</button>
     <button class="btn" id="btrend" ${n?'':'disabled style="opacity:.5"'}>📈 Trend ${n}</button>
     <button class="btn primary" id="bsend" ${n?'':'disabled style="opacity:.5"'}>Set &amp; send to ${n}…</button></div>`;
-  document.getElementById("bsel-all").onclick=()=>{filtered().forEach(u=>selSet.add(u.id));renderUnits();};
+  document.getElementById("bsel-all").onclick=()=>{filtered().filter(u=>brandOf(u)==="lg").forEach(u=>selSet.add(u.id));renderUnits();};
   document.getElementById("bsel-clear").onclick=()=>{selSet.clear();renderUnits();};
   const bs=document.getElementById("bsend");if(bs&&n)bs.onclick=batchModal;
   const bt=document.getElementById("btrend");if(bt&&n)bt.onclick=()=>openTrends([...selSet]);
@@ -3521,7 +3587,44 @@ function busUpdate(){
 function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.serial||{};
   const siteBaud=(bus.proto==="lg"&&CFG&&CFG.baud)?CFG.baud:null;   // LG generation sets the site baud (4800 gen4 / 9600 gen5)
   return {baud:s.baud||siteBaud||p.baud,dataBits:s.dataBits||p.dataBits,parity:s.parity||p.parity,stopBits:s.stopBits||p.stopBits};}
+/* Bus scan shows one wire at a time. With more than one make on the controller, a switch at the top picks which:
+   the LG bus, or any Rheem / Ruud system's own bus. */
+let busBrand="lg",ecoBusPaused=false;
+const ECO_WHO={0x340:"Cortex",0x380:"Thermostat",0x400:"Outdoor unit",0x1C0:"Furnace",0x1040:"Tankless heater",0x1200:"Electric tank",0x1280:"Heat pump heater"};
+function busSwitchHtml(){if(!(APPL&&can("eco_setup")&&ECOS.systems.length))return "";
+  return `<div class="segmented" id="bus-brand" style="margin-bottom:12px;flex-wrap:wrap">${[["lg","LG bus"]].concat(ECOS.systems.map(x=>[x.id,BRANDS.econet.short+" · "+x.name])).map(o=>`<button data-bb="${ue(o[0])}" class="${busBrand===o[0]?'on':''}">${ue(o[1])}</button>`).join("")}</div>`;}
+function busSwitchBind(){document.querySelectorAll("#bus-brand button").forEach(b=>b.onclick=()=>{busBrand=b.dataset.bb;ecoBusPaused=false;renderBusScan();});}
 function renderBusScan(){
+  if(busBrand!=="lg"&&!(APPL&&can("eco_setup")&&ECOS.systems.some(x=>x.id===busBrand)))busBrand="lg";
+  if(busBrand!=="lg"){renderEcoBus();return;}
+  renderBusScanLg();
+  const sw=busSwitchHtml();if(sw){document.getElementById("main").insertAdjacentHTML("afterbegin",sw);busSwitchBind();}}
+function ecoBusHead(){const el=document.getElementById("ecobus-head"),sys=ECOS.systems.find(x=>x.id===busBrand);if(!el||!sys)return;const st=ECO_STATE[sys.state]||[sys.state,"stop"];
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-weight:600">${ue(sys.name)}</div><span class="pill ${st[1]}">${st[0]}</span>
+      <span class="mono" style="font-size:12px;color:var(--text-dim)">38400 8N1 · heard ${sys.heard} · asked ${sys.sent}${sys.unanswered?" · "+sys.unanswered+" unanswered":""}${sys.junk?" · "+sys.junk+" stray bytes":""}</span><div style="flex:1"></div>
+      <button class="btn ${sys.on?"danger":"primary"}" data-ecot="on" data-id="${sys.id}">${sys.on?"■ Disconnect":"▶ Connect adapter"}</button>
+      <button class="btn" data-ecot="talk" data-id="${sys.id}" ${sys.on?"":"disabled"}>${sys.talk?"Switch to listening only":"Let Cortex talk on this bus"}</button>
+      <button class="btn" data-ecot="read" data-id="${sys.id}" ${ecoCan(sys)||(sys.talk&&sys.open)?"":"disabled"}>Read a value</button>
+      <button class="btn" id="ecobus-pause">${ecoBusPaused?"▶ Resume":"⏸ Pause"}</button></div>
+    ${sys.error?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${ue(sys.error)}</span></div>`:""}`;
+  el.querySelectorAll("button[data-ecot]").forEach(b=>b.onclick=()=>ecoTool(b.dataset.ecot,sys));
+  document.getElementById("ecobus-pause").onclick=()=>{ecoBusPaused=!ecoBusPaused;ecoBusHead();};}
+function renderEcoBus(){const m=document.getElementById("main"),sys=ECOS.systems.find(x=>x.id===busBrand);if(!sys){busBrand="lg";return renderBusScan();}
+  m.innerHTML=busSwitchHtml()+`<div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="tech-tag">TECH</span><h3>Live bus · ${BRANDS.econet.label}</h3></div><div class="labbody">
+      <div id="ecobus-head"></div>
+      <div style="font-size:12px;color:var(--text-faint);margin-top:8px">Every valid message on this system’s own wire, newest first. Connecting only listens; nothing is sent unless Cortex is allowed to talk.</div></div></div>
+    <div class="lab"><div class="labhead"><h3>Messages</h3><span id="ecobus-n" style="margin-left:auto;font-size:12px;color:var(--text-faint)"></span></div><div class="labbody" style="padding:0">
+      <div style="overflow:auto;max-height:62vh"><table class="ecobus"><thead><tr><th>Time</th><th>From</th><th>To</th><th>What, and the bytes</th></tr></thead><tbody id="ecobus-rows"><tr><td colspan="4" style="color:var(--text-faint)">Waiting…</td></tr></tbody></table></div></div></div>`;
+  busSwitchBind();ecoBusHead();ecoBusFill();}
+async function ecoBusFill(){const tb=document.getElementById("ecobus-rows");if(!tb||ecoBusPaused||busBrand==="lg")return;
+  try{const j=await (await fetch("/api/econet/systems/"+busBrand+"/frames",{cache:"no-store"})).json(),fr=j.frames||[];
+    const who=a=>(ECO_WHO[a]?ECO_WHO[a]+" ":"")+`<span style="color:var(--text-faint)">0x${a.toString(16).toUpperCase().padStart(3,"0")}</span>`;
+    const tb2=document.getElementById("ecobus-rows");if(!tb2)return;
+    tb2.innerHTML=fr.length?fr.map(f=>`<tr class="${f.dir==="tx"?"tx":""}"><td class="mono">${new Date(f.at).toLocaleTimeString()}</td><td>${f.dir==="tx"?"<b>Cortex</b>":who(f.from)}</td><td>${who(f.to)}</td><td style="white-space:normal">${ue(f.what)}<div class="mono hexcol">${f.hex}</div></td></tr>`).join("")
+      :`<tr><td colspan="4" style="color:var(--text-faint);white-space:normal">No messages yet. If this stays empty, nothing on the wire is a valid EcoNet message: check the cable, and swap the two wires (A and B).</td></tr>`;
+    const n=document.getElementById("ecobus-n");if(n)n.textContent=fr.length?("last "+fr.length):"";}catch(e){}}
+setInterval(()=>{if(BOOTED&&view==="busscan"&&busBrand!=="lg"&&document.visibilityState==="visible")ecoBusFill();},1500);
+function renderBusScanLg(){
   if(APPL&&can("busscan"))busListen();
   const supported=APPL||("serial" in navigator);const conn=APPL?!!LINK.open:bus.scanning;
   const linkTxt=!APPL?(conn?"reading…":"idle"):!LINK.on?"not connected":!LINK.open?(LINK.error?"adapter problem":"opening…"):LINK.mine?"bus tools on this screen":LINK.waiting?"waiting for the controller to pause…":LINK.holder==="screen"?"bus tools in use on another screen":LINK.polling?"controller polling "+(LINK.units||0)+" unit"+(LINK.units===1?"":"s"):"listening";
@@ -3945,14 +4048,13 @@ function renderAll(){
    outdoor unit, or a water heater) has its own bus and its own USB adapter on the controller, which does all
    the talking (appliance/econet.js, econetlink.js). This page only shows what the controller reports and
    passes on the changes a person makes. See docs/ECONET.md. */
-let ECOS={systems:[],catalog:null,ports:[],at:0,err:"",pend:{},open:{}};
-function ecoNav(){const el=document.getElementById("nav-econet");if(!el)return;const show=APPL&&can("eco")&&(ECOS.systems.length>0||can("eco_setup"));el.classList.toggle("hide",!show);if(!show&&view==="econet")view="units";}
+function ecoNav(){if(view==="econet"&&!(APPL&&can("eco_setup")))view="units";}     // the setup page is reached from Settings ▸ Equipment, technicians only
 async function ecoPull(){if(!APPL||!currentUser)return;
   try{const r=await fetch("/api/econet",{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();ECOS.systems=j.systems||[];ECOS.at=Date.now();ECOS.err="";
     if(!ECOS.catalog&&ECOS.systems.length){try{ECOS.catalog=(await (await fetch("/api/econet/catalog")).json()).kinds;}catch(e){}}
   }catch(e){ECOS.err=e.message;}
-  ecoNav();if(view==="econet"){const a=document.activeElement;if(!(a&&/^(INPUT|SELECT)$/.test(a.tagName)&&a.closest&&a.closest("#main")))renderEconet();}}
-setInterval(()=>{if(BOOTED&&APPL&&document.visibilityState==="visible"&&(view==="econet"?Date.now()-ECOS.at>4000:Date.now()-ECOS.at>60000))ecoPull();},2000);
+  ecoNav();ecoRefresh();}
+setInterval(()=>{if(BOOTED&&APPL&&document.visibilityState==="visible"&&Date.now()-ECOS.at>((view==="econet"||ECOS.modal||(view==="busscan"&&busBrand!=="lg"))?4000:(view==="units"||view==="map")?10000:60000))ecoPull();},2000);
 const ECO_STATE={live:["Live","run"],listening:["Listening only","stop"],starting:["Starting…","stop"],silent:["Nothing heard yet","noresp"],unanswered:["Not answering","noresp"],opening:["Opening adapter…","stop"],problem:["Adapter problem","err"],off:["Off","stop"]};
 function ecoPoints(sys){return (ECOS.catalog&&ECOS.catalog[sys.kind]&&ECOS.catalog[sys.kind].points)||[];}
 function ecoRole(sys,role){return ecoPoints(sys).find(p=>p.role===role)||null;}
@@ -3961,7 +4063,7 @@ function ecoFmt(p,x){if(!x)return "—";if(p.kind==="num")return x.v==null?"—"
 const ecoCan=sys=>can("eco_ctl")&&sys.talk&&sys.open&&(sys.state==="live"||sys.state==="starting"||sys.state==="unanswered");
 let ecoSendT={};
 /* A change: shown at once, sent once after the person stops tapping, then replaced by what the equipment reports. */
-function ecoSet(sys,p,v,text){const k=sys.id+":"+p.n;ECOS.pend[k]={v,text:text||null,at:Date.now()};renderEconet();clearTimeout(ecoSendT[k]);
+function ecoSet(sys,p,v,text){const k=sys.id+":"+p.n;ECOS.pend[k]={v,text:text||null,at:Date.now()};ecoRefresh(true);clearTimeout(ecoSendT[k]);
   ecoSendT[k]=setTimeout(async()=>{try{const r=await fetch("/api/econet/systems/"+sys.id+"/write",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:p.n,value:v})});const j=await r.json();
       if(!j.ok){delete ECOS.pend[k];toast("Couldn’t change “"+p.label+"”: "+(j.err||"no answer"));}else{ECOS.pend[k].at=Date.now();toast(p.label+" → "+(text||v+(p.unit?" "+p.unit:"")));}}
     catch(e){delete ECOS.pend[k];toast("Couldn’t reach the controller");}
@@ -3996,12 +4098,16 @@ function ecoCard(sys){const st=ECO_STATE[sys.state]||[sys.state,"stop"],pts=ecoP
       <span style="font-size:11px;color:var(--text-faint);align-self:center">heard ${sys.heard} · asked ${sys.sent}${sys.unanswered?" · "+sys.unanswered+" unanswered":""}</span></div>`:""}</div>`;}
 function renderEconet(){const m=document.getElementById("main");if(!APPL){m.innerHTML=`<div class="note-box">Rheem / Ruud systems are shown when Cortex is opened from a controller.</div>`;return;}
   if(!ECOS.at){m.innerHTML=`<div class="note-box">Loading…</div>`;ecoPull();return;}
-  m.innerHTML=`<div class="toolbar" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:19px">Rheem / Ruud</h2><span style="color:var(--text-faint);font-size:13px">EcoNet systems on this controller</span>
+  m.innerHTML=`<div class="toolbar" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn" id="eco-back">← Indoor units</button><h2 style="margin:0;font-size:19px">Rheem / Ruud setup</h2><span style="color:var(--text-faint);font-size:13px">Each system here also shows as a unit on Indoor units and the Building map</span>
       <div style="flex:1"></div>${can("eco_setup")?`<button class="btn primary" id="eco-add">+ Add a system</button>`:""}</div>
     ${ECOS.err?`<div class="note-box warn" style="margin-bottom:12px">Can’t reach the controller (${ue(ECOS.err)}). Showing the last readings.</div>`:""}
     ${ECOS.systems.length?`<div class="eco-grid">${ECOS.systems.map(ecoCard).join("")}</div>`
       :`<div class="note-box">No Rheem / Ruud system has been added yet.${can("eco_setup")?" Plug a USB RS-485 adapter into the controller, connect it to the equipment’s EcoNet service port, then press <b>Add a system</b>.":" A technician can add one."}</div>`}
     ${can("eco_setup")?`<div class="note-box" style="margin-top:14px;font-size:12.5px"><b>How a system is brought up.</b> ① <b>Connect adapter</b>: Cortex only listens, and shows what the thermostat and equipment say to each other. Nothing is sent. ② <b>Let Cortex talk</b>: Cortex also asks for values and can send changes. It never sends anything until it has heard a good message, which proves the wiring is right. ③ Changes are sent only when someone makes one here.</div>`:""}`;
+  ecoBind(m);
+  const add=document.getElementById("eco-add");if(add)add.onclick=ecoAdd;
+  const bk=document.getElementById("eco-back");if(bk)bk.onclick=()=>{view="units";renderAll();};}
+function ecoBind(m){
   const sysOf=id=>ECOS.systems.find(x=>x.id===id),ptOf=(sys,n)=>ecoPoints(sys).find(p=>p.n===n&&p.w);
   m.querySelectorAll("button[data-eco]").forEach(b=>b.onclick=()=>{const sys=sysOf(b.dataset.eco),p=sys&&ptOf(sys,b.dataset.n);if(!p)return;
     if(b.dataset.v!=null){ecoSet(sys,p,+b.dataset.v,p.options[b.dataset.v]);return;}
@@ -4009,7 +4115,27 @@ function renderEconet(){const m=document.getElementById("main");if(!APPL){m.inne
   m.querySelectorAll("select[data-ecosel]").forEach(el=>el.onchange=()=>{const sys=sysOf(el.dataset.ecosel),p=sys&&ptOf(sys,el.dataset.n);if(p)ecoSet(sys,p,+el.value,p.options[el.value]);el.blur();});
   m.querySelectorAll("details[data-ecod]").forEach(d=>d.ontoggle=()=>{ECOS.open[d.dataset.ecod]=d.open;});
   m.querySelectorAll("button[data-ecot]").forEach(b=>b.onclick=()=>ecoTool(b.dataset.ecot,sysOf(b.dataset.id)));
-  const add=document.getElementById("eco-add");if(add)add.onclick=ecoAdd;}
+  const gs=m.querySelector("#eco-grp-save");if(gs)gs.onclick=async()=>{try{await ecoPost({id:gs.dataset.id,group:m.querySelector("#eco-grp").value,sub:m.querySelector("#eco-sub").value});toast("Moved");}catch(e){toast(e.message);}ecoPull();};}
+/* The unit panel for a Rheem / Ruud system: opened from its card on Indoor units or its marker on the map. */
+function openEco(id){const sys=ECOS.systems.find(x=>x.id===id);if(!sys)return;ECOS.modal=id;
+  modal(head(ue(sys.name))+`<div class="modal-body" id="eco-modal"></div>`,true);ecoModalFill();
+  if(!ECOS.catalog)fetch("/api/econet/catalog").then(r=>r.json()).then(j=>{ECOS.catalog=j.kinds;ecoModalFill();}).catch(()=>{});}
+function ecoModalFill(){const el=document.getElementById("eco-modal");if(!el){ECOS.modal=null;return;}const sys=ECOS.systems.find(x=>x.id===ECOS.modal);if(!sys){ECOS.modal=null;closeModal();return;}
+  const a=document.activeElement;if(a&&/^(INPUT|SELECT)$/.test(a.tagName)&&el.contains(a))return;             // never rebuild under someone typing
+  const groups=[...new Set(allU().map(grpOf))].filter(g=>g!=="Ungrouped");
+  el.innerHTML=ecoCard(sys)+(can("unit_edit")?`<div class="eco-row" style="margin-top:10px;flex-wrap:wrap"><label>Group${tip("Where this system sits on Indoor units and the Building map. Use the same group names as your other units to keep a floor or area together.")}</label>
+      <input class="inp" id="eco-grp" list="eco-grps" maxlength="60" value="${ue(sys.group||"")}" placeholder="Group" style="margin:0;width:150px"><input class="inp" id="eco-sub" maxlength="60" value="${ue(sys.sub||"")}" placeholder="Sub-group (optional)" style="margin:0;width:150px">
+      <datalist id="eco-grps">${groups.map(g=>`<option value="${ue(g)}">`).join("")}</datalist><button class="btn" id="eco-grp-save" data-id="${sys.id}">Move</button></div>`:"");
+  ecoBind(el);}
+/* Something about a Rheem / Ruud system changed: redraw whatever is showing it. */
+let ecoSig="";
+function ecoRefresh(force){const sig=JSON.stringify(ecoUnits().map(u=>[u.id,u.label,u.grp,u.subgrp,u.on,u.mode,u.setF,u.coolF,u.heatF,u.room,u.err,u.code,u.offline,u.doing,u.sys.state])),ch=force||sig!==ecoSig;ecoSig=sig;
+  const a=document.activeElement,typing=a&&/^(INPUT|SELECT)$/.test(a.tagName)&&a.closest&&a.closest("#main");
+  if(view==="econet"){if(!typing)renderEconet();}
+  else if(view==="units"&&ch){if(typing)renderBody();else renderUnits();}
+  else if(view==="map"&&ch&&!mapEdit&&!fpDrag)renderMap();
+  else if(view==="busscan"&&busBrand!=="lg"&&!typing)ecoBusHead();
+  ecoModalFill();}
 async function ecoPost(body){const r=await fetch("/api/econet/systems",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.err||("HTTP "+r.status));return j;}
 async function ecoTool(what,sys){if(!sys||!can("eco_setup"))return;
   try{
@@ -4282,10 +4408,11 @@ let setTab="display";
 function openSettings(){setTab="display";drawSettings();}
 function drawSettings(){
   if(setTab==="layout"&&!can("map_edit"))setTab="display";            // physical wiring (addresses) is not a customer page
-  const tabs=[["display","🎨 Display",false]].concat(can("map_edit")?[["layout","🔌 Layout",false]]:[],[["updates","⬇ Updates",false],["advanced","⚙ Advanced",!canAdvTab()],["users","👥 Users",!can("users")],["about","ℹ About",false]]);
+  const tabs=[["display","🎨 Display",false]].concat(can("map_edit")?[["layout","🔌 Layout",false]]:[],(can("busscan")||can("eco_setup")||can("settings_adv"))?[["equipment","🏭 Equipment",false]]:[],[["updates","⬇ Updates",false],["advanced","⚙ Advanced",!canAdvTab()],["users","👥 Users",!can("users")],["about","ℹ About",false]]);
   let body="";
   if(setTab==="display")body=displayTab();
   else if(setTab==="layout")body=layoutTab();
+  else if(setTab==="equipment")body=equipmentTab();
   else if(setTab==="updates")body=updatesTab();
   else if(setTab==="advanced")body=canAdvTab()?advancedTab():lockedTab("Your role does not include Advanced settings.","admin");
   else if(setTab==="users")body=can("users")?usersTab():lockedTab("Your role does not include managing users and roles.","admin");
@@ -4415,10 +4542,7 @@ function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];c
 function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"],A=can("settings_adv");return `${A?`
   <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Site</div>
   ${row("Site name",ue((CFG&&CFG.site&&CFG.site.name)||"—"),canAdmin()?"<button class=\"linklike\" onclick=\"setSiteName()\">Rename</button>":"<span style=\"color:var(--text-faint);font-size:12px\">admins only</span>")}
-  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Manufacturer</div>
-  <div class="sd" style="margin-bottom:8px">Cortex controls <b>LG (LGAP)</b> today. Other brands are in development.</div>
-  <div class="setrow"><div><div class="sl">LG (LGAP)</div><div class="sd mono">RS485 · full control</div></div><button class="toggle on" disabled style="opacity:.8"></button></div>
-  ${["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"].map(k=>`<div class="setrow" style="opacity:.55"><div><div class="sl">${PROTOCOLS[k].label}</div><div class="sd" style="color:var(--accent)">Coming soon</div></div></div>`).join("")}
+  ${row("Manufacturers","Which makes of equipment this controller runs, and setting up another one",`<button class="linklike" onclick="setTab='equipment';drawSettings()">Open</button>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
   ${row("Roles and permissions","What each kind of user can see and do, including whether customers can control units",`<button class="linklike" onclick="setTab='users';drawSettings()">Open</button>`)}
   ${row("Setup wizard","Run the first-time setup again. Keeps your units, names, schedules and floor plans; replaces the site details, logins and access codes.",`<button class="linklike" onclick="closeModal();startWizard()">Re-run setup</button>`)}
@@ -4516,6 +4640,16 @@ function deleteRole(id,btn){const r=roleOf(id);if(!r)return;const n=users.filter
   if(n){toast(n+" user"+(n===1?" has":"s have")+" the role “"+r.name+"”. Give "+(n===1?"that user":"them")+" another role first.");return;}
   if(btn.dataset.armed!=="1"){btn.dataset.armed="1";btn.textContent="Tap again to delete";return;}
   CFG.roles=roles().filter(x=>x.id!==id);saveCfg(CFG);drawSettings();toast("Role “"+r.name+"” deleted");}
+/* Settings ▸ Equipment: every make of equipment this controller can run, in one place. A make that is not set up
+   yet offers "Set up now"; the ones Cortex cannot speak to yet say so. */
+function equipmentTab(){const nLg=units.length,nEco=(typeof ECOS!=="undefined"?ECOS.systems.length:0);
+  const go=(label,act,ok)=>ok?`<button class="btn ${/Set up/.test(label)?"primary":""}" data-eq="${act}">${label}</button>`:`<span style="font-size:12px;color:var(--text-faint)">ask a technician</span>`;
+  const card=(name,proto,status,ok,btn)=>`<div class="rolecard"><div style="flex:1;min-width:0"><div class="rn">${name} <span class="rchip" style="margin-left:6px;${ok?"background:var(--ok-soft,var(--accent-soft));color:var(--ok)":""}">${ok?"set up":"not set up"}</span></div><div class="rd">${proto}</div><div class="rd" style="color:var(--text-dim);margin-top:3px">${status}</div></div>${btn}</div>`;
+  return `<div class="sd" style="margin-bottom:12px">One Cortex runs the whole building. Every make set up here shows its equipment together on Indoor units and the Building map.</div>
+  ${card("LG","LGAP · RS-485 central-control bus · one bus for the building",nLg?`${nLg} indoor unit${nLg===1?"":"s"} · adapter ${APPL?(LINK.open?"connected":"not connected"):"—"}`:"No LG units yet. A technician connects the adapter and finds the units.",nLg>0,go(nLg?"Open Bus scan":"Set up now","lg",can("busscan")))}
+  ${card("Rheem / Ruud","EcoNet · RS-485 · one adapter per system",!APPL?"Available when Cortex is opened from a controller.":nEco?`${nEco} system${nEco===1?"":"s"}: ${ECOS.systems.map(x=>ue(x.name)).join(", ")}`:"No Rheem / Ruud system yet. A technician plugs in an adapter and adds the system.",nEco>0,APPL?go(nEco?"Manage":"Set up now","econet",can("eco_setup")):"")}
+  <div style="margin:18px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">In development</div>
+  ${["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"].map(k=>`<div class="setrow" style="opacity:.55"><div><div class="sl">${PROTOCOLS[k].label}</div><div class="sd" style="color:var(--accent)">Coming soon</div></div></div>`).join("")}`;}
 function lockedTab(msg,kind){return `<div style="text-align:center;padding:28px 10px">
   <div style="font-size:30px">🔒</div><div style="margin:10px 0 4px;font-weight:500">${msg}</div>
   <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Enter the ${kind} passcode to unlock for this session.</div>
@@ -4601,6 +4735,7 @@ function wireSettings(){fillVersion();
   mroot.querySelectorAll("[data-accent]").forEach(b=>b.onclick=()=>{settings.accent=b.dataset.accent;saveSettings();applyTheme();drawSettings();refreshBackground();});
   const ver=document.getElementById("verline");
   if(ver)ver.onclick=()=>{aboutTaps++;if(aboutTaps>=7){aboutTaps=0;askPin("tech");}};
+  mroot.querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{closeModal();view=b.dataset.eq==="lg"?"busscan":"econet";if(view==="busscan")busBrand="lg";renderAll();});
   const add=document.getElementById("adduser");if(add)add.onclick=()=>editUser(null);
   const addr=document.getElementById("addrole");if(addr)addr.onclick=()=>editRole(null);
   mroot.querySelectorAll("[data-redit]").forEach(b=>b.onclick=()=>editRole(b.dataset.redit));
@@ -4876,20 +5011,26 @@ function fpRemove(leaf){const f=fpGet(leaf);if(!f||!can("map_edit"))return;
 function fpImgFail(img){const st=img.closest(".fpstage");if(!st||st.classList.contains("noimg"))return;st.classList.add("noimg");img.remove();
   st.insertAdjacentHTML("afterbegin",`<div style="padding:14px;font-size:13px;color:#5a6372">The floor-plan picture for this group couldn't be loaded on this device${can("map_edit")?" — use Edit layout ▸ Replace picture to add it again":""}.</div>`);}
 function mapStateTxt(u){return u.offline?"No response":u.err?(u.code||"error"):(u.on?((MODES.find(m=>m[0]===u.mode)||["",u.mode])[1]+" · "+spDisp(activeC(u))+"°"+settings.unit):"Off");}
-function mapTile(u){const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:ue(mapStateTxt(u));
+function mapTile(u){if(brandOf(u)==="econet")return `<div class="umtile" data-id="${u.id}">
+    <div class="umhead"><span class="umname" title="${ue(dispName(u))}">${ue(dispName(u))}</span><span class="umstate">${u.err?`<span style="color:var(--err)">Alarm</span>`:ue(ecoStateTxt(u))}</span></div>
+    <div class="umviz"><div style="width:46%;margin:14% auto 0">${ecoIcon(u)}</div></div>
+    <div class="umkind"><span>${ue(u.sys.kindLabel)}</span><span>${u.room!=null?(u.sys.kind==="hvac"?"room ":"")+ecoT(u.room)+"°"+settings.unit:"&nbsp;"}</span></div></div>`;
+  const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:ue(mapStateTxt(u));
   return `<div class="umtile" data-id="${u.id}">
     <div class="umhead"><span class="umname" title="${ue(dispName(u))}">${ue(dispName(u))}</span><span class="umstate">${stateTxt}</span></div>
     <div class="umviz">${unitGraphic(u)}</div>
     <div class="umkind"><span>${KINDS[u.kind||'wall']||KINDS.wall}</span><span>${u.on?('fan '+ue(u.fan)+' · room '+temp(u.room)):'&nbsp;'}</span></div>
   </div>`;}
-function fpMarker(u,x,y,rot){const c=u.offline?"var(--warn)":u.err?"var(--err)":(u.on?modeColor(u):"var(--stopped)");rot=rot||0;
+function fpMarker(u,x,y,rot){if(brandOf(u)==="econet"){const c=u.offline?"var(--warn)":u.err?"var(--err)":(u.on?"var(--accent)":"var(--stopped)");
+    return `<div class="fpmark" data-id="${u.id}" style="left:${(x*100).toFixed(2)}%;top:${(y*100).toFixed(2)}%;--mk:${c}" title="${ue(dispName(u)+" — "+ecoStateTxt(u))}"><div class="fpviz"><div style="width:62%;height:62%;margin:19%">${ecoIcon(u)}</div></div><div class="fpname">${ue(dispName(u))}</div></div>`;}
+  const c=u.offline?"var(--warn)":u.err?"var(--err)":(u.on?modeColor(u):"var(--stopped)");rot=rot||0;
   const rotBtn=mapEdit?`<button class="fprot" title="Rotate (for a unit on a different wall)">↻</button>`:'';
   return `<div class="fpmark" data-id="${u.id}" style="left:${(x*100).toFixed(2)}%;top:${(y*100).toFixed(2)}%;--mk:${c}" title="${ue(dispName(u)+" — "+mapStateTxt(u))}"><div class="fpviz" style="transform:rotate(${rot}deg)">${unitGraphic(u,'',true)}</div>${rotBtn}<div class="fpname">${ue(dispName(u))}</div></div>`;}
 function renderMap(){renderGroupNav();
   if(fpDrag)return;                                            // never rebuild the map under a finger mid-drag
   if(!can("map_edit"))mapEdit=false;
-  if(!units.length){main.innerHTML=`<div class="cyc-note" style="display:block">No units yet${isTechView()?" — add them from Bus scan (discover → import)":" — your installer adds them when the system is set up"}.</div>`;return;}
-  const sel=(groupFilter==="all")?units.slice():units.filter(u=>catVals(u,"location").includes(groupFilter));
+  if(!allU().length){main.innerHTML=`<div class="cyc-note" style="display:block">No units yet${isTechView()?" — add them from Bus scan (discover → import)":" — your installer adds them when the system is set up"}.</div>`;return;}
+  const sel=(groupFilter==="all")?allU():allU().filter(u=>catVals(u,"location").includes(groupFilter));
   const leaves=[...new Set(sel.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const enc=encodeURIComponent;
   main.innerHTML=`<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap">
@@ -4905,7 +5046,7 @@ function renderMap(){renderGroupNav();
       let inner;
       if(fp){
         inner=`<div class="fpstage ${mapEdit?'edit':''}" data-leaf="${enc(leaf)}"><img class="fpimg" src="${fpSrc(fp)}" alt="Floor plan — ${ue(leaf)}" draggable="false" onerror="fpImgFail(this)">${(mapEdit&&fpSnapOn)?`<div class="fpgrid" style="background-size:${(100/fpGrid).toFixed(4)}% ${(100/fpGrid*((fp.w||1)/(fp.h||1))).toFixed(4)}%"></div>`:''}${placed.map(u=>fpMarker(u,fp.pos[u.name][0],fp.pos[u.name][1],fp.pos[u.name][2]||0)).join("")}</div>`;
-        if(mapEdit)inner+=`<div class="fptray"><div class="tl">${loose.length?`Not on the plan yet · drag onto the picture (${loose.length})`:'Every unit in this group is on the plan'}</div><div class="chips">${loose.map(u=>`<span class="fpchip" data-id="${u.id}"><span class="ugmini">${unitGraphic(u,'',true)}</span>${ue(dispName(u))}</span>`).join("")}</div></div>`;
+        if(mapEdit)inner+=`<div class="fptray"><div class="tl">${loose.length?`Not on the plan yet · drag onto the picture (${loose.length})`:'Every unit in this group is on the plan'}</div><div class="chips">${loose.map(u=>`<span class="fpchip" data-id="${u.id}"><span class="ugmini">${brandOf(u)==="econet"?ecoIcon(u):unitGraphic(u,'',true)}</span>${ue(dispName(u))}</span>`).join("")}</div></div>`;
         else if(loose.length)inner+=`<div class="mini-lbl">Not on the plan yet</div><div class="ummap">${loose.map(mapTile).join("")}</div>`;
       }else inner=`<div class="ummap">${us.map(mapTile).join("")}</div>`;
       return `<div class="floor-wrap" style="margin-bottom:16px" data-leaf="${enc(leaf)}"><div class="fphead"><span class="ft">${ue(leaf)}</span><span class="fc">${us.length} unit${us.length!==1?"s":""}</span>${tools}</div><div class="fpslot">${inner}</div></div>`;}).join("")+
@@ -4917,15 +5058,15 @@ function renderMap(){renderGroupNav();
   const sns=document.getElementById("snapslider");if(sns)sns.oninput=()=>{fpGrid=Math.max(8,Math.min(120,+sns.value||40));renderMap();};
   document.querySelectorAll("[data-fpup]").forEach(b=>b.onclick=()=>fpPick(decodeURIComponent(b.dataset.fpup)));
   document.querySelectorAll("[data-fprm]").forEach(b=>b.onclick=()=>fpRemove(decodeURIComponent(b.dataset.fprm)));
-  document.querySelectorAll(".umtile[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));
+  document.querySelectorAll(".umtile[data-id]").forEach(p=>p.onclick=()=>openUnit(p.dataset.id));
   if(mapEdit){fpBindDrag();
     document.querySelectorAll(".fpstage.edit .fprot").forEach(b=>{
       b.onpointerdown=e=>{e.stopPropagation();};                               // don't start a drag
       b.onclick=e=>{e.stopPropagation();const mk=b.closest(".fpmark"),stage=b.closest(".fpstage");if(!mk||!stage)return;
-        const u=units.find(x=>x.id===+mk.dataset.id),f=fpGet(decodeURIComponent(stage.dataset.leaf));
+        const u=unitById(mk.dataset.id),f=fpGet(decodeURIComponent(stage.dataset.leaf));
         if(!u||!f||!f.pos||!f.pos[u.name])return;
         const pos=f.pos[u.name];pos[2]=(((pos[2]||0)+90)%360);saveCfg(CFG);renderMap();};});}
-  else document.querySelectorAll(".fpmark[data-id]").forEach(p=>p.onclick=()=>openDrawer(+p.dataset.id));}
+  else document.querySelectorAll(".fpmark[data-id]").forEach(p=>p.onclick=()=>openUnit(p.dataset.id));}
 /* Drag units in Edit-layout mode. Pointer events cover mouse, touch and pen with one code path; the
    marker follows the pointer snapped to the grid, and the position is saved on release. A drag that
    ends off the picture takes the unit off the plan (back to the tray). A plain tap moves nothing. */
@@ -4933,7 +5074,7 @@ function fpBindDrag(){
   document.querySelectorAll(".fpstage.edit .fpmark,.fptray .fpchip").forEach(el=>{
     el.onpointerdown=e=>{
       if(!mapEdit||!can("map_edit")||(e.pointerType==="mouse"&&e.button!==0))return;
-      const u=units.find(x=>x.id===+el.dataset.id),wrap=el.closest(".floor-wrap"),stage=wrap&&wrap.querySelector(".fpstage");
+      const u=unitById(el.dataset.id),wrap=el.closest(".floor-wrap"),stage=wrap&&wrap.querySelector(".fpstage");
       if(!u||!stage)return;const leaf=decodeURIComponent(stage.dataset.leaf),f=fpGet(leaf);if(!f)return;
       e.preventDefault();
       const fromTray=el.classList.contains("fpchip");let mk=fromTray?null:el,moved=false;
@@ -5160,7 +5301,7 @@ const PERMS=[                                              // [key, label, what 
   ["sched_edit","Edit schedules","Create, change, switch on or off, and delete schedules","Pages"],
   ["events","Fault history","Open Fault history and its reports","Pages"],
   ["device","Device health","Open the controller's Device health page","Pages"],
-  ["eco","Rheem / Ruud","Open the Rheem / Ruud page","Pages"],
+  ["eco","Rheem / Ruud systems","See Rheem / Ruud systems on Indoor units and the Building map","Pages"],
   ["eco_ctl","Control Rheem / Ruud","Change mode, temperatures and fan on Rheem / Ruud systems","Pages"],
   ["cycle","Outdoor / cycle","Outdoor unit data, the refrigerant diagram and health checks","Technician tools"],
   ["busscan","Bus scan","Connect the adapter, find units, start and stop polling, and the raw bus tools","Technician tools"],

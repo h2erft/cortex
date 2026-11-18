@@ -115,7 +115,7 @@ function createSystem(cfg, io) {
     for (const p of K.points) { const v = values.get(key(p.at, p.n)); if (!v || v.type === 'none') continue;
       vals[p.n] = { v: v.type === 'num' ? (v.value == null ? null : Math.round(v.value * 100) / 100) : v.value, text: v.type === 'num' ? null : (p.options && v.value != null && p.options[v.value] != null ? p.options[v.value] : v.text), age: Math.round((t - v.at) / 1000), stale: t - v.at > STALE }; }
     const alarms = ['ALARM_01', 'ALARM_02', 'ALARM_03', 'ALARM_04'].map(n => vals[n] && !vals[n].stale ? vals[n].text : null).filter(a => a && !/^(none|no alarm|-+)?$/i.test(a));
-    return { id: cfg.id, name: cfg.name, kind: cfg.kind, kindLabel: K.label, port: cfg.port, on: !!cfg.on, talk: !!cfg.talk, open: !!S.port, opening: S.opening, error: cfg.on ? S.error : null,
+    return { id: cfg.id, name: cfg.name, group: cfg.group || '', sub: cfg.sub || '', kind: cfg.kind, kindLabel: K.label, port: cfg.port, on: !!cfg.on, talk: !!cfg.talk, open: !!S.port, opening: S.opening, error: cfg.on ? S.error : null,
       heard: S.heard, hearing: !!S.lastRx && t - S.lastRx < 15000, answering: !!S.lastAnswer && t - S.lastAnswer < 90000, sent: S.sent, unanswered: S.unanswered, junk: S.junk,
       state: !cfg.on ? 'off' : !S.port ? (S.error ? 'problem' : 'opening') : !S.heard ? 'silent' : !cfg.talk ? 'listening' : (S.lastAnswer && t - S.lastAnswer < 90000 ? 'live' : (S.sent > 3 ? 'unanswered' : 'starting')), values: vals, alarms }; }
   return { cfg, start, stop, setFlags, write, readOne, info, frames: () => frames.slice(0, 120), state: S, tick, cycle };

@@ -531,3 +531,13 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
   standard roles should have it). Never compare `currentUser.role` to a name; the only fixed id is
   `"owner"` (shown as root).
 - The user asked for the label "root" (not "owner"). See `docs/ROLES.md`.
+
+## Addendum: one home for every manufacturer (v1.7.1-beta.8)
+
+The user's rule: **one Cortex per building, every make in it together, never a compartment per brand.**
+- Add a make by writing an adapter like `ecoAsUnit()` (its equipment in the unit shape, with `brand`),
+  adding it to `BRANDS`, `allU()` and `brandsHere()`, giving it a card / row / map tile, a row in
+  `equipmentTab()` and an entry in the Bus scan switch. Do not add a nav tab for a brand.
+- Anything that draws or groups units uses `allU()`. Anything that transmits LGAP must filter
+  `brandOf(u)==="lg"` (`ctlAllowed()` already refuses other makes).
+- Brands not built yet stay listed as "Coming soon" in Settings ▸ Equipment.

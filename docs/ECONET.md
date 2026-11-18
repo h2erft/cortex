@@ -64,8 +64,9 @@ plug. Swapped A and B is the usual reason nothing is heard.
   `DELETE /api/econet/systems/:id`, `POST …/:id/write`, `POST …/:id/read`, `GET …/:id/frames`.
 - The LG link refuses an adapter that belongs to an EcoNet system and the other way round. With more
   than one adapter plugged in, set the LG adapter by its stable name in the controller settings.
-- `cortex.html`: the **Rheem / Ruud** page. Everyone signed in can see and control a system;
-  adding, connecting and the message tools are technician-only.
+- `cortex.html`: since 1.7.1-beta.8 there is no separate page. `ecoAsUnit()` turns each system into a
+  unit, `allU()` joins it to the LG units, and Indoor units, the Building map, the group tree and the
+  tiles all draw from that. Setup lives in Settings ▸ Equipment; live messages in Bus scan.
 
 Not done yet: alarms in Fault history and notifications, schedules, the fleet console (Cortex Command),
 multi-zone, backup of the system list.
