@@ -444,7 +444,7 @@ function renderAlerts(){
   const spark=h=>{const mx=Math.max(1,...h);return `<svg width="150" height="26" viewBox="0 0 150 26">${h.map((v,i)=>`<rect x="${i*5}" y="${26-Math.max(v/mx*24,v?3:1)}" width="4" height="${Math.max(v/mx*24,v?3:1)}" fill="${v>0?'var(--err)':'var(--border)'}" rx="1"/>`).join("")}</svg>`;};
   const off=offenders(30),omx=Math.max(1,...off.map(o=>o.n)),open=items.filter(i=>!i.ack&&!i.snz).length;
   $("tab-alerts").innerHTML=`<h2 class="sec" style="margin-top:4px">Active alerts${items.length?` · ${open} new${items.length-open?", "+(items.length-open)+" in hand":""}`:""}</h2>${rows}
-    <h2 class="sec">Repeat offenders · last 30 days</h2><div class="panel">${off.length?off.map(o=>`<div class="trow"><div class="tinfo"><div class="tname">${esc(o.odu?"Outdoor unit 0x"+Number(o.addr).toString(16).toUpperCase():unitName(o.s,o.addr))} <span class="tsub" style="font-weight:400">· ${esc(o.s.name)}</span></div>
+    <h2 class="sec">Repeat offenders · last 30 days</h2><div class="panel">${off.length?off.map(o=>`<div class="trow"><div class="tinfo"><div class="tname">${esc(o.ext?o.ext:o.odu?"Outdoor unit 0x"+Number(o.addr).toString(16).toUpperCase():unitName(o.s,o.addr))} <span class="tsub" style="font-weight:400">· ${esc(o.s.name)}</span></div>
         <div class="tsub">${[...o.codes.entries()].sort((a,b)=>b[1]-a[1]).map(c=>esc(c[0])+(c[1]>1?" ×"+c[1]:"")).join(" · ")} · last ${fmtTime(o.last)}</div></div>
         <div class="obar"><i style="width:${Math.round(o.n/omx*100)}%"></i></div><b style="min-width:54px;text-align:right">${o.n} faults</b></div>`).join(""):'<div class="trow"><div class="tsub">Nothing has faulted twice in the last 30 days.</div></div>'}</div>
     <h2 class="sec">Faults · last 30 days</h2><div class="panel">${DB.sites.length?DB.sites.map(s=>{const h=siteErrHist(s);
@@ -771,11 +771,14 @@ async function importData(file){if(!file)return;try{const j=JSON.parse(await fil
    Everything here works from what each controller already reports. Nothing is sent to equipment. */
 function unitName(s,addr){const L=LIVE[s.id]||{},u=(L.list||[]).find(x=>x.a===addr);return u?u.n:"Unit 0x"+Number(addr).toString(16).toUpperCase().padStart(2,"0");}
 function snoozed(s){return ((DB.snooze||{})[s.id]||0)>Date.now();}
+/* The short code to show for a fault, whatever make it came from. A Rheem / Ruud alarm arrives as its full text
+   ("A021_A Restricted Airflow…"); the code word at the front is the tag. */
+function evTag(e){if(!e.brand)return e.code||"Error";const m=/\b[AST][ _-]?\d{3}(?:[ _-]?[OAFCSZ]\b)?/i.exec(String(e.code||""));return m?m[0].toUpperCase():"Alarm";}
 function alertItems(){const items=[];
   DB.sites.forEach(s=>{const L=LIVE[s.id]||{};
     if(siteUrl(s)&&!s.online)items.push({s,key:"off:"+s.id,cls:"off",tag:"Offline",t:"Controller is not answering",sub:(s.seen?"Last seen "+fmtTime(s.seen)+". ":"")+"Check the site's internet or Tailscale link and that the controller has power.",w:s.seen||0});
-    (L.events||[]).filter(e=>!e.cleared).forEach(e=>items.push({s,key:"ev:"+s.id+":"+(e.id||(e.kind+e.addr+"@"+e.at)),cls:e.kind==="silent"?"warn":"err",tag:e.kind==="silent"?"Silent":(e.code||"Error"),
-      t:(e.kind==="odu"?"Outdoor unit 0x"+Number(e.addr).toString(16).toUpperCase():unitName(s,e.addr))+(e.kind==="silent"?" stopped answering":" in error"),sub:"since "+fmtTime(e.at),w:e.at}));
+    (L.events||[]).filter(e=>!e.cleared).forEach(e=>items.push({s,key:"ev:"+s.id+":"+(e.id||(e.kind+e.addr+"@"+e.at)),cls:e.kind==="silent"?"warn":"err",tag:e.kind==="silent"?"Silent":evTag(e),
+      t:(e.brand?(e.name||"Rheem / Ruud system"):e.kind==="odu"?"Outdoor unit 0x"+Number(e.addr).toString(16).toUpperCase():unitName(s,e.addr))+(e.kind==="silent"?" stopped answering":(e.brand?" alarm":" in error")),sub:"since "+fmtTime(e.at),w:e.at}));
     (L.adv||[]).forEach(a=>items.push({s,key:"adv:"+s.id+":"+(a.key||a.id||a.title),cls:"warn",tag:a.lvl==="likely"?"Likely":"Possible",t:a.title,sub:"diagnosis advisory since "+fmtTime(a.at)+" · "+a.hit+" of "+a.total+" signs",w:a.at}));});
   items.forEach(i=>{i.ack=(DB.acks||{})[i.key]||null;i.snz=snoozed(i.s);});
   return items.sort((a,b)=>b.w-a.w);}
@@ -799,9 +802,9 @@ function ackModal(key){const i=alertItems().find(x=>x.key===key);if(!i)return;
   $("ack-go").onclick=go;$("ack-note").addEventListener("keydown",e=>{if(e.key==="Enter")go();});setTimeout(()=>{const n=$("ack-note");if(n)n.focus();},50);}
 function snoozeUntil(v){const now=Date.now();if(v==="am"){const d=new Date(now);d.setDate(d.getDate()+(d.getHours()>=7?1:0));d.setHours(7,0,0,0);return d.getTime();}return now+(+v)*3600000;}
 function offenders(days){const from=Date.now()-days*86400000,m=new Map();
-  DB.sites.forEach(s=>((LIVE[s.id]||{}).events||[]).forEach(e=>{if(e.at<from)return;const k=s.id+":"+(e.kind==="odu"?"odu":"u")+":"+e.addr;let o=m.get(k);
-    if(!o){o={s,odu:e.kind==="odu",addr:e.addr,n:0,codes:new Map(),last:0};m.set(k,o);}
-    o.n++;const c=e.kind==="silent"?"went silent":(e.code||"fault");o.codes.set(c,(o.codes.get(c)||0)+1);o.last=Math.max(o.last,e.at);}));
+  DB.sites.forEach(s=>((LIVE[s.id]||{}).events||[]).forEach(e=>{if(e.at<from)return;const k=s.id+":"+(e.brand?"x:"+e.key:(e.kind==="odu"?"odu":"u")+":"+e.addr);let o=m.get(k);
+    if(!o){o={s,odu:e.kind==="odu",addr:e.addr,ext:e.brand?(e.name||"Rheem / Ruud system"):null,n:0,codes:new Map(),last:0};m.set(k,o);}
+    o.n++;const c=e.kind==="silent"?"went silent":evTag(e);o.codes.set(c,(o.codes.get(c)||0)+1);o.last=Math.max(o.last,e.at);}));
   return [...m.values()].filter(o=>o.n>=2).sort((a,b)=>b.n-a.n||b.last-a.last).slice(0,12);}
 function unitSearch(q){const words=q.toLowerCase().split(/\s+/).filter(Boolean);if(!words.length)return [];const out=[];
   DB.sites.forEach(s=>((LIVE[s.id]||{}).list||[]).forEach(u=>{
@@ -873,7 +876,7 @@ function siteReportHtml(s,days){const R=reportData(s,days),L=LIVE[s.id]||{},d0=n
     <h2>Day by day</h2>${chart}
     ${R.watched<days?`<p class="pd-note">The online figure covers the ${R.watched} day${R.watched===1?"":"s"} Cortex Command was watching this building in the period. Fault history comes from the building's own controller and covers every day it was running.</p>`:""}
     ${(L.adv||[]).length?`<h2>Open advisories</h2><table class="pd-list">${L.adv.map(a=>`<tr><td style="width:90px">${a.lvl==="likely"?"Likely":"Possible"}</td><td><b>${esc(a.title)}</b>${a.what?`<div>${esc(a.what)}</div>`:""}</td><td style="width:120px">since ${fd(a.at)}</td></tr>`).join("")}</table>`:""}
-    <h2>Faults${R.ev.length>40?" (most recent 40)":""}</h2>${R.ev.length?`<table class="pd-list"><tr><th>Date</th><th>Where</th><th>Code</th><th>Lasted</th></tr>${R.ev.slice(0,40).map(e=>`<tr><td>${new Date(e.at).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</td><td>${esc(e.kind==="odu"?"Outdoor unit 0x"+Number(e.addr).toString(16).toUpperCase():unitName(s,e.addr))}</td><td>${e.kind==="silent"?"stopped answering":esc(e.code||"")}</td><td>${e.cleared?durTxt((e.cleared-e.at)/60000):"still open"}</td></tr>`).join("")}</table>`:`<p>None.</p>`}
+    <h2>Faults${R.ev.length>40?" (most recent 40)":""}</h2>${R.ev.length?`<table class="pd-list"><tr><th>Date</th><th>Where</th><th>Code</th><th>Lasted</th></tr>${R.ev.slice(0,40).map(e=>`<tr><td>${new Date(e.at).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</td><td>${esc(e.brand?(e.name||"Rheem / Ruud system"):e.kind==="odu"?"Outdoor unit 0x"+Number(e.addr).toString(16).toUpperCase():unitName(s,e.addr))}</td><td>${e.kind==="silent"?"stopped answering":esc(e.brand?e.code:(e.code||""))}</td><td>${e.cleared?durTxt((e.cleared-e.at)/60000):"still open"}</td></tr>`).join("")}</table>`:`<p>None.</p>`}
     ${(s.log||[]).filter(e=>e.t>=Date.now()-days*86400000).length?`<h2>Service visits</h2><table class="pd-list">${s.log.filter(e=>e.t>=Date.now()-days*86400000).map(e=>`<tr><td style="width:110px">${fd(e.t)}</td><td>${esc(e.m)}</td><td style="width:120px">${esc(e.by||"")}</td></tr>`).join("")}</table>`:""}
     <p class="pd-note">Prepared from readings taken by the building's Cortex controller. Controller software v${esc(s.ver||"?")}.</p>`;}
 function siteReport(id,days){const s=DB.sites.find(x=>x.id===id);if(!s)return;log(`Printed a report for ${s.name}`);printDoc(siteReportHtml(s,days||30),"Cortex report "+s.name+" "+dayKey(Date.now()));}

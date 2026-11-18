@@ -55,14 +55,27 @@ const until = async (f, ms) => { const t0 = Date.now(); let v; while (!(v = awai
     await P.click('#eco-modal button[data-ecot="talk"]'); await P.waitForSelector('#eco-talk-go'); t = await P.evaluate(() => document.querySelector('.modal').innerText);
     ok('letting Cortex talk asks first, and warns about a fitted Wi-Fi module', /Wi-Fi module/.test(t) && /unplug it first/.test(t) && /has heard \d+ good message/.test(t), t.slice(0, 300));
     await P.click('#eco-talk-go'); s = await until(async () => { const x = (await J('/api/econet')).systems[0]; return x.state === 'live' && x.values.SPT && x.values.F_ACTCFM && x.alarms.length ? x : null; }, 15000);
-    ok('talking: live readings from the thermostat', !!s && s.values.SPT.v === 71.6 && s.values.COOLSETP.v === 74 && s.values.STATMODE.text === 'Cool' && s.alarms[0] === 'T101 Filter reminder', JSON.stringify(s && s.values));
-    await until(async () => /Alarm/.test(await T('.card[data-id^="e:"]')), 15000); t = await T('.card[data-id^="e:"]');
-    ok('the card on Indoor units goes live by itself: set to, room, mode, alarm', /74/.test(t) && /72/.test(t) && /Cool/.test(t) && /Alarm/.test(t) && /Filter reminder/.test(t), t);
+    ok('talking: live readings from the thermostat', !!s && s.values.SPT.v === 71.6 && s.values.COOLSETP.v === 74 && s.values.STATMODE.text === 'Cool' && s.alarms[0] === 'A021_A Restricted Airflow', JSON.stringify(s && s.values));
+    await until(async () => /A021_A/.test(await T('.card[data-id^="e:"]')), 15000); t = await T('.card[data-id^="e:"]');
+    ok('the card on Indoor units goes live by itself: set to, room, mode, alarm', /74/.test(t) && /72/.test(t) && /Cool/.test(t) && /A021_A/.test(t) && /Restricted airflow/i.test(t), t);
     ok('an alarm counts in the Errors tile', await P.evaluate(() => counts().err === 1));
     await P.click('.card[data-id^="e:"]'); await P.waitForSelector('#eco-modal .eco'); await until(async () => /71\.6/.test(await T('#eco-modal')), 8000); t = await T('#eco-modal');
-    ok('the panel shows room temperature, what it is doing, humidity, setpoints and the alarm', /71\.6°/.test(t) && /Cooling \(low\)/.test(t) && /44% humidity/.test(t) && /Cool to/.test(t) && /74 °F/.test(t) && /Filter reminder/.test(t) && /Live/.test(t), t.slice(0, 500));
+    ok('the panel shows room temperature, what it is doing, humidity, setpoints and the alarm', /71\.6°/.test(t) && /Cooling \(low\)/.test(t) && /44% humidity/.test(t) && /Cool to/.test(t) && /74 °F/.test(t) && /Restricted airflow/i.test(t) && /Live/.test(t), t.slice(0, 500));
     ok('readings the equipment has are listed; ones it lacks are not', /Airflow/.test(t) && /812/.test(t) && /Suction pressure/.test(t) && !/Static pressure/.test(t));
     if (SHOTS) { await P.evaluate(() => { const d = document.querySelector('.eco details'); if (d) d.open = true; }); await P.screenshot({ path: SHOTS + 'eco2-panel.png' }); }
+    // --- the alarm has a guide, reaches Fault history and the bell, and the header light speaks for every bus
+    await P.click('#eco-modal [data-ecoerr]'); await P.waitForFunction(() => /Restricted airflow/i.test(document.querySelector('.modal').innerText)); t = await P.evaluate(() => document.querySelector('.modal').innerText);
+    ok('tapping the alarm opens its guide: what it means, what to do, a drawing, Rheem\'s own page', /A021_A/.test(t) && /filter/i.test(t) && /Look it up on Rheem/.test(t) && !/Look it up on LG/.test(t) && await P.evaluate(() => !!document.querySelector('.modal svg')), t.slice(0, 300));
+    if (SHOTS) await P.screenshot({ path: SHOTS + 'eco-guide.png' });
+    await P.keyboard.press('Escape'); await P.keyboard.press('Escape');
+    const ev = await until(async () => { const e = (await J('/api/events')).events.find(x => x.brand === 'econet'); return e || null; }, 12000);
+    ok('the alarm is recorded in Fault history with the system\'s name', !!ev && /A021_A/.test(ev.code) && ev.kind === 'sys' && !ev.cleared && !!ev.name, JSON.stringify(ev));
+    ok('the bell lists it', await P.evaluate(() => buildAlerts().some(a => a.code === 'R:A021_A')));
+    t = await P.evaluate(() => { updateBusHealth(); return document.getElementById('bus-label').textContent + '|' + busList().map(b => b.id === 'lg' ? 'lg' : b.up).join(); });
+    ok('the header light counts every bus', /bus/i.test(t), t);
+    await P.click('#bus-health'); await P.waitForSelector('#buspop [data-busview]'); const bp = await T('#buspop'); ok('clicking it names each bus and its state', /LG bus/.test(bp) && /Rheem \/ Ruud/.test(bp) && /buses/.test(bp), bp);
+    if (SHOTS) await P.screenshot({ path: SHOTS + 'eco-buspop.png' }); await P.evaluate(() => busPopClose());
+    await P.click('.card[data-id^="e:"]'); await P.waitForSelector('#eco-modal .eco');
     // --- changes
     const plus = '#eco-modal button[data-n="COOLSETP"][data-d="1"]'; await P.click(plus); await P.click(plus);
     ok('two taps on + send ONE change, to the right value', !!(await until(async () => writes().length === 1 && writes()[0] === 'COOLSETP 75')), JSON.stringify(writes()));

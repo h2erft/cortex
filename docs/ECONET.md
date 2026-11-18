@@ -73,3 +73,14 @@ multi-zone, backup of the system list.
 
 Tests: `tests/econet.test.js`, `tests/econet-ui.test.js` (with `tests/helpers/econet-sim.py`, a
 simulator written separately from Cortex's encoder so the two check each other).
+
+## Alarms and fault guides (since 1.7.1-beta.9)
+
+A system's alarms are recorded in Fault history, raise the same notifications as LG faults, and open a
+guide: what the code means, what to do, a drawing and a step-by-step check. Codes are read from the
+alarm text by their code word (`A021_A`: A alarm, T alert, S reminder; the ending says where it comes
+from: `_O` outdoor, `_A` air handler, `_F` furnace, `_C` communication, `_S` system, `_Z` zoning).
+Water heaters use plain `A###` / `T###` with their own meanings. Code names are from Rheem's EcoNet help
+pages and the hybrid water heater manual; the guidance is a field summary written for Cortex, and each
+guide links to Rheem's page. Not covered yet: tankless and standard electric tank code tables, and the
+full variable-speed outdoor unit list.

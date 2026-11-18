@@ -24,7 +24,7 @@ num = lambda v: bytes([0, 0, 0]) + struct.pack('>f', v)
 enum = lambda v, t: bytes([2, 0, 0, v, len(t)]) + t.encode()
 text = lambda t: bytes([1, 0, 0]) + t.encode()
 STAT = {'SPT': num(71.6), 'HEATSETP': num(68.0), 'COOLSETP': num(74.0), 'STATMODE': enum(1, 'Cooling '), 'HVACMODE': enum(2, 'Low Cool'), 'SCHEDULE': enum(0, 'Off     '),
-        'STAT_FAN': enum(0, 'Auto    '), 'STATNFAN': enum(0, 'Auto    '), 'RELH7005': num(44.0), 'F_ACTCFM': num(812.0), 'ALRMALRT': num(1.0), 'ALARM_01': text('T101 Filter reminder   '), 'ALARM_02': text('        ')}
+        'STAT_FAN': enum(0, 'Auto    '), 'STATNFAN': enum(0, 'Auto    '), 'RELH7005': num(44.0), 'F_ACTCFM': num(812.0), 'ALRMALRT': num(1.0), 'ALARM_01': text('A021_A Restricted Airflow'), 'ALARM_02': text('        ')}
 ODU = {'TEMP_OAT': num(88.2), 'PRES_SUC': num(131.0), 'PRES_LIQ': num(342.0), 'PRODMODN': text('RA1736AJ1NA     ')}
 DEV = {0x380: STAT, 0x400: ODU}
 def names(data): return [bytes(data[i:i + 8]).replace(b'\x00', b'').decode().strip() for i in range(4, len(data) - 7, 10)]

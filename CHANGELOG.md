@@ -2,6 +2,37 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.9 — 2026-11-18 (one light for every bus, Rheem / Ruud fault guides)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.8. Changes `cortex.html`,
+`command-center.html`, `appliance/server.js`, `appliance/recorder.js`, `desktop-app/watch.js`, tests._
+
+**Added**
+- **Rheem / Ruud fault guides.** 157 alarm, alert and reminder codes (thermostat and system, air
+  handler, furnace, outdoor unit, heat pump water heater) each have what it means, what to do, a field
+  check, and for most a step-by-step diagnosis, in the same window as the LG codes. Six new drawings:
+  EcoNet control wiring, checking a temperature sensor, where the air goes, the condensate drain and
+  float switch, how a gas furnace lights, and the parts of a heat pump water heater. A code Cortex has
+  no guide for still opens a window saying so. Code names come from Rheem's EcoNet help pages and the
+  water heater manual; the explanations and drawings are Cortex's own, and each guide links to Rheem's
+  page for the exact procedure.
+- **Rheem / Ruud alarms in Fault history, the bell, notifications and Command.** The controller records
+  each alarm when it appears and closes it when it goes away, and records a system that stops answering
+  for three minutes. They raise the same push and webhook alerts as LG faults. Command and the Windows
+  app name them by the system's name and code.
+- **One bus light for every bus.** The header light now speaks for the LG bus and every Rheem / Ruud
+  system: "All 3 buses online", or "1 bus offline" in red. Clicking it lists each bus with a plain
+  status and why it is down; users who may see technical data also get the serial details, and users
+  who may open Bus scan get a View button to that bus. A site with only the LG bus reads as before.
+
+**Changed**
+- **The technician ("lab") look follows light and dark mode.** Its colours are variables with a light
+  and a dark palette, instead of always being dark.
+- A Rheem / Ruud card shows the alarm's code and name instead of only "Alarm"; tapping it opens the guide.
+
+**Not verified on real equipment:** the exact text a Rheem / Ruud system reports for an alarm. The
+guides are found by the code word (for example `A021_A`) anywhere in that text.
+
 ## v1.7.1-beta.8 — 2026-11-18 (one home for every manufacturer)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.7. Changes `cortex.html`,

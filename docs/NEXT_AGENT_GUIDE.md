@@ -541,3 +541,22 @@ The user's rule: **one Cortex per building, every make in it together, never a c
 - Anything that draws or groups units uses `allU()`. Anything that transmits LGAP must filter
   `brandOf(u)==="lg"` (`ctlAllowed()` already refuses other makes).
 - Brands not built yet stay listed as "Coming soon" in Settings ▸ Equipment.
+
+## Addendum: fault guides and events for every make (v1.7.1-beta.9)
+
+- Fault guides are one machine for every make: `ERRORS`, `DIAG`, `FIG`, `errInfo`, `openError`,
+  `openDiagnose`. Rheem / Ruud entries live under namespaced keys: `R:A021_A` (heating and cooling) and
+  `R:W:A107` (water heaters, whose plain codes mean different things). `rheemKey(text, kind)` finds the
+  key from the alarm text a system reports; `codeShown(key)` is what to print. Unknown codes get
+  `R:?:<text>` and a fallback window. The codes are a compact table (`R_HVAC`, `R_WH`: code | title |
+  category | severity) and the wording lives per category in `R_CAT`. Add a code by adding a line.
+  The block sits just above `openError`; it must stay outside the slice `appliance/diagwatch.js`
+  loads (`const ODU_T=` to `function oduDiagrams(`).
+- Guide text and drawings must be our own words and our own SVG. Rheem's pages are linked, never copied.
+- Events from equipment that is not on the LG bus go through `recorder.external(brand, key, name, list,
+  info, t)`. The server's `ecoWatch()` calls it every 5 s per system. Such an event has `brand`, `key`,
+  `name`, `sysKind`, `kind: 'sys' | 'silent'`, `addr: null`, a `snap` of values and no bus samples.
+  Anything that reads `/api/events` must check `e.brand` before using `e.addr`.
+- The header light: `busList()` returns every bus; `busMulti()` decides whether the many-bus wording and
+  popup apply. A new make adds its buses to `busList()`.
+- The lab look uses `--lab-*` variables with light and dark palettes. Do not hard-code its colours.

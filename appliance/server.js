@@ -804,7 +804,7 @@ app.post('/api/econet/systems', (req, res) => { cors(res); const b = req.body ||
   else if (old) { old.cfg.name = c.cfg.name; old.cfg.group = c.cfg.group; old.cfg.sub = c.cfg.sub; old.setFlags({ on: c.cfg.on, talk: c.cfg.talk }); }
   else ecoStart(c.cfg);
   ecoSave(); res.json({ ok: true, system: ecoSystems.get(c.cfg.id).info() }); });
-app.delete('/api/econet/systems/:id', (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' }); x.stop(); ecoSystems.delete(req.params.id); ecoSave(); res.json({ ok: true }); });
+app.delete('/api/econet/systems/:id', (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' }); x.stop(); ecoSystems.delete(req.params.id); ecoSave(); try { recorder.external('econet', req.params.id, x.cfg.name, [], null); } catch (_) {} res.json({ ok: true }); });
 app.post('/api/econet/systems/:id/write', async (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' });
   const b = req.body || {}; try { const r = await x.write(String(b.name || ''), b.value); res.status(r.ok ? 200 : 409).json(r); } catch (e) { res.status(500).json({ ok: false, err: e.message }); } });
 app.post('/api/econet/systems/:id/read', async (req, res) => { cors(res); const x = ecoSystems.get(req.params.id); if (!x) return res.status(404).json({ err: 'no such system' });
@@ -929,6 +929,7 @@ app.post('/api/prefs', (req, res) => { cors(res); const b = req.body || {}, k = 
 const { createRecorder } = require('./recorder');
 const recorder = createRecorder({ dataDir: DATA, log: (t) => console.log('recorder:', t),
   notify: (ev) => {
+    if (ev.brand) { alertOut(ev.kind === 'silent' ? 'silent' : 'fault', (ev.name || 'A system') + (ev.kind === 'silent' ? ' stopped answering' : ' alarm: ' + ev.code), ev, '/#events'); return; }   // equipment that is not on the LG bus
     const what = ev.kind === 'silent' ? 'stopped responding' : ('error ' + ev.code);
     alertOut(ev.kind === 'silent' ? 'silent' : 'fault', `${ev.kind === 'odu' ? 'Outdoor unit' : (ev.name || 'Unit')} 0x${ev.addr.toString(16).toUpperCase()} ${what}`, ev, '/#events');
   } });
@@ -936,6 +937,23 @@ app.post('/api/odu', (req, res) => { cors(res);                // pages read by 
   const pages = (req.body && Array.isArray(req.body.pages)) ? req.body.pages.slice(0, 16) : [];
   for (const h of pages) if (typeof h === 'string' && /^[0-9a-f]{128}$/i.test(h)) recorder.onOdu(Buffer.from(h, 'hex'));
   res.json({ ok: true }); });
+// Rheem / Ruud alarms join the same fault history and the same notifications as everything else.
+// An alarm is opened when a system reports it and closed when it stops reporting it. While a system cannot be
+// heard its alarms are left as they were (nobody knows), and after three minutes of no answers that is itself recorded.
+const ecoDown = new Map();
+function ecoWatch() { const t = Date.now();
+  for (const x of ecoSystems.values()) { let i; try { i = x.info(); } catch (_) { continue; }
+    const fresh = i.state === 'live' || (i.state === 'listening' && i.values.ALARM_01 && !i.values.ALARM_01.stale);
+    const bad = i.on && i.talk && ['unanswered', 'problem', 'silent'].includes(i.state);
+    if (bad) { if (!ecoDown.has(i.id)) ecoDown.set(i.id, t); } else ecoDown.delete(i.id);
+    const down = bad && t - ecoDown.get(i.id) > 3 * 60000, open = recorder.events().filter(e => !e.cleared && e.key === 'econet:' + i.id);
+    let list;
+    if (fresh) { const snap = {}; for (const k of Object.keys(i.values)) { const v = i.values[k]; if (!v.stale) snap[k] = v.text != null ? v.text : v.v; }
+      list = (i.alarms || []).map(a => ({ code: a, snap })); }
+    else if (down) list = open.filter(e => e.kind !== 'silent').map(e => ({ code: e.code })).concat([{ code: 'No answer', kind: 'silent' }]);
+    else continue;
+    try { recorder.external('econet', i.id, i.name, list, { sysKind: i.kind }, t); } catch (e) { console.error('econet events:', e.message); } } }
+setInterval(ecoWatch, 5000);
 app.get('/api/odu', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ odu: recorder.oduState(), poller: pollerInfo(), cleared: recorder.oduClearedAt() }); });
 // --- cycle diagnosis on the controller: persistent findings become advisories ------------------------
 const { createDiagWatch } = require('./diagwatch');

@@ -88,6 +88,25 @@ function createRecorder(opts) {
       else { try { const p = path.join(EVDIR, m.id + '.json'), d = JSON.parse(fs.readFileSync(p, 'utf8')); d.cleared = t; fs.writeFileSync(p, JSON.stringify(d)); } catch (_) {} } }
     if (ch) saveIndex();
   }
+  /* Faults from equipment that is not on the LG bus (a Rheem / Ruud system today). They sit in the same
+     history as everything else. `key` names the system; `list` is every fault it reports right now, each
+     { code, text }. A fault no longer in the list is closed; a new one is opened and announced.
+     There are no bus samples to attach, so the record carries `snap`: what the system was reporting. */
+  function external(brand, key, name, list, info, t) {
+    t = t || now(); const k = brand + ':' + key, want = new Map((list || []).filter(x => x && x.code).map(x => [String(x.code), x]));
+    let ch = false;
+    for (const m of index) { if (m.cleared || m.key !== k) continue;
+      if (want.has(String(m.code))) want.delete(String(m.code));                       // still there
+      else { m.cleared = t; ch = true; try { const f = path.join(EVDIR, m.id + '.json'), d = JSON.parse(fs.readFileSync(f, 'utf8')); d.cleared = t; fs.writeFileSync(f, JSON.stringify(d)); } catch (_) {} } }
+    let n = 0;
+    for (const x of want.values()) { const kind = x.kind === 'silent' ? 'silent' : 'sys';
+      const id = new Date(t).toISOString().replace(/[-:.TZ]/g, '').slice(0, 14) + '-x' + String(key).replace(/[^a-z0-9]/gi, '').slice(0, 8) + (n++ ? n : '');
+      const meta = Object.assign({ id, at: t, kind, addr: null, key: k, brand, code: String(x.code), name: name || '', cleared: 0 }, info || {});
+      index.unshift(meta); if (index.length > MAX_EVENTS) index.length = MAX_EVENTS; ch = true;
+      saveDoc(Object.assign({}, meta, { pre: [], post: [], snap: x.snap || null }));
+      if (opts.notify) { try { opts.notify(meta); } catch (_) {} } }
+    if (ch) saveIndex(); return ch;
+  }
   /* Call whenever fresh unit readings exist. Takes a sample at most every SAMPLE_EVERY. */
   function sample(units, force) {
     const t = now(); if (!force && t - lastSample < SAMPLE_EVERY) return false;
@@ -152,7 +171,7 @@ function createRecorder(opts) {
     if (what.history) { try { for (const f of fs.readdirSync(HIST)) if (/\.ndjson$/.test(f)) fs.rmSync(path.join(HIST, f), { force: true }); } catch (_) {} done.push('history'); }
     saveState(); return done;
   }
-  return { onOdu, oduSnapshot, oduState, sample, events, event, oduHistory, flush, clear, ring: () => ring, oduClearedAt: () => oduClearedAt };
+  return { onOdu, oduSnapshot, oduState, sample, external, events, event, oduHistory, flush, clear, ring: () => ring, oduClearedAt: () => oduClearedAt };
 }
 
 module.exports = { createRecorder, unitRow, PRE_MS, POST_MS };

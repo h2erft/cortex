@@ -6,12 +6,14 @@
 const hex = (a) => '0x' + Number(a).toString(16).toUpperCase().padStart(2, '0');
 function unitName(units, meta, addr) { const u = (units || []).find(x => x && x.addr === addr); if (!u) return 'Unit ' + hex(addr);
   const m = meta && meta[u.name], l = String(u.label || '').trim(); return (m && m.alias) || ((!l || /^Addr 0x/i.test(l)) ? 'Unit ' + (u.id != null ? u.id : hex(addr)) : l); }
+/* A Rheem / Ruud alarm arrives as its full text; the code word at the front is enough for a notification. */
+function tag(t) { const m = /\b[AST][ _-]?\d{3}(?:[ _-]?[OAFCSZ]\b)?/i.exec(String(t || '')); return m ? m[0].toUpperCase() : 'alarm'; }
 /* raw answers -> a small picture of the site */
 function snapshot(r) {
   if (!r || !r.health) return { up: false };
   const units = (r.units && r.units.units) || [], meta = r.meta || {};
-  const ev = ((r.events && r.events.events) || []).filter(e => e && !e.cleared).map(e => ({ id: String(e.id != null ? e.id : e.kind + e.addr + '@' + e.at), kind: e.kind, code: e.code || null, addr: e.addr,
-    where: e.kind === 'odu' ? 'Outdoor unit ' + hex(e.addr) : unitName(units, meta, e.addr) }));
+  const ev = ((r.events && r.events.events) || []).filter(e => e && !e.cleared).map(e => ({ id: String(e.id != null ? e.id : e.kind + e.addr + '@' + e.at), kind: e.kind, code: e.brand ? tag(e.code) : (e.code || null), addr: e.addr,
+    where: e.brand ? String(e.name || 'Rheem / Ruud system') : e.kind === 'odu' ? 'Outdoor unit ' + hex(e.addr) : unitName(units, meta, e.addr) }));
   const adv = ((r.diag && r.diag.advisories) || []).filter(a => a && !a.cleared).map(a => ({ id: String(a.key || a.id || a.title), title: String(a.title || ''), lvl: a.lvl }));
   return { up: true, name: r.health.name || 'Cortex', version: r.health.version, total: units.length, on: units.filter(u => u.on && !u.offline).length, errors: units.filter(u => (u.err || u.code) && !u.offline).length,
     silent: units.filter(u => u.offline).length, events: ev, adv };

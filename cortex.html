@@ -21,6 +21,11 @@
 /* AIROW Control — custom LG VRF central controller UI (prototype)
    layout: top bar + left nav + unit grid/list + right control drawer + modals */
 :root{
+  /* the technician "lab" panels (Bus scan, raw data): a light palette here, the neon one in dark mode */
+  --lab-bg:#f2f9f7; --lab-bg2:#e6f3ef; --lab-bg3:#edf6f3; --lab-line:#bcdcd4; --lab-line2:#a3cdc3; --lab-line3:#d6ebe6;
+  --lab-neon:#0a7f69; --lab-neon-dim:#5fb3a2; --lab-text:#0e3a33; --lab-text2:#1c5248; --lab-dim:#48736b; --lab-faint:#688f88; --lab-mut:#9cbcb5;
+  --lab-soft:#d3ede7; --lab-tx:#fdeceb; --lab-txc:#b42318; --lab-warn:#8a5200; --lab-warnbg:#fff3de; --lab-warnline:#efd19c; --lab-pri1:#cfeee6; --lab-pri2:#bfe6dc;
+  --lab-shadow:0 0 0 1px #e3f1ee inset,0 8px 24px -18px rgba(16,24,40,.3); --lab-scan:0; --lab-glow:none;
   --bg:#eef0f2; --surface:#fff; --surface-2:#f7f8fa; --border:#dde1e6; --border-strong:#c7ccd3;
   --text:#1b2027; --text-dim:#5a6372; --text-faint:#8a93a1;
   --accent:#0e7c66; --accent-ink:#0b5f4e; --accent-soft:#d9efe9;
@@ -32,6 +37,10 @@
   --shadow-lg:0 8px 40px rgba(16,24,40,.18); color-scheme:light;
 }
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --lab-bg:#070b10; --lab-bg2:#0a1319; --lab-bg3:#070f13; --lab-line:#16343a; --lab-line2:#1d4048; --lab-line3:#0e2024;
+  --lab-neon:#2ff5c8; --lab-neon-dim:#1f9e86; --lab-text:#cdf6ec; --lab-text2:#aef0e0; --lab-dim:#8fb8b0; --lab-faint:#5f8a84; --lab-mut:#3f5a60;
+  --lab-soft:#0f2a2a; --lab-tx:#1a0a0d; --lab-txc:#ff9e9e; --lab-warn:#ffb36b; --lab-warnbg:#241607; --lab-warnline:#4a2f10; --lab-pri1:#0f3a32; --lab-pri2:#0b2a25;
+  --lab-shadow:0 0 0 1px #0c1a1e inset,0 8px 30px -14px #000; --lab-scan:.6; --lab-glow:0 0 8px var(--lab-neon);
   --bg:#0f1318; --surface:#171c23; --surface-2:#1c222b; --border:#2a313b; --border-strong:#3a434f;
   --text:#e7ebf0; --text-dim:#9aa4b2; --text-faint:#6b7585;
   --accent:#2fb79a; --accent-ink:#8fe6d4; --accent-soft:#143029;
@@ -42,6 +51,10 @@
   color-scheme:dark;
 }}
 :root[data-theme="dark"]{
+  --lab-bg:#070b10; --lab-bg2:#0a1319; --lab-bg3:#070f13; --lab-line:#16343a; --lab-line2:#1d4048; --lab-line3:#0e2024;
+  --lab-neon:#2ff5c8; --lab-neon-dim:#1f9e86; --lab-text:#cdf6ec; --lab-text2:#aef0e0; --lab-dim:#8fb8b0; --lab-faint:#5f8a84; --lab-mut:#3f5a60;
+  --lab-soft:#0f2a2a; --lab-tx:#1a0a0d; --lab-txc:#ff9e9e; --lab-warn:#ffb36b; --lab-warnbg:#241607; --lab-warnline:#4a2f10; --lab-pri1:#0f3a32; --lab-pri2:#0b2a25;
+  --lab-shadow:0 0 0 1px #0c1a1e inset,0 8px 30px -14px #000; --lab-scan:.6; --lab-glow:0 0 8px var(--lab-neon);
   --bg:#0f1318; --surface:#171c23; --surface-2:#1c222b; --border:#2a313b; --border-strong:#3a434f;
   --text:#e7ebf0; --text-dim:#9aa4b2; --text-faint:#6b7585;
   --accent:#2fb79a; --accent-ink:#8fe6d4; --accent-soft:#143029;
@@ -68,9 +81,9 @@ header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var
 #buspop{position:fixed;z-index:60;width:380px;max-width:calc(100vw - 16px)}
 .buspop:not(.lab){background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;box-shadow:0 14px 40px -14px rgba(0,0,0,.35)}
 .buspop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
-.buspop-grid>div{background:#0a1319;border:1px solid #16343a;border-radius:8px;padding:6px 9px}
-.buspop-grid small{display:block;font:10px ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.12em;color:#5f8a84}
-.buspop-grid b{font:600 12.5px ui-monospace,Menlo,monospace;color:#d6fff4}
+.buspop-grid>div{background:var(--lab-bg2);border:1px solid var(--lab-line);border-radius:8px;padding:6px 9px}
+.buspop-grid small{display:block;font:10px ui-monospace,Menlo,monospace;text-transform:uppercase;letter-spacing:.12em;color:var(--lab-faint)}
+.buspop-grid b{font:600 12.5px ui-monospace,Menlo,monospace;color:var(--lab-text)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
 .spacer{flex:1}
 .clock{font-size:13px;color:var(--text-dim)}
@@ -515,51 +528,51 @@ body:not(.no-motion) .gauge .gv,body:not(.no-motion) .set .v b{font-variant-nume
 .puck .ps small{font-size:10px;color:var(--text-dim);font-weight:400}
 .chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
 /* ===== Debug / "lab" cyberpunk theme — scoped to .lab, tech byte-level tools only ===== */
-.lab{--neon:#2ff5c8;--neon-dim:#1f9e86;--grid:#13ff9b1a;background:#070b10;border:1px solid #16343a;border-radius:14px;color:#8ff3dd;position:relative;overflow:hidden;box-shadow:0 0 0 1px #0c1a1e inset,0 8px 30px -14px #000}
-.lab{--border:#123a40;--border-strong:#1d4048;--surface:#070b10;--surface-2:#0a1319;--text:#cdf6ec;--text-dim:#8fb8b0;--text-faint:#5f8a84;--accent:#2ff5c8;--accent-soft:#0f2a2a;--ok:#2ff5c8;--warn:#ffb36b}
+.lab{--neon:var(--lab-neon);--neon-dim:var(--lab-neon-dim);--grid:#13ff9b1a;background:var(--lab-bg);border:1px solid var(--lab-line);border-radius:14px;color:var(--lab-text2);position:relative;overflow:hidden;box-shadow:var(--lab-shadow)}
+.lab{--border:var(--lab-line);--border-strong:var(--lab-line2);--surface:var(--lab-bg);--surface-2:var(--lab-bg2);--text:var(--lab-text);--text-dim:var(--lab-dim);--text-faint:var(--lab-faint);--accent:var(--lab-neon);--accent-soft:var(--lab-soft);--ok:var(--lab-neon);--warn:var(--lab-warn)}
 .lab .connbar{background:none;border:none;box-shadow:none;padding:0;margin:0}
 .lab .connbar .stat{font-family:ui-monospace,Menlo,monospace;font-size:12px}
 .lab table{font-family:ui-monospace,Menlo,monospace;font-size:12.5px!important}
-.lab thead tr{background:#0a1319!important;color:#5f8a84!important}
-.lab .feed{background:#070f13;border-color:#16343a;border-radius:10px}
-.lab .feed .fr{font-family:ui-monospace,Menlo,monospace;font-size:12px;padding:5px 12px;border-color:#0e2024}
-.lab .feed .fr.tx{background:#1a0a0d}.lab .feed .fr.tx .ds{color:#ff9e9e}
-.lab .note-box,.lab .editband{background:#0a1319!important;border-color:#16343a!important;color:#8fb8b0!important}
+.lab thead tr{background:var(--lab-bg2)!important;color:var(--lab-faint)!important}
+.lab .feed{background:var(--lab-bg3);border-color:var(--lab-line);border-radius:10px}
+.lab .feed .fr{font-family:ui-monospace,Menlo,monospace;font-size:12px;padding:5px 12px;border-color:var(--lab-line3)}
+.lab .feed .fr.tx{background:var(--lab-tx)}.lab .feed .fr.tx .ds{color:var(--lab-txc)}
+.lab .note-box,.lab .editband{background:var(--lab-bg2)!important;border-color:var(--lab-line)!important;color:var(--lab-dim)!important}
 .lab .linklike{color:var(--neon)}
-.lab .ii{border-color:#1d4048;color:#5f8a84}
-.lab input[type=checkbox]{accent-color:#2ff5c8}
+.lab .ii{border-color:var(--lab-line2);color:var(--lab-faint)}
+.lab input[type=checkbox]{accent-color:var(--lab-neon)}
 .cyhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 2px 14px;font-family:ui-monospace,"SFMono-Regular",Menlo,monospace}
 .cyhead .cyt{font-size:19px;font-weight:700;letter-spacing:.22em;color:var(--text)}
 .cyhead .cys{font-size:11.5px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
 .cyhead .cyr{margin-left:auto;font-size:11.5px;color:var(--text-faint);letter-spacing:.08em}
-.lab::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(47,245,200,.035) 0 1px,transparent 1px 3px);mix-blend-mode:screen;opacity:.6}
+.lab::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(47,245,200,.035) 0 1px,transparent 1px 3px);mix-blend-mode:screen;opacity:var(--lab-scan)}
 .lab>*{position:relative}
-.lab .labhead{display:flex;align-items:center;gap:8px;font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;text-transform:uppercase;letter-spacing:.14em;font-size:11px;color:var(--neon);padding:11px 14px;border-bottom:1px solid #123a40}
-.lab .labhead b{color:#eafff8;letter-spacing:.06em}
-.lab .labhead .dot{width:7px;height:7px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon)}
-.lab .labhead .dot.idle{background:#2a3b42;box-shadow:none}
+.lab .labhead{display:flex;align-items:center;gap:8px;font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;text-transform:uppercase;letter-spacing:.14em;font-size:11px;color:var(--neon);padding:11px 14px;border-bottom:1px solid var(--lab-line)}
+.lab .labhead b{color:var(--lab-text);letter-spacing:.06em}
+.lab .labhead .dot{width:7px;height:7px;border-radius:50%;background:var(--neon);box-shadow:var(--lab-glow)}
+.lab .labhead .dot.idle{background:var(--lab-mut);box-shadow:none}
 .lab .labbody{padding:12px 14px}
 .lab .mono,.lab pre,.lab textarea{font-family:ui-monospace,"SFMono-Regular",Menlo,monospace}
-.lab .hexline{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;letter-spacing:.06em;color:#bfeee2;word-break:break-all;background:#0a1319;border:1px solid #16343a;border-radius:9px;padding:9px 11px}
-.lab .hexline .hi{color:var(--neon);text-shadow:0 0 6px rgba(47,245,200,.5)}
-.lab .hexline .mut{color:#3f5a60}
-.lab .labsub{font-size:11.5px;color:#5f8a84;margin-bottom:9px;line-height:1.5}
-.lab .sel-box,.lab .inp,.lab textarea{background:#0a1319;border:1px solid #1d4048;color:#cdf6ec}
+.lab .hexline{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;letter-spacing:.06em;color:var(--lab-text2);word-break:break-all;background:var(--lab-bg2);border:1px solid var(--lab-line);border-radius:9px;padding:9px 11px}
+.lab .hexline .hi{color:var(--neon);text-shadow:var(--lab-glow)}
+.lab .hexline .mut{color:var(--lab-mut)}
+.lab .labsub{font-size:11.5px;color:var(--lab-faint);margin-bottom:9px;line-height:1.5}
+.lab .sel-box,.lab .inp,.lab textarea{background:var(--lab-bg2);border:1px solid var(--lab-line2);color:var(--lab-text)}
 .lab .sel-box:focus,.lab .inp:focus,.lab textarea:focus{border-color:var(--neon);outline:none;box-shadow:0 0 0 2px rgba(47,245,200,.15)}
-.lab .btn{background:#0c1a1f;border:1px solid #1d4048;color:#aef0e0}
+.lab .btn{background:var(--lab-bg2);border:1px solid var(--lab-line2);color:var(--lab-text2)}
 .lab .btn:hover{border-color:var(--neon-dim)}
-.lab .btn.primary{background:linear-gradient(180deg,#0f3a32,#0b2a25);border-color:var(--neon-dim);color:#d6fff4}
-.lab .btn.go{background:#2a0f12;border:1px solid #d93b3b;color:#ff9e9e;box-shadow:0 0 14px -3px #d93b3b}
-.lab .seg{display:inline-flex;background:#0a1319;border:1px solid #1d4048;border-radius:8px;padding:2px}
-.lab .seg button{border:none;background:none;color:#5f8a84;padding:5px 10px;border-radius:6px;font-size:12px}
-.lab .seg button.on{background:#0f2a2a;color:var(--neon)}
-.lab-feed{max-height:230px;overflow:auto;border:1px solid #16343a;border-radius:10px;background:#070f13;padding:4px 0}
-.lab-feed .fr{display:flex;gap:10px;align-items:baseline;padding:4px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;border-bottom:1px solid #0e2024}
+.lab .btn.primary{background:linear-gradient(180deg,var(--lab-pri1),var(--lab-pri2));border-color:var(--neon-dim);color:var(--lab-text)}
+.lab .btn.go{background:var(--lab-tx);border:1px solid #d93b3b;color:var(--lab-txc);box-shadow:0 0 14px -3px #d93b3b}
+.lab .seg{display:inline-flex;background:var(--lab-bg2);border:1px solid var(--lab-line2);border-radius:8px;padding:2px}
+.lab .seg button{border:none;background:none;color:var(--lab-faint);padding:5px 10px;border-radius:6px;font-size:12px}
+.lab .seg button.on{background:var(--lab-soft);color:var(--neon)}
+.lab-feed{max-height:230px;overflow:auto;border:1px solid var(--lab-line);border-radius:10px;background:var(--lab-bg3);padding:4px 0}
+.lab-feed .fr{display:flex;gap:10px;align-items:baseline;padding:4px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;border-bottom:1px solid var(--lab-line3)}
 .lab-feed .fr .ad{color:var(--neon);width:30px;flex:none}
-.lab-feed .fr .hx{color:#3f5a60;flex:none}
-.lab-feed .fr .ds{color:#cdf6ec}
-.lab-feed .fr.tx{background:#1a0a0d}.lab-feed .fr.tx .ds{color:#ff9e9e;font-weight:600}
-.lab .warnband{display:flex;gap:7px;align-items:center;font-size:11.5px;color:#ffb36b;background:#241607;border:1px solid #4a2f10;border-radius:8px;padding:7px 10px;margin-bottom:10px}
+.lab-feed .fr .hx{color:var(--lab-mut);flex:none}
+.lab-feed .fr .ds{color:var(--lab-text)}
+.lab-feed .fr.tx{background:var(--lab-tx)}.lab-feed .fr.tx .ds{color:var(--lab-txc);font-weight:600}
+.lab .warnband{display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--lab-warn);background:var(--lab-warnbg);border:1px solid var(--lab-warnline);border-radius:8px;padding:7px 10px;margin-bottom:10px}
 /* clean "Live" activity feed (normal, non-cyber) */
 .feed{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
 .feed .fr{display:flex;gap:11px;align-items:baseline;padding:7px 12px;font-size:13px;border-bottom:1px solid var(--border)}
@@ -891,7 +904,9 @@ const ERRORS={
 // The address a secure link must use: a trusted certificate only matches its own name, never the IP or cortex.local.
 function secureHost(hs){return (hs&&hs.cert&&!hs.cert.selfSigned&&hs.cert.name)||location.hostname;}
 function errKey(code){const m=/^CH(\d)$/i.exec(String(code||""));return m?"CH0"+m[1]:code;}
-function errInfo(code){code=errKey(code);return ERRORS[code]||{t:"Unrecognized code",cause:"No reference for "+code+" yet — check the unit's service manual for this model.",act:"Look up "+code+" in the LG service manual.",sev:"medium",who:"Unit"};}
+function errInfo(code){code=errKey(code);
+  if(!ERRORS[code]&&/^R:/.test(String(code)))return {t:codeShown(code)||"Rheem / Ruud alarm",cause:"The system reported this alarm, but Cortex has no guide for it yet.",act:"Read the full message on the system’s own thermostat or display, and look it up in Rheem’s EcoNet help pages or the unit’s manual.",sev:"medium",who:"Rheem / Ruud",brand:"rheem",shown:codeShown(code),unknown:true};
+  return ERRORS[code]||{t:"Unrecognized code",cause:"No reference for "+code+" yet — check the unit's service manual for this model.",act:"Look up "+code+" in the LG service manual.",sev:"medium",who:"Unit"};}
 const SEVC={info:"info",low:"ok",medium:"warn",high:"err",critical:"crit"};
 
 /* ---- state ---- */
@@ -921,7 +936,7 @@ function ecoAsUnit(sys){const num=n=>{const x=sys.values[n];return x&&!x.stale&&
   if(hv){const m=num("STATMODE");on=m!=null&&m!==4;mode=({0:"heat",1:"cool",2:"auto",3:"fan"})[m]||"auto";coolF=num("COOLSETP");heatF=num("HEATSETP");setF=mode==="heat"?heatF:(mode==="cool"?coolF:null);room=num("SPT");doing=txt("HVACMODE");}
   else{const e=num("WHTRENAB");on=e==null?num("WHTRSETP")!=null:e===1;setF=num("WHTRSETP");room=num("UPHTRTMP");if(room==null)room=num("TEMP_OUT");doing=txt("WHTRMODE");}
   return {id:"e:"+sys.id,eco:sys.id,brand:"econet",name:"econet:"+sys.id,label:sys.name,grp:sys.group||"",subgrp:sys.sub||"",system:"Rheem / Ruud",group:0,addr:null,kind:"eco_"+sys.kind,
-    on:on&&live,mode,fan:"auto",err:(sys.alarms||[]).length>0,code:(sys.alarms||[])[0]||null,offline:!live||!(hv?num("STATMODE")!=null:(num("WHTRSETP")!=null||num("WHTRENAB")!=null)),   // until its own state is known, show how it is connected, not "Off"
+    on:on&&live,mode,fan:"auto",err:(sys.alarms||[]).length>0,code:(sys.alarms||[]).length?rheemKey(sys.alarms[0],sys.kind):null,alarmText:(sys.alarms||[])[0]||"",offline:!live||!(hv?num("STATMODE")!=null:(num("WHTRSETP")!=null||num("WHTRENAB")!=null)),   // until its own state is known, show how it is connected, not "Off"
     room,setF,coolF,heatF,doing,sys};}
 function ecoUnits(){return (APPL&&typeof ECOS!=="undefined"&&can("eco"))?ECOS.systems.map(ecoAsUnit):[];}
 function brandsHere(){const b=[];if(units.length)b.push("lg");if(ecoUnits().length)b.push("econet");return b;}
@@ -1373,7 +1388,7 @@ const ecoIcon=u=>`<span style="display:block;width:100%;height:100%;color:${u.of
 const ecoT=f=>f==null?"--":(settings.unit==="C"?Math.round((f-32)*5/9):Math.round(f));
 function ecoStateTxt(u){const s=u.sys;return u.offline?(ECO_STATE[s.state]||[s.state])[0]:u.err?"Alarm":(u.on?((u.doing||(MODES.find(m=>m[0]===u.mode)||["",""])[1])+(u.setF!=null?" · "+ecoT(u.setF)+"°"+settings.unit:"")):"Off");}
 function ecoUnitCard(u){const s=u.sys,hv=s.kind==="hvac",st=ECO_STATE[s.state]||[s.state,"stop"],stripe=u.offline?"var(--warn)":(u.err?"var(--err)":(u.on?"var(--accent)":"var(--stopped)"));
-  const pill=u.offline?`<span class="pill ${st[1]}" title="${ue(st[0])}">${st[0]}</span>`:(u.err?`<span class="pill err">Alarm</span>`:(u.on?'<span class="pill run">Running</span>':'<span class="pill stop">Off</span>'));
+  const pill=u.offline?`<span class="pill ${st[1]}" title="${ue(st[0])}">${st[0]}</span>`:(u.err?`<span class="pill err" data-code="${ue(u.code)}">${ue(codeShown(u.code)).slice(0,12)}</span>`:(u.on?'<span class="pill run">Running</span>':'<span class="pill stop">Off</span>'));
   const deg=`<small>°${settings.unit}</small>`,V=f=>f==null?`<div class="rd-v mono idle">--</div>`:`<div class="rd-v mono">${ecoT(f)}${deg}</div>`;
   const dual=hv&&u.mode==="auto"&&u.on&&u.coolF!=null&&u.heatF!=null;
   const setV=!u.on?`<div class="rd-v mono idle">--</div>`:(dual?`<div class="rd-v mono"><span style="color:var(--cool)">${ecoT(u.coolF)}</span><i>/</i><span style="color:var(--heat)">${ecoT(u.heatF)}</span>${deg}</div>`:V(u.setF));
@@ -1384,12 +1399,12 @@ function ecoUnitCard(u){const s=u.sys,hv=s.kind==="hvac",st=ECO_STATE[s.state]||
     <div class="card-top"><div class="ugmini">${ecoIcon(u)}</div><div class="card-id"><div class="card-name" title="${nm}">${nm}</div><div class="card-meta">${ue(s.kindLabel)}</div></div>${pill}</div>
     <div class="card-read ${settings.show.room?(dual?'dual':''):'one'}"><div class="rd"><div class="rd-l">${dual?'Cool / Heat':'Set to'}</div>${setV}</div>${settings.show.room?`<div class="rd"><div class="rd-l">${hv?"Room":(s.kind==="tankless"?"Outlet":"Tank")}</div>${V(u.room)}</div>`:''}</div>
     ${chipRow?`<div class="card-chips">${chipRow}</div>`:''}
-    ${u.err?`<div class="err-note"><span>⚠</span><span>${ue(u.code)} — tap for details</span></div>`:""}
+    ${u.err?`<div class="err-note" data-code="${ue(u.code)}"><span>⚠</span><span>${ue(codeShown(u.code))} · ${ue(errInfo(u.code).unknown?u.alarmText:errInfo(u.code).t)} — tap for details</span></div>`:""}
   </div>`;}
 function ecoUnitRow(u){const c=u.offline?"var(--warn)":(u.err?"var(--err)":(u.on?"var(--ok)":"var(--stopped)"));
   return `<div class="lrow" data-id="${u.id}"><span class="st" style="background:${c}"></span>
     <div style="min-width:0"><div class="lname">${ue(dispName(u))}</div><div class="lsub">${ue(u.sys.kindLabel)} · ${BRANDS.econet.short}${u.offline?' · '+ue((ECO_STATE[u.sys.state]||[u.sys.state])[0]).toLowerCase():''}</div></div>
-    <div class="lc-hide">${u.err?`<span class="pill err">Alarm</span>`:(u.on?ue(u.doing||"on"):'<span style="color:var(--text-faint)">off</span>')}</div>
+    <div class="lc-hide">${u.err?`<span class="pill err" data-code="${ue(u.code)}">${ue(codeShown(u.code)).slice(0,12)}</span>`:(u.on?ue(u.doing||"on"):'<span style="color:var(--text-faint)">off</span>')}</div>
     <div class="mono">${u.on&&u.setF!=null?ecoT(u.setF)+'°'+settings.unit:"--"}</div>
     <div class="mono lc-hide" style="color:var(--text-dim)">${u.room!=null?ecoT(u.room)+'°'+settings.unit:"--"}</div></div>`;}
 function sectionSelBtn(c){return selMode?`<button class="linklike" data-selgroup="${encodeURIComponent(c)}" style="font-size:12px">Select all</button>`:"";}
@@ -2263,7 +2278,8 @@ const FIG={
 /* Which drawings help with which code. */
 const ERR_FIG=[[["CH01","CH02","CH06","CH41","CH44","CH45","CH46","CH47","CH65","CH113","CH114","CH115","CH153","CH154"],["therm"]],[["CH42","CH43"],["press"]],[["CH10"],["fanidu"]],
   [["CH21","CH22","CH26","CH29"],["ipm","comp"]],[["CH23","CH25","CH62","CH67"],["ipm"]],[["CH05","CH53","CH104","CH200","CH204","CH242"],["term"]],[["CH151"],["fourway"]],[["CH150","CH32"],["eev6","eev5","therm"]],[["CH34","CH35","CH24"],["press"]]];
-function errFigs(code){const out=[];ERR_FIG.forEach(([cs,fs])=>{if(cs.includes(code))fs.forEach(f=>{if(!out.includes(f))out.push(f);});});return out;}
+function errFigs(code){const re=ERRORS[code];if(re&&re.brand==="rheem")return ((R_CAT[re.cat]||{}).fig||[]).slice();
+  const out=[];ERR_FIG.forEach(([cs,fs])=>{if(cs.includes(code))fs.forEach(f=>{if(!out.includes(f))out.push(f);});});return out;}
 function fig(k){const f=FIG[k];if(!f)return "";return `<figure class="fg"><figcaption class="fg-h">${f.t}</figcaption><div class="fg-w" onclick="this.classList.toggle('zoom')" title="Tap to enlarge">${f.svg()}</div><div class="fg-z">Tap the drawing to enlarge it</div><div class="fg-c">${f.cap}</div></figure>`;}
 function figs(ks){return (Array.isArray(ks)?ks:[ks]).map(fig).join("");}
 /* Which plug on the Multi V IV outdoor main ("external") board is which. LG's table, regrouped. */
@@ -2508,13 +2524,13 @@ function drawDiagnose(){const steps=DIAG[dg.code],e=errInfo(dg.code),s=steps[dg.
   let body;
   if(dg.found!=null){const st=steps[dg.found];body=`<div class="dg-card found"><div class="dg-k">Likely cause found at check ${dg.found+1}</div><div class="dg-q">${st.fix}</div>
       <div class="dg-btns"><button class="btn primary" id="dg-done">Fixed — finish</button><button class="btn" id="dg-cont">That wasn't it — keep checking</button></div></div>`;}
-  else if(done)body=`<div class="dg-card"><div class="dg-k">Every check passed</div><div class="dg-q">Nothing in the standard sequence explains ${dg.code}. Reset power and watch whether it returns; if it does, capture it in Fault history and work through the unit's service manual for this exact model.</div>
+  else if(done)body=`<div class="dg-card"><div class="dg-k">Every check passed</div><div class="dg-q">Nothing in the standard sequence explains ${codeShown(dg.code)}. Reset power and watch whether it returns; if it does, capture it in Fault history and work through the unit's service manual for this exact model.</div>
       <div class="dg-btns"><button class="btn primary" id="dg-done">Finish</button></div></div>`;
   else{let live=null;try{live=s.live?s.live(dg.ctx):null;}catch(_){}
     body=`<div class="dg-card"><div class="dg-k">Check ${dg.i+1} of ${steps.length}</div><div class="dg-q">${s.q}</div>${s.how?`<div class="dg-how">${s.how}</div>`:""}${stepFig(s)?`<details class="dg-fig" open><summary>Drawing</summary>${figs(stepFig(s))}</details>`:""}
       ${live?`<div class="dg-live"><b>Cortex sees:</b> ${live}</div>`:""}
       <div class="dg-btns"><button class="btn primary" data-dga="yes">${s.yes||"Yes"}</button><button class="btn primary" data-dga="no">${s.no||"No"}</button><button class="btn" data-dga="skip">Can't check now</button></div></div>`;}
-  modal(head(`Diagnose ${dg.code} — ${e.t}`)+`<div class="modal-body"><div class="dg-prog"><span style="width:${Math.round(Math.min(dg.i,steps.length)/steps.length*100)}%"></span></div>
+  modal(head(`Diagnose ${codeShown(dg.code)} — ${e.t}`)+`<div class="modal-body"><div class="dg-prog"><span style="width:${Math.round(Math.min(dg.i,steps.length)/steps.length*100)}%"></span></div>
     ${trail}${body}
     <div class="dg-foot"><button class="linklike" id="dg-copy">Copy notes</button>${dg.i>0||dg.found!=null?'<button class="linklike" id="dg-back">Back one step</button>':""}<span>Power off and discharge before touching wiring. Follow the service manual for the exact model.</span></div></div>`,true);
   mroot.querySelectorAll("[data-dga]").forEach(b=>b.onclick=()=>{const a=b.dataset.dga,bad=!s.info&&a===s.bad;
@@ -2523,7 +2539,7 @@ function drawDiagnose(){const steps=DIAG[dg.code],e=errInfo(dg.code),s=steps[dg.
   if(q("dg-cont"))q("dg-cont").onclick=()=>{dg.found=null;dg.i++;drawDiagnose();};
   if(q("dg-done"))q("dg-done").onclick=closeModal;
   if(q("dg-back"))q("dg-back").onclick=()=>{if(dg.found!=null)dg.found=null;else dg.i=Math.max(0,dg.i-1);dg.log.pop();drawDiagnose();};
-  q("dg-copy").onclick=()=>{const strip=h=>String(h).replace(/<[^>]+>/g,"");const txt=[`${dg.code} — ${e.t}`,dg.ctx.u?`Unit: ${dispName(dg.ctx.u)}`:"",new Date().toLocaleString(),...dg.log.map((l,i)=>`${i+1}. ${strip(l.q)} → ${l.a}`),dg.found!=null?`Likely cause: ${strip(steps[dg.found].fix)}`:""].filter(Boolean).join("\n");
+  q("dg-copy").onclick=()=>{const strip=h=>String(h).replace(/<[^>]+>/g,"");const txt=[`${codeShown(dg.code)} — ${e.t}`,dg.ctx.u?`Unit: ${dispName(dg.ctx.u)}`:"",new Date().toLocaleString(),...dg.log.map((l,i)=>`${i+1}. ${strip(l.q)} → ${l.a}`),dg.found!=null?`Likely cause: ${strip(steps[dg.found].fix)}`:""].filter(Boolean).join("\n");
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast("Notes copied"),()=>toast("Couldn't copy — select the text instead"));};}
 /* ---- thermistor lookup (resistance in kΩ and board voltage at a temperature) ---- */
 const NTC_RT={pipe:[[-30,102.17],[-20,53.55],[-10,29.48],[0,16.95],[10,10.14],[20,6.28],[25,5],[30,4.01],[40,2.64],[50,1.78],[60,1.23],[70,.87]],
@@ -2671,8 +2687,10 @@ function oduTrendDraw(){const c=oduTrendCtx,el=document.getElementById("otr-body
   el.querySelectorAll("[data-otd]").forEach(b=>b.onclick=()=>{c.days=+b.dataset.otd;el.innerHTML=brainLoader(60,"Loading…");oduTrendLoad();});
   el.querySelectorAll("[data-otp]").forEach(b=>b.onclick=()=>{c.pg=b.dataset.otp;oduTrendDraw();});}
 /* ---- fault history: a timeline of every fault, each with the 10 minutes before it ---- */
-const EV_KIND={unit:"Indoor unit error",odu:"Outdoor unit error",silent:"Stopped responding"};
-function evTitle(e){const u=units.find(x=>x.addr===e.addr);
+const EV_KIND={unit:"Indoor unit error",odu:"Outdoor unit error",silent:"Stopped responding",sys:"Rheem / Ruud alarm"};
+const evCode=e=>e.brand?rheemKey(e.code,e.sysKind):e.code;                 // the key of the guide for this event, whatever make it came from
+function evTitle(e){if(e.brand)return e.kind==="silent"?`${ue(e.name||"A system")} stopped answering`:`${ue(codeShown(evCode(e)))} · ${ue(e.name||"Rheem / Ruud system")}`;
+  const u=units.find(x=>x.addr===e.addr);
   return e.kind==="odu"?`${ue(e.code)} · Outdoor unit ${hx(e.addr)}`:e.kind==="silent"?`${ue(u?dispName(u):(e.name||hx(e.addr)))} stopped responding`:`${ue(e.code)} · ${ue(u?dispName(u):(e.name||hx(e.addr)))}`;}
 function evDur(e){if(!e.cleared)return '<span style="color:var(--err);font-weight:600">still active</span>';const m=Math.max(1,Math.round((e.cleared-e.at)/60000));return "lasted "+(m<90?m+" min":(m<2880?Math.round(m/60)+" h":Math.round(m/1440)+" days"));}
 async function renderEvents(){renderGroupNav();
@@ -2698,7 +2716,7 @@ async function renderEvents(){renderGroupNav();
     ${list.length?[...days.entries()].map(([d,es])=>`<div class="ev-day">${ue(d)}</div><div class="ev-list">${es.map(e=>`<div class="ev" data-ev="${e.id}">
         <span class="ev-dot" style="background:${col(e)}"></span>
         <div class="ev-time mono">${new Date(e.at).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>
-        <div style="min-width:0;flex:1"><div class="ev-t">${evTitle(e)}</div><div class="ev-s">${EV_KIND[e.kind]||e.kind}${e.kind!=="silent"&&e.code?" · "+ue(errInfo(e.code).t||""):""} · ${evDur(e)}</div></div>
+        <div style="min-width:0;flex:1"><div class="ev-t">${evTitle(e)}</div><div class="ev-s">${EV_KIND[e.kind]||e.kind}${e.kind!=="silent"&&e.code?" · "+ue(e.brand&&errInfo(evCode(e)).unknown?e.code:(errInfo(evCode(e)).t||"")):""} · ${evDur(e)}</div></div>
         <button class="btn sm">View the data</button></div>`).join("")}</div>`).join("")
       :'<div class="cyc-note" style="margin-top:14px;display:block">No faults recorded in the last 30 days. When one happens it appears here with the readings that led up to it.</div>'}`;
   main.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>openEvent(b.dataset.ev));eventsAdvisories();}
@@ -2713,6 +2731,14 @@ async function openEvent(id){
   modal(head("Fault record")+`<div class="modal-body" id="ev-body">${brainLoader(60,"Loading the recording…")}</div>`,true);
   let d;try{const r=await fetch('/api/events/'+encodeURIComponent(id),{cache:'no-store'});if(!r.ok)throw 0;d=await r.json();}catch(e){const el=document.getElementById("ev-body");if(el)el.innerHTML='<div class="note-box">This recording is no longer available.</div>';return;}
   const el=document.getElementById("ev-body");if(!el)return;
+  if(d.brand){const k=evCode(d),e=errInfo(k),sn=d.snap||{},rows=Object.keys(sn).filter(n=>!/^ALARM|^ALRM/.test(n));        // equipment that is not on the LG bus: no bus samples, but what it was reporting
+    el.innerHTML=`<div style="font-weight:650;font-size:16px">${evTitle(d)}</div>
+      <div style="color:var(--text-dim);font-size:13px;margin:4px 0 12px">${new Date(d.at).toLocaleString()} · ${evDur(d)}</div>
+      ${d.kind==="silent"?`<div class="note-box">Cortex stopped getting answers from this system for more than three minutes. Check that it has power, and its adapter and cable.</div>`
+        :`<div class="ed-row"><div class="k">Reported</div><div class="v">${ue(d.code)}</div></div>${e.unknown?"":`<div class="ed-row"><div class="k">Means</div><div class="v">${e.cause}</div></div><div class="ed-row"><div class="k">What to do</div><div class="v">${e.act}</div></div>`}
+          <button class="btn primary" id="ev-guide" style="width:100%;justify-content:center;margin-top:12px">Open the guide for ${ue(codeShown(k))}</button>`}
+      ${rows.length?`<div style="font-weight:650;margin:16px 0 4px">What the system was reporting when it happened</div><table class="pd-list" style="width:100%;font-size:12.5px">${rows.map(n=>`<tr><td class="mono" style="color:var(--text-faint)">${ue(n)}</td><td style="text-align:right">${ue(String(typeof sn[n]==="number"?Math.round(sn[n]*10)/10:sn[n]))}</td></tr>`).join("")}</table>`:""}`;
+    const g=document.getElementById("ev-guide");if(g)g.onclick=()=>openError(k);return;}
   const S=(d.pre||[]).concat(d.post||[]),u=units.find(x=>x.addr===d.addr);
   const oduKeys=[...new Set(S.flatMap(s=>Object.keys(s.o||{})))];
   const oduAddr=d.kind==="odu"?String(d.addr):(u&&u.odu!=null&&oduKeys.includes(String(u.odu))?String(u.odu):oduKeys[0]);
@@ -3100,12 +3126,23 @@ function busHealth(){
   if(APPL&&LINK.open)return "idle";            // the adapter is connected on the controller, nothing is polling yet
   if(APPL&&LINK.on&&LINK.error)return "bad";   // meant to be connected, but the adapter will not open
   return "off";}
+/* Every wire this controller talks on: the LG bus (when the site has LG equipment) and each Rheem / Ruud system's own
+   bus. The light in the header speaks for all of them: green when every one is up, red with a count when any is not. */
+function busList(){const out=[],h=busHealth();
+  if(!APPL||units.length>0||LINK.on)out.push({id:"lg",name:"LG bus",make:"LG",up:h==="ok"||h==="via"||h==="idle",
+    txt:h==="off"?"Offline":h==="bad"?"Problem":h==="via"?"Live":h==="idle"?"Connected, not polling yet":(MASTER.running?"Online":"Connected"),
+    why:h==="off"?"Cortex isn’t connected to the LG equipment. The last known readings are shown; changes can’t be sent.":h==="bad"?"The adapter is there but the LG equipment isn’t answering properly.":"",
+    detail:APPL?((LINK.serial?LINK.serial.baud+" baud":"")+(LINK.polling?" · controller polling "+(LINK.units||0)+" units":LINK.open?" · listening":"")+(LINK.error?" · "+LINK.error:"")):""});
+  if(APPL&&typeof ECOS!=="undefined"&&can("eco"))ECOS.systems.forEach(s=>out.push({id:s.id,name:s.name,make:"Rheem / Ruud",up:["live","listening","starting"].includes(s.state),txt:(ECO_STATE[s.state]||[s.state])[0],
+    why:s.state==="off"?"This system’s adapter is switched off in Cortex.":s.state==="problem"?"The controller can’t open this system’s adapter.":s.state==="silent"?"The adapter is open but nothing is heard from the equipment.":s.state==="unanswered"?"The equipment has stopped answering Cortex.":s.state==="opening"?"The adapter is being opened.":"",
+    detail:"38400 baud · heard "+s.heard+" · asked "+s.sent+(s.unanswered?" · "+s.unanswered+" unanswered":"")+(s.error?" · "+s.error:"")}));
+  return out;}
+const busMulti=L=>L.length>1||(L.length===1&&L[0].id!=="lg");
 function updateBusHealth(){
   const el=document.getElementById("bus-health");if(!el)return;
   let h=busHealth();
-  // a site with only Rheem / Ruud equipment has no LG bus to be "offline": the light follows those systems instead
-  const ecoOnly=APPL&&h==="off"&&!units.length&&ECOS.systems.length>0,ecoLive=ecoOnly?ECOS.systems.filter(x=>x.state==="live"||x.state==="listening").length:0;
-  if(ecoOnly){el.classList.remove("ok","bad","off");el.classList.add(ecoLive?"ok":"bad");const l=document.getElementById("bus-label");if(l)l.textContent=ecoLive?("Rheem / Ruud · "+ecoLive+" of "+ECOS.systems.length+" connected"):"Rheem / Ruud not connected";return;}
+  {const L=busList();if(busMulti(L)){const down=L.filter(b=>!b.up).length,l=document.getElementById("bus-label");el.classList.remove("ok","bad","off");el.classList.add(down?"bad":"ok");
+    if(l)l.textContent=down?(down+" bus"+(down===1?"":"es")+" offline"):(L.length===1?L[0].name+" · "+L[0].txt.toLowerCase():"All "+L.length+" buses online");return;}}
   el.classList.remove("ok","bad","off");el.classList.add(h==="via"||h==="idle"?"ok":h);
   const es=effSerial&&bus.scanning?effSerial():null;const ser=(es&&isTechView())?` · ${es.baud} ${es.dataBits}${(es.parity||"n")[0].toUpperCase()}${es.stopBits}`:"";
   const lbl=document.getElementById("bus-label");
@@ -3118,6 +3155,16 @@ setInterval(updateBusHealth,1000);
 let busPopT=null;
 function busPopClose(){const p=document.getElementById("buspop");if(p)p.remove();clearInterval(busPopT);busPopT=null;}
 function busPopFill(){const p=document.getElementById("buspop");if(!p)return;
+  {const L=busList();if(busMulti(L)){const down=L.filter(b=>!b.up),det=isTechView(),canView=can("busscan")||can("eco_setup");       // several buses: say which, and why, in plain words; details for those allowed them
+    p.className="buspop";p.innerHTML=`<div style="font-weight:650;margin-bottom:8px">${down.length?(down.length+" of "+L.length+" buses offline"):"All "+L.length+" buses online"}</div>
+      ${L.map(b=>`<div style="display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border)"><span style="width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none;background:${b.up?"var(--ok)":"var(--err)"}"></span>
+        <div style="flex:1;min-width:0"><div><b>${ue(b.name)}</b> <span style="color:var(--text-faint);font-size:12px">${b.make}</span></div>
+          <div style="font-size:12.5px;color:${b.up?"var(--text-dim)":"var(--err)"}">${ue(b.txt)}</div>${!b.up&&b.why?`<div style="font-size:12.5px;color:var(--text-dim);margin-top:2px">${b.why}</div>`:""}
+          ${det&&b.detail?`<div class="mono" style="font-size:11.5px;color:var(--text-faint);margin-top:3px">${ue(b.detail)}</div>`:""}</div>
+        ${canView?`<button class="linklike" data-busview="${ue(b.id)}">View</button>`:""}</div>`).join("")}
+      ${down.length&&!canView?`<div style="margin-top:8px;font-size:12.5px;color:var(--text-dim)">Let your technician know which bus is offline. Check that the controller and its USB adapters are plugged in.</div>`:""}`;
+    p.querySelectorAll("[data-busview]").forEach(b=>b.onclick=()=>{busPopClose();busBrand=b.dataset.busview;view="busscan";document.querySelectorAll(".nav-item[data-view]").forEach(x=>x.classList.toggle("active",x.dataset.view==="busscan"));renderAll();});
+    return;}}
   const h=busHealth(),tech=isTechView();
   const why=h==="off"?"Cortex isn’t connected to the equipment right now. You can still see the last known readings, but changes can’t be sent."
     :h==="bad"?(APPL&&!LINK.open&&LINK.error?"The controller can’t open its bus adapter ("+ue(LINK.error)+").":"Cortex is connected to the adapter but the equipment isn’t answering properly.")
@@ -3139,7 +3186,7 @@ function busPopFill(){const p=document.getElementById("buspop");if(!p)return;
         <div><small>bytes</small><b>${bus.bytes}</b></div>
       </div>
       ${bus.err?`<div class="warnband">⚠ ${ue(String(bus.err).replace(/<[^>]*>/g,""))}</div>`:""}
-      <div class="lab-feed" style="max-height:210px">${rows||`<div style="padding:10px 12px;font-size:12px;color:#5f8a84">${bus.port?"Waiting for frames…":(SRV.masterAlive?"Frames are shown on the screen that holds the adapter.":"Adapter closed — "+why)}</div>`}</div>
+      <div class="lab-feed" style="max-height:210px">${rows||`<div style="padding:10px 12px;font-size:12px;color:var(--lab-faint)">${bus.port?"Waiting for frames…":(SRV.masterAlive?"Frames are shown on the screen that holds the adapter.":"Adapter closed — "+why)}</div>`}</div>
       <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary" id="buspop-go">Open bus scan</button><button class="btn" id="buspop-x">Close</button></div>`;
   if(!body){p.className="buspop lab";p.innerHTML=`<div class="labhead"><span class="dot ${h==="ok"||h==="via"?"":"idle"}"></span><b>Bus</b> · live</div><div class="labbody">${html}</div>`;}
   else body.innerHTML=html;
@@ -3678,25 +3725,25 @@ function renderBusScanLg(){
       <div class="labbody">
         
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0">
-          <label style="font-size:11.5px;color:#5f8a84">scan <input id="m-lo" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.lo)}"> .. <input id="m-hi" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.hi)}"></label>
-          <label style="font-size:11.5px;color:#5f8a84">turnaround <input id="m-ta" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.turnaround}">ms</label>
-          <label style="font-size:11.5px;color:#5f8a84">reply wait <input id="m-to" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.timeout}">ms</label>
+          <label style="font-size:11.5px;color:var(--lab-faint)">scan <input id="m-lo" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.lo)}"> .. <input id="m-hi" class="inp mono" style="width:48px;padding:3px 6px" value="${mhex(MASTER.hi)}"></label>
+          <label style="font-size:11.5px;color:var(--lab-faint)">turnaround <input id="m-ta" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.turnaround}">ms</label>
+          <label style="font-size:11.5px;color:var(--lab-faint)">reply wait <input id="m-to" class="inp mono" style="width:52px;padding:3px 6px" value="${MASTER.timeout}">ms</label>
         </div>
-        <label style="font-size:11.5px;color:#5f8a84;display:block">query bytes <input id="m-q" class="inp mono" style="width:100%;padding:4px 6px;font-size:12px" value="${MASTER.query}"></label>
+        <label style="font-size:11.5px;color:var(--lab-faint);display:block">query bytes <input id="m-q" class="inp mono" style="width:100%;padding:4px 6px;font-size:12px" value="${MASTER.query}"></label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 6px">
           ${(MASTER.running||(APPL&&LINK.master))
             ?`<button class="btn go" id="m-stop" title="Stop live polling. Cortex stops transmitting on the bus.">■ stop polling</button>`
             :`<button class="btn primary" id="m-guide" ${bus.scanning?"":"disabled"} title="One-tap setup: reminds you to disconnect the LG central, then finds all units, imports them, and starts live polling — in order, automatically. Best choice for most techs.">▶ guided setup (recommended)</button>`}
         </div>
-        <div style="font-size:11px;color:#5f8a84;margin:2px 0 6px">Manual steps (advanced) — run them in order 1 → 2 → 3:</div>
+        <div style="font-size:11px;color:var(--lab-faint);margin:2px 0 6px">Manual steps (advanced) — run them in order 1 → 2 → 3:</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px">
           <button class="btn" id="m-disc" ${bus.scanning?"":"disabled"} title="Step 1 · Roll call. Sweeps every address once and lists the units that answer. Do this FIRST, with the LG central disconnected. Read-only, safe.">① discover</button>
           <button class="btn" id="m-import" ${MASTER.found.size?"":"disabled"} title="Step 2 · Adds the units found by Discover into Cortex's unit list. Run Discover first.">② import ${MASTER.found.size} found</button>
           ${(MASTER.running||(APPL&&LINK.master))?``:`<button class="btn" id="m-start" ${bus.scanning?"":"disabled"} title="Step 3 · Keep re-reading the imported units over and over for live status (temp, mode, setpoint). Run Discover + Import first.">③ start poll loop</button>`}
           <button class="btn" id="m-dl" title="Save the frames Cortex sent and received to a text file you can share for debugging.${foc.length?' Only the watched unit(s).':''}">⬇ save capture</button>
         </div>
-        <div class="mono" id="m-status" style="font-size:12px;color:${MASTER.running?'var(--neon,#2ff5c8)':'#5f8a84'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(APPL&&LINK.polling?("● the controller is polling "+(LINK.units||0)+" unit(s)"):(MASTER.found.size+" responder(s) found"))}</div>
-        <pre id="m-log" class="mono" style="max-height:220px;overflow:auto;border:1px solid #123a40;border-radius:8px;padding:9px;background:#05080b;font-size:11.5px;white-space:pre-wrap;margin:9px 0 0;color:#7fe8cf">${MASTER.log.slice(0,140).join("\n")}</pre>
+        <div class="mono" id="m-status" style="font-size:12px;color:${MASTER.running?'var(--neon,var(--lab-neon))':'var(--lab-faint)'}">${MASTER.running?("● MASTER polling "+MASTER.found.size+" unit(s)"):(APPL&&LINK.polling?("● the controller is polling "+(LINK.units||0)+" unit(s)"):(MASTER.found.size+" responder(s) found"))}</div>
+        <pre id="m-log" class="mono" style="max-height:220px;overflow:auto;border:1px solid var(--lab-line);border-radius:8px;padding:9px;background:#05080b;font-size:11.5px;white-space:pre-wrap;margin:9px 0 0;color:#7fe8cf">${MASTER.log.slice(0,140).join("\n")}</pre>
       </div>
     </div>
     <div class="lab">
@@ -4085,7 +4132,7 @@ function ecoCard(sys){const st=ECO_STATE[sys.state]||[sys.state,"stop"],pts=ecoP
     :sys.state==="unanswered"?"The equipment is not answering Cortex’s questions. It can be heard, so the wiring is right; this kind of equipment or its address may differ."
     :sys.state==="off"?"This system is switched off in Cortex.":"";
   return `<div class="eco" data-sys="${sys.id}"><div class="eco-top"><div><h3>${ue(sys.name)}</h3><div class="sub">${ue(sys.kindLabel)}</div></div><span class="pill ${st[1]}">${st[0]}</span></div>
-    ${(sys.alarms||[]).map(a=>`<div class="eco-alarm">⚠ ${ue(a)}</div>`).join("")}
+    ${(sys.alarms||[]).map(a=>{const k=rheemKey(a,sys.kind),e=errInfo(k);return `<div class="eco-alarm" data-ecoerr="${ue(k)}" style="cursor:pointer" title="Open the guide for this alarm">⚠ <b>${ue(codeShown(k))}</b>${e.unknown?"":" · "+ue(e.t)} <span style="font-weight:400;opacity:.8">— tap for what it means and how to fix it</span></div>`;}).join("")}
     ${tv?`<div class="eco-big"><b>${tv.v==null?"—":Math.round(tv.v*10)/10}°</b><span>${ue(temp.label)}${av?" · "+ecoFmt(act,av):""}${hv&&hv.v!=null?" · "+Math.round(hv.v)+"% humidity":""}</span></div>`:(Object.keys(sys.values).length?"":`<div class="eco-big"><span>No readings yet.</span></div>`)}
     ${why?`<div class="note-box" style="margin-bottom:8px;font-size:12.5px">${why}</div>`:""}
     ${ecoChoice(sys,R("power"),true)}${ecoChoice(sys,R("mode"),sys.kind==="hvac")}${ecoStepper(sys,R("setpoint"))}${ecoStepper(sys,R("heat"))}${ecoStepper(sys,R("cool"))}${ecoChoice(sys,fan,false)}${ecoChoice(sys,sched,true)}
@@ -4115,6 +4162,7 @@ function ecoBind(m){
   m.querySelectorAll("select[data-ecosel]").forEach(el=>el.onchange=()=>{const sys=sysOf(el.dataset.ecosel),p=sys&&ptOf(sys,el.dataset.n);if(p)ecoSet(sys,p,+el.value,p.options[el.value]);el.blur();});
   m.querySelectorAll("details[data-ecod]").forEach(d=>d.ontoggle=()=>{ECOS.open[d.dataset.ecod]=d.open;});
   m.querySelectorAll("button[data-ecot]").forEach(b=>b.onclick=()=>ecoTool(b.dataset.ecot,sysOf(b.dataset.id)));
+  m.querySelectorAll("[data-ecoerr]").forEach(b=>b.onclick=()=>openError(b.dataset.ecoerr));
   const gs=m.querySelector("#eco-grp-save");if(gs)gs.onclick=async()=>{try{await ecoPost({id:gs.dataset.id,group:m.querySelector("#eco-grp").value,sub:m.querySelector("#eco-sub").value});toast("Moved");}catch(e){toast(e.message);}ecoPull();};}
 /* The unit panel for a Rheem / Ruud system: opened from its card on Indoor units or its marker on the map. */
 function openEco(id){const sys=ECOS.systems.find(x=>x.id===id);if(!sys)return;ECOS.modal=id;
@@ -4372,21 +4420,395 @@ function modal(html,wide){const fresh=!mroot.innerHTML;mroot.innerHTML=`<div cla
 function closeModal(){mroot.innerHTML="";}
 function head(title){return `<div class="modal-head"><h3>${title}</h3><button class="icon-btn" onclick="closeModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;}
 
+/* Drawings for the Rheem / Ruud guides. Our own, drawn here; they show the idea, not a particular model. */
+(function(){const B=(x,y,w,h,t,s)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" class="fg-body"/>`+fgT(x+w/2,y+(s?h/2-2:h/2+5),t,{b:1,a:"middle"})+(s?fgT(x+w/2,y+h/2+15,s,{s:1,a:"middle"}):""),
+   L=(d,c,w)=>`<path d="${d}" fill="none" stroke="${c||"var(--text-dim)"}" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round"/>`,
+   A=(x,y,dir)=>{const p=dir==="r"?`${x-8},${y-5} ${x},${y} ${x-8},${y+5}`:dir==="l"?`${x+8},${y-5} ${x},${y} ${x+8},${y+5}`:dir==="d"?`${x-5},${y-8} ${x},${y} ${x+5},${y-8}`:`${x-5},${y+8} ${x},${y} ${x+5},${y+8}`;return `<polygon points="${p}" fill="var(--text-dim)"/>`;},
+   W={R:"#e5484d",C:"#3b82f6",E1:"#f59e0b",E2:"#10b981"},N=(x,y,n,t)=>`<circle cx="${x}" cy="${y}" r="11" fill="var(--accent)"/>`+fgT(x,y+4.5,n,{b:1,a:"middle",fill:"#fff"})+(t?fgT(x+18,y+4.5,t,{s:1}):"");
+ Object.assign(FIG,{
+  rnet:{t:"EcoNet control wiring",cap:"Every EcoNet device shares the same four wires. R and C are the 24 V supply; E1 and E2 carry the data. Land each colour on the same letter at every device. One swapped, loose or shorted data wire silences everything past it.",
+   svg:()=>{const dev=(x,t,s)=>B(x,36,140,70,t,s)+["R","C","E1","E2"].map((k,i)=>`<rect x="${x+12+i*30}" y="106" width="26" height="24" rx="4" class="fg-body"/>`+fgT(x+25+i*30,123,k,{d:1,a:"middle"})).join(""),
+      run=(k,i)=>L(`M${45+i*30} 130V${166+i*14}H${395+i*30}V130M${220+i*30} 130V${166+i*14}`,W[k],3.2);
+     return fgSvg(560,250,dev(20,"Thermostat","EcoNet control")+dev(195,"Indoor unit","air handler or furnace")+dev(370,"Outdoor unit","heat pump or AC")+["R","C","E1","E2"].map(run).join("")
+      +fgT(20,236,"24 V AC between R and C at every device",{s:1})+fgT(540,236,"E1 to E1, E2 to E2, everywhere",{s:1,a:"end"}));}},
+  rtherm:{t:"Checking a temperature sensor",cap:"A temperature sensor is a small resistor whose resistance changes with temperature. Unplug it from the board and measure across its two wires, then compare with the chart in the unit's manual for the temperature it is sitting at. No reading at all means a broken wire; near zero means a short.",
+   svg:()=>fgSvg(540,220,B(20,40,120,70,"Control board","sensor socket")+L("M140 75H180")+`<rect x="180" y="60" width="26" height="30" rx="4" class="fg-body"/>`+fgT(193,50,"socket",{s:1,a:"middle"})
+     +`<rect x="250" y="60" width="26" height="30" rx="4" class="fg-body"/>`+fgT(263,50,"plug, pulled out",{s:1,a:"middle"})+L("M276 68H430M276 82H430")+`<ellipse cx="452" cy="75" rx="24" ry="15" class="fg-body"/>`+fgT(452,112,"sensor",{s:1,a:"middle"})
+     +`<rect x="290" y="150" width="130" height="40" rx="8" class="fg-body"/>`+fgT(355,175,"meter on ohms",{b:1,a:"middle"})+L("M320 150V82M390 150V68","var(--accent)",2.4)+`<circle cx="320" cy="82" r="4" fill="var(--accent)"/><circle cx="390" cy="68" r="4" fill="var(--accent)"/>`
+     +fgT(20,150,"No reading = broken wire",{s:1})+fgT(20,168,"Near zero = shorted",{s:1})+fgT(20,186,"Otherwise compare with the chart",{s:1}))},
+  rair:{t:"Where the air goes",cap:"Air is pulled through the filter, pushed by the blower across the coil (and the furnace heat exchanger), and out through the ducts. Anything that blocks it on the way raises static pressure, freezes the coil in cooling and overheats the furnace in heating. Work from the filter forward.",
+   svg:()=>fgSvg(560,190,N(34,34,"1")+B(20,60,80,70,"Filter")+N(134,34,"2")+B(120,60,90,70,"Blower")+N(244,34,"3")+B(230,60,90,70,"Coil","or furnace")+N(354,34,"4")+B(340,60,90,70,"Ducts","and dampers")+B(450,60,90,70,"Rooms")
+     +[100,210,320,430].map(x=>L(`M${x+2} 95H${x+18}`)+A(x+20,95,"r")).join("")+L("M495 130V162H60V130")+A(60,132,"u")+fgT(280,180,"return air",{s:1,a:"middle"}))},
+  rdrain:{t:"Condensate drain and float switch",cap:"Cooling pulls water out of the air. It collects in the pan under the coil and runs out through a trap. If the line blocks, the water rises, lifts the float and opens the switch, and cooling stops before the pan overflows. Clear the line, empty the pan, and the float drops back.",
+   svg:()=>fgSvg(540,210,B(40,24,220,50,"Indoor coil")+`<path d="M30 88H270V120H30Z" class="fg-body"/>`+`<path d="M34 104H266V118H34Z" fill="#3b82f6" opacity=".35"/>`+fgT(150,140,"drain pan",{s:1,a:"middle"})
+     +`<rect x="214" y="80" width="30" height="20" rx="4" fill="var(--accent)"/>`+fgT(300,84,"float switch",{b:1})+fgT(300,100,"opens when water rises",{s:1})+L("M246 90H292")
+     +L("M270 112H330V160Q330 180 350 180T370 160V140H470","#3b82f6",4)+fgT(322,184,"trap",{s:1,a:"end"})+fgT(470,132,"to drain",{s:1,a:"end"})+N(350,150,"!")+fgT(30,196,"A blockage at ! backs the water up into the pan",{s:1}))},
+  rfurn:{t:"How a gas furnace lights, in order",cap:"A furnace lights in a fixed order and each step must be proven before the next. Watch one start-up and note where it stops: that step, or the safety that proves it, is the fault.",
+   svg:()=>{const st=[["1","Call for heat","thermostat"],["2","Inducer fan","clears the flue"],["3","Pressure switch","proves the draft"],["4","Igniter","glows or sparks"],["5","Gas valve","opens"],["6","Flame sensor","proves the flame"],["7","Blower","moves the heat"]];
+     return fgSvg(560,250,st.map((s,i)=>{const x=20+(i%4)*135,y=i<4?30:140;return B(x,y,120,66,s[1],s[2])+N(x+16,y+2,s[0])+(i%4<3&&i<6?L(`M${x+122} ${y+33}H${x+131}`)+A(x+134,y+33,"r"):"");}).join("")
+      +L("M485 96V118H80V138")+A(80,140,"d")+fgT(425,172,"Safeties in the circuit:",{b:1})+fgT(425,190,"main limit · roll-out",{s:1})+fgT(425,206,"pressure switch",{s:1}));}},
+  rhpwh:{t:"Parts of a heat pump water heater",cap:"The heat pump sits on top: a fan draws room air through a filter and across the evaporator, and the compressor moves that heat into the tank. Two electric elements back it up. Sensors watch the tank, the air and the refrigerant; a rope sensor in the pan watches for leaks.",
+   svg:()=>fgSvg(540,330,`<rect x="170" y="20" width="200" height="86" rx="10" class="fg-body"/>`+fgT(270,40,"Heat pump",{b:1,a:"middle"})+B(182,50,56,44,"Fan")+B(244,50,56,44,"Coil")+B(306,50,56,44,"Comp.")
+     +`<rect x="150" y="20" width="14" height="86" rx="3" fill="var(--accent)" opacity=".7"/>`+fgT(140,60,"air filter",{s:1,a:"end"})+fgT(140,76,"wash it",{s:1,a:"end"})
+     +`<rect x="170" y="106" width="200" height="180" rx="14" class="fg-body"/>`+fgT(270,200,"Tank",{b:1,a:"middle"})
+     +`<rect x="356" y="140" width="40" height="14" rx="3" fill="#e5484d"/>`+fgT(404,152,"upper element + sensor",{s:1})+`<rect x="356" y="240" width="40" height="14" rx="3" fill="#e5484d"/>`+fgT(404,252,"lower element + sensor",{s:1})
+     +L("M170 96H120V300","#3b82f6",3)+fgT(112,200,"condensate",{s:1,a:"end"})+fgT(112,216,"drain",{s:1,a:"end"})
+     +`<path d="M150 296H390V310H150Z" class="fg-body"/>`+L("M160 303H380","var(--accent)",3)+fgT(270,326,"pan with leak sensor rope",{s:1,a:"middle"}))}});
+})();
+/* ===== Rheem / Ruud (EcoNet) fault guides =====
+   The same guide, drawings and step-by-step checks as the LG codes, for the alarms a Rheem / Ruud system reports.
+   Code names and what each one means come from Rheem's EcoNet help pages and the hybrid water heater Use & Care
+   manual; the causes, checks and drawings here are Cortex's own field summaries. Always confirm against Rheem's
+   page for the exact code before replacing parts.
+   A code looks like A021_A: A = alarm (red), T = alert (yellow), S = reminder; the ending says where it comes from
+   (_O outdoor unit, _A air handler, _F furnace, _C communication, _S system / thermostat, _Z zoning).
+   Water heaters use plain A### / T### with their own meanings, so those are kept apart (key "R:W:A107"). */
+const R_HELP={C:"https://my.rheem.com/static/private/portal/7e175da2-3ee9-4bd4-bc99-7251a1395dbb.html",S:"https://my.rheem.com/static/private/portal/7e175da2-3ee9-4bd4-bc99-7251a1395dbb.html",
+  A:"https://my.rheem.com/static/private/portal/b2a54dd9-b4bc-4c86-8ee4-bd389bb2b3d1.html",F:"https://my.rheem.com/static/private/portal/ea1d949a-14c5-4c2d-86d9-13237b1b3a1e.html",O:"https://my.rheem.com/static/private/portal/831215ee-74d4-4f2b-830d-f624b829cd33.html"};
+const R_WIRE_CHK="EcoNet control wiring is four wires: <b>R</b> and <b>C</b> carry 24 V AC, <b>E1</b> and <b>E2</b> carry the data. Every device is wired to the same four terminals, colour for colour. With power on you should read about 24 V AC between R and C at each device. With power off, check each wire end to end for continuity and make sure no wire touches another or the cabinet.";
+const R_TH_CHK="Unplug the sensor from the board and measure its resistance with a meter. Compare it with the resistance-against-temperature chart in the unit's service manual at the temperature the sensor is actually at. An open circuit (no reading) or a dead short (near zero) means the sensor or its wire has failed. If the sensor reads right, look at the plug and the pins on the board.";
+const R_CAT={
+ comm:{who:"Wiring",fig:["rnet"],cause:"The thermostat can no longer talk to this part of the system over the EcoNet control wiring. Rheem treats this as critical: the part that went quiet will not run.",
+  act:"Check power to the unit that went quiet first, then the four control wires between it and the thermostat. A unit with no power cannot answer.",chk:R_WIRE_CHK,
+  diag:[{q:"Does the unit that stopped answering have power?",how:"Check its breaker or disconnect, its door switch, and the low-voltage fuse on its control board. Look for a lit status light on the board.",bad:"no",fix:"Restore power: reset the breaker, close the door switch, or find the short that blew the low-voltage fuse and replace the fuse."},
+   {q:"Is there about 24 V AC between R and C at that unit's control board?",how:"Measure at the terminals where the thermostat cable lands.",bad:"no",fix:"The transformer, the low-voltage fuse or the R / C wires are at fault. Trace 24 V back from the board to the transformer."},
+   {q:"Are E1 and E2 landed on the same terminals at every device, tight, with no stray strands?",how:"Compare wire colours at the thermostat, the indoor unit and the outdoor unit. E1 must go to E1 and E2 to E2 everywhere.",bad:"no",fix:"Correct the swapped or loose data wire and re-tighten every terminal."},
+   {q:"With power off, do E1 and E2 each show continuity end to end, and no connection to each other, to R, to C or to ground?",how:"Disconnect both ends of the cable before measuring.",bad:"no",fix:"Replace or repair the control cable. Look for staples, rodent damage and splices."},
+   {q:"With every other device disconnected from the data wires, does this unit start talking to the thermostat?",how:"Reconnect the others one at a time to find one that drags the bus down.",bad:"yes",fix:"The device that stops communication when reconnected has a failed control. Replace that control."}]},
+ sensor:{who:"Sensor",fig:["rtherm"],cause:"A temperature or pressure sensor is reading outside its possible range: open, shorted, unplugged, or failed.",
+  act:"Find the named sensor, check its plug, then measure the sensor. The system usually keeps running in a limited way without it.",chk:R_TH_CHK,
+  diag:[{q:"Is the sensor plugged firmly into the control board, with no corrosion or bent pins?",how:"Unplug it and plug it back in. Look for green corrosion, especially near the coil.",bad:"no",fix:"Clean and reseat the connector, or replace the sensor if the plug is damaged."},
+   {q:"Does the sensor's resistance match the chart for its real temperature?",how:"Measure the sensor unplugged. Compare with the chart in the service manual. Warm it in your hand: the reading should change smoothly.",bad:"no",fix:"Replace the sensor."},
+   {q:"Is the sensor's wire undamaged along its whole length?",how:"Look where it passes sheet metal edges and where it is tied to refrigerant lines.",bad:"no",fix:"Repair or replace the sensor lead."},
+   {q:"With a known-good sensor plugged in, does the alarm clear?",bad:"no",fix:"The control board's input has failed. Replace the control board."}]},
+ data:{who:"Control",cause:"The control board has lost, or cannot read, the stored information that tells it which model it is fitted to. Without it the unit does not know how to run its blower or compressor.",
+  act:"Check that the memory card is fitted and seated. If the board was replaced, the model data has to be loaded again. If it keeps returning, the control needs replacing.",
+  diag:[{q:"Is the memory card present and fully seated on the control board?",how:"Power the unit off before touching it. The card is tethered inside the control box and must stay with the unit, not with the old board.",bad:"no",fix:"Reseat the memory card, or move the original card from the old board to the new one, then restore power."},
+   {q:"Was the control board replaced recently?",bad:"yes",fix:"Load the model data for this unit using Rheem's contractor app and the unit's serial number, then cycle power."},
+   {q:"After cycling power with the card seated, does the alarm clear?",bad:"no",fix:"Replace the control board (and the memory card if Rheem's page for this code says so)."}]},
+ airflow:{who:"Airflow",fig:["rair"],cause:"Not enough air is moving across the indoor coil, or the duct system is too restrictive. The coil may be iced over.",
+  act:"Start with the filter. Then check for a frozen coil, closed registers and dampers, and a blower that is not reaching speed.",
+  chk:"If the coil is frozen, switch cooling off and run the fan only until it thaws before measuring anything. Total external static pressure above about 1 inch of water column points to the ductwork, not the equipment.",
+  diag:[{q:"Is the air filter clean?",bad:"no",fix:"Replace the filter and let the system run. Ask how long since it was last changed."},
+   {q:"Is the indoor coil free of ice and dirt?",how:"Look at the coil face through the access panel. Ice means the airflow or the refrigerant charge is low.",bad:"no",fix:"Thaw the coil with the fan, clean it if dirty, then find why it froze: airflow first, charge second."},
+   {q:"Are the supply registers and any zone dampers open, and the return unobstructed?",bad:"no",fix:"Open the registers and dampers and clear the return. Too many closed zones raise static pressure."},
+   {q:"Does the blower reach speed and move air on every stage?",how:"Compare the airflow and static pressure the thermostat reports with what the model should deliver.",bad:"no",fix:"Check the blower wheel for dirt, then the blower motor and its control (see the blower motor codes)."},
+   {q:"Is the refrigerant charge right?",how:"Only once airflow is proven. Check superheat and subcooling against the charging chart.",bad:"no",fix:"Find and fix the leak, then weigh in or adjust the charge."}]},
+ blower:{who:"Blower",cause:"The control cannot run, or cannot talk to, the variable-speed blower motor.",
+  act:"Check the two plugs on the motor (power and control), the line voltage at the motor, and whether the wheel turns freely.",
+  diag:[{q:"Does the blower wheel turn freely by hand with power off?",bad:"no",fix:"Free or replace the wheel, or replace the motor if its bearings have seized."},
+   {q:"Are both motor plugs seated, with no burnt or backed-out pins?",bad:"no",fix:"Reseat or repair the harness."},
+   {q:"Is full line voltage present at the motor's power plug?",bad:"no",fix:"Trace the missing voltage back through the door switch, wiring and board."},
+   {q:"With power and wiring proven, does the motor run?",bad:"no",fix:"Replace the motor (or its control module, where it is a separate part). If the code says the motor size does not match, fit the motor listed for this model."}]},
+ drain:{who:"Drain",fig:["rdrain"],cause:"A float switch has opened: the condensate drain pan is filling with water because the drain is blocked.",
+  act:"Clear the condensate drain and trap, empty the pan, and confirm the float switch closes again. Cooling stays off until it does.",
+  diag:[{q:"Is there standing water in the drain pan or the secondary pan?",bad:"yes",fix:"Clear the drain line and trap (wet vacuum from outside, then flush). Empty the pan."},
+   {q:"With the pan dry, does the float switch close?",how:"Measure across the switch: it should show continuity when the float is down.",bad:"no",fix:"Replace the float switch."},
+   {q:"Is the float switch wired to the input the alarm names?",bad:"no",fix:"Correct the wiring, or change the input's setting at the thermostat to match what is connected."}]},
+ auxin:{who:"Accessory",cause:"Something wired to one of the air handler's auxiliary inputs has told the system to stop or to hold off one kind of heating or cooling. The control is doing what that input is set up to do.",
+  act:"Find what is wired to the named input (a float switch, a smoke detector, an energy-management relay, a freeze stat) and see why it tripped.",
+  diag:[{q:"Is a device actually wired to the named auxiliary input?",bad:"no",fix:"Nothing is connected, so the input's setting is wrong. Set that input to unused at the thermostat."},
+   {q:"Is that device in its normal state?",how:"A drain float should be down, a smoke detector not in alarm, a utility relay not calling for shut-off.",bad:"no",fix:"Deal with whatever the device is reporting. The system releases when the input returns to normal."}]},
+ refleak:{who:"Safety",cause:"A refrigerant sensor in the indoor unit has detected refrigerant in the air, or the control has lost contact with that sensor. Newer refrigerants are mildly flammable, so the system runs the blower and stops the compressor.",
+  act:"Ventilate the space and keep ignition sources away. Leak-check the indoor coil and its connections before running the system again.",
+  diag:[{q:"Is the alarm a sensor communication fault rather than refrigerant detected?",bad:"yes",fix:"Check the sensor's plug and harness at the control board. Replace the sensor if the wiring is good."},
+   {q:"Does a leak detector find refrigerant at the indoor coil, the metering device or the line connections?",bad:"yes",fix:"Recover the charge, repair the leak, pressure test, evacuate and recharge. Do not just reset the alarm."},
+   {q:"With no leak found, does the alarm return after the sensor is replaced?",bad:"yes",fix:"Replace the control board."}]},
+ ignition:{who:"Furnace",fig:["rfurn"],cause:"The furnace tried to light and either did not get a flame or lost it. After several tries it locks out for an hour.",
+  act:"Check gas supply, then watch one start-up: inducer, pressure switch, igniter glow, gas valve, flame. The step that fails tells you the part.",
+  chk:"Watch a full ignition sequence with the burner door safely positioned. A dirty flame sensor is the most common cause of a flame that lights and then drops out.",
+  diag:[{q:"Is gas reaching the furnace?",how:"Gas cock open, other gas appliances working, inlet pressure within the rating plate range.",bad:"no",fix:"Restore the gas supply or correct the inlet pressure."},
+   {q:"Does the igniter glow (or spark) during the start-up?",bad:"no",fix:"Check the igniter's plug and resistance; replace a cracked or open igniter."},
+   {q:"Do the burners light?",how:"If the igniter glows but nothing lights, listen for the gas valve click and check manifold pressure.",bad:"no",fix:"No valve click with voltage present: replace the gas valve. No voltage: follow the pressure switch and limit circuit back to the control."},
+   {q:"Does the flame stay on for more than a few seconds?",bad:"no",fix:"Clean the flame sensor with fine abrasive pad, check its wire and the furnace ground. Replace the sensor if it is cracked."},
+   {q:"Do all burners light smoothly across, with a steady blue flame?",bad:"no",fix:"Clean the burners and crossovers, check for a cracked heat exchanger disturbing the flame, and confirm the vent is clear."}]},
+ flame:{who:"Safety",fig:["rfurn"],cause:"The control sees a flame when the gas valve should be closed, or has found a fault in its own gas valve or flame-sensing circuit. This is a safety lockout.",
+  act:"Shut off the gas to the furnace. Do not reset and leave. A valve that does not close, or a control that cannot be trusted to close it, must be replaced.",
+  diag:[{q:"With the thermostat satisfied, is there any flame at the burners?",bad:"yes",fix:"Shut the gas cock. The gas valve is leaking through: replace it."},
+   {q:"Is the flame sensor wire shorted to the cabinet, or the sensor wet or sooted?",bad:"yes",fix:"Clean or replace the sensor and repair its wire."},
+   {q:"With no flame and a good sensor, does the alarm return after power is cycled?",bad:"yes",fix:"The control board's flame or gas valve relay circuit has failed. Replace the control board."}]},
+ limit:{who:"Furnace",fig:["rair"],cause:"A temperature safety switch on the furnace has opened because the furnace got too hot (main limit) or flame came out of the burner box (roll-out).",
+  act:"A main limit almost always means low airflow: filter, blower, closed registers. A roll-out switch means flame went where it should not: check the vent and the heat exchanger before resetting.",
+  diag:[{q:"Is it the roll-out switch that tripped?",how:"Roll-out switches are manual-reset buttons near the burners.",bad:"yes",fix:"Do not just reset. Check for a blocked vent or heat exchanger, a cracked heat exchanger, and low inducer draft. Reset only after the cause is found."},
+   {q:"Is the filter clean and are registers open?",bad:"no",fix:"Replace the filter and open the registers. The limit resets itself when the furnace cools."},
+   {q:"Does the blower come on and reach speed when the burners are lit?",bad:"no",fix:"Check the blower motor, its wheel and its control."},
+   {q:"Is the temperature rise across the furnace inside the range on the rating plate?",bad:"no",fix:"Too high: raise the blower speed or reduce the gas input to the rating. Check that the furnace is not oversized for the ducts."},
+   {q:"With airflow proven, does the limit still open?",bad:"yes",fix:"Replace the limit switch."}]},
+ pswitch:{who:"Furnace",fig:["rfurn"],cause:"The pressure switch that proves the inducer fan is moving flue gas is in the wrong state: stuck closed before the inducer starts, or not closing once it runs.",
+  act:"Check the inducer runs, the vent and intake are clear, the condensate trap drains, and the rubber tube to the switch is sound.",
+  diag:[{q:"Does the inducer fan start and run up to speed?",bad:"no",fix:"Check voltage to the inducer; replace the inducer motor or the control."},
+   {q:"Are the vent and combustion-air pipes clear end to end, including the outside terminations?",how:"Look for nests, ice, sagging pipe holding water, and blocked screens.",bad:"no",fix:"Clear the blockage and correct any sag."},
+   {q:"Is the condensate trap and drain clear (on condensing furnaces)?",bad:"no",fix:"Clean the trap and hose. Water backing up into the collector box holds the switch open."},
+   {q:"Is the pressure switch tube connected, uncracked and free of water?",bad:"no",fix:"Clear or replace the tube and clean the port it connects to."},
+   {q:"Does the switch read closed with the inducer running and open with it stopped?",how:"If it is closed with the inducer stopped, the switch is stuck.",bad:"no",fix:"Replace the pressure switch with the exact part for this model."}]},
+ fuse:{who:"Wiring",cause:"The low-voltage fuse on the control board has blown. Something in the 24 V wiring is shorted.",
+  act:"Do not just fit a bigger fuse. Find the short: thermostat cable, outdoor unit wiring, a contactor coil, a humidifier or other accessory.",
+  diag:[{q:"With the thermostat cable and all accessories disconnected from the board, does a new fuse hold?",bad:"no",fix:"The short is on the board or its transformer. Replace the board."},
+   {q:"Reconnecting one cable at a time, which one blows the fuse?",how:"Check that cable for bare wire touching metal, especially at the outdoor unit and where it passes through the cabinet.",bad:"yes",fix:"Repair or replace the shorted cable or the shorted part on it (contactor coil, reversing valve coil, accessory)."}]},
+ refpress:{who:"Refrigerant",cause:"The outdoor unit's refrigerant pressure went outside its safe range. Low pressure usually means low charge or low indoor airflow. High pressure usually means a dirty outdoor coil, a failed outdoor fan, or overcharge.",
+  act:"Check airflow on both coils before touching the charge. An alert (T) means it happened; an alarm (A) means it kept happening and the unit locked out.",
+  diag:[{q:"Is the outdoor coil clean and the outdoor fan running?",bad:"no",fix:"Clean the coil; repair the fan motor, capacitor or blade."},
+   {q:"Is indoor airflow good (clean filter, clean coil, blower at speed)?",bad:"no",fix:"Correct the indoor airflow first; see the airflow checks."},
+   {q:"Are the service valves fully open and is there no kinked or crushed line?",bad:"no",fix:"Open the valves; replace the damaged section of line."},
+   {q:"Do superheat and subcooling match the charging chart?",bad:"no",fix:"Low charge: find and repair the leak, then recharge. Overcharge: recover to the correct charge."},
+   {q:"With pressures normal on gauges, does the alarm return?",bad:"yes",fix:"The pressure switch or sensor, or its wiring, is faulty. Replace it."}]},
+ comp:{who:"Compressor",cause:"The outdoor control did not see what it expects at the compressor: it would not start, it has no voltage when it should, or it has voltage when it should be off.",
+  act:"Check incoming power and the contactor first, then the compressor's capacitor and windings.",
+  diag:[{q:"Is line voltage correct and steady at the outdoor unit, on both legs?",how:"Measure while the compressor tries to start. A large dip means a supply problem.",bad:"no",fix:"Have the supply corrected: loose lugs, an undersized circuit or a utility problem."},
+   {q:"Does the contactor pull in when called and drop out when not?",how:"Voltage at the compressor with no call means welded contactor points.",bad:"no",fix:"Replace the contactor."},
+   {q:"Is the run capacitor within its rated tolerance?",bad:"no",fix:"Replace the capacitor."},
+   {q:"Do the compressor windings measure correctly, with no reading to ground?",bad:"no",fix:"The compressor has failed. Confirm with Rheem's procedure before replacing it."},
+   {q:"With good power, contactor and capacitor, does the compressor still hum and trip?",bad:"yes",fix:"The compressor is mechanically locked. A hard-start kit may be tried where Rheem allows it; otherwise replace the compressor."}]},
+ power:{who:"Power",cause:"The line voltage at the outdoor unit dropped too low for the unit to run safely.",
+  act:"Measure the supply while the unit starts. Look for loose connections, an undersized circuit, or a utility problem.",
+  diag:[{q:"Is the voltage at the disconnect within the rating plate range, with the unit running?",bad:"no",fix:"Tighten every lug from the breaker to the unit. If it is still low, the circuit or the utility supply needs correcting."}]},
+ inverter:{who:"Outdoor",cause:"The outdoor control has lost contact with the inverter drive board that runs the variable-speed compressor.",
+  act:"Check the communication cable between the outdoor control and the drive board. If the cable is good, one of the two boards has failed.",
+  diag:[{q:"Is the cable between the outdoor control and the inverter drive seated at both ends and undamaged?",bad:"no",fix:"Reseat or replace the cable."},
+   {q:"Does the drive board have power (lights on)?",bad:"no",fix:"Find why the drive is unpowered: line voltage, the choke and filter connections, or a failed drive."},
+   {q:"With a good cable and a powered drive, does the alarm remain?",bad:"yes",fix:"Replace the outdoor control first, then the inverter drive, as Rheem's page for this code directs."}]},
+ reminder:{who:"Reminder",cause:"A maintenance reminder, not a fault. The system keeps running normally.",
+  act:"Do the task it names (change the filter, book the service visit), then clear the reminder at the thermostat."},
+ clock:{who:"Thermostat",cause:"The thermostat's clock is not set or is not keeping time, so its schedule cannot be trusted.",
+  act:"Set the date and time at the thermostat. If it will not keep time after power has been steady, the thermostat needs replacing."},
+ statsensor:{who:"Thermostat",cause:"A sensor built into the thermostat has failed.",
+  act:"Cycle power to the thermostat. If the alarm returns, replace the thermostat. A remote sensor, if one is fitted, should be checked at its wiring first."},
+ roomtemp:{who:"Comfort",cause:"The room is more than 10 degrees away from what the thermostat is asking for. The system is running but not keeping up, or is not running at all.",
+  act:"Look for another alarm first: this one is usually the result of something else. If there is none, check the equipment is actually heating or cooling and the filter is clean.",
+  diag:[{q:"Is another alarm active on this system?",bad:"yes",fix:"Work on that alarm. This one will clear when the system catches up."},
+   {q:"Is the equipment running and producing warm or cool air at the registers?",bad:"no",fix:"Check power to the indoor and outdoor units, and whether the thermostat is actually calling."},
+   {q:"Is the filter clean and are doors and windows closed?",bad:"no",fix:"Correct that and give the system time to recover."}]},
+ unsupported:{who:"Setup",cause:"The thermostat has found an outdoor unit, or a combination of equipment, that it does not support.",
+  act:"Confirm the outdoor unit and indoor unit are a listed match and that the thermostat is the right model with current software."},
+ setup:{who:"Setup",cause:"The air handler has found a heater kit or accessory it cannot identify, or one that is not allowed with this model.",
+  act:"Check the heater kit's model against the list for this air handler and that its plug is fully seated."},
+ control:{who:"Control",cause:"The control board has found a fault inside itself.",
+  act:"Cycle power once. If the alarm returns, replace the control board."},
+ // --- hybrid (heat pump) water heater ---
+ whcomp:{who:"Heat pump",fig:["rhpwh"],cause:"The water heater shut its compressor down to protect it and is heating with the electric elements instead. Hot water continues, but it costs more to make.",
+  act:"Clean the air filter on top first. Then check the fan runs and air can move freely around the unit. If it keeps returning, the sealed refrigerant system needs a technician.",
+  diag:[{q:"Is the air filter on top of the heater clean?",bad:"no",fix:"Wash and dry the filter and refit it."},
+   {q:"Does the fan run and is there open space around the air inlet and outlet?",how:"The unit needs room to breathe; a closet with no air path will trip it.",bad:"no",fix:"Clear the obstruction or provide the airflow the installation manual calls for. Replace the fan if it does not run."},
+   {q:"Do the temperature sensors read sensibly in the service menu?",bad:"no",fix:"Check that sensor's wiring and resistance; replace the sensor."},
+   {q:"With clean filter, good fan and good sensors, does it return?",bad:"yes",fix:"The sealed system has a problem (loss of refrigerant or a failed compressor). Contact Rheem technical service; the unit may need replacing."}]},
+ whdry:{who:"Tank",cause:"The heater believes the tank is not full of water. It disables heating so the elements are not burnt out dry.",
+  act:"Make sure the tank is full: open a hot tap until water runs with no air. Then restore power.",
+  diag:[{q:"Does water flow steadily, with no air, from a hot tap?",bad:"no",fix:"Open the cold supply valve fully and run the hot tap until all air is purged. Repeat if the alarm stays."},
+   {q:"With the tank proven full, does the alarm remain?",bad:"yes",fix:"Check the upper tank sensor and its wiring; contact Rheem technical service."}]},
+ whsensor:{who:"Sensor",fig:["rhpwh","rtherm"],cause:"One of the heater's temperature sensors has failed. Depending on which, it either heats with the elements only or stops heating.",
+  act:"Check the named sensor's plug at the control board, then its resistance.",chk:R_TH_CHK,
+  diag:[{q:"Is the sensor's plug seated on the control board?",bad:"no",fix:"Reseat it."},{q:"Does its resistance match the chart for its temperature?",bad:"no",fix:"Replace the sensor."},{q:"With a good sensor, does the alarm remain?",bad:"yes",fix:"Replace the control board."}]},
+ whleak:{who:"Leak",fig:["rhpwh"],cause:"The leak sensor in the pan under the heater is wet, or is not connected.",
+  act:"Look for water. If there is a leak, shut the cold supply and find it. If everything is dry, the sensor rope needs drying or replacing.",
+  diag:[{q:"Is there water in the pan or on the floor?",bad:"yes",fix:"Shut off the cold water supply. Find the source: fittings, the relief valve, the condensate drain, or the tank itself."},
+   {q:"Is the sensor rope dry, connected and lying flat in the pan?",bad:"no",fix:"Dry or replace the sensor rope and reconnect it."},
+   {q:"With a dry, connected sensor, does the alarm return?",bad:"yes",fix:"Replace the control board."}]},
+ whcond:{who:"Drain",fig:["rhpwh"],cause:"Condensate from the heat pump is not draining away. The heater uses its elements until it can drain.",
+  act:"Clear the condensate drain line and check the pan under the evaporator.",
+  diag:[{q:"Is the condensate line clear and sloped downhill all the way?",bad:"no",fix:"Clear the blockage and correct the slope."},{q:"With the pan dry and the line clear, does the alarm return?",bad:"yes",fix:"Replace the condensate sensor."}]},
+ whvalve:{who:"Shut-off valve",cause:"The automatic water shut-off valve did not do what the heater asked, or is not connected.",
+  act:"Check the valve's wiring and plug. Unplug it and plug it back in.",
+  diag:[{q:"Is the valve's cable plugged in at both ends?",bad:"no",fix:"Reconnect it."},{q:"After unplugging and replugging the valve, does it move when tested?",bad:"no",fix:"Contact Rheem customer service; the valve needs replacing."}]},
+ whelement:{who:"Elements",fig:["rhpwh"],cause:"An electric heating element or the relay that switches it has failed. The heater is disabled.",
+  act:"Turn the power off at the breaker. Measure the named element's resistance and check its wiring.",
+  chk:"Always isolate power at the breaker and prove it dead before removing the element cover. Measure the element with its wires removed: an open reading or any reading to the tank means the element has failed.",
+  diag:[{q:"With power off, does the element measure a steady resistance, with no reading to the tank?",bad:"no",fix:"Replace the element."},
+   {q:"Are the element wires on the right terminals and tight?",bad:"no",fix:"Correct the wiring to match the diagram inside the cover."},
+   {q:"With a good element and wiring, does the alarm return?",bad:"yes",fix:"The relay on the control board has failed. Replace the control board."}]},
+ wheco:{who:"Safety",cause:"The water got too hot and the high-temperature safety cut-out tripped. The heater is disabled.",
+  act:"Turn the power off. This is usually a shorted element or a failed tank sensor letting the element run on.",
+  diag:[{q:"With power off, does either element show a reading to the tank (ground)?",bad:"yes",fix:"Replace that element."},{q:"Do the tank sensors measure correctly?",bad:"no",fix:"Replace the sensor."},{q:"With good elements and sensors, does it trip again?",bad:"yes",fix:"Replace the control board."}]},
+ whinfo:{who:"Notice",cause:"A notice from the heater rather than a failure.",act:"Follow what it says. Heating continues unless the notice says otherwise."}};
+/* code | title | category | severity   (severity left out: A = high, T = medium, S = low) */
+const R_HVAC=`A001_C|Furnace communication failure|comm|critical
+S001_S|Change air filter reminder|reminder
+A002_S|Thermostat temperature sensor failure|statsensor
+A002_C|Outdoor unit communication failure|comm|critical
+A003_C|Outdoor unit translator cannot talk to the outdoor unit|comm|critical
+A003_S|Service call reminder|reminder|low
+S003_S|Time clock needs to be set|clock
+A004_C|Air source not detected (no air handler or furnace found)|comm|critical
+A004_S|Static pressure high (over 1 inch)|airflow
+S004_S|Time clock not advancing properly|clock
+A005_C|Air handler communication failure|comm|critical
+A006_C|EcoNet outdoor unit communication failure|comm|critical
+A007_C|Zone panel 1 communication failure|comm
+A008_C|Zone panel 2 communication failure|comm
+T009_S|Motion sensor error|statsensor
+A026_C|Expansion valve control communication error (cased coil)|comm
+A028_S|Room temperature high, more than 10 degrees above the setting|roomtemp
+A029_S|Room temperature low, more than 10 degrees below the setting|roomtemp
+A041_C|Outdoor unit not supported|unsupported
+A900_S|Thermostat configuration data could not be restored|data
+A001_A|Air handler model data missing|data|critical
+A002_A|Blower coefficients missing|data|critical
+A021_A|Restricted airflow, possible frozen coil|airflow
+A031_A|Open low-voltage fuse|fuse
+A051_A|Refrigerant leak sensor 1 not communicating|refleak
+T081_A|Return air sensor fault|sensor
+T082_A|Supply air sensor fault|sensor
+T084_A|Outdoor air sensor fault|sensor
+T085_A|Evaporator temperature sensor failure|sensor
+T086_A|Suction pressure sensor failure|sensor
+A093_A|Model data could not be restored|data
+A100_A|Configuration data could not be restored|data
+A101_A|Blower motor not communicating|blower
+A102_A|Blower motor size does not match the memory card|blower
+A103_A|Memory card could not be written|data
+A104_A|Blower motor run fault|blower
+A105_A|Blower fault, incomplete motor settings|blower
+A106_A|Memory card static pressure data failure|data
+A107_A|Return air temperature sensor failure|sensor
+A108_A|Leaving air temperature sensor failure|sensor
+A109_A|Suction pressure sensor failure|sensor
+A110_A|Evaporator temperature sensor failure|sensor
+A111_A|Expansion valve temperature sensor failure|sensor
+A112_A|Water inlet temperature sensor failure|sensor
+A113_A|No evaporator or suction pressure sensor|sensor
+T114_A|Heater size cannot be determined|setup
+T115_A|Expansion valve sensor measurement error|sensor
+A116_A|Heater too large for this air handler|setup
+T117_A|Blower motor speed not detected|blower
+A201_A|Float switch trip (condensate switch or aux 1 input 1)|drain
+A203_A|Float switch trip (aux input 2)|drain
+A206_A|Electric heat locked out by aux input 1|auxin
+A207_A|Hydronic heat locked out by aux input 1|auxin
+A209_A|Electric heat locked out by aux input 2|auxin
+A210_A|Hydronic heat locked out by aux input 2|auxin
+A211_A|Cooling shut down by aux input 1|auxin
+A213_A|Cooling shut down by aux input 2|auxin
+A215_A|System shut down by aux input 1|auxin
+A217_A|Cooling shut down by aux input 2|auxin
+A219_A|Heat pump locked out by aux input 1|auxin
+A221_A|Heat pump locked out by aux input 2|auxin
+A311_S|Refrigerant detected at the indoor unit (sensor 1)|refleak|critical
+A315_S|Refrigerant detected indoors (sensor 1)|refleak|critical
+A001_F|Furnace model data missing|data|critical
+A002_F|Blower coefficient configuration error|data|critical
+A011_F|Failed ignition|ignition
+T013_F|Flame lost after it was established|ignition
+A013_F|Flame lost after it was established|ignition
+A014_F|Flame present with the gas valve off|flame|critical
+T022_F|Main limit switch open|limit
+A022_F|Main limit switch open|limit
+A031_F|Open low-voltage fuse|fuse
+A033_F|Roll-out switch open|limit|critical
+A044_F|Low pressure switch will not open|pswitch
+T045_F|Low pressure switch will not close|pswitch
+T047_F|Inducer fan five-minute lockout|pswitch
+A047_F|Inducer fan five-minute lockout|pswitch
+T055_F|Inducer high pressure switch will not open|pswitch
+A055_F|Inducer high pressure switch will not open|pswitch
+T057_F|Inducer high pressure switch will not close|pswitch
+A058_F|Water circuit open|drain
+A061_F|Blower fault, motor cannot run|blower
+T087_F|Power board temperature sensor fault|sensor
+A093_F|Furnace control fault detected|control
+A111_F|One-hour lockout: main limit switch|limit
+A113_F|One-hour lockout: ignition failure|ignition
+A114_F|One-hour lockout: flame lost|ignition
+A115_F|One-hour lockout: gas valve stuck closed|ignition
+A116_F|One-hour lockout: flame present when it should not be|flame|critical
+T117_F|Blower motor speed not detected|blower
+A117_F|Blower motor speed not detected|blower
+A126_F|Flame not sensed with the gas valve on|ignition
+A127_F|Flame present with the gas valve off|flame|critical
+A221_F|Configuration data could not be restored|data
+A222_F|Model data could not be restored|data
+A223_F|Internal fault: monitor chip not communicating|control
+A224_F|Flame status circuit failure|flame|critical
+A225_F|Internal fault: gas valve relay 1 welded shut|flame|critical
+A226_F|Internal fault: gas valve relay 1 stuck open|flame|critical
+A227_F|Internal fault: gas valve relay 2 welded shut|flame|critical
+A228_F|Internal fault: gas valve relay 2 stuck open|flame|critical
+A001_O|Outdoor unit model data missing|data|critical
+A002_O|Compressor model data error|data|critical
+A003_O|Outdoor fan model data error|data|critical
+A915_O|Inverter drive not communicating|inverter|critical
+A950_O|Outdoor configuration data could not be restored|data
+A951_O|Outdoor memory card could not be written|data
+T952_O|Outdoor temperature sensor failure|sensor
+T957_O|Low refrigerant pressure|refpress
+A957_O|Low refrigerant pressure (locked out)|refpress
+T958_O|High refrigerant pressure|refpress
+A958_O|High refrigerant pressure (locked out)|refpress
+A959_O|Line voltage brown-out|power
+T960_O|Compressor locked rotor|comp
+A960_O|Compressor locked rotor (locked out)|comp
+A961_O|No voltage at the compressor|comp
+A962_O|Voltage at the compressor while in standby|comp`;
+const R_WH=`A004|Compressor shut down: discharge and suction temperatures wrong|whcomp
+A005|Compressor shut down: discharge temperature too high|whcomp
+T005|Compressor shut down: discharge temperature too high (low airflow)|whcomp
+A006|Suction temperature too low|whcomp
+T006|Suction temperature too low|whcomp
+A008|Dry fire: not enough water in the tank|whdry|critical
+T009|Compressor wiring may be faulty|whcomp
+A009|Compressor wiring may be faulty|whcomp
+A101|Suction temperature sensor failure|whsensor
+A102|Ambient air temperature sensor failure|whsensor
+A103|Lower tank temperature sensor failure|whsensor|critical
+A104|Upper tank temperature sensor failure|whsensor
+A105|Evaporator temperature sensor failure|whsensor
+A106|Discharge temperature sensor failure|whsensor
+A107|Water detected in the pan or on the floor|whleak|critical
+A108|Condensate drain blocked|whcond
+A120|Shut-off valve cannot close|whvalve
+A121|Shut-off valve cannot open|whvalve
+A122|Shut-off valve inputs in error|whvalve
+A123|Shut-off valve not installed|whvalve|medium
+A125|Lower element error or its relay stuck closed|whelement|critical
+A126|Upper element error or its relay stuck closed|whelement|critical
+A127|Element wiring error|whelement|critical
+A128|Lower element relay did not close|whelement
+A129|Upper element relay did not close|whelement
+A130|Heater is off and the air around it is near freezing|whinfo|medium
+T131|Clean the air filter|reminder|low
+T132|Heater is struggling to keep up with demand|whinfo|low
+A200|Water too hot: high-temperature cut-out tripped|wheco|critical
+T300|Water leak sensor not installed|whleak|low
+A502|Time clock needs programming|control
+A503|Time clock not advancing properly|control
+T504|Wi-Fi module communication error|whinfo|low
+A900|Controller fault|control
+T901|Controller fault|control
+A902|Controller fault|control
+A903|Controller fault|control
+A904|Controller fault|control
+A905|Controller fault|control
+A906|Power board overheating or its temperature sensor failed|control`;
+const R_FROM={O:"Outdoor unit",A:"Air handler",F:"Furnace",C:"Communication",S:"System",Z:"Zoning"};
+(function(){const add=(list,pre,wh)=>list.split("\n").forEach(l=>{const [code,t,cat,sev]=l.split("|"),c=R_CAT[cat]||{},sfx=(code.split("_")[1]||"");
+    const key=pre+code;ERRORS[key]={t,cause:c.cause||"",act:c.act||"",chk:c.chk,sev:sev||(code[0]==="A"?"high":code[0]==="T"?"medium":"low"),who:wh?"Water heater":(R_FROM[sfx]||c.who||"System"),brand:"rheem",shown:code,cat,
+      help:wh?null:R_HELP[sfx]||null,kindNote:code[0]==="A"?"Alarm: something has stopped or been locked out.":code[0]==="T"?"Alert: it happened and the system is working around it.":"Reminder."};
+    if(c.diag)DIAG[key]=c.diag;});
+  add(R_HVAC,"R:",false);add(R_WH,"R:W:",true);})();
+/* The alarm text a system reports ("A021_A Restricted Airflow...") -> the key of its guide. */
+function rheemKey(text,kind){const s=String(text||""),m=/\b([AST])[ _-]?(\d{3})(?:[ _-]?([OAFCSZ])\b)?/i.exec(s);if(!m)return "R:?:"+s.slice(0,60);
+  const base=(m[1]+m[2]).toUpperCase(),sfx=m[3]?m[3].toUpperCase():"";
+  if(kind&&kind!=="hvac")return ERRORS["R:W:"+base]?"R:W:"+base:"R:?:"+s.slice(0,60);
+  if(sfx&&ERRORS["R:"+base+"_"+sfx])return "R:"+base+"_"+sfx;
+  const hits=Object.keys(ERRORS).filter(k=>k.startsWith("R:"+base+"_"));
+  return hits.length===1?hits[0]:"R:?:"+s.slice(0,60);}
+function codeShown(code){const e=ERRORS[code];return e&&e.shown?e.shown:String(code||"").replace(/^R:\?:/,"").replace(/^R:(W:)?/,"");}
 function openError(code){code=errKey(code);const e=errInfo(code);
-  const units_err=units.filter(u=>u.code===code).map(u=>ue(dispName(u)));
-  modal(head(`${code} — ${e.t}`)+`<div class="modal-body">
+  const units_err=allU().filter(u=>u.code===code).map(u=>ue(dispName(u))),rh=e.brand==="rheem";
+  modal(head(`${ue(codeShown(code))}${e.unknown?"":" — "+e.t}`)+`<div class="modal-body">
     <span class="sev" style="background:var(--${SEVC[e.sev]}-soft);color:var(--${SEVC[e.sev]})">${e.sev.toUpperCase()}</span>
-    <span class="rchip" style="margin-left:6px">${e.who}</span>
+    <span class="rchip" style="margin-left:6px">${e.who}</span>${rh?`<span class="rchip" style="margin-left:6px">Rheem / Ruud</span>`:""}
+    ${rh&&e.kindNote?`<div class="ed-row"><div class="k">Kind</div><div class="v">${e.kindNote}</div></div>`:""}
     <div class="ed-row"><div class="k">Means</div><div class="v">${e.cause}</div></div>
     <div class="ed-row"><div class="k">What to do</div><div class="v">${e.act}</div></div>
     ${e.chk?`<div class="ed-row"><div class="k">Field check</div><div class="v">${e.chk}</div></div>`:""}
     ${e.lv?`<div class="ed-row"><div class="k">How LG reacts</div><div class="v">${ERR_LEVELS[e.lv]}</div></div>`:""}
     ${errFigs(code).length?`<details class="dg-fig"><summary>Show the drawing${errFigs(code).length>1?"s":""}: ${errFigs(code).map(k=>FIG[k].t.replace(/ \(.*$/,"")).join(" · ")}</summary>${figs(errFigs(code))}</details>`:""}
     ${units_err.length?`<div class="ed-row"><div class="k">Affected</div><div class="v">${units_err.join(", ")}</div></div>`:""}
-    ${(units_err.length>=2&&+String(code).replace(/\D/g,"")>=21)?`<div class="ed-row"><div class="k">Where to look</div><div class="v">Several indoor units show this code at once. Codes 21 and up are handed down by the outdoor unit: an indoor unit with no fault of its own shows the outdoor unit’s code. Start at the outdoor unit, not at these indoor units.</div></div>`:""}
+    ${(!rh&&units_err.length>=2&&+String(code).replace(/\D/g,"")>=21)?`<div class="ed-row"><div class="k">Where to look</div><div class="v">Several indoor units show this code at once. Codes 21 and up are handed down by the outdoor unit: an indoor unit with no fault of its own shows the outdoor unit’s code. Start at the outdoor unit, not at these indoor units.</div></div>`:""}
     ${DIAG[code]?`<button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" onclick="openDiagnose('${code}')">🧭 Diagnose step by step <span style="opacity:.8;font-weight:400;margin-left:4px">${DIAG[code].length} checks</span></button>`:""}
-    <a class="btn" href="https://partner.lge.com" target="_blank" rel="noopener" style="width:100%;justify-content:center;margin-top:8px;text-decoration:none">Look it up on LG → <span style="opacity:.8;font-weight:400;margin-left:4px">LGHVACService · Partner Portal</span></a>
-    <div style="margin-top:10px;font-size:11.5px;color:var(--text-faint)">Opens LG's B2B partner portal (LGHVACService login). Summary above is a field reference — always verify against the unit's service manual.</div>
+    ${rh?`${e.help?`<a class="btn" href="${e.help}" target="_blank" rel="noopener" style="width:100%;justify-content:center;margin-top:8px;text-decoration:none">Look it up on Rheem → <span style="opacity:.8;font-weight:400;margin-left:4px">EcoNet help pages</span></a>`:""}
+    <div style="margin-top:10px;font-size:11.5px;color:var(--text-faint)">${e.help?"Opens Rheem’s own EcoNet help page, which has the exact procedure for each code. ":""}The summary above is a field reference written for Cortex. Always verify against Rheem’s page or the unit’s manual before replacing parts.</div>`
+    :`<a class="btn" href="https://partner.lge.com" target="_blank" rel="noopener" style="width:100%;justify-content:center;margin-top:8px;text-decoration:none">Look it up on LG → <span style="opacity:.8;font-weight:400;margin-left:4px">LGHVACService · Partner Portal</span></a>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--text-faint)">Opens LG's B2B partner portal (LGHVACService login). Summary above is a field reference — always verify against the unit's service manual.</div>`}
   </div>`);}
 
 function organizeUnit(u){const m=getMeta(u);
@@ -4849,6 +5271,8 @@ function onKey(e){const tag=(e.target.tagName||"").toLowerCase();if(tag==="input
 function buildAlerts(){const a=[];
   units.filter(u=>u.err).forEach(u=>a.push({sev:(ERRORS[u.code]||{}).sev||"medium",title:dispName(u)+" · "+u.code,sub:(ERRORS[u.code]||{}).t||"Error",code:u.code}));
   units.filter(u=>u.offline).forEach(u=>a.push({sev:"medium",title:dispName(u)+" · not responding",sub:"No answer from this unit"+(u.seen?" since "+ago(u.seen):"")+" — check its power",code:null}));
+  if(typeof ECOS!=="undefined"&&can("eco"))ECOS.systems.forEach(s=>{(s.alarms||[]).forEach(t=>{const k=rheemKey(t,s.kind),e=errInfo(k);a.push({sev:e.sev||"medium",title:s.name+" · "+codeShown(k),sub:e.unknown?"Rheem / Ruud alarm":e.t,code:k});});
+    if(s.on&&["unanswered","problem","silent"].includes(s.state))a.push({sev:"medium",title:s.name+" · not responding",sub:(ECO_STATE[s.state]||[s.state])[0]+" — check its adapter and cable",code:null});});
   return a;}
 function updateBell(){const b=document.getElementById("bellbadge");if(!b)return;const n=buildAlerts().length;
   b.textContent=n;b.classList.toggle("hide",n===0);}
