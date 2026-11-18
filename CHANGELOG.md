@@ -2,6 +2,26 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.7 — 2026-11-18 (roles you define: name a role, tick its permissions)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.6. Changes `cortex.html`. New:
+`docs/ROLES.md`, `tests/roles.test.js`._
+
+**Added**
+- **Create, rename, edit, copy and delete roles** in Settings ▸ Users. A role is a name plus a tick for
+  each of 24 permissions: controlling units, All on / All off, locks, editing units, service notes,
+  technical details, each page, each technician tool, and each administration task separately.
+- **Users take their permissions from their role.** Change a role and every user with it changes, on
+  every screen, without signing in again.
+- Roles are saved with the site and included in backups.
+
+**Changed**
+- **The owner account is now shown as "root".** It always has every permission and cannot be edited or
+  deleted.
+- Admin, Technician and Customer become ordinary editable roles with the same abilities they had. The
+  two "Allow customer…" switches in Advanced settings are carried into the Customer role and removed.
+- Advanced settings shows only the parts a role includes (for example backup without factory reset).
+
 ## v1.7.1-beta.6 — 2026-11-17 (Rheem / Ruud EcoNet equipment as a second system)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.5. Changes `appliance/server.js`,

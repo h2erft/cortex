@@ -247,6 +247,12 @@ button.tile:hover{border-color:var(--border-strong);transform:translateY(-1px)}
 .urow:last-child{border-bottom:none}
 .rchip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-dim)}
 .rchip.owner{background:var(--warn-soft);color:var(--warn)}
+.rolecard{border:1px solid var(--border);border-radius:11px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.rolecard .rn{font-weight:550}.rolecard .rd{font-size:12px;color:var(--text-faint);margin-top:1px}
+.permgrp{margin:14px 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);display:flex;align-items:center;gap:10px}
+.permgrp button{font-size:11px;text-transform:none;letter-spacing:0}
+.perm{display:flex;gap:10px;align-items:flex-start;padding:7px 2px;border-top:1px solid var(--border);cursor:pointer}
+.perm input{margin-top:3px;width:16px;height:16px;accent-color:var(--accent);flex:none}.perm b{font-weight:550;font-size:13.5px}.perm span{display:block;font-size:12px;color:var(--text-dim)}
 .rchip.admin{background:var(--accent-soft);color:var(--accent-ink)}
 .rchip.tech{background:var(--info-soft);color:var(--info)}
 .linklike{color:var(--accent);background:none;border:none;font-size:13px;padding:4px 6px}
@@ -1025,8 +1031,8 @@ function getMeta(u){const m=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name])||{};
 function defaultName(u){const l=(u.label||"").trim();return (!l||/^Addr 0x[0-9a-f]{1,2}$/i.test(l))?("Unit "+u.id):l;}
 function dispName(u){return getMeta(u).alias||defaultName(u);}
 // Who is looking: customers never see addresses, channels, outdoor-system ids, frames or hex.
-function isTechView(){return !!session.tech;}
-function isStaff(){return !!(session.tech||session.admin);}
+function isTechView(){return can("techdata");}
+function isStaff(){return can("events")||can("device")||can("map_edit")||can("techdata");}
 function userDims(){return DIMS.filter(d=>d[0]!=="system"||isTechView());}       // "System (physical)" is a technician grouping
 function gdim(){return (settings.groupBy==="system"&&!isTechView())?"location":settings.groupBy;}
 function tnum(f){return settings.unit==="C"?Math.round((f-32)*5/9):f;}             // stored °F -> number in the user's unit
@@ -1174,8 +1180,7 @@ function ago(t){if(!t)return "never";const s=Math.max(0,Math.round((Date.now()-t
   return s<90?s+"s ago":(s<5400?Math.round(s/60)+" min ago":(s<172800?Math.round(s/3600)+" h ago":Math.round(s/86400)+" days ago"));}
 // May the signed-in person change this unit? Customers can be switched to view-only for the whole site
 // (Settings ▸ Advanced) and are locked out of a unit a technician has marked "in service".
-function ctlAllowed(u){const role=currentUser?currentUser.role:"customer";if(role!=="customer")return true;
-  if(CFG&&CFG.custCtl===false)return false;return !inService(u);}
+function ctlAllowed(u){if(!can("ctl"))return false;return can("ctl_service")||!inService(u);}
 function isDemo(){return IS_FILE&&!liveTx();}   // opened as a bare file with no adapter: a local demo
 function notConnMsg(){return isTechView()?"Bus not connected — nothing was sent":"Cortex isn’t connected to the equipment right now, so nothing was sent.";}
 /* Change a set of units and send it. mut(u) applies the change. Nothing is changed on screen unless the
@@ -1209,21 +1214,24 @@ function renderWho(){
     if(n)sn.textContent=n;
     else if(!IS_FILE)fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name)sn.textContent=j.name;}).catch(()=>{});}
   const name=currentUser?currentUser.name:"Guest";
-  const role=currentUser?currentUser.role:(session.tech?"technician":(session.admin?"admin":"customer"));
+  const role=currentUser?roleName(currentUser.role):"guest";
   document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${ue(name)} <span class="rolebadge">${ue(role)}</span>`;
-  const base=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};
-  const over=(session.admin&&!base.admin)||(session.tech&&!base.tech);
+  const base=currentUser?rolePerms(currentUser.role):new Set();
+  const over=[...PSET].some(k=>!base.has(k));                    // an access code is adding something this user's role does not have
   document.getElementById("lockbtn").classList.toggle("hide",!over);
   document.getElementById("lockbtn").classList.toggle("lit",over);
-  document.getElementById("nav-cycle").classList.toggle("hide",!session.tech);
-  document.getElementById("nav-uart").classList.toggle("hide",!(session.tech&&IS_BETA));   // UART is experimental — pre-release builds only
-  if((!session.tech||!IS_BETA)&&view==="uart")view="units";
-  document.getElementById("nav-busscan").classList.toggle("hide",!session.tech);
+  document.getElementById("nav-cycle").classList.toggle("hide",!can("cycle"));if(!can("cycle")&&view==="cycle")view="units";
+  {const nm=document.querySelector('.nav-item[data-view="map"]'),ns=document.querySelector('.nav-item[data-view="schedule"]');
+   if(nm)nm.classList.toggle("hide",!can("map"));if(ns)ns.classList.toggle("hide",!can("sched"));
+   if((!can("map")&&view==="map")||(!can("sched")&&view==="schedule"))view="units";}
+  document.getElementById("nav-uart").classList.toggle("hide",!(can("uart")&&IS_BETA));   // UART is experimental — pre-release builds only
+  if((!can("uart")||!IS_BETA)&&view==="uart")view="units";
+  document.getElementById("nav-busscan").classList.toggle("hide",!can("busscan"));
   ecoNav();
-  {const staff=session.tech||session.admin;document.getElementById("nav-events").classList.toggle("hide",!staff);if(!staff&&view==="events")view="units";}
-  if(!session.tech&&view==="busscan")view="units";
-  const db=document.getElementById("devbtn");if(db){db.classList.toggle("hide",!isStaff());db.classList.toggle("lit",view==="device");}
-  if(!isStaff()&&view==="device")view="units";                 // appliance vitals are for technicians/admins
+  {const staff=can("events");document.getElementById("nav-events").classList.toggle("hide",!staff);if(!staff&&view==="events")view="units";}
+  if(!can("busscan")&&view==="busscan")view="units";
+  const db=document.getElementById("devbtn");if(db){db.classList.toggle("hide",!can("device"));db.classList.toggle("lit",view==="device");}
+  if(!can("device")&&view==="device")view="units";                 // appliance vitals are for technicians/admins
 }
 
 /* ---- nav ---- */
@@ -1239,7 +1247,7 @@ function renderGroupNav(){
   nav.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{view="units";groupFilter=decodeURIComponent(b.dataset.cat);renderAll();});
 }
 function renderLocationTree(nav){
-  const canEdit=session.tech||session.admin;
+  const canEdit=can("unit_edit");
   const groups=new Map();units.forEach(u=>{const g=grpOf(u),s=subOf(u);if(!groups.has(g))groups.set(g,new Set());groups.get(g).add(s);});
   const gnames=[...groups.keys()].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   if(treeExpanded===null)treeExpanded=new Set(gnames);
@@ -1347,7 +1355,7 @@ function renderUnits(){
   const tile=(key,n,color,label)=>`<button class="tile ${statusFilter===key?'sel':''}" data-filter="${key}">
      <div class="n">${n}</div><div class="l">${color?`<span class="dot" style="background:${color}"></span>`:""}${label}</div></button>`;
   const role=currentUser?currentUser.role:"customer";
-  const canAll=role!=="customer"||!(CFG&&(CFG.custAll===false||CFG.custCtl===false));
+  const canAll=can("ctl")&&can("ctl_all");
   main.innerHTML=`
     <div id="livebanner"></div>
     ${settings.showWeather?weatherCard():""}
@@ -1496,7 +1504,7 @@ function drawBatch(){if(!bp)return;
     <div class="field"><div class="lbl">Setpoint ${st('spC')}</div>
       <div class="stepper"><button id="bspdn">−</button><div class="val mono" style="${bp.spC!==null?'color:var(--warn)':'color:var(--text-faint)'}">${bp.spC!==null?spDisp(bp.spC):"—"}<small>°${settings.unit}</small></div><button id="bspup">+</button></div>
       ${bp.spC===null?`<div style="font-size:12px;color:var(--text-faint);margin-top:6px">Each unit keeps its own setpoint. Press + or − to set one for all (starts from ${spDisp(cur)}°).</div>`:""}</div>
-    ${role!=="customer"?`<div class="field"><div class="lbl">Locks${tip("Each button shows what the selected units have now. Tap to switch it: locked becomes unlocked, unlocked becomes locked. Nothing is sent until you press Send. <b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat, <b>Temp</b> blocks temperature changes, <b>Hard</b> locks the whole wall controller. Cortex reads the Hard lock back from each unit; Mode, Fan and Temp cannot be read from a thermostat, so those show what Cortex last sent.")}</div>
+    ${can("locks")?`<div class="field"><div class="lbl">Locks${tip("Each button shows what the selected units have now. Tap to switch it: locked becomes unlocked, unlocked becomes locked. Nothing is sent until you press Send. <b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat, <b>Temp</b> blocks temperature changes, <b>Hard</b> locks the whole wall controller. Cortex reads the Hard lock back from each unit; Mode, Fan and Temp cannot be read from a thermostat, so those show what Cortex last sent.")}</div>
       <div class="opts">${tri("modeLock","Mode")}${tri("fanLock","Fan")}${tri("tempLock","Temp")}${tri("hardLock","Hard")}</div>
       <div style="display:flex;gap:14px;margin-top:8px"><button class="linklike" id="bunlockall" style="font-size:12.5px">🔓 Unlock everything</button><button class="linklike" id="block-all" style="font-size:12.5px">🔒 Lock everything</button></div></div>`:""}
     <div class="field">
@@ -2883,7 +2891,7 @@ async function relayDrain(myseq){
 // to the saved unit list. Ask once per address per session, and don't stack dialogs.
 function masterNewUnit(p){
   if(!p||units.find(u=>u.addr===p.addr)||MASTER.prompted.has(p.addr)||ignoredAddrs().includes(p.addr))return;
-  if(!isStaff())return;                                        // ask later, when a technician/admin is signed in
+  if(!can("busscan")&&!can("unit_edit"))return;                 // ask later, when a technician/admin is signed in
   MASTER.prompted.add(p.addr);mlog("  ✚ new unit at "+hx(p.addr)+" — prompting to add");
   if(document.querySelector(".modal"))return;                 // a dialog is already open; skip (stays in found/Live)
   modal(head("New indoor unit found")+`<div class="modal-body">
@@ -3210,7 +3218,7 @@ function busListen(){if(!APPL||bus.ws)return;
       if(m.bus)linkSet(m.bus,true);
       if(m.lease===false){bus.takeErr=m.inUse?"inUse":(m.err||"refused");
         if(m.taken){LINK.mine=false;leaseSync();toast("The bus tools were taken back from this screen. The controller carries on.");if(view==="busscan")renderBusScan();}}};
-    const gone=()=>{if(bus.ws!==ws)return;bus.ws=null;leaseSync();if(view==="busscan"){renderBusScan();setTimeout(()=>{if(view==="busscan"&&session&&session.tech)busListen();},3000);}};
+    const gone=()=>{if(bus.ws!==ws)return;bus.ws=null;leaseSync();if(view==="busscan"){renderBusScan();setTimeout(()=>{if(view==="busscan"&&can("busscan"))busListen();},3000);}};
     ws.onclose=gone;ws.onerror=()=>{};
   }catch(e){bus.ws=null;}}
 async function busLinkSet(on){
@@ -3317,7 +3325,7 @@ function txBytes(){
   const addr=txState.addr==null?0:txState.addr;
   return cmdBytesFor(addr,Object.assign(txUnitBytes(addr),{on:txState.on,mode:txState.mode,fan:txState.fan,setC:txState.spC,sp:Math.round(txState.spC*9/5+32)}));}
 async function busSend(){
-  if(!session.tech){toast("Tech mode only");return;}
+  if(!can("busscan")){toast("Your role does not include the bus tools");return;}
   if(txState.addr==null){toast("Pick a target address first");return;}
   if(!bus.port||!bus.port.writable){bus.err="Connect the adapter first — and make sure the LG central is disconnected from this outdoor unit before sending.";txState.armed=false;renderBusScan();return;}
   if(!txState.armed){txState.armed=true;renderBusScan();return;}   // first click arms + shows confirm
@@ -3344,7 +3352,7 @@ function tx5Bytes(){
   const cool=tx5.dual?tx5.coolC:tx5.single, heat=tx5.dual?tx5.heatC:tx5.single;
   return cmd5SetpointBytes(addr,cool,heat,{cmd:tx5.cmdId&0xff,flags:tx5.flags&0xff,twoset:!!tx5.dual});}
 async function busSend5(){
-  if(!session.tech){toast("Tech mode only");return;}
+  if(!can("busscan")){toast("Your role does not include the bus tools");return;}
   if(tx5.addr==null){toast("Pick a target address first");return;}
   if(!bus.port||!bus.port.writable){bus.err="Connect the adapter first — and disconnect the LG central from this outdoor unit before sending.";tx5.armed=false;renderBusScan();return;}
   if(!tx5.armed){tx5.armed=true;renderBusScan();return;}
@@ -3389,7 +3397,7 @@ function ctrlFrameFor(raw){
   }
   return raw;}
 async function ctrlStart(){
-  if(!session.tech){toast("Tech mode only");return;}
+  if(!can("busscan")){toast("Your role does not include the bus tools");return;}
   if(!bus.port||!bus.port.writable){toast("Connect the adapter first");return;}
   if(!ctrl.script.length){toast("Capture a sweep first (while the real CC is still connected)");return;}
   if(ctrl.running)return;
@@ -3514,7 +3522,7 @@ function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.seri
   const siteBaud=(bus.proto==="lg"&&CFG&&CFG.baud)?CFG.baud:null;   // LG generation sets the site baud (4800 gen4 / 9600 gen5)
   return {baud:s.baud||siteBaud||p.baud,dataBits:s.dataBits||p.dataBits,parity:s.parity||p.parity,stopBits:s.stopBits||p.stopBits};}
 function renderBusScan(){
-  if(APPL&&session&&session.tech)busListen();
+  if(APPL&&can("busscan"))busListen();
   const supported=APPL||("serial" in navigator);const conn=APPL?!!LINK.open:bus.scanning;
   const linkTxt=!APPL?(conn?"reading…":"idle"):!LINK.on?"not connected":!LINK.open?(LINK.error?"adapter problem":"opening…"):LINK.mine?"bus tools on this screen":LINK.waiting?"waiting for the controller to pause…":LINK.holder==="screen"?"bus tools in use on another screen":LINK.polling?"controller polling "+(LINK.units||0)+" unit"+(LINK.units===1?"":"s"):"listening";
   const opts=siteProtocols();if(!opts.includes(bus.proto))bus.proto=opts[0]||"lg";
@@ -3525,7 +3533,7 @@ function renderBusScan(){
     <div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="dot ${conn?'':'idle'}"></span><b>Adapter link</b></div><div class="labbody">
     <div class="connbar">
       <select class="sel-box" id="bus-proto" ${conn?"disabled":""} style="min-width:140px">${opts.map(k=>`<option value="${k}" ${k===bus.proto?"selected":""}>${PROTOCOLS[k].label}</option>`).join("")}</select>
-      ${session.tech?(()=>{const e=effSerial();return `<span style="display:flex;gap:4px;align-items:center" title="serial settings — adjust for other buses (e.g. Multi V 5)">
+      ${can("busscan")?(()=>{const e=effSerial();return `<span style="display:flex;gap:4px;align-items:center" title="serial settings — adjust for other buses (e.g. Multi V 5)">
         <select class="sel-box" id="ser-baud" ${conn?"disabled":""} style="padding:3px 5px">${[2400,4800,9600,19200,38400].map(b=>`<option ${e.baud===b?"selected":""}>${b}</option>`).join("")}</select>
         <select class="sel-box" id="ser-data" ${conn?"disabled":""} style="padding:3px 5px">${[7,8].map(d=>`<option ${e.dataBits===d?"selected":""}>${d}</option>`).join("")}</select>
         <select class="sel-box" id="ser-par" ${conn?"disabled":""} style="padding:3px 5px">${["none","even","odd"].map(x=>`<option value="${x}" ${e.parity===x?"selected":""}>${x[0].toUpperCase()}</option>`).join("")}</select>
@@ -3718,6 +3726,7 @@ function renderSchedule(){renderGroupNav();const list=schedules();
     <button class="btn primary" id="newsch">+ New schedule</button></div>
     <div id="sch-hist"></div>
     ${list.length?list.map(schCard).join(""):'<div class="cyc-note">No schedules yet. Create one to automate on/off, mode, fan, and temperature by time and day.</div>'}`;
+  if(!can("sched_edit")){const nb=document.getElementById("newsch");if(nb)nb.remove();document.querySelectorAll("[data-sedit],[data-sdel]").forEach(b=>b.remove());document.querySelectorAll("[data-stog]").forEach(b=>{b.disabled=true;b.style.opacity=.55;});return;}
   document.getElementById("newsch").onclick=()=>scheduleEditor(null);
   schedStatus();
   document.querySelectorAll("[data-sedit]").forEach(b=>b.onclick=()=>scheduleEditor(b.dataset.sedit));
@@ -3925,7 +3934,7 @@ function renderDevice(){renderGroupNav();
 function renderAll(){
   document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   if(view==="trends")view="units";
-  if(view==="device"&&!isStaff())view="units";
+  if(view==="device"&&!can("device"))view="units";
   const _db=document.getElementById("devbtn");if(_db)_db.classList.toggle("lit",view==="device");
   if(view==="units")renderUnits();else if(view==="cycle")renderCycle();else if(view==="uart")renderUart();else if(view==="events")renderEvents();else if(view==="updates")renderUpdates();
   else if(view==="device")renderDevice();else if(view==="map")renderMap();else if(view==="busscan")renderBusScan();else if(view==="econet")renderEconet();else renderSchedule();
@@ -3937,7 +3946,7 @@ function renderAll(){
    the talking (appliance/econet.js, econetlink.js). This page only shows what the controller reports and
    passes on the changes a person makes. See docs/ECONET.md. */
 let ECOS={systems:[],catalog:null,ports:[],at:0,err:"",pend:{},open:{}};
-function ecoNav(){const el=document.getElementById("nav-econet");if(!el)return;const show=APPL&&(ECOS.systems.length>0||!!session.tech);el.classList.toggle("hide",!show);if(!show&&view==="econet")view="units";}
+function ecoNav(){const el=document.getElementById("nav-econet");if(!el)return;const show=APPL&&can("eco")&&(ECOS.systems.length>0||can("eco_setup"));el.classList.toggle("hide",!show);if(!show&&view==="econet")view="units";}
 async function ecoPull(){if(!APPL||!currentUser)return;
   try{const r=await fetch("/api/econet",{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();ECOS.systems=j.systems||[];ECOS.at=Date.now();ECOS.err="";
     if(!ECOS.catalog&&ECOS.systems.length){try{ECOS.catalog=(await (await fetch("/api/econet/catalog")).json()).kinds;}catch(e){}}
@@ -3949,7 +3958,7 @@ function ecoPoints(sys){return (ECOS.catalog&&ECOS.catalog[sys.kind]&&ECOS.catal
 function ecoRole(sys,role){return ecoPoints(sys).find(p=>p.role===role)||null;}
 function ecoVal(sys,n){const k=sys.id+":"+n,pd=ECOS.pend[k];if(pd&&Date.now()-pd.at<6000)return {v:pd.v,text:pd.text,pending:true};return sys.values[n]||null;}
 function ecoFmt(p,x){if(!x)return "—";if(p.kind==="num")return x.v==null?"—":((Math.round(x.v*10)/10)+(p.unit?" "+p.unit:""));return ue(x.text||(x.v!=null?String(x.v):"—"));}
-const ecoCan=sys=>sys.talk&&sys.open&&(sys.state==="live"||sys.state==="starting"||sys.state==="unanswered");
+const ecoCan=sys=>can("eco_ctl")&&sys.talk&&sys.open&&(sys.state==="live"||sys.state==="starting"||sys.state==="unanswered");
 let ecoSendT={};
 /* A change: shown at once, sent once after the person stops tapping, then replaced by what the equipment reports. */
 function ecoSet(sys,p,v,text){const k=sys.id+":"+p.n;ECOS.pend[k]={v,text:text||null,at:Date.now()};renderEconet();clearTimeout(ecoSendT[k]);
@@ -3979,7 +3988,7 @@ function ecoCard(sys){const st=ECO_STATE[sys.state]||[sys.state,"stop"],pts=ecoP
     ${why?`<div class="note-box" style="margin-bottom:8px;font-size:12.5px">${why}</div>`:""}
     ${ecoChoice(sys,R("power"),true)}${ecoChoice(sys,R("mode"),sys.kind==="hvac")}${ecoStepper(sys,R("setpoint"))}${ecoStepper(sys,R("heat"))}${ecoStepper(sys,R("cool"))}${ecoChoice(sys,fan,false)}${ecoChoice(sys,sched,true)}
     ${rows?`<details ${ECOS.open[sys.id]?"open":""} data-ecod="${sys.id}"><summary>More readings</summary><table>${rows}</table></details>`:""}
-    ${session.tech?`<div class="eco-tools"><span class="tech-tag" style="align-self:center">TECH</span>
+    ${can("eco_setup")?`<div class="eco-tools"><span class="tech-tag" style="align-self:center">TECH</span>
       <button class="btn" data-ecot="on" data-id="${sys.id}">${sys.on?"Disconnect adapter":"Connect adapter"}</button>
       <button class="btn" data-ecot="talk" data-id="${sys.id}" ${sys.on?"":"disabled"} title="Listening only never transmits. Talking lets Cortex ask for values and send changes.">${sys.talk?"Switch to listening only":"Let Cortex talk on this bus"}</button>
       <button class="btn" data-ecot="frames" data-id="${sys.id}">Messages</button><button class="btn" data-ecot="read" data-id="${sys.id}" ${ecoCan(sys)?"":"disabled"}>Read a value</button>
@@ -3988,11 +3997,11 @@ function ecoCard(sys){const st=ECO_STATE[sys.state]||[sys.state,"stop"],pts=ecoP
 function renderEconet(){const m=document.getElementById("main");if(!APPL){m.innerHTML=`<div class="note-box">Rheem / Ruud systems are shown when Cortex is opened from a controller.</div>`;return;}
   if(!ECOS.at){m.innerHTML=`<div class="note-box">Loading…</div>`;ecoPull();return;}
   m.innerHTML=`<div class="toolbar" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:19px">Rheem / Ruud</h2><span style="color:var(--text-faint);font-size:13px">EcoNet systems on this controller</span>
-      <div style="flex:1"></div>${session.tech?`<button class="btn primary" id="eco-add">+ Add a system</button>`:""}</div>
+      <div style="flex:1"></div>${can("eco_setup")?`<button class="btn primary" id="eco-add">+ Add a system</button>`:""}</div>
     ${ECOS.err?`<div class="note-box warn" style="margin-bottom:12px">Can’t reach the controller (${ue(ECOS.err)}). Showing the last readings.</div>`:""}
     ${ECOS.systems.length?`<div class="eco-grid">${ECOS.systems.map(ecoCard).join("")}</div>`
-      :`<div class="note-box">No Rheem / Ruud system has been added yet.${session.tech?" Plug a USB RS-485 adapter into the controller, connect it to the equipment’s EcoNet service port, then press <b>Add a system</b>.":" A technician can add one."}</div>`}
-    ${session.tech?`<div class="note-box" style="margin-top:14px;font-size:12.5px"><b>How a system is brought up.</b> ① <b>Connect adapter</b>: Cortex only listens, and shows what the thermostat and equipment say to each other. Nothing is sent. ② <b>Let Cortex talk</b>: Cortex also asks for values and can send changes. It never sends anything until it has heard a good message, which proves the wiring is right. ③ Changes are sent only when someone makes one here.</div>`:""}`;
+      :`<div class="note-box">No Rheem / Ruud system has been added yet.${can("eco_setup")?" Plug a USB RS-485 adapter into the controller, connect it to the equipment’s EcoNet service port, then press <b>Add a system</b>.":" A technician can add one."}</div>`}
+    ${can("eco_setup")?`<div class="note-box" style="margin-top:14px;font-size:12.5px"><b>How a system is brought up.</b> ① <b>Connect adapter</b>: Cortex only listens, and shows what the thermostat and equipment say to each other. Nothing is sent. ② <b>Let Cortex talk</b>: Cortex also asks for values and can send changes. It never sends anything until it has heard a good message, which proves the wiring is right. ③ Changes are sent only when someone makes one here.</div>`:""}`;
   const sysOf=id=>ECOS.systems.find(x=>x.id===id),ptOf=(sys,n)=>ecoPoints(sys).find(p=>p.n===n&&p.w);
   m.querySelectorAll("button[data-eco]").forEach(b=>b.onclick=()=>{const sys=sysOf(b.dataset.eco),p=sys&&ptOf(sys,b.dataset.n);if(!p)return;
     if(b.dataset.v!=null){ecoSet(sys,p,+b.dataset.v,p.options[b.dataset.v]);return;}
@@ -4002,7 +4011,7 @@ function renderEconet(){const m=document.getElementById("main");if(!APPL){m.inne
   m.querySelectorAll("button[data-ecot]").forEach(b=>b.onclick=()=>ecoTool(b.dataset.ecot,sysOf(b.dataset.id)));
   const add=document.getElementById("eco-add");if(add)add.onclick=ecoAdd;}
 async function ecoPost(body){const r=await fetch("/api/econet/systems",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.err||("HTTP "+r.status));return j;}
-async function ecoTool(what,sys){if(!sys||!session.tech)return;
+async function ecoTool(what,sys){if(!sys||!can("eco_setup"))return;
   try{
     if(what==="on"){await ecoPost({id:sys.id,on:!sys.on});toast(sys.on?"Adapter disconnected":"Adapter connected. Cortex is listening.");}
     else if(what==="talk"){if(!sys.talk){modal(head("Let Cortex talk on “"+ue(sys.name)+"”?")+`<div class="modal-body"><div style="font-size:13.5px;color:var(--text-dim);margin-bottom:12px">Cortex will ask the equipment for its values about every 30 seconds and can send the changes people make here. It uses the address of Rheem’s own Wi-Fi module, so <b>if a Rheem EcoNet Wi-Fi module is fitted to this system, unplug it first</b>: two devices must not share one address.</div>
@@ -4060,9 +4069,9 @@ function drawDrawer(u){
   const svc=(CFG&&CFG.unitMeta&&CFG.unitMeta[u.name]&&CFG.unitMeta[u.name].service)||{inService:false,note:"",history:[]};
   if(!pend)pend=snap(u);const p=pend;
   const role=currentUser?currentUser.role:"customer";
-  const isTech=session.tech, canService=session.tech;
-  const viewOnly=role==="customer"&&CFG&&CFG.custCtl===false;   // site-wide "customers can look but not change"
-  const locked=(svc.inService&&role==="customer")||viewOnly;
+  const isTech=can("techdata"), canService=can("service");
+  const viewOnly=!can("ctl");   // site-wide "customers can look but not change"
+  const locked=(svc.inService&&!can("ctl_service"))||viewOnly;
   const dirty=pendDirty(u);
   const stg=f=>p[f]!==u[f];
   const dis=locked?'disabled':'';
@@ -4080,7 +4089,7 @@ function drawDrawer(u){
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
       <div class="umviz" style="width:120px;flex:0 0 120px">${unitGraphic(u)}</div>
       <div style="flex:1;min-width:0"><div class="lbl" style="margin-bottom:4px">Unit type</div>
-        ${(session.tech||session.admin)?`<select class="sel-box" style="width:100%" onchange="setKind(${u.id},this.value)">${Object.entries(KINDS).map(([k,n])=>`<option value="${k}" ${(u.kind||'wall')===k?'selected':''}>${n}</option>`).join("")}</select>`:`<div style="font-size:13px;color:var(--text-dim)">${KINDS[u.kind||'wall']}</div>`}
+        ${can("unit_edit")?`<select class="sel-box" style="width:100%" onchange="setKind(${u.id},this.value)">${Object.entries(KINDS).map(([k,n])=>`<option value="${k}" ${(u.kind||'wall')===k?'selected':''}>${n}</option>`).join("")}</select>`:`<div style="font-size:13px;color:var(--text-dim)">${KINDS[u.kind||'wall']}</div>`}
       </div>
     </div>
     ${u.offline?`<div class="note-box warn" style="margin-bottom:14px">This unit isn’t answering the controller${u.seen?" (last heard "+ago(u.seen)+")":""}. What you see below is its last known state. Check that the unit has power.</div>`:""}
@@ -4094,7 +4103,7 @@ function drawDrawer(u){
         <div class="dsrow"><div class="dslbl" style="color:var(--cool)">❄ Cool</div><div class="stepper"><button id="cdn" ${dis}>−</button><div class="val mono" style="${stg('coolC')?'color:var(--warn)':''}">${spDisp(p.coolC)}<small>°${settings.unit}</small></div><button id="cup" ${dis}>+</button></div></div>
         <div class="dsrow"><div class="dslbl" style="color:var(--heat)">☀ Heat</div><div class="stepper"><button id="hdn" ${dis}>−</button><div class="val mono" style="${stg('heatC')?'color:var(--warn)':''}">${spDisp(p.heatC)}<small>°${settings.unit}</small></div><button id="hup" ${dis}>+</button></div></div>
       </div>`:`<div class="stepper"><button id="spdn" ${dis}>−</button><div class="val mono" style="${(stg('coolC')||stg('heatC'))?'color:var(--warn)':''}">${spDisp(activeC(p))}<small>°${settings.unit}</small></div><button id="spup" ${dis}>+</button></div>`}</div>
-    ${u.filterSign&&isStaff()?`<div class="field"><div class="lbl">Filter${tip("The unit counts fan hours and raises this sign when its filter is due. Reset it <b>after</b> the filter has been cleaned. The reset is one message to this unit carrying its current settings plus the reset flag; nothing else changes.")}</div><div class="note-box warn" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:160px">This unit is asking for its filter to be cleaned.</span><button class="btn sm" id="flt-reset" ${dis}>Filter cleaned — reset sign</button></div></div>`:""}
+    ${u.filterSign&&can("unit_edit")?`<div class="field"><div class="lbl">Filter${tip("The unit counts fan hours and raises this sign when its filter is due. Reset it <b>after</b> the filter has been cleaned. The reset is one message to this unit carrying its current settings plus the reset flag; nothing else changes.")}</div><div class="note-box warn" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:160px">This unit is asking for its filter to be cleaned.</span><button class="btn sm" id="flt-reset" ${dis}>Filter cleaned — reset sign</button></div></div>`:""}
     <div class="field"><div class="lbl">Locks${tip("<b>Mode</b> / <b>Fan</b> lock those buttons on the wall thermostat. <b>Temp</b> blocks every temperature change. <b>Hard</b> locks the whole wall controller. <b>Temp range</b>: when locked, the thermostat can only be set between the two temperatures; unlocked, there is no range limit.")} ${(stg('modeLock')||stg('fanLock')||stg('tempLock')||stg('hardLock')||stg('rangeLock')||(p.rangeLock&&(p.limLo!==bandLo(u)||p.limHi!==bandHi(u)))||stg('twoset'))?'<span style="color:var(--warn)">• staged</span>':''}</div>
       <div class="opts">${[["modeLock","lk-mode","Mode"],["fanLock","lk-fan","Fan"],["tempLock","lk-temp","Temp"],["hardLock","lk-hard","Hard"]].map(([k,id,l])=>`<button class="opt lkbtn ${p[k]?'sel':''}" id="${id}" ${dis} style="${stg(k)?STG:''}"><span class="lk-ic">${p[k]?'🔒':'🔓'}</span> ${l}<small>${stg(k)?(p[k]?"will lock":"will unlock"):(p[k]?"locked":"unlocked")}</small></button>`).join("")}</div>
       <div style="margin-top:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px">
@@ -4272,14 +4281,14 @@ function organizeUnit(u){const m=getMeta(u);
 let setTab="display";
 function openSettings(){setTab="display";drawSettings();}
 function drawSettings(){
-  if(setTab==="layout"&&!isStaff())setTab="display";            // physical wiring (addresses) is not a customer page
-  const tabs=[["display","🎨 Display",false]].concat(isStaff()?[["layout","🔌 Layout",false]]:[],[["updates","⬇ Updates",false],["advanced","⚙ Advanced",!session.admin],["users","👥 Users",!session.admin],["about","ℹ About",false]]);
+  if(setTab==="layout"&&!can("map_edit"))setTab="display";            // physical wiring (addresses) is not a customer page
+  const tabs=[["display","🎨 Display",false]].concat(can("map_edit")?[["layout","🔌 Layout",false]]:[],[["updates","⬇ Updates",false],["advanced","⚙ Advanced",!canAdvTab()],["users","👥 Users",!can("users")],["about","ℹ About",false]]);
   let body="";
   if(setTab==="display")body=displayTab();
   else if(setTab==="layout")body=layoutTab();
   else if(setTab==="updates")body=updatesTab();
-  else if(setTab==="advanced")body=session.admin?advancedTab():lockedTab("Advanced settings are Admin-only.","admin");
-  else if(setTab==="users")body=session.admin?usersTab():lockedTab("User management is Admin-only.","admin");
+  else if(setTab==="advanced")body=canAdvTab()?advancedTab():lockedTab("Your role does not include Advanced settings.","admin");
+  else if(setTab==="users")body=can("users")?usersTab():lockedTab("Your role does not include managing users and roles.","admin");
   else body=aboutTab();
   modal(head("Settings")+`<div class="tabs">${tabs.map(t=>`<button class="tab ${setTab===t[0]?'on':''}" data-tab="${t[0]}">${t[1]}${t[2]?' <span class="lock">🔒</span>':''}</button>`).join("")}</div><div class="modal-body" id="setbody">${body}</div>`,true);
   mroot.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{setTab=b.dataset.tab;drawSettings();});
@@ -4293,7 +4302,7 @@ function updatesTab(){return `<div id="setupd">${brainLoader(56,"Checking for up
 function renderChannelRow(el,chan){
   let h=`<div style="margin:18px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Update channel</div>`;
   h+=`<div class="setrow"><div><div class="sl">Beta testing</div><div class="sd">Also install <b>pre-release</b> (alpha / beta / rc) builds on this controller. Off = stable releases only, which is what you want on a customer site.</div></div>`;
-  h+= canAdmin() ? `<button class="toggle ${chan==='beta'?'on':''}" id="chan-tog"></button>`
+  h+= can("updates") ? `<button class="toggle ${chan==='beta'?'on':''}" id="chan-tog"></button>`
                  : `<span style="color:var(--text-faint);font-size:12px">${chan==='beta'?'on':'off'} · admins only</span>`;
   h+=`</div>`;
   if(chan==='beta') h+=`<div class="note-box warn" style="margin-top:8px">⚠ This controller is on the <b>beta channel</b> and will install pre-release builds. Use on test sites, not production.</div>`;
@@ -4308,7 +4317,7 @@ async function loadChannelRow(){
   renderChannelRow(el,chan);
 }
 async function setUpdateChannel(beta){
-  if(!canAdmin()){toast("Admins only");return;}
+  if(!can("updates")){toast("Your role does not include changing the update channel");return;}
   const el=document.getElementById("setchan");
   if(el)renderChannelRow(el,beta?'beta':'stable');      // flip instantly — don't wait on the network
   let ok=false;
@@ -4385,8 +4394,8 @@ function displayTab(){setTimeout(drawPushRow,0);const nk=(k,l,d)=>row(l,d,`<butt
   ${row("Color theme","Accent across the app",`<div class="swatches">${Object.entries(ACCENTS).map(([k,a])=>`<button class="swatch ${settings.accent===k?'sel':''}" data-accent="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div>`)}
   ${row("Group units by","Organize the dashboard",`<select class="sel-box" data-set="groupBy">${userDims().map(d=>`<option value="${d[0]}" ${gdim()===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select>`)}
   ${row("Clock format","",`<div class="segmented"><button class="${!settings.clock24?'on':''}" onclick="settings.clock24=false;saveSettings();drawSettings();tick();">12-hour</button><button class="${settings.clock24?'on':''}" onclick="settings.clock24=true;saveSettings();drawSettings();tick();">24-hour</button></div>`)}
-  ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"]].concat(isStaff()?[["events","Fault history"],["device","Device health"]]:[]).concat(session.tech?[["cycle","Outdoor / cycle"]]:[]).map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
-  ${isStaff()?row("Outdoor / cycle opens on","",`<div class="segmented"><button data-set="cycleView" data-val="data" class="${settings.cycleView!=='diagram'?'on':''}">Data</button><button data-set="cycleView" data-val="diagram" class="${settings.cycleView==='diagram'?'on':''}">Diagram</button></div>`):""}
+  ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"]].filter(o=>o[0]==="units"||(o[0]==="map"&&can("map"))||(o[0]==="schedule"&&can("sched"))).concat(can("events")?[["events","Fault history"]]:[],can("device")?[["device","Device health"]]:[],can("cycle")?[["cycle","Outdoor / cycle"]]:[]).map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
+  ${can("cycle")?row("Outdoor / cycle opens on","",`<div class="segmented"><button data-set="cycleView" data-val="data" class="${settings.cycleView!=='diagram'?'on':''}">Data</button><button data-set="cycleView" data-val="diagram" class="${settings.cycleView==='diagram'?'on':''}">Diagram</button></div>`):""}
   ${row("Text size","",`<div class="segmented"><button data-set="textSize" data-val="normal" class="${settings.textSize!=='large'?'on':''}">Normal</button><button data-set="textSize" data-val="large" class="${settings.textSize==='large'?'on':''}">Large</button></div>`)}
   ${row("Animations","Screens easing in, numbers counting up, spinning fans, moving refrigerant",tog("motion",settings.motion!==false))}
   ${row("Summary tiles","Running / off / errors row",tog("showTiles",settings.showTiles))}
@@ -4403,7 +4412,7 @@ function layoutTab(){
     ${systems.length?systems.map(s=>block(s,units.filter(u=>String(u.system)===s))).join(""):'<div style="color:var(--text-faint);font-size:13px">No units yet.</div>'}`;}
 function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];const i=CFG.protocols.indexOf(k);
   if(i>=0){if(CFG.protocols.length>1)CFG.protocols.splice(i,1);}else CFG.protocols.push(k);saveCfg(CFG);drawSettings();}
-function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
+function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"],A=can("settings_adv");return `${A?`
   <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Site</div>
   ${row("Site name",ue((CFG&&CFG.site&&CFG.site.name)||"—"),canAdmin()?"<button class=\"linklike\" onclick=\"setSiteName()\">Rename</button>":"<span style=\"color:var(--text-faint);font-size:12px\">admins only</span>")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Manufacturer</div>
@@ -4411,8 +4420,7 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   <div class="setrow"><div><div class="sl">LG (LGAP)</div><div class="sd mono">RS485 · full control</div></div><button class="toggle on" disabled style="opacity:.8"></button></div>
   ${["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"].map(k=>`<div class="setrow" style="opacity:.55"><div><div class="sl">${PROTOCOLS[k].label}</div><div class="sd" style="color:var(--accent)">Coming soon</div></div></div>`).join("")}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
-  ${row("Allow customer control","Off = customer logins can look but not change anything",tog("custctl",!(CFG&&CFG.custCtl===false)))}
-  ${row("Allow customer All on / All off","Show the All on / All off buttons to customer logins",tog("custall",!(CFG&&CFG.custAll===false)))}
+  ${row("Roles and permissions","What each kind of user can see and do, including whether customers can control units",`<button class="linklike" onclick="setTab='users';drawSettings()">Open</button>`)}
   ${row("Setup wizard","Run the first-time setup again. Keeps your units, names, schedules and floor plans; replaces the site details, logins and access codes.",`<button class="linklike" onclick="closeModal();startWizard()">Re-run setup</button>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Security</div>
   ${row("Admin access code",(CFG&&CFG.adminPin)?"Set — unlocks Advanced settings and Users for someone signed in without admin rights":"Not set — only admin logins can open Advanced settings",`<button class="linklike" onclick="changePin('admin')">${(CFG&&CFG.adminPin)?"Change":"Set"}</button>`)}
@@ -4427,18 +4435,20 @@ function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"];return `
   ${row("Setpoint range","Lowest/highest temperature customers and schedules can set (°F)",`<span style="display:flex;gap:6px;align-items:center"><input class="inp" style="width:58px;margin:0" type="number" value="${(CFG&&CFG.spMinF!=null)?CFG.spMinF:61}" onchange="setSpLimit('min',this.value)"><span style="color:var(--text-faint)">–</span><input class="inp" style="width:58px;margin:0" type="number" value="${(CFG&&CFG.spMaxF!=null)?CFG.spMaxF:86}" onchange="setSpLimit('max',this.value)"><span style="color:var(--text-faint)">°F</span></span>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Occupant view</div>
   ${row("Room pages for occupants",occOn()?`On · ${occCfg().rooms.length} room link${occCfg().rooms.length===1?"":"s"}. Each link shows one room and allows small temperature changes inside limits you set.`:"Off. Nobody can open a room page. Meant for buildings such as condos where each owner adjusts their own unit.",`<span style="display:flex;gap:10px;align-items:center">${occOn()?'<button class="linklike" onclick="openOccupant()">Manage rooms</button>':''}<button class="toggle ${occOn()?'on':''}" onclick="occToggle()"></button></span>`)}
+  `:""}${can("backup")?`
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Backup</div>
   ${row("Back up configuration","Choose what to save: site details, logins, units, schedules, floor plans, preferences","<button class=\"linklike\" onclick=\"exportBackup()\">Download</button>")}
-  ${row("Restore from backup","Bring back all or part of a backup file","<button class=\"linklike\" onclick=\"importBackup()\">Restore…</button>")}
+  ${row("Restore from backup","Bring back all or part of a backup file","<button class=\"linklike\" onclick=\"importBackup()\">Restore…</button>")}`:""}
   ${row("Demo building",DEMO?"You are in the demo building now":"A pretend site for training and showing people around. Nothing reaches real equipment, and your real site is not touched.",DEMO?"<button class=\"linklike\" onclick=\"demoExit()\">Exit demo</button>":"<button class=\"linklike\" onclick=\"demoEnter()\">Open</button>")}
-  <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
+  ${A?`<div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Power</div>
   ${row("Restart controller","Reboot the device — back online in ~1 min",`<button class="linklike" onclick="powerCtl('reboot')">Restart</button>`)}
-  ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}
-  ${row("Clear unit data","Forget every known unit and start the unit list over. Logins and site settings stay.",`<button class="linklike" style="color:var(--err)" onclick="clearUnitData()">Clear…</button>`)}
-  ${row("Factory reset","Erase this site's setup — logins, units, names, schedules — and start over with the setup wizard",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset…</button>`)}
+  ${row("Power off controller","Shut down safely (needs a physical power-on)",`<button class="linklike" style="color:var(--err)" onclick="powerCtl('shutdown')">Power off</button>`)}`:""}
+  ${can("reset")?`${row("Clear unit data","Forget every known unit and start the unit list over. Logins and site settings stay.",`<button class="linklike" style="color:var(--err)" onclick="clearUnitData()">Clear…</button>`)}
+  ${row("Factory reset","Erase this site's setup — logins, units, names, schedules — and start over with the setup wizard",`<button class="linklike" style="color:var(--err)" onclick="factoryReset()">Reset…</button>`)}`:""}
   <div style="margin-top:14px;font-size:12px;color:var(--text-faint)">Advanced settings affect every user on this controller.</div>`;}
 function setSessionTimeout(v){if(!CFG)return;CFG.sessionTimeoutMin=parseInt(v,10)||0;saveCfg(CFG);touchSession();toast("Auto sign-out: "+(CFG.sessionTimeoutMin?CFG.sessionTimeoutMin+" min":"never"));}
-function canAdmin(){return !!(session.admin||(currentUser&&currentUser.role==="owner"));}
+function canAdmin(){return can("settings_adv");}
+function canAdvTab(){return can("settings_adv")||can("backup")||can("reset");}
 function changePin(kind){if(!canAdmin()||!CFG){toast("Admins only");return;}
   const label=kind==="admin"?"admin":"technician",key=kind==="admin"?"adminPin":"techPin",other=kind==="admin"?"techPin":"adminPin";
   const v=prompt("New "+label+" access code — 4 digits (leave empty to remove the code)","");if(v==null)return;const p=v.trim();
@@ -4458,12 +4468,54 @@ function setManualLocation(){const cur=(CFG&&CFG.site&&CFG.site.lat!=null)?CFG.s
   if(m.length<2){toast("Enter as: lat, lon");return;}
   if(CFG&&CFG.site){CFG.site.lat=+m[0].toFixed(4);CFG.site.lon=+m[1].toFixed(4);saveCfg(CFG);}
   WEATHER.ts=0;loadWeather();if(setTab)drawSettings();toast("Location set — loading weather");}
-function usersTab(){return `
+function usersTab(){const count=id=>users.filter(u=>u.role===id).length,orphans=users.filter(u=>u.role!=="owner"&&!roleOf(u.role)).length;return `
+  <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Users</div>
+  ${orphans?`<div class="note-box warn" style="margin-bottom:8px">${orphans} user${orphans===1?" has":"s have"} a role that no longer exists and can only look at units. Edit ${orphans===1?"that user":"them"} and pick a role.</div>`:""}
   <div style="margin-bottom:6px">${users.map(u=>`<div class="urow">
-    <div><div style="font-weight:500">${ue(u.name)}</div><div style="font-size:12px;color:var(--text-faint)">${u.protected?'Owner account — cannot be removed':ue(u.username||'')}</div></div>
-    <div style="display:flex;align-items:center;gap:8px"><span class="rchip ${u.role}">${u.role}</span>
+    <div><div style="font-weight:500">${ue(u.name)}</div><div style="font-size:12px;color:var(--text-faint)">${u.protected?'Root account — every permission, cannot be removed':ue(u.username||'')}</div></div>
+    <div style="display:flex;align-items:center;gap:8px"><span class="rchip ${ue(String(u.role).replace(/[^a-z0-9_-]/gi,""))}">${ue(roleName(u.role))}</span>
       ${u.protected?'':`<button class="linklike" data-edit="${u.id}">Edit</button><button class="linklike" style="color:var(--err)" data-del="${u.id}">Remove</button>`}</div></div>`).join("")}</div>
-  <button class="btn primary" id="adduser" style="margin-top:10px">+ Add user</button>`;}
+  <button class="btn primary" id="adduser" style="margin-top:10px">+ Add user</button>
+  <div style="margin:22px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Roles</div>
+  <div class="sd" style="margin-bottom:10px">A role is a set of permissions with a name. Every user with that role can see and do exactly what the role allows. Change a role and all its users change with it.</div>
+  <div class="rolecard"><div style="flex:1"><div class="rn">root <span class="rchip owner" style="margin-left:6px">built in</span></div><div class="rd">The account made during setup. Every permission, always. Cannot be changed or deleted.</div></div></div>
+  ${roles().map(r=>{const n=count(r.id),k=rolePerms(r.id).size;return `<div class="rolecard"><div style="flex:1;min-width:0"><div class="rn">${ue(r.name)}</div><div class="rd">${k} of ${PERM_KEYS.length} permissions · ${n} user${n===1?"":"s"}</div></div>
+    <button class="linklike" data-redit="${ue(r.id)}">Edit</button><button class="linklike" data-rcopy="${ue(r.id)}">Copy</button><button class="linklike" style="color:var(--err)" data-rdel="${ue(r.id)}">Delete</button></div>`;}).join("")}
+  <button class="btn" id="addrole" style="margin-top:4px">+ New role</button>`;}
+/* Create or edit a role: a name and a tick for each thing it may do. */
+function editRole(id,copyOf){const src=id?roleOf(id):(copyOf?roleOf(copyOf):null),isNew=!id;
+  const have=new Set(src?rolePerms(src.id):ROLE_DEFAULTS.customer),groups=[...new Set(PERMS.map(p=>p[3]))];
+  modal(head(isNew?"New role":"Edit role")+`<div class="modal-body">
+    <div class="field"><div class="lbl">Role name</div><input id="rname" class="inp" maxlength="30" value="${ue(isNew?(copyOf&&src?src.name+" copy":""):src.name)}" placeholder="e.g. Front desk, Maintenance, Property manager"></div>
+    <div class="sd">Tick what people with this role may see and do. Anything not ticked is hidden from them or switched off.</div>
+    ${groups.map(g=>`<div class="permgrp"><span>${g}</span><button class="linklike" data-pall="${g}">all</button><button class="linklike" data-pnone="${g}">none</button></div>
+      ${PERMS.filter(p=>p[3]===g).map(p=>`<label class="perm"><input type="checkbox" data-perm="${p[0]}" data-grp="${g}" ${have.has(p[0])?"checked":""}><div><b>${p[1]}</b><span>${p[2]}</span></div></label>`).join("")}`).join("")}
+    <div class="note-box" id="rwarn" style="margin-top:12px;font-size:12.5px;display:none"></div>
+    <div class="err-text" id="rerr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="drawSettings()">Cancel</button><button class="btn primary" id="rsave">Save role</button></div></div>`,true);
+  const boxes=()=>[...mroot.querySelectorAll("[data-perm]")],picked=()=>boxes().filter(b=>b.checked).map(b=>b.dataset.perm);
+  const warn=()=>{const p=new Set(picked()),w=[];
+      if(p.has("users"))w.push("People with this role can edit every role, including their own, so they can give themselves any permission.");
+      if(p.has("busscan"))w.push("Bus scan can start and stop polling and send raw frames on the equipment bus. Give it to trained technicians only.");
+      if(p.has("reset"))w.push("This role can erase the site’s setup.");
+      if(!p.has("ctl"))w.push("Without “Control units”, people with this role can look but not change anything.");
+      const el=document.getElementById("rwarn");el.style.display=w.length?"":"none";el.innerHTML=w.map(x=>"• "+x).join("<br>");};
+  boxes().forEach(b=>b.onchange=warn);warn();
+  mroot.querySelectorAll("[data-pall],[data-pnone]").forEach(b=>b.onclick=()=>{const g=b.dataset.pall||b.dataset.pnone,on=!!b.dataset.pall;boxes().filter(x=>x.dataset.grp===g).forEach(x=>{x.checked=on;});warn();});
+  document.getElementById("rsave").onclick=()=>{const name=document.getElementById("rname").value.replace(/[<>]/g,"").trim(),bad=m=>{document.getElementById("rerr").textContent=m;};
+    if(!name){bad("Give the role a name.");return;}
+    if(/^(root|owner)$/i.test(name)){bad("“"+name+"” is reserved for the built-in root account. Pick another name.");return;}
+    if(roles().some(r=>r.name.toLowerCase()===name.toLowerCase()&&r.id!==id)){bad("There is already a role with that name.");return;}
+    const perms=picked();
+    // never let someone remove their own way back in to this page
+    if(id&&currentUser&&currentUser.role===id&&!perms.includes("users")){bad("This is your own role. Keep “Users and roles” ticked, or you would lock yourself out of this page.");return;}
+    if(id){const r=roleOf(id);r.name=name;r.perms=perms;}
+    else CFG.roles.push({id:"r_"+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),name,perms});
+    saveCfg(CFG);recomputeSession();renderWho();renderAll();drawSettings();toast(isNew?"Role “"+name+"” created":"Role “"+name+"” saved");};}
+function deleteRole(id,btn){const r=roleOf(id);if(!r)return;const n=users.filter(u=>u.role===id).length;
+  if(n){toast(n+" user"+(n===1?" has":"s have")+" the role “"+r.name+"”. Give "+(n===1?"that user":"them")+" another role first.");return;}
+  if(btn.dataset.armed!=="1"){btn.dataset.armed="1";btn.textContent="Tap again to delete";return;}
+  CFG.roles=roles().filter(x=>x.id!==id);saveCfg(CFG);drawSettings();toast("Role “"+r.name+"” deleted");}
 function lockedTab(msg,kind){return `<div style="text-align:center;padding:28px 10px">
   <div style="font-size:30px">🔒</div><div style="margin:10px 0 4px;font-weight:500">${msg}</div>
   <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Enter the ${kind} passcode to unlock for this session.</div>
@@ -4544,13 +4596,16 @@ function wireSettings(){fillVersion();
     if(["mode","room","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
     else if(["showTiles","showWeather"].includes(k))settings[k]=!settings[k];
     else if(k==="motion"){settings.motion=settings.motion===false;applyTheme();}
-    else if(k==="custctl"||k==="custall"){if(!CFG||!canAdmin())return;const f=k==="custctl"?"custCtl":"custAll";CFG[f]=(CFG[f]===false);saveCfg(CFG);
-      toast(k==="custctl"?(CFG.custCtl?"Customers can change units":"Customers are now view-only"):(CFG.custAll?"All on / All off shown to customers":"All on / All off hidden from customers"));}
+    else if(k==="custctl"||k==="custall"){return;}
     saveSettings();b.classList.toggle("on");refreshBackground();});
   mroot.querySelectorAll("[data-accent]").forEach(b=>b.onclick=()=>{settings.accent=b.dataset.accent;saveSettings();applyTheme();drawSettings();refreshBackground();});
   const ver=document.getElementById("verline");
   if(ver)ver.onclick=()=>{aboutTaps++;if(aboutTaps>=7){aboutTaps=0;askPin("tech");}};
   const add=document.getElementById("adduser");if(add)add.onclick=()=>editUser(null);
+  const addr=document.getElementById("addrole");if(addr)addr.onclick=()=>editRole(null);
+  mroot.querySelectorAll("[data-redit]").forEach(b=>b.onclick=()=>editRole(b.dataset.redit));
+  mroot.querySelectorAll("[data-rcopy]").forEach(b=>b.onclick=()=>editRole(null,b.dataset.rcopy));
+  mroot.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>deleteRole(b.dataset.rdel,b));
   mroot.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editUser(+b.dataset.edit));
   mroot.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const t=users.find(u=>u.id===+b.dataset.del);if(!t||t.protected)return;
     if(currentUser&&t.username===currentUser.username){toast("You can’t remove the account you are signed in with");return;}
@@ -4559,13 +4614,15 @@ function wireSettings(){fillVersion();
 }
 function refreshBackground(){if(mroot.innerHTML===""){/*no modal*/}renderAll();}
 
-function editUser(id){const u=id?users.find(x=>x.id===id):{name:"",username:"",role:"customer"};
+function editUser(id){const rl=roles();if(!rl.length){toast("Create a role first, then add the user to it");return;}
+  const u=id?users.find(x=>x.id===id):{name:"",username:"",role:(roleOf("customer")?"customer":rl[0].id)};
   modal(head(id?"Edit user":"Add user")+`<div class="modal-body">
     <div class="field"><div class="lbl">Name</div><input id="uname" class="inp" value="${ue(u.name||'')}" placeholder="Full name"></div>
     <div class="field"><div class="lbl">Username</div><input id="uuser" class="inp" value="${ue(u.username||'')}" placeholder="login name" autocomplete="off"></div>
     <div class="field"><div class="lbl">${id?'New password (optional)':'Password'}</div><input id="upass" type="password" class="inp" placeholder="${id?'leave blank to keep':'set a password'}"></div>
     <div class="field"><div class="lbl">Role</div><div class="opts">
-      ${["customer","admin","technician"].map(r=>`<button class="opt ${u.role===r?'sel':''}" data-role="${r}">${r}</button>`).join("")}</div></div>
+      ${rl.map(r=>`<button class="opt ${u.role===r.id?'sel':''}" data-role="${ue(r.id)}">${ue(r.name)}</button>`).join("")}</div>
+      <div class="sd" style="margin-top:6px">The role decides what this person can see and do. Roles are edited under Settings ▸ Users ▸ Roles.</div></div>
     <div class="err-text" id="uerr"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
       <button class="btn" onclick="drawSettings()">Cancel</button><button class="btn primary" id="usave">Save</button></div></div>`);
@@ -4575,11 +4632,15 @@ function editUser(id){const u=id?users.find(x=>x.id===id):{name:"",username:"",r
     const bad=m=>{document.getElementById("uerr").textContent=m;};
     if(!un){bad("Enter a username — it is what this person types to sign in.");return;}
     if(users.some(x=>x.username===un&&x.id!==id)){bad("That username is already taken.");return;}
+    if(!roleOf(role)){bad("Pick a role for this person.");return;}
+    if(id&&currentUser&&u.username===currentUser.username&&currentUser.role!=="owner"&&!rolePerms(role).has("users")){bad("That role cannot manage users, and this is your own account: you would lock yourself out of this page.");return;}
     if(!id&&pw.length<4){bad("Set a password of at least 4 characters.");return;}       // no silent default password
     if(id&&pw&&pw.length<4){bad("The new password needs at least 4 characters.");return;}
     if(id){u.name=name;u.username=un;u.role=role;if(pw)u.passhash=hash(pw);}
     else{users.push({id:Date.now(),name,username:un,passhash:hash(pw),role});}
-    if(CFG){CFG.users=users;saveCfg(CFG);}drawSettings();};
+    if(CFG){CFG.users=users;saveCfg(CFG);}
+    if(id&&currentUser&&u.username===currentUser.username){currentUser.role=u.role;currentUser.name=u.name;recomputeSession();renderWho();renderAll();}
+    drawSettings();};
 }
 
 /* ---- passcode gates ---- */
@@ -4763,7 +4824,7 @@ function fpReadImage(file,maxSide,quality,rot){rot=((rot||0)%360+360)%360;return
 function fpDeleteImage(id){try{LS.removeItem(fpLocalKey(id));}catch(e){}
   if(!IS_FILE){try{fetch("/api/floorplan/"+encodeURIComponent(id),{method:"DELETE"}).catch(()=>{});}catch(e){}}}
 async function fpUpload(leaf,file,rot){
-  if(!isStaff()||!CFG)return;const local=IS_FILE;
+  if(!can("map_edit")||!CFG)return;const local=IS_FILE;
   const wrap=[...document.querySelectorAll(".floor-wrap")].find(w=>w.dataset.leaf===encodeURIComponent(leaf));
   const slot=wrap&&wrap.querySelector(".fpslot");if(slot)slot.innerHTML=brainLoader(72,"Preparing the floor plan…");
   try{
@@ -4807,13 +4868,13 @@ function fpPreview(leaf,file){
   const zi=document.getElementById("fppv-zoom");if(zi)zi.oninput=e=>{zoom=+e.target.value||1;apply();};
   const cb=document.getElementById("fppv-cancel");if(cb)cb.onclick=()=>{done();closeModal();};
   const ub=document.getElementById("fppv-use");if(ub)ub.onclick=()=>{done();closeModal();fpUpload(leaf,file,rot);};}
-function fpRemove(leaf){const f=fpGet(leaf);if(!f||!isStaff())return;
+function fpRemove(leaf){const f=fpGet(leaf);if(!f||!can("map_edit"))return;
   modal(head("Remove this floor plan?")+`<div class="modal-body">
     <div class="note-box" style="margin-bottom:12px">This removes the picture for <b>${ue(leaf)}</b> and forgets where its units were placed. The units themselves are not touched — they go back to the plain tile view.</div>
     <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" id="fprm-go">Remove picture</button></div></div>`);
   document.getElementById("fprm-go").onclick=()=>{fpDeleteImage(f.id);delete CFG.floorplans[leaf];saveCfg(CFG);closeModal();renderMap();toast("Floor plan removed");};}
 function fpImgFail(img){const st=img.closest(".fpstage");if(!st||st.classList.contains("noimg"))return;st.classList.add("noimg");img.remove();
-  st.insertAdjacentHTML("afterbegin",`<div style="padding:14px;font-size:13px;color:#5a6372">The floor-plan picture for this group couldn't be loaded on this device${isStaff()?" — use Edit layout ▸ Replace picture to add it again":""}.</div>`);}
+  st.insertAdjacentHTML("afterbegin",`<div style="padding:14px;font-size:13px;color:#5a6372">The floor-plan picture for this group couldn't be loaded on this device${can("map_edit")?" — use Edit layout ▸ Replace picture to add it again":""}.</div>`);}
 function mapStateTxt(u){return u.offline?"No response":u.err?(u.code||"error"):(u.on?((MODES.find(m=>m[0]===u.mode)||["",u.mode])[1]+" · "+spDisp(activeC(u))+"°"+settings.unit):"Off");}
 function mapTile(u){const stateTxt=u.err?`<span style="color:var(--err)">${ue(u.code||'error')}</span>`:ue(mapStateTxt(u));
   return `<div class="umtile" data-id="${u.id}">
@@ -4826,14 +4887,14 @@ function fpMarker(u,x,y,rot){const c=u.offline?"var(--warn)":u.err?"var(--err)":
   return `<div class="fpmark" data-id="${u.id}" style="left:${(x*100).toFixed(2)}%;top:${(y*100).toFixed(2)}%;--mk:${c}" title="${ue(dispName(u)+" — "+mapStateTxt(u))}"><div class="fpviz" style="transform:rotate(${rot}deg)">${unitGraphic(u,'',true)}</div>${rotBtn}<div class="fpname">${ue(dispName(u))}</div></div>`;}
 function renderMap(){renderGroupNav();
   if(fpDrag)return;                                            // never rebuild the map under a finger mid-drag
-  if(!isStaff())mapEdit=false;
+  if(!can("map_edit"))mapEdit=false;
   if(!units.length){main.innerHTML=`<div class="cyc-note" style="display:block">No units yet${isTechView()?" — add them from Bus scan (discover → import)":" — your installer adds them when the system is set up"}.</div>`;return;}
   const sel=(groupFilter==="all")?units.slice():units.filter(u=>catVals(u,"location").includes(groupFilter));
   const leaves=[...new Set(sel.map(leafKey))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   const enc=encodeURIComponent;
   main.innerHTML=`<div style="display:flex;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap">
       <div style="font-size:13.5px;color:var(--text-dim);flex:1;min-width:240px">Live building view — each unit shows what it is doing right now: color by mode, airflow speed by fan, a flashing dot on a fault. Tap one to control it.</div>
-      ${isStaff()?`<button class="btn ${mapEdit?'primary':''}" id="mapedit">${mapEdit?'✓ Done editing':'✎ Edit layout'}</button>`:''}</div>
+      ${can("map_edit")?`<button class="btn ${mapEdit?'primary':''}" id="mapedit">${mapEdit?'✓ Done editing':'✎ Edit layout'}</button>`:''}</div>
     ${mapEdit?`<div class="editband"><span>✎ <b>Editing the layout.</b> Add a floor-plan picture to a group, then drag its units onto it. Tap a placed unit's <b>↻</b> to rotate it onto another wall. Drag a unit off the picture to take it off. Nothing here is sent to the equipment.</span>
       <div style="flex:1"></div>
       <label style="display:flex;align-items:center;gap:7px;font-size:12px"><input type="checkbox" id="snaptog" ${fpSnapOn?'checked':''}> Snap to grid</label>
@@ -4871,7 +4932,7 @@ function renderMap(){renderGroupNav();
 function fpBindDrag(){
   document.querySelectorAll(".fpstage.edit .fpmark,.fptray .fpchip").forEach(el=>{
     el.onpointerdown=e=>{
-      if(!mapEdit||!isStaff()||(e.pointerType==="mouse"&&e.button!==0))return;
+      if(!mapEdit||!can("map_edit")||(e.pointerType==="mouse"&&e.button!==0))return;
       const u=units.find(x=>x.id===+el.dataset.id),wrap=el.closest(".floor-wrap"),stage=wrap&&wrap.querySelector(".fpstage");
       if(!u||!stage)return;const leaf=decodeURIComponent(stage.dataset.leaf),f=fpGet(leaf);if(!f)return;
       e.preventDefault();
@@ -4951,7 +5012,7 @@ function countUp(root){root.querySelectorAll(".gauge .gv, .sum-n, .stat-n").forE
     const step=t=>{const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);if(!node.parentNode)return;node.nodeValue=String(Math.round(to*e));if(k<1)requestAnimationFrame(step);else node.nodeValue=String(to);};requestAnimationFrame(step);});}
 document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.onclick=()=>{const was=view;view=b.dataset.view;renderAll();if(was!==view)enterAnim();});
 document.getElementById("settingsbtn").onclick=openSettings;
-document.getElementById("devbtn").onclick=()=>{if(!isStaff())return;closeDrawer();view="device";DEVLIVE=null;DEVERR=null;renderAll();};
+document.getElementById("devbtn").onclick=()=>{if(!can("device"))return;closeDrawer();view="device";DEVLIVE=null;DEVERR=null;renderAll();};
 document.getElementById("lockbtn").onclick=()=>{elev={admin:false,tech:false};recomputeSession();if(view==="cycle"&&!session.tech)view="units";renderWho();renderAll();};
 document.getElementById("logoutbtn").onclick=logout;
 document.getElementById("theme").onclick=()=>{settings.theme=(document.documentElement.getAttribute("data-theme")==="dark"||(settings.theme==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches))?"light":"dark";saveSettings();applyTheme();};
@@ -5028,7 +5089,8 @@ function cfgAdopt(c,conflict){
   users=CFG.users||users;cfgStore();cfgDirty=false;
   if(currentUser){const me=(CFG.users||[]).find(u=>u.username===currentUser.username);
     if(!me){logout("This account was removed.");return;}
-    if(me.role!==currentUser.role||me.name!==currentUser.name){currentUser.role=me.role;currentUser.name=me.name;recomputeSession();}}
+    if(me.role!==currentUser.role||me.name!==currentUser.name){currentUser.role=me.role;currentUser.name=me.name;}
+    {const was=[...PSET].sort().join();recomputeSession();if(was!==[...PSET].sort().join()){renderWho();renderAll();}}}
   if(conflict)toast("These settings were just changed on another screen — showing the latest. Please make your change again.");
   if(currentUser&&!fpDrag){renderWho();if(!mroot.innerHTML)renderAll();}}
 async function cfgPull(){
@@ -5078,8 +5140,59 @@ function updFollow(what){if(IS_FILE||UPD)return;UPD={from:LOADED_VER,at:Date.now
     setTimeout(tick,3000);};
   tick();}
 setTimeout(()=>{try{const v=sessionStorage.getItem("airow_updated");if(v){sessionStorage.removeItem("airow_updated");updBanner("Cortex is now on v"+ue(v)+". Units, schedules, trends and fault history were kept.",true);}}catch(e){}},1500);
-function roleCaps(r){return{admin:r==="admin"||r==="owner",tech:r==="technician"||r==="owner"};}
-function recomputeSession(){const b=currentUser?roleCaps(currentUser.role):{admin:false,tech:false};session.admin=b.admin||elev.admin;session.tech=b.tech||elev.tech;}
+/* ===== Roles and permissions =====
+   A role is a named list of permissions, kept with the site (CFG.roles) like a template: every user of that role
+   gets exactly those permissions. Roles can be created, renamed, edited and deleted in Settings ▸ Users.
+   The account made in the setup wizard is "root": it always has every permission and cannot be edited or removed,
+   so a site can never lock itself out. (Its stored role id is still "owner", for older backups.)
+   Everything on screen asks can("permission"); nothing checks a role's name. */
+const PERMS=[                                              // [key, label, what it allows, group]
+  ["ctl","Control units","Turn units on and off and change mode, temperature and fan. Without it, a user can look but not change.","Units"],
+  ["ctl_all","All on / All off","Use the All on and All off buttons","Units"],
+  ["ctl_service","Control units in service","Change a unit that is marked as being serviced","Units"],
+  ["locks","Thermostat locks","Lock and unlock the wall thermostats","Units"],
+  ["unit_edit","Edit units","Rename units, move them between groups and change their type","Units"],
+  ["service","Service mode and notes","Mark a unit as in service and write service notes","Units"],
+  ["techdata","Technical details","See bus addresses, outdoor system numbers and raw data","Units"],
+  ["map","Building map","Open the Building map","Pages"],
+  ["map_edit","Edit the layout","Floor plans and unit placement (Settings ▸ Layout)","Pages"],
+  ["sched","Schedules","Open the Schedule page","Pages"],
+  ["sched_edit","Edit schedules","Create, change, switch on or off, and delete schedules","Pages"],
+  ["events","Fault history","Open Fault history and its reports","Pages"],
+  ["device","Device health","Open the controller's Device health page","Pages"],
+  ["eco","Rheem / Ruud","Open the Rheem / Ruud page","Pages"],
+  ["eco_ctl","Control Rheem / Ruud","Change mode, temperatures and fan on Rheem / Ruud systems","Pages"],
+  ["cycle","Outdoor / cycle","Outdoor unit data, the refrigerant diagram and health checks","Technician tools"],
+  ["busscan","Bus scan","Connect the adapter, find units, start and stop polling, and the raw bus tools","Technician tools"],
+  ["uart","UART service port","The experimental outdoor-unit service port tool (beta builds only)","Technician tools"],
+  ["eco_setup","Set up Rheem / Ruud","Add systems, pick adapters, let Cortex talk, and read the message log","Technician tools"],
+  ["settings_adv","Advanced settings","Site name, access codes, auto sign-out, limits, occupant view, restart, setup wizard","Administration"],
+  ["users","Users and roles","Add and remove users, and create, edit and delete roles","Administration"],
+  ["updates","Update channel","Switch between stable and beta updates","Administration"],
+  ["backup","Backup and restore","Download a backup and restore from one","Administration"],
+  ["reset","Clear data and factory reset","Forget all units, or erase the whole site setup","Administration"]];
+const PERM_KEYS=PERMS.map(p=>p[0]);
+const ROLE_BASE=["ctl","ctl_all","map","sched","sched_edit","eco","eco_ctl"];
+const ROLE_DEFAULTS={customer:ROLE_BASE,
+  admin:ROLE_BASE.concat(["ctl_service","locks","unit_edit","map_edit","events","device","settings_adv","users","updates","backup","reset"]),
+  technician:ROLE_BASE.concat(["ctl_service","locks","unit_edit","service","techdata","map_edit","events","device","cycle","busscan","uart","eco_setup"])};
+/* The first time a site is opened on this version it gets the three roles it always had, with the same abilities
+   (including the old "customers may control" switches). From then on they are ordinary, editable roles. */
+function seedRoles(cfg){if(!cfg)return [];if(Array.isArray(cfg.roles))return cfg.roles;
+  const cust=ROLE_DEFAULTS.customer.filter(k=>!(cfg.custCtl===false&&(k==="ctl"||k==="ctl_all"))&&!(cfg.custAll===false&&k==="ctl_all"));
+  cfg.roles=[{id:"admin",name:"Admin",perms:ROLE_DEFAULTS.admin.slice()},{id:"technician",name:"Technician",perms:ROLE_DEFAULTS.technician.slice()},{id:"customer",name:"Customer",perms:cust}];
+  return cfg.roles;}
+function roles(){return CFG?seedRoles(CFG):[];}
+function roleOf(id){return roles().find(r=>r.id===id)||null;}
+function roleName(id){if(id==="owner")return "root";const r=roleOf(id);return r?r.name:"no role";}
+function rolePerms(id){if(id==="owner")return new Set(PERM_KEYS);const r=roleOf(id);return new Set(r&&Array.isArray(r.perms)?r.perms.filter(k=>PERM_KEYS.includes(k)):[]);}
+let PSET=new Set();
+function can(k){return PSET.has(k);}
+function roleCaps(r){const p=rolePerms(r);return{admin:p.has("users")||p.has("settings_adv"),tech:p.has("busscan")};}
+/* An access code typed on this screen adds, for this session only, what the standard Admin or Technician role has. */
+function recomputeSession(){const p=currentUser?rolePerms(currentUser.role):new Set();
+  if(elev.admin)ROLE_DEFAULTS.admin.forEach(k=>p.add(k));if(elev.tech)ROLE_DEFAULTS.technician.forEach(k=>p.add(k));
+  PSET=p;session.admin=p.has("users")||p.has("settings_adv");session.tech=p.has("busscan")||p.has("cycle")||p.has("techdata");}
 function showScreen(n){document.getElementById("screen-setup").classList.toggle("show",n==="setup");document.getElementById("screen-login").classList.toggle("show",n==="login");}
 /* ---- session: persisted in localStorage so a refresh (within the timeout) stays signed in ---- */
 function sessTimeoutMs(){const m=(CFG&&CFG.sessionTimeoutMin!=null)?CFG.sessionTimeoutMin:60;return m>0?m*60000:0;}  // 0 = never
@@ -5098,12 +5211,12 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   saveSession(u.username);lastTouch=Date.now();
   elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();
   view=(settings.landing&&["units","map","schedule","device","events","cycle"].includes(settings.landing))?settings.landing:"units";if(settings.cycleView)cycView=settings.cycleView;prefsPull();
-  if(view==="device"&&!isStaff())view="units";
+  if(view==="device"&&!can("device"))view="units";
   renderAll();loadWeather();enterAnim();}
-function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
+function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;PSET=new Set();closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
 /* Clear unit data: start the unit list over without a factory reset. Nothing is sent to the equipment. */
 function clearUnitData(){
-  if(!canAdmin()){toast("Admins only");return;}
+  if(!can("reset")){toast("Your role does not include clearing data");return;}
   const n=units.length,ck=(id,label,sub,on)=>`<label style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--border);cursor:pointer"><input type="checkbox" id="${id}" ${on?"checked":""} style="margin-top:3px"><span><b>${label}</b><br><span style="font-size:12.5px;color:var(--text-dim)">${sub}</span></span></label>`;
   modal(head("Clear unit data?")+`<div class="modal-body">
     <div class="note-box warn" style="margin-bottom:12px">This forgets <b>${n} unit${n!==1?"s":""}</b>: their addresses, names, groups, types, map positions and service notes, on this controller and on every screen. Run <b>Bus scan</b> afterwards to find the units again.<br><br><b>Not touched:</b> the equipment itself (nothing is sent to it, so units keep running as they are, locks included), logins, site settings, floor-plan pictures, notification devices and update settings.<br><br>Tip: download a backup first (Settings ▸ Advanced ▸ Back up configuration).</div>
@@ -5139,7 +5252,7 @@ function clearUnitData(){
     await sleep(300);location.reload();};}
 setTimeout(()=>{try{const v=sessionStorage.getItem("airow_cleared");if(v!=null){sessionStorage.removeItem("airow_cleared");toast("Unit data cleared ("+v+" unit"+(v==="1"?"":"s")+" forgotten). Open Bus scan to find units again.");}}catch(e){}},1600);
 function factoryReset(){
-  if(!canAdmin()){toast("Admins only");return;}
+  if(!can("reset")){toast("Your role does not include a factory reset");return;}
   modal(head("Factory reset?")+`<div class="modal-body">
     <div class="note-box warn" style="margin-bottom:12px">This erases <b>everything about this site</b> from the controller: all logins, the unit list, names, groups, schedules and floor plans. The equipment itself is not touched, and Cortex's software stays installed. Afterwards the setup wizard runs again.<br><br>Tip: download a backup first (Settings ▸ Advanced ▸ Back up configuration).</div>
     <label class="flabel">Type RESET to confirm</label><input id="fr-inp" class="inp mono" autocomplete="off" placeholder="RESET">
@@ -5212,12 +5325,12 @@ function occEdit(id){const o=occCfg(),U=settings.unit,r=id?o.rooms.find(x=>x.id=
    still restore: backupParts() reads both shapes. Restoring a section replaces just that section. */
 const BK_SECTIONS=[
   ["site","Site details and limits","Name, location, system type, temperature limits, sign-out timer, weather location, customer permissions, occupant room links"],
-  ["users","Logins and access codes","Every login, the admin and technician codes, and the recovery answer"],
+  ["users","Logins, roles and access codes","Every login, the roles and their permissions, the admin and technician codes, and the recovery answer"],
   ["units","Units","The unit list with names, groups, types, tags, service notes and outdoor unit addresses"],
   ["schedules","Schedules","Every schedule and its exceptions"],
   ["floorplans","Floor plans","Building-map pictures and where each unit sits on them"],
   ["prefs","My display preferences","Theme, colour, layout and other choices for this login"]];
-const BK_USERKEYS=["users","adminPin","techPin","recovery"], BK_UNITKEYS=["unitMeta","oduAddrs","ignoreAddrs"], BK_SKIP=["_rev","provisioned","schedules","floorplans"];
+const BK_USERKEYS=["users","roles","adminPin","techPin","recovery"], BK_UNITKEYS=["unitMeta","oduAddrs","ignoreAddrs"], BK_SKIP=["_rev","provisioned","schedules","floorplans"];
 function bkSiteOf(cfg){const o={};for(const k in (cfg||{})){if(!BK_USERKEYS.includes(k)&&!BK_UNITKEYS.includes(k)&&!BK_SKIP.includes(k))o[k]=cfg[k];}return o;}
 function bkPick(cfg,keys){const o={};keys.forEach(k=>{if(cfg&&cfg[k]!==undefined)o[k]=cfg[k];});return o;}
 function backupBuild(sel,cfg,unitList,prefs,images){
@@ -5266,7 +5379,7 @@ async function bkImages(){const out={};if(IS_FILE||!CFG||!CFG.floorplans)return 
     try{const r=await fetch("/api/floorplan/"+encodeURIComponent(f.id),{cache:"no-store"});if(!r.ok)continue;const bl=await r.blob();
       out[f.id]=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(bl);});}catch(e){}}
   return out;}
-function exportBackup(){
+function exportBackup(){if(!can("backup")){toast("Your role does not include backups");return;}
   modal(head("Back up this site")+`<div class="modal-body"><div class="note-box" style="margin-bottom:12px">Choose what goes in the file. Each part can be restored on its own later, on this controller or a new one.</div>
     ${bkChecks()}
     <div class="note-box warn" style="margin:12px 0">A backup with logins holds the scrambled passwords and the access codes. Keep the file somewhere private.</div>
@@ -5282,7 +5395,7 @@ async function bkPutImages(images){let n=0;if(IS_FILE)return n;
   for(const [id,url] of Object.entries(images||{})){try{if(!/^[A-Za-z0-9_-]{1,48}$/.test(id)||!/^data:image\/(jpeg|png|webp);base64,/.test(url))continue;
       const bl=await (await fetch(url)).blob();const r=await fetch("/api/floorplan/"+id,{method:"PUT",headers:{"Content-Type":bl.type},body:bl});if(r.ok)n++;}catch(e){}}
   return n;}
-function importBackup(){const inp=document.createElement("input");inp.type="file";inp.accept="application/json,.json";
+function importBackup(){if(!can("backup")){toast("Your role does not include restoring a backup");return;}const inp=document.createElement("input");inp.type="file";inp.accept="application/json,.json";
   inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();
     r.onload=()=>{let B=null;try{B=backupParts(JSON.parse(r.result));}catch(e){}
       if(!B){toast("That is not a Cortex backup file");return;}
@@ -5696,6 +5809,7 @@ function provision(){
   CFG={provisioned:true,site:{name:WZ.site.name,location:WZ.site.location,unit:WZ.site.unit},
     protocols:(WZ.protocols&&WZ.protocols.length?WZ.protocols:["lg"]),
     adminPin:WZ.adminPin,techPin:WZ.techPin,recovery:rc,remote:WZ.remote,unitMeta:{},
+    ...(CFG&&Array.isArray(CFG.roles)?{roles:CFG.roles}:{}),          // re-running setup keeps the roles the site has made
     schedules:[],                                              // start empty — users build their own
     users:[{id:1,name:WZ.owner.name,username:WZ.owner.username,passhash:hash(WZ.owner.pass),role:"owner",protected:true},
       ...WZ.team.map((t,i)=>({id:2+i,name:t.name,username:t.username,passhash:hash(t.pass),role:t.role}))]};

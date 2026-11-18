@@ -524,3 +524,10 @@ Read these first: `docs/DEMO_BUILDING.md`, `docs/OCCUPANT_VIEW.md`, `docs/COMMAN
   to the allowed list without the user asking.
 - Untested on real equipment as of this version. The CRC variant, the addresses and the value names
   come from the community project and need confirming on the first real unit.
+
+## Addendum: roles and permissions (v1.7.1-beta.7)
+
+- Gate new features with `can("key")` and add the key to `PERMS` (and to `ROLE_DEFAULTS` where the
+  standard roles should have it). Never compare `currentUser.role` to a name; the only fixed id is
+  `"owner"` (shown as root).
+- The user asked for the label "root" (not "owner"). See `docs/ROLES.md`.
