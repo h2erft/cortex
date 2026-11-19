@@ -19,7 +19,7 @@ const { cmd0Bytes } = require('./scheduler');
 
 const MODE_BY_CODE = { 0: 'cool', 1: 'dry', 2: 'fan', 3: 'auto', 4: 'heat', 7: 'auto' };
 const FAN_BY_CODE = { 1: 'low', 2: 'med', 3: 'high', 4: 'auto', 5: 'quiet', 6: 'power' };
-const TURNAROUND = 30, REPLY_WAIT = 1000, ODU_EVERY = 60000, MIN_PASS = 2500;
+const TURNAROUND = 30, REPLY_WAIT = 1000, ODU_EVERY = 60000, MIN_PASS = 2500, SCAN_WAIT = 450, SCAN_STEP = 16;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function ck(b, n) { let s = 0; for (let i = 0; i < n; i++) s = (s + b[i]) & 0xff; return (s ^ 0x55) & 0xff; }
@@ -87,6 +87,8 @@ function commandPatch(state) {
  *   io.oduAddrs()            -> outdoor unit addresses to read
  *   io.onOdu(frame)          one 64-byte monitor page
  *   io.onPass(ms)            end of every pass
+ *   io.scanNext(n)           (optional) up to n addresses to look for new units at, a few per pass; [] when no search is on
+ *   io.onScanReply(addr, reply|null)   what that address answered (the same safe cmd0 read as polling)
  *   io.log(text)
  */
 function createMaster(io) {
@@ -133,7 +135,8 @@ function createMaster(io) {
     while (!S.stopping) {
       const t0 = Date.now(), patches = [];
       const addrs = (io.getUnits() || []).map(u => u.addr).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF);
-      if (!addrs.length) { await sleep(1000); continue; }
+      const probes = io.scanNext ? (io.scanNext(SCAN_STEP) || []).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF) : [];
+      if (!addrs.length && !probes.length) { await sleep(1000); continue; }
       for (const a of addrs) {
         if (S.stopping) break;
         const f = await exchange(readQuery(a), rx => findReply16(rx, a), REPLY_WAIT);
@@ -143,13 +146,18 @@ function createMaster(io) {
         if (patches.length >= 8) io.patchUnits(patches.splice(0));       // keep other screens fresh on a big site
       }
       if (patches.length) io.patchUnits(patches);
+      // a search for new units: a few addresses each pass, so the units already known keep updating meanwhile
+      for (const a of probes) { if (S.stopping) break;
+        const f = await exchange(readQuery(a), rx => findReply16(rx, a), SCAN_WAIT);
+        try { io.onScanReply(a, f ? parseReply(f) : null); } catch (_) {}
+        await sleep(TURNAROUND); }
       if (S.stopping) break;
       await drainCommands();
       if (!S.stopping && Date.now() - S.oduAt > ODU_EVERY) { S.oduAt = Date.now();
         for (const oa of (io.oduAddrs() || [])) { if (S.stopping) break; await readOdu(oa); await sleep(TURNAROUND); } }
       S.passMs = Date.now() - t0; S.lastPassAt = Date.now(); S.passes++;
       if (io.onPass) io.onPass(S.passMs);
-      if (S.passMs < MIN_PASS && !S.stopping) await sleep(MIN_PASS - S.passMs);
+      if (S.passMs < MIN_PASS && !S.stopping && !probes.length) await sleep(MIN_PASS - S.passMs);
     }
   }
   async function start() {

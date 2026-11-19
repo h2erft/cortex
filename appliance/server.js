@@ -31,6 +31,7 @@ const { execFile, execFileSync } = require('child_process');
 
 // Live bus-activity counters, updated by the serial bridge below, reported by /api/device.
 const busRx = { bytes: 0, last: 0, active: false };
+const lgLines = new Map();          // extra LG lines, each on its own adapter (see "more than one LG line" below)
 
 const PORT   = parseInt(process.env.CORTEX_PORT || '8080', 10);
 const SERIAL = process.env.CORTEX_SERIAL || '/dev/ttyUSB0';
@@ -396,7 +397,7 @@ app.post('/api/appconfig', (req, res) => {
 const UNITSF = path.join(DATA, 'units.json');
 let unitsDoc = (() => { const d = readJsonSafe(UNITSF); return (d && Array.isArray(d.units)) ? d : { rev: 0, ts: 0, units: [] }; })();
 let unitsDirty = false, unitsFlushT = null, masterAt = 0;
-function masterAlive() { return Date.now() - masterAt < 30000 || (typeof busMaster !== 'undefined' && busMaster && busMaster.alive()); }
+function masterAlive() { return Date.now() - masterAt < 30000 || (typeof busMaster !== 'undefined' && busMaster && busMaster.alive()) || [...lgLines.values()].some(L => L.master && L.master.alive()); }
 function flushUnits() {
   if (unitsFlushT) { clearTimeout(unitsFlushT); unitsFlushT = null; }
   if (!unitsDirty) return;
@@ -412,11 +413,15 @@ app.put('/api/units', express.json({ limit: '2mb' }), (req, res) => {
   cors(res);
   const b = req.body || {};
   if (!Array.isArray(b.units) || b.units.length > 512) return res.status(400).json({ err: 'units must be a list' });
-  if (typeof b.base === 'number' && b.base !== unitsDoc.rev) {
+  // A screen that is polling line 1 itself sends its readings every pass. With more LG lines the controller is
+  // updating the other lines' units at the same moment, so that screen's copy of THOSE is always a little old:
+  // take its line-1 units, keep the controller's own record of every unit on another line.
+  const far = (b.live && b.master && lgLines.size) ? new Map(unitsDoc.units.filter(u => u && u.bus && lgLines.has(u.bus)).map(u => [u.addr, u])) : null;
+  if (!far && typeof b.base === 'number' && b.base !== unitsDoc.rev) {
     return res.status(409).json({ conflict: true, rev: unitsDoc.rev, ts: unitsDoc.ts, units: unitsDoc.units });
   }
   if (b.master) masterAt = Date.now();
-  unitsDoc = { rev: unitsDoc.rev + 1, ts: Date.now(), units: b.units };
+  unitsDoc = { rev: unitsDoc.rev + 1, ts: Date.now(), units: far ? b.units.map(u => (u && far.get(u.addr)) || u) : b.units };
   if (b.master) { histSample(); recorder.sample(unitsDoc.units); }
   unitsDirty = true;
   // Live readings arrive every few seconds; don't hammer the disk with them. Layout changes
@@ -481,6 +486,9 @@ app.get('/api/history', (req, res) => {
 // Commands from screens that are not connected to the equipment. Short-lived by design: a command
 // nobody picked up within a minute is dropped rather than firing unexpectedly much later.
 let cmdQueue = [], cmdSeq = 0;
+// Which LG line a unit is on (0 = the first line), and the queued commands for one line.
+const lineOfAddr = (addr) => { const u = unitsDoc.units.find(x => x && x.addr === addr); return u && u.bus && lgLines.has(u.bus) ? u.bus : 0; };
+function drainFor(line) { const now = Date.now(), keep = [], out = []; for (const c of cmdQueue) { if (now - c.ts >= CMD_TTL) continue; (lineOfAddr(c.addr) === line ? out : keep).push(c); } cmdQueue = keep; return out; }
 const CMD_TTL = 60000;
 app.post('/api/cmd', (req, res) => {
   cors(res);
@@ -504,9 +512,7 @@ app.post('/api/cmd', (req, res) => {
 app.post('/api/cmd/drain', (_req, res) => {            // called by the master screen on every pass
   cors(res);
   masterAt = Date.now();
-  const now = Date.now(), out = cmdQueue.filter(c => now - c.ts < CMD_TTL);
-  cmdQueue = [];
-  res.json({ cmds: out });
+  res.json({ cmds: drainFor(0) });                    // a screen only ever drives the first LG line; the other lines' commands wait for their own loops
 });
 
 // --- shared Cortex Command data (Command ▸ Settings ▸ Sync). See commandstore.js. ---
@@ -714,7 +720,7 @@ const link = createLink({
 /* What every screen and app is told about the bus. */
 function busInfo() { const i = link.info(), poll = !!(busMaster && busMaster.state.active);
   return Object.assign(i, { master: masterMode(), polling: poll, alive: !!(busMaster && busMaster.alive()), holder: i.driver ? 'screen' : (poll ? 'controller' : null),
-    pollError: (busMaster && busMaster.state.error) || null, bytes: busRx.bytes, lastMs: busRx.last ? Date.now() - busRx.last : null, units: unitsDoc.units.length, screens: busClients.size, adapter: busAdapter() }); }
+    pollError: (busMaster && busMaster.state.error) || null, bytes: busRx.bytes, lastMs: busRx.last ? Date.now() - busRx.last : null, units: unitsDoc.units.length, screens: busClients.size, adapter: busAdapter(), lines: [...lgLines.values()].map(lgInfo) }); }
 // which adapter the LG bus is set to use, in words
 function busAdapter() { const dev = resolveSerial(), r = (() => { try { return fs.realpathSync(dev); } catch (_) { return dev; } })(), all = ADAPTERS.list(), a = all.find(x => x.dev === r);
   return { path: a ? a.path : dev, label: a ? a.label : dev, present: (() => { try { return fs.existsSync(dev); } catch (_) { return false; } })(), choices: all.length }; }
@@ -775,6 +781,7 @@ app.post('/api/bus', (req, res) => { cors(res); const b = req.body || {};
     if (typeof b.adapter === 'string') {                              // move the LG bus to another adapter, or another channel of the same one
       const a = ADAPTERS.list().find(x => x.path === b.adapter); if (!a) return res.status(400).json({ err: 'that adapter is not plugged into the controller' });
       const eco = [...ecoSystems.values()].find(x => realDev(x.cfg.port) === a.dev); if (eco) return res.status(400).json({ err: 'that adapter is used by the Rheem / Ruud system “' + eco.cfg.name + '”' });
+      const oth = [...lgLines.values()].find(L => realDev(L.cfg.port) === a.dev); if (oth) return res.status(400).json({ err: 'that adapter is used by “' + oth.cfg.name + '”' });
       if (realDev(resolveSerial()) !== a.dev || readConfig().serial !== a.path) { const was = link.state.on; if (was) link.setOn(false); writeConfig({ serial: a.path }); console.log('buslink: LG bus adapter set to ' + a.label); if (was && typeof b.on !== 'boolean') link.setOn(true); } }
     if (typeof b.on === 'boolean') link.setOn(b.on, b.serial && typeof b.serial === 'object' ? b.serial : null);
     superviseBus(); busTell(); res.json(Object.assign({ ok: true }, busInfo())); }
@@ -788,6 +795,7 @@ function ecoStart(cfg) {
   const sys = createEcoSystem(cfg, { log: (t) => console.log('econet:', t),
     open: (port, ser) => new Promise((resolve, reject) => {
       if (link.state.on && realDev(port) === realDev(resolveSerial())) return reject(new Error('that adapter is the one the LG bus is using'));
+      { const oth = [...lgLines.values()].find(L => realDev(L.cfg.port) === realDev(port)); if (oth) return reject(new Error('that adapter is used by “' + oth.cfg.name + '”')); }
       const sp = new SerialPort({ path: port, baudRate: ser.baud, parity: ser.parity, stopBits: ser.stop, dataBits: ser.data }, (err) => err ? reject(err) : resolve(sp)); }) });
   ecoSystems.set(cfg.id, sys); sys.start(); return sys; }
 function ecoClean(b, old) { b = b || {};
@@ -803,7 +811,8 @@ app.get('/api/econet/catalog', (_req, res) => { cors(res); res.json({ kinds: ECO
 // The USB serial adapters plugged into this controller, by their stable names, and who uses each.
 app.get('/api/econet/ports', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); const out = [], lg = realDev(resolveSerial());
   try { for (const a of ADAPTERS.list()) { const used = [...ecoSystems.values()].find(x => realDev(x.cfg.port) === a.dev);
-      out.push({ path: a.path, label: a.label, model: a.model, channel: a.channel, channels: a.channels, dev: a.dev, usedBy: used ? used.cfg.name : (a.dev === lg && link.state.on ? 'the LG bus' : null), lg: a.dev === lg }); } } catch (_) {}
+      const ll = [...lgLines.values()].find(L => realDev(L.cfg.port) === a.dev);
+      out.push({ path: a.path, label: a.label, model: a.model, channel: a.channel, channels: a.channels, dev: a.dev, usedBy: used ? used.cfg.name : ll ? ll.cfg.name : (a.dev === lg && link.state.on ? 'the LG bus' : null), eco: !!used, lgLine: ll ? ll.cfg.id : 0, lg: a.dev === lg }); } } catch (_) {}
   res.json({ ports: out }); });
 app.post('/api/econet/systems', (req, res) => { cors(res); const b = req.body || {}, old = b.id ? ecoSystems.get(String(b.id)) : null;
   if (b.id && !old) return res.status(404).json({ err: 'no such system' }); if (!old && ecoSystems.size >= ECO_MAX) return res.status(400).json({ err: 'at most ' + ECO_MAX + ' systems on one controller' });
@@ -821,8 +830,13 @@ app.get('/api/econet/systems/:id/frames', (req, res) => { cors(res); res.set('Ca
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 // Put a schedule's frames on the bus ourselves, through the shared adapter, when nothing is polling.
 async function schedTransmit(frames) {
-  if (!frames.length || (busMaster && busMaster.state.active)) return false;
-  return link.transmit(frames, wait);
+  if (!frames.length) return false;
+  const by = new Map(); for (const f of frames) { const l = lineOfAddr(f[3]); if (!by.has(l)) by.set(l, []); by.get(l).push(f); }   // each frame goes out on the wire its unit is on
+  let ok = true;
+  for (const [l, fs] of by) { const L = l ? lgLines.get(l) : null, m = L ? L.master : busMaster, lk = L ? L.link : link;
+    if (m && m.state.active) { ok = false; continue; }
+    ok = (await lk.transmit(fs, wait)) && ok; }
+  return ok;
 }
 let wxCache = { at: 0, key: '', temp: null };
 async function schedOutdoor(cfg, unit) {
@@ -1000,15 +1014,97 @@ function patchUnits(patches) {
 }
 busMaster = createMaster({
   openPort: async () => link.facade(),                         // the shared adapter; the loop never opens or closes the real port
-  getUnits: () => unitsDoc.units,
+  getUnits: () => unitsDoc.units.filter(u => u && !u.bus),       // units on another LG line are asked by that line's own loop
   patchUnits,
-  drain: () => { const now = Date.now(), out = cmdQueue.filter(c => now - c.ts < CMD_TTL); cmdQueue = []; return out; },
-  oduAddrs: () => { const c = readJsonSafe(APPCFG) || {}; return Array.isArray(c.oduAddrs) ? c.oduAddrs.filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF) : []; },
-  onOdu: (f) => recorder.onOdu(f),
-  onPass: () => { histSample(); recorder.sample(unitsDoc.units); },
+  drain: () => drainFor(0),
+  oduAddrs: () => oduAddrsFor(0),
+  onOdu: (f) => { oduLine.set(f[4], 0); recorder.onOdu(f); },
+  onPass: passDone,
   onEnd: () => { pollerEndedAt = Date.now(); setTimeout(() => { superviseBus(); busTell(); }, 0); },
   log: (t) => console.log('busmaster:', t),
 });
+// Outdoor units: nobody says which line one is on, so every line asks for an address until one of them gets an answer.
+const oduLine = new Map();
+function oduAddrsFor(line) { const c = readJsonSafe(APPCFG) || {}; return (Array.isArray(c.oduAddrs) ? c.oduAddrs : []).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF && (!oduLine.has(a) || oduLine.get(a) === line)); }
+let passAt = 0;
+function passDone() { if (Date.now() - passAt < 2000) return; passAt = Date.now(); histSample(); recorder.sample(unitsDoc.units); }   // several lines finish passes; the history is sampled once
+
+/* --- more than one LG line --------------------------------------------------------------------------
+   A big building can have several separate LG wires (LG's own central controller has several ports). Each
+   extra line gets its own adapter, or its own channel of a multi-channel adapter, and its own poll loop,
+   so all of them are read at the same time. A unit says which line it is on with `bus` (absent = the first
+   line). Addresses must be unique across the whole building, exactly as LG's controller requires, because
+   everything else in Cortex knows a unit by its address.
+   The first line keeps the technician bus tools. An extra line finds its units with a search run here on
+   the controller: the same safe read the poll loop sends, to each address in turn. */
+const LGLF = path.join(DATA, 'lg-lines.json'), LG_MAX = 7;
+const lgSave = () => { try { writeFileAtomic(LGLF, JSON.stringify({ lines: [...lgLines.values()].map(L => L.cfg) }, null, 2)); } catch (e) { console.error('lg lines: could not save:', e.message); } };
+const lgUnits = (id) => unitsDoc.units.filter(u => u && u.bus === id);
+function lgStart(cfg) {
+  const L = { cfg, rx: { bytes: 0, last: 0 }, scan: null, found: new Map(), endedAt: 0 };
+  L.link = createLink({
+    open: (ser) => new Promise((resolve, reject) => {
+      if (link.state.on && realDev(cfg.port) === realDev(resolveSerial())) return reject(new Error('that adapter is the one the first LG line is using'));
+      const eco = [...ecoSystems.values()].find(x => x.cfg.on && realDev(x.cfg.port) === realDev(cfg.port)); if (eco) return reject(new Error('that adapter belongs to the Rheem / Ruud system “' + eco.cfg.name + '”'));
+      const sp = new SerialPort({ path: cfg.port, baudRate: ser.baud, parity: ser.parity, stopBits: ser.stop, dataBits: ser.data }, (err) => err ? reject(err) : resolve(sp)); }),
+    load: () => ({ on: cfg.on !== false, serial: link.state.serial }),          // an LG line uses the LG line settings
+    save: (o) => { cfg.on = !!o.on; lgSave(); },
+    onBytes: (buf) => { L.rx.bytes += buf.length; L.rx.last = Date.now(); },
+    onChange: () => { if (typeof superviseBus === 'function') superviseBus(); busTell(); },
+    log: (t) => console.log('lg line ' + cfg.id + ':', t),
+  });
+  L.master = createMaster({
+    openPort: async () => L.link.facade(),
+    getUnits: () => lgUnits(cfg.id),
+    patchUnits,
+    drain: () => drainFor(cfg.id),
+    oduAddrs: () => oduAddrsFor(cfg.id),
+    onOdu: (f) => { oduLine.set(f[4], cfg.id); recorder.onOdu(f); },
+    onPass: passDone,
+    onEnd: () => { L.endedAt = Date.now(); setTimeout(() => { superviseBus(); busTell(); }, 0); },
+    scanNext: (n) => { const sc = L.scan; if (!sc || sc.done) return []; const mine = new Set(lgUnits(cfg.id).map(u => u.addr)), out = [];
+      while (out.length < n && sc.cur <= 0xFE) { const a = sc.cur++; if (mine.has(a)) { sc.asked++; continue; } out.push(a); }
+      if (!out.length && sc.cur > 0xFE) { sc.done = true; sc.endedAt = Date.now(); console.log('lg line ' + cfg.id + ': search finished, ' + L.found.size + ' new'); busTell(); }
+      return out; },
+    onScanReply: (a, p) => { const sc = L.scan; if (!sc) return; sc.asked++;
+      if (p) { const ex = unitsDoc.units.find(u => u && u.addr === a); L.found.set(a, { addr: a, on: !!p.on, mode: p.mode, room: p.room, settemp: p.settemp, err: p.err || 0, onLine: ex ? (ex.bus && lgLines.has(ex.bus) ? ex.bus : 1) : 0, unit: ex ? (ex.label || ex.name || '') : '' }); } },
+    log: (t) => console.log('lg line ' + cfg.id + ':', t),
+  });
+  lgLines.set(cfg.id, L); L.link.start(); return L;
+}
+function lgInfo(L) { const i = L.link.info(), S = L.master.state, a = ADAPTERS.list().find(x => x.dev === realDev(L.cfg.port)), sc = L.scan;
+  return { id: L.cfg.id, name: L.cfg.name, port: L.cfg.port, label: a ? a.label : L.cfg.port, present: !!a || (() => { try { return fs.existsSync(L.cfg.port); } catch (_) { return false; } })(),
+    on: i.on, open: i.open, opening: i.opening, error: i.error || (S.error && !S.active ? S.error : null), polling: S.active, alive: L.master.alive(), passMs: S.passMs, units: lgUnits(L.cfg.id).length,
+    bytes: L.rx.bytes, lastMs: L.rx.last ? Date.now() - L.rx.last : null,
+    scan: sc ? { running: !sc.done, asked: Math.min(255, sc.asked), total: 255, startedAt: sc.at } : null, found: [...L.found.values()].sort((x, y) => x.addr - y.addr) }; }
+(() => { const j = readJsonSafe(LGLF); for (const c of (j && Array.isArray(j.lines) ? j.lines : []).slice(0, LG_MAX)) { try { if (c && Number.isInteger(c.id) && c.id >= 2 && typeof c.port === 'string') lgStart(c); } catch (e) { console.error('lg lines: could not start', c && c.name, e.message); } } })();
+app.get('/api/lg-lines', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ lines: [...lgLines.values()].map(lgInfo), first: { adapter: busAdapter(), units: unitsDoc.units.filter(u => u && !u.bus).length } }); });
+app.post('/api/lg-lines', (req, res) => { cors(res); const b = req.body || {}, old = b.id != null ? lgLines.get(Number(b.id)) : null;
+  if (b.id != null && !old) return res.status(404).json({ err: 'no such line' });
+  const tidy = (v) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 40);
+  if (old) { if (typeof b.name === 'string' && tidy(b.name)) old.cfg.name = tidy(b.name);
+    if (typeof b.on === 'boolean') { old.link.setOn(b.on, link.state.serial); if (!b.on) old.scan = null; }
+    lgSave(); superviseBus(); busTell(); return res.json({ ok: true, line: lgInfo(old) }); }
+  if (lgLines.size >= LG_MAX) return res.status(400).json({ err: 'at most ' + (LG_MAX + 1) + ' LG lines on one controller' });
+  const a = ADAPTERS.list().find(x => x.path === b.port); if (!a) return res.status(400).json({ err: 'pick an adapter that is plugged into the controller' });
+  if (a.dev === realDev(resolveSerial())) return res.status(400).json({ err: 'that adapter is the one the first LG line uses' });
+  const eco = [...ecoSystems.values()].find(x => realDev(x.cfg.port) === a.dev); if (eco) return res.status(400).json({ err: 'that adapter is used by the Rheem / Ruud system “' + eco.cfg.name + '”' });
+  const oth = [...lgLines.values()].find(L => realDev(L.cfg.port) === a.dev); if (oth) return res.status(400).json({ err: 'that adapter is used by “' + oth.cfg.name + '”' });
+  let id = 2; while (lgLines.has(id)) id++;
+  const L = lgStart({ id, name: tidy(b.name) || ('LG line ' + id), port: a.path, on: b.on !== false }); lgSave(); superviseBus(); busTell();
+  res.json({ ok: true, line: lgInfo(L) }); });
+app.delete('/api/lg-lines/:id', async (req, res) => { cors(res); const id = Number(req.params.id), L = lgLines.get(id); if (!L) return res.status(404).json({ err: 'no such line' });
+  L.scan = null; try { await L.master.stop(); } catch (_) {} L.link.stop(); lgLines.delete(id); lgSave();
+  patchUnits(unitsDoc.units.filter(u => u && u.bus === id).map(u => ({ addr: u.addr, fields: { offline: true } })));       // its units stay, but nothing asks them any more
+  busTell(); res.json({ ok: true }); });
+// Look for units on a line. This transmits (the safe read, to each address), so it needs Cortex to be the master on this site.
+app.post('/api/lg-lines/:id/scan', (req, res) => { cors(res); const L = lgLines.get(Number(req.params.id)); if (!L) return res.status(404).json({ err: 'no such line' });
+  const b = req.body || {};
+  if (b.stop === true) { if (L.scan) { L.scan.done = true; L.scan.endedAt = Date.now(); } busTell(); return res.json({ ok: true, line: lgInfo(L) }); }
+  if (b.clear === true) { L.found.clear(); if (L.scan && L.scan.done) L.scan = null; busTell(); return res.json({ ok: true, line: lgInfo(L) }); }
+  if (!masterMode()) return res.status(409).json({ err: 'live polling is off. Start it first: Cortex only talks on a line when it is the master on this site' });
+  if (!L.link.state.port) return res.status(409).json({ err: 'connect this line’s adapter first' });
+  L.found.clear(); L.scan = { at: Date.now(), cur: 0, asked: 0, done: false }; superviseBus(); busTell(); res.json({ ok: true, line: lgInfo(L) }); });
 function pollerInfo() { const S = busMaster.state; return { active: S.active, alive: busMaster.alive(), passMs: S.passMs, lastPassAt: S.lastPassAt, passes: S.passes, error: S.error, masterMode: masterMode() }; }
 let pollerEndedAt = 0;
 // Supervisor: the controller polls exactly when the adapter is connected, Cortex is the bus master on this
@@ -1021,7 +1117,14 @@ function superviseBus() {
   if (busMaster.state.error && Date.now() - pollerEndedAt < 15000) return;      // failing: try again shortly, not in a tight loop
   busMaster.start(); busTell();
 }
-setInterval(() => { link.tick(); superviseBus(); }, 2000);
+const superviseFirst = superviseBus;
+// every line by the same rule; an extra line also runs while it is searching for its units
+superviseBus = function () { superviseFirst();
+  for (const L of lgLines.values()) { const m = L.master, want = !!L.link.state.port && masterMode() && (lgUnits(L.cfg.id).length > 0 || (L.scan && !L.scan.done));
+    if (m.state.active) { if (!want && !m.state.stopping) m.stop().then(() => busTell(), () => {}); continue; }
+    if (!want) continue; if (m.state.error && Date.now() - L.endedAt < 15000) continue;
+    m.start(); busTell(); } };
+setInterval(() => { link.tick(); for (const L of lgLines.values()) L.link.tick(); superviseBus(); }, 2000);
 link.start();
 setInterval(() => { schedRunner.tick().catch(e => console.error('schedule tick failed:', e && e.message)); }, 20000);
 app.get('/api/sched', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store');

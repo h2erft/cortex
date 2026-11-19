@@ -578,3 +578,16 @@ The user's rule: **one Cortex per building, every make in it together, never a c
   `resolveSerial()` only falls back to "the one adapter" when exactly one port exists: never guess
   between channels, since a wrong guess would put LG frames on another maker's bus.
 - See `docs/ADAPTERS.md`.
+
+## Addendum: several LG lines (v1.7.1-beta.13)
+
+- Server: `lgLines` (Map id -> { cfg, link, master, scan, found }), `lgStart`, `lgInfo`, `lineOfAddr`,
+  `drainFor(line)`, `oduAddrsFor(line)`, `passDone` (history sampled once however many lines pass),
+  `superviseBus` covers every line. `busInfo().lines` carries all of it to every screen.
+- `busmaster.js` gained an optional search: `io.scanNext(n)` / `io.onScanReply(addr, reply)`, a few
+  addresses per pass with the same safe cmd0 read.
+- `PUT /api/units` from a polling screen (`live` + `master`) keeps the controller's record of units on
+  other lines and skips the revision check, or that screen's pushes would always conflict.
+- Browser: `lgLines()`, `renderLgLine()`, `lgLineAdd()`, `lgApi()`; Bus scan tabs use `busBrand = "lg:<id>"`.
+  The screen's own loop and `sendUnits` skip units with `u.bus`. Addresses stay the key everywhere.
+- Tests: `tests/lg-lines.test.js` (two simulated wires, about three minutes). See `docs/LG_LINES.md`.

@@ -1043,6 +1043,11 @@ async function pullUnits(){
     else if(was!==SRV.masterAlive){fillLiveBanner();updateBusHealth();}
   }catch(e){SRV.masterAlive=false;if(was){fillLiveBanner();updateBusHealth();}}}   // the controller itself is unreachable
 setInterval(()=>{if(BOOTED&&!isMaster()&&document.visibilityState!=="hidden")pullUnits();},4000);
+// A screen that is polling line 1 itself still needs the other lines' readings, which the controller collects.
+setInterval(async()=>{if(!(BOOTED&&isMaster()&&typeof lgLines==="function"&&lgLines().length&&document.visibilityState!=="hidden"))return;
+  try{const j=await (await fetch('/api/units',{cache:'no-store'})).json();let ch=false;if(j.bus)linkSet(j.bus,false);
+    (j.units||[]).forEach(r=>{if(!r||!r.bus)return;const u=units.find(x=>x.addr===r.addr);if(!u||rt(u.addr).hold>Date.now())return;const h=u._hist;Object.assign(u,r);if(h)u._hist=h;ch=true;});
+    if(ch)liveRefresh();}catch(e){}},4000);
 function loadUnits(){try{const u=JSON.parse(LS.getItem("airow_units"));if(Array.isArray(u))return normalizeIds(u);}catch(e){}return [];}
 // Guarantee every unit has a unique numeric id. Repairs units imported by an older build that
 // saved id:"" (which made the control drawer fail to open and broke selection/delete).
@@ -2916,7 +2921,7 @@ async function masterLoopRun(opts){
     busAuto(true);toast("Live polling started. The controller is asking the units itself.");setTimeout(pullUnits,2500);return;}
   if(!bus.port){if(!auto)toast("Connect the adapter first");return;}
   // resuming after a reload / restart: poll the units we already have, no new discovery needed
-  if(!MASTER.found.size)units.forEach(u=>{if(u.addr!==0xFF)MASTER.found.set(u.addr,{addr:u.addr});});
+  if(!MASTER.found.size)units.forEach(u=>{if(u.addr!==0xFF&&!u.bus)MASTER.found.set(u.addr,{addr:u.addr});});
   if(!MASTER.found.size){if(!auto)toast("Run Discover first — there are no units to poll yet");return;}
   await masterHalt();                                           // stop discovery (or a prior loop) before polling
   if(!bus.port)return;
@@ -2927,7 +2932,7 @@ async function masterLoopRun(opts){
   while(mine()){
     if(MASTER.paused||MASTER.hold>0){await sleep(40);continue;}  // yield the bus while a command is transmitting
     const t0=Date.now();
-    const addrs=[...MASTER.found.keys()];
+    const onOther=new Set(units.filter(u=>u.bus).map(u=>u.addr)),addrs=[...MASTER.found.keys()].filter(a=>!onOther.has(a));   // units on another LG line are read by the controller, on their own wire
     if(!addrs.length){await sleep(500);continue;}
     // 1) poll the units we already know, and write the live readings onto the saved units
     let changed=false;
@@ -3140,6 +3145,9 @@ function busList(){const out=[],h=busHealth();
     txt:h==="off"?"Offline":h==="bad"?"Problem":h==="via"?"Live":h==="idle"?"Connected, not polling yet":(MASTER.running?"Online":"Connected"),
     why:h==="off"?"Cortex isn’t connected to the LG equipment. The last known readings are shown; changes can’t be sent.":h==="bad"?"The adapter is there but the LG equipment isn’t answering properly.":"",
     detail:APPL?((LINK.serial?LINK.serial.baud+" baud":"")+(LINK.polling?" · controller polling "+(LINK.units||0)+" units":LINK.open?" · listening":"")+(LINK.error?" · "+LINK.error:"")):""});
+  if(out.length&&lgLines().length)out[0].name="LG line 1";
+  lgLines().forEach(l=>out.push({id:"lg:"+l.id,name:l.name,make:"LG",up:l.on&&l.open&&(l.polling||!l.units||!LINK.master),txt:!l.on?"Not connected":!l.open?(l.error?"Adapter problem":"Opening…"):l.polling?"Online":(l.units&&LINK.master?"Not polling":"Connected"),
+    why:!l.on?"This line’s adapter is switched off in Cortex.":!l.open?"The controller can’t open this line’s adapter.":"",detail:l.label+" · "+l.units+" units"+(l.error?" · "+l.error:"")}));
   if(APPL&&typeof ECOS!=="undefined"&&can("eco"))ECOS.systems.forEach(s=>out.push({id:s.id,name:s.name,make:"Rheem / Ruud",up:["live","listening","starting"].includes(s.state),txt:(ECO_STATE[s.state]||[s.state])[0],
     why:s.state==="off"?"This system’s adapter is switched off in Cortex.":s.state==="problem"?"The controller can’t open this system’s adapter.":s.state==="silent"?"The adapter is open but nothing is heard from the equipment.":s.state==="unanswered"?"The equipment has stopped answering Cortex.":s.state==="opening"?"The adapter is being opened.":"",
     detail:"38400 baud · heard "+s.heard+" · asked "+s.sent+(s.unanswered?" · "+s.unanswered+" unanswered":"")+(s.error?" · "+s.error:"")}));
@@ -3312,7 +3320,7 @@ async function busReadLoop(){
      - LISTENS to the bytes while Bus scan is open;
      - may BORROW the wire for the technician tools (discover, raw frames). Only then does bus.port exist,
        so everything written for "this screen holds the adapter" keeps working, and nothing else can transmit. */
-const linkSig=()=>JSON.stringify([LINK.adapter&&LINK.adapter.path,LINK.adapter&&LINK.adapter.present,LINK.on,LINK.open,LINK.opening,LINK.polling,LINK.master,LINK.holder,LINK.error,LINK.mine,LINK.waiting]);
+const linkSig=()=>JSON.stringify([(LINK.lines||[]).map(l=>[l.id,l.name,l.on,l.open,l.error,l.polling,l.units,l.label,l.scan&&[l.scan.running,l.scan.asked],l.found&&l.found.length]),LINK.adapter&&LINK.adapter.path,LINK.adapter&&LINK.adapter.present,LINK.on,LINK.open,LINK.opening,LINK.polling,LINK.master,LINK.holder,LINK.error,LINK.mine,LINK.waiting]);
 function linkSet(i,fromWs){if(!APPL||!i)return;
   if(!fromWs&&busWsOpen()&&LINK.at)return;                       // the live feed is newer than any polled or posted answer
   const was=linkSig();
@@ -3343,6 +3351,65 @@ function busListen(){if(!APPL||bus.ws)return;
   }catch(e){bus.ws=null;}}
 /* Which adapter on the controller carries the LG bus. An adapter with several channels (the Waveshare 4-channel RS485, for
    one) is listed once per channel: each channel is its own wire and can carry a different bus. */
+/* ===== More than one LG line =====
+   A building with several separate LG wires gives each its own adapter (or its own channel of a multi-channel adapter).
+   The controller reads all of them at the same time, each with its own loop. A unit remembers its line in u.bus (none = line 1).
+   Addresses must be different across the whole building, as LG's own central controller requires. The bus tools on this
+   screen (discover, raw frames) work on line 1; an extra line finds its units with a search the controller runs itself. */
+async function lgApi(path,body,method){const r=await fetch("/api/lg-lines"+path,{method:method||"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}),j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.err||("HTTP "+r.status));try{const b=await (await fetch("/api/bus",{cache:"no-store"})).json();LINK.at=0;linkSet(b,false);}catch(e){}return j;}
+async function lgLineAdd(){let ports=[];
+  try{ports=(await (await fetch("/api/econet/ports",{cache:"no-store"})).json()).ports||[];}catch(e){toast("Couldn’t reach the controller");return;}
+  const n=lgLines().length+2;
+  modal(head("Add another LG line")+`<div class="modal-body">
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Use this when the building has more than one separate LG wire. Each wire gets its own adapter, or its own channel of a multi-channel adapter. Cortex reads every line at the same time and shows all the units together.</div>
+    <label style="font-size:12.5px;color:var(--text-dim)">Name</label><input class="inp" id="lgl-n" maxlength="40" value="LG line ${n}" placeholder="e.g. North wing">
+    <label style="font-size:12.5px;color:var(--text-dim)">Adapter or channel this wire is on</label>
+    ${ports.some(p=>!p.usedBy&&!p.lg)?`<select class="inp" id="lgl-p">${ports.map(p=>`<option value="${ue(p.path)}" ${p.usedBy||p.lg?"disabled":""}>${ue(p.label)}${p.lg?" — LG line 1":p.usedBy?" — used by "+ue(p.usedBy):""}</option>`).join("")}</select>`
+      :`<div class="note-box warn" style="margin-bottom:12px">There is no free adapter or channel on the controller. Plug in another adapter, or use a multi-channel one.</div>`}
+    <div class="note-box" style="font-size:12.5px"><b>Two things to check first.</b> ① Every indoor unit in the building needs its own address: two units on different wires must not share one. ② Nothing else may be the master on this wire (no LG central controller still connected to it).</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Cancel</button>${ports.some(p=>!p.usedBy&&!p.lg)?`<button class="btn primary" id="lgl-save">Add line</button>`:""}</div></div>`);
+  const sel=document.getElementById("lgl-p");if(sel){const f=[...sel.options].find(o=>!o.disabled);if(f)sel.value=f.value;}
+  const sv=document.getElementById("lgl-save");if(sv)sv.onclick=async()=>{try{const j=await lgApi("",{name:document.getElementById("lgl-n").value,port:sel.value});closeModal();busBrand="lg:"+j.line.id;renderBusScan();toast("Line added. It is listening; nothing has been sent on it.");}catch(e){toast(e.message);}};}
+function renderLgLine(){const m=document.getElementById("main"),L=lgLines().find(x=>"lg:"+x.id===busBrand);if(!L){busBrand="lg";return renderBusScan();}
+  const mine=units.filter(u=>u.bus===L.id),sc=L.scan,found=L.found||[],fresh=found.filter(f=>!f.onLine),clash=found.filter(f=>f.onLine&&f.onLine!==L.id),setup=can("eco_setup")||isTechView();
+  const st=!L.on?["Not connected","stop"]:!L.open?[L.error?"Adapter problem":"Opening…","err"]:L.polling?[sc&&sc.running?"Searching":"Polling","run"]:["Listening","stop"];
+  m.innerHTML=busSwitchHtml()+`<div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="tech-tag">TECH</span><h3>${ue(L.name)}</h3></div><div class="labbody">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="pill ${st[1]}" id="lgl-state">${st[0]}</span>
+        <span class="mono" style="font-size:12px;color:var(--text-dim)">${ue(L.label)} · ${mine.length} unit${mine.length===1?"":"s"}${L.polling&&L.passMs?" · a pass takes "+(L.passMs/1000).toFixed(1)+" s":""} · heard ${L.bytes} bytes</span><div style="flex:1"></div>
+        ${setup?`<button class="btn ${L.on?"danger":"primary"}" id="lgl-on">${L.on?"■ Disconnect":"▶ Connect adapter"}</button>
+          <button class="btn" id="lgl-scan" ${L.open?"":"disabled"}>${sc&&sc.running?"■ Stop search":"🔍 Find units on this line"}</button>
+          <button class="btn" id="lgl-ren">Rename</button><button class="btn danger" id="lgl-del">Remove line</button>`:""}</div>
+      ${L.error?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${ue(L.error)}. The controller keeps trying.</span></div>`:""}
+      ${!LINK.master?`<div class="note-box warn" style="margin-top:10px;font-size:12.5px">Live polling is off, so Cortex is not talking on any line. Start it from <b>LG line 1 ▸ start polling</b>; every line follows that one switch.</div>`:""}
+      <div style="font-size:12px;color:var(--text-faint);margin-top:8px">This line has its own adapter and its own polling, at the same time as every other line. Connecting only listens. Cortex talks on it only while live polling is on.</div>
+    </div></div>
+    ${sc?`<div class="lab" style="margin-bottom:14px"><div class="labhead"><h3>Search</h3><span style="margin-left:auto;font-size:12px;color:var(--text-dim)" id="lgl-prog">${sc.running?"asking address "+sc.asked+" of "+sc.total:"finished"}</span></div><div class="labbody">
+      <div style="height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${Math.round(100*sc.asked/sc.total)}%;background:var(--accent)"></div></div>
+      ${found.length?`<table class="pd-list" style="width:100%;font-size:13px"><tr><th style="text-align:left">Address</th><th style="text-align:left">Now</th><th style="text-align:left"></th></tr>${found.map(f=>`<tr><td class="mono">${hx(f.addr)}</td><td>${f.on?"On":"Off"} · ${ue(f.mode||"")}${f.room!=null?" · room "+Math.round(f.room*9/5+32)+"°F":""}${f.err?" · CH"+String(f.err).padStart(2,"0"):""}</td>
+          <td>${!f.onLine?`<span style="color:var(--ok)">New</span>`:f.onLine===L.id?"Already on this line":`<span style="color:var(--warn)">Already in Cortex as “${ue(f.unit||hx(f.addr))}” on ${f.onLine===1?"LG line 1":ue((lgLines().find(x=>x.id===f.onLine)||{}).name||"another line")}</span>${setup?` <button class="linklike" data-lglmove="${f.addr}">It is on this wire: move it here</button>`:""}`}</td></tr>`).join("")}</table>`
+        :`<div style="color:var(--text-dim);font-size:13px">${sc.running?"Nothing has answered yet.":"No unit answered on this line. Check the wiring (try swapping A and B), that the units have power, and that this is the right channel."}</div>`}
+      ${clash.length?`<div class="note-box warn" style="margin-top:10px;font-size:12.5px"><b>${clash.length} address${clash.length===1?" is":"es are"} already used on another line.</b> If that unit really is on this wire, move it here. If two different units share an address, one of them has to be given a new address at the unit: Cortex, like LG’s own controller, knows a unit by its address.</div>`:""}
+      ${setup&&fresh.length?`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn primary" id="lgl-imp">Add ${fresh.length} new unit${fresh.length===1?"":"s"} to Cortex</button></div>`:""}
+    </div></div>`:""}
+    <div class="lab"><div class="labhead"><h3>Units on this line</h3><span style="margin-left:auto;font-size:12px;color:var(--text-dim)">${mine.length}</span></div><div class="labbody">
+      ${mine.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${mine.slice().sort((a,b)=>a.addr-b.addr).map(u=>`<button class="chip" data-lglu="${u.id}" style="cursor:pointer" title="${ue(dispName(u))}"><span class="mono">${hx(u.addr)}</span> ${ue(dispName(u)).slice(0,22)}${u.offline?` <span style="color:var(--warn)">·no answer</span>`:""}</button>`).join("")}</div>`
+        :`<div style="color:var(--text-dim);font-size:13px">None yet. Connect the adapter, make sure live polling is on, then press <b>Find units on this line</b>.</div>`}
+    </div></div>`;
+  busSwitchBind();
+  const on=id=>document.getElementById(id),act=async(f,okMsg)=>{try{await f();if(okMsg)toast(okMsg);}catch(e){toast(e.message);}renderBusScan();};
+  if(on("lgl-on"))on("lgl-on").onclick=()=>act(()=>lgApi("",{id:L.id,on:!L.on}),L.on?"Line disconnected. The other lines carry on.":"Line connected (listening)");
+  if(on("lgl-scan"))on("lgl-scan").onclick=()=>{if(sc&&sc.running)return act(()=>lgApi("/"+L.id+"/scan",{stop:true}));
+    if(!confirm("Search “"+L.name+"” for units?\n\nCortex will ask every address on this wire, one at a time (about two minutes). Do this only if no LG central controller is still connected to this wire."))return;
+    act(()=>lgApi("/"+L.id+"/scan",{}),"Searching. Units already known keep updating meanwhile.");};
+  if(on("lgl-ren"))on("lgl-ren").onclick=()=>{const v=prompt("Name for this line",L.name);if(v&&v.trim())act(()=>lgApi("",{id:L.id,name:v.trim()}));};
+  if(on("lgl-del"))on("lgl-del").onclick=()=>{if(!confirm("Remove “"+L.name+"”?\n\nIts adapter is released. Its "+mine.length+" unit(s) stay in Cortex but will show as not responding until you delete them or move them to another line."))return;busBrand="lg";act(()=>lgApi("/"+L.id,{},"DELETE"),"Line removed");};
+  if(on("lgl-imp"))on("lgl-imp").onclick=()=>{let nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1,n=0;
+    fresh.forEach(f=>{if(units.some(u=>u.addr===f.addr))return;const u=makeDiscoveredUnit(f.addr,"New units",nextId++);u.bus=L.id;u.on=!!f.on;if(["cool","heat","auto","dry","fan"].includes(f.mode))u.mode=f.mode;u.offline=false;units.push(u);n++;if(typeof ignoreAddr==="function")ignoreAddr(f.addr,false);});
+    saveUnits();pushUnits(true);renderGroupNav();act(()=>lgApi("/"+L.id+"/scan",{clear:true}),n?("Added "+n+" unit(s) on "+L.name+". Their readings fill in on the next pass."):"Nothing new to add");};
+  m.querySelectorAll("[data-lglmove]").forEach(b=>b.onclick=()=>{const u=units.find(x=>x.addr===+b.dataset.lglmove);if(!u)return;if(!confirm("Move “"+dispName(u)+"” ("+hx(u.addr)+") to "+L.name+"?\n\nCortex will ask for it on this wire from now on."))return;u.bus=L.id;saveUnits();pushUnits(true);toast("Moved to "+L.name);setTimeout(renderBusScan,600);});
+  m.querySelectorAll("[data-lglu]").forEach(b=>b.onclick=()=>{const u=units.find(x=>String(x.id)===b.dataset.lglu);if(u)openUnit(u.id);});}
+setInterval(()=>{if(BOOTED&&APPL&&view==="busscan"&&/^lg:/.test(busBrand)&&document.visibilityState==="visible"&&!document.querySelector(".modal"))fetch("/api/bus",{cache:"no-store"}).then(r=>r.json()).then(b=>{const was=linkSig();LINK.at=0;linkSet(b,false);if(was===linkSig()){const L=lgLines().find(x=>"lg:"+x.id===busBrand);if(!L)renderBusScan();}}).catch(()=>{});},2500);
 async function busAdapterPick(){let ports=[];
   try{ports=(await (await fetch("/api/econet/ports",{cache:"no-store"})).json()).ports||[];}catch(e){toast("Couldn’t reach the controller");return;}
   const cur=LINK.adapter&&LINK.adapter.path;
@@ -3433,6 +3500,9 @@ function canReach(){return liveTx()||relayOk();}                // can a command
 async function sendUnits(list){
   list=(list||[]).filter(Boolean);if(!list.length)return 0;
   if(ctrl.running){list.forEach(u=>ctrl.cmds.set(u.addr,{on:u.on,mode:u.mode,fan:u.fan,sp:u.sp,coolC:u.coolC,heatC:u.heatC,d5:u.d5,d6:u.d6,b0:u.b0}));return list.length;}
+  if(liveTx()&&list.some(u=>u.bus)){const far=list.filter(u=>u.bus);list=list.filter(u=>!u.bus);       // this screen holds line 1 only: units on other lines go through the controller
+    let n=0;for(const u of far){try{const r=await fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({addr:u.addr,state:{on:u.on,mode:u.mode,fan:u.fan,swing:!!u.swing,coolC:u.coolC,heatC:u.heatC,twoset:!!u.twoset,modeLock:!!u.modeLock,fanLock:!!u.fanLock,tempLock:!!u.tempLock,hardLock:!!u.hardLock,rangeLock:!!u.rangeLock,c4b5:u.c4b5,c4b6:u.c4b6,filterReset:u.filterReset===true}})});if(r.ok){rt(u.addr).hold=Date.now()+20000;n++;}}catch(e){}}
+    return n+(list.length?await sendUnits(list):0);}
   if(liveTx()){let n=0;
     await busExclusive(async()=>{for(const u of list){try{await txUnitRaw(u);n++;}catch(e){mlog("✖ send failed "+hx(u.addr)+": "+e.message);}}});
     return n;}
@@ -3660,10 +3730,13 @@ function effSerial(){const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;const s=bus.seri
    the LG bus, or any Rheem / Ruud system's own bus. */
 let busBrand="lg",ecoBusPaused=false;
 const ECO_WHO={0x340:"Cortex",0x380:"Thermostat",0x400:"Outdoor unit",0x1C0:"Furnace",0x1040:"Tankless heater",0x1200:"Electric tank",0x1280:"Heat pump heater"};
-function busSwitchHtml(){if(!(APPL&&can("eco_setup")&&ECOS.systems.length))return "";
-  return `<div class="segmented" id="bus-brand" style="margin-bottom:12px;flex-wrap:wrap">${[["lg","LG bus"]].concat(ECOS.systems.map(x=>[x.id,BRANDS.econet.short+" · "+x.name])).map(o=>`<button data-bb="${ue(o[0])}" class="${busBrand===o[0]?'on':''}">${ue(o[1])}</button>`).join("")}</div>`;}
+const lgLines=()=>(APPL&&LINK&&Array.isArray(LINK.lines))?LINK.lines:[];
+const lgLineOf=u=>{const L=u&&u.bus?lgLines().find(x=>x.id===u.bus):null;return L?L.name:(lgLines().length?"LG line 1":"");};
+function busSwitchHtml(){const ll=lgLines();if(!(APPL&&((can("eco_setup")&&ECOS.systems.length)||ll.length)))return "";
+  return `<div class="segmented" id="bus-brand" style="margin-bottom:12px;flex-wrap:wrap">${[["lg",ll.length?"LG line 1":"LG bus"]].concat(ll.map(x=>["lg:"+x.id,x.name])).concat(can("eco_setup")?ECOS.systems.map(x=>[x.id,BRANDS.econet.short+" · "+x.name]):[]).map(o=>`<button data-bb="${ue(o[0])}" class="${busBrand===o[0]?'on':''}">${ue(o[1])}</button>`).join("")}</div>`;}
 function busSwitchBind(){document.querySelectorAll("#bus-brand button").forEach(b=>b.onclick=()=>{busBrand=b.dataset.bb;ecoBusPaused=false;renderBusScan();});}
 function renderBusScan(){
+  if(/^lg:/.test(busBrand)){if(lgLines().some(x=>"lg:"+x.id===busBrand)){renderLgLine();return;}busBrand="lg";}
   if(busBrand!=="lg"&&!(APPL&&can("eco_setup")&&ECOS.systems.some(x=>x.id===busBrand)))busBrand="lg";
   if(busBrand!=="lg"){renderEcoBus();return;}
   renderBusScanLg();
@@ -3685,7 +3758,7 @@ function renderEcoBus(){const m=document.getElementById("main"),sys=ECOS.systems
     <div class="lab"><div class="labhead"><h3>Messages</h3><span id="ecobus-n" style="margin-left:auto;font-size:12px;color:var(--text-faint)"></span></div><div class="labbody" style="padding:0">
       <div style="overflow:auto;max-height:62vh"><table class="ecobus"><thead><tr><th>Time</th><th>From</th><th>To</th><th>What, and the bytes</th></tr></thead><tbody id="ecobus-rows"><tr><td colspan="4" style="color:var(--text-faint)">Waiting…</td></tr></tbody></table></div></div></div>`;
   busSwitchBind();ecoBusHead();ecoBusFill();}
-async function ecoBusFill(){const tb=document.getElementById("ecobus-rows");if(!tb||ecoBusPaused||busBrand==="lg")return;
+async function ecoBusFill(){const tb=document.getElementById("ecobus-rows");if(!tb||ecoBusPaused||busBrand==="lg"||/^lg:/.test(busBrand))return;
   try{const j=await (await fetch("/api/econet/systems/"+busBrand+"/frames",{cache:"no-store"})).json(),fr=j.frames||[];
     const who=a=>(ECO_WHO[a]?ECO_WHO[a]+" ":"")+`<span style="color:var(--text-faint)">0x${a.toString(16).toUpperCase().padStart(3,"0")}</span>`;
     const tb2=document.getElementById("ecobus-rows");if(!tb2)return;
@@ -3714,7 +3787,7 @@ function renderBusScanLg(){
       ${APPL&&LINK.open?(LINK.mine?`<button class="btn go" id="bus-give" title="Give the wire back. The controller carries on polling by itself.">✓ Done — hand back to the controller</button>`:`<button class="btn" id="bus-take" title="Discover, raw frames and the other tools need this screen to talk on the bus. The controller pauses its own polling while you do.">${LINK.holder==="screen"?"⇄ Take over the bus tools":"🛠 Use bus tools on this screen"}</button>`):""}
       <div class="stat"><span class="pulse ${conn?'':'off'}"></span>${APPL?`<span id="bus-link-txt" style="font-weight:600">${ue(linkTxt)}</span><span style="opacity:.5;margin:0 6px">·</span>`:""}<span id="bus-count">${conn?'reading…':'idle'}</span></div>
     </div>
-    ${APPL&&LINK.adapter?`<div style="font-size:12.5px;color:var(--text-dim);margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>LG bus adapter: <b id="bus-adp-txt">${ue(LINK.adapter.label)}</b>${LINK.adapter.present?"":` <span style="color:var(--err)">(not plugged in)</span>`}</span>${can("eco_setup")||isTechView()?`<button class="linklike" id="bus-adp">Choose adapter…</button>`:""}</div>`:""}
+    ${APPL&&LINK.adapter?`<div style="font-size:12.5px;color:var(--text-dim);margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>LG bus adapter: <b id="bus-adp-txt">${ue(LINK.adapter.label)}</b>${LINK.adapter.present?"":` <span style="color:var(--err)">(not plugged in)</span>`}</span>${can("eco_setup")||isTechView()?`<button class="linklike" id="bus-adp">Choose adapter…</button><span style="opacity:.4">·</span><button class="linklike" id="bus-addline" title="A building with several separate LG wires: give each wire its own adapter or channel. They are all read at the same time.">Add another LG line…</button>`:""}</div>`:""}
     ${APPL?`<div style="font-size:12px;color:var(--text-faint);margin-top:8px">The adapter belongs to the controller, not to this screen. Every screen and app shows this same status, and any technician can connect or disconnect it from any device.</div>`:""}
     ${APPL&&LINK.on&&!LINK.open&&LINK.error?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${ue(LINK.error)}. The controller keeps trying.</span></div>`:""}
     ${bus.err?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${bus.err}</span></div>`:""}
@@ -3799,6 +3872,7 @@ function renderBusScanLg(){
   ["ser-baud","ser-data","ser-par","ser-stop"].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=setSer;});
   const cc=document.getElementById("bus-con");if(cc)cc.onclick=busConnect;
   const ba=document.getElementById("bus-adp");if(ba)ba.onclick=busAdapterPick;
+  const bl=document.getElementById("bus-addline");if(bl)bl.onclick=lgLineAdd;
   const dd=document.getElementById("bus-dis");if(dd)dd.onclick=busDisconnect;
   const im=document.getElementById("bus-import");if(im)im.onclick=busImport;
   const sc=document.getElementById("bus-scan");if(sc)sc.onclick=busScanNew;

@@ -2,7 +2,43 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.7.1-beta.10 — 2026-11-19 (multi-channel RS-485 adapters; Command: no false "offline", its own icon)
+## v1.7.1-beta.13 — 2026-11-19 (several LG lines at once)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.12. Changes `appliance/server.js`,
+`appliance/busmaster.js`, `cortex.html`; adds `docs/LG_LINES.md`, `tests/lg-lines.test.js`._
+
+**Added**
+- **More than one LG line.** A building with several separate LG wires gives each wire its own adapter,
+  or its own channel of a multi-channel adapter. The controller runs one poll loop per line, all at the
+  same time, and every unit shows in the same lists, map, schedules and fault history. Up to 8 lines.
+  Bus scan ▸ LG line 1 ▸ **Add another LG line…**
+- **Find units on a line.** Each extra line has its own page in Bus scan with a search the controller
+  runs itself: it asks each address on that wire once (about two minutes) while the units already known
+  keep updating, then offers to add what answered. An address that is already in Cortex on another line
+  is flagged, with a one-click move if the unit really is on this wire.
+- **The header bus light counts every LG line** ("All 4 buses online", "1 bus offline"), and its popup
+  names each line.
+
+**Changed**
+- A command, a schedule or All on/off reaches each unit on the wire that unit is on.
+- The bus tools on a screen (discover, raw frames, the screen's own polling) work on LG line 1 only and
+  no longer touch units that are on another line.
+- Outdoor units: each line asks for a known outdoor address until one line gets the answer, then only
+  that line keeps asking.
+
+**Rules and limits**
+- Every indoor unit in the building needs its own address across all lines, as with LG's own central
+  controller. Two different units sharing an address must be re-addressed at the unit.
+- Live polling is one switch for the whole site: every line follows it.
+- Extra lines have no raw byte view and no outdoor-unit finder yet; enter outdoor addresses by hand on
+  the Outdoor page.
+- Tested against simulated wires, not yet on a real multi-line LG site.
+
+## v1.7.1-beta.10 to beta.12 — 2026-11-19 (multi-channel RS-485 adapters; Command: no false "offline", its own icon)
+
+_Published in three steps: beta.10 the phone status bar, beta.11 the Command fixes and icon, beta.12 the
+multi-channel adapters._
+
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes `command-center.html`,
 `command-app/icon.png`, `desktop-app/main.js`, `appliance/pwa.js`, `appliance/server.js`, `cortex.html`,
