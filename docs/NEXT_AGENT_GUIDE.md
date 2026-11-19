@@ -560,3 +560,12 @@ The user's rule: **one Cortex per building, every make in it together, never a c
 - The header light: `busList()` returns every bus; `busMulti()` decides whether the many-bus wording and
   popup apply. A new make adds its buses to `busList()`.
 - The lab look uses `--lab-*` variables with light and dark palettes. Do not hard-code its colours.
+
+## Addendum: Command and a lost connection (v1.7.1-beta.10)
+
+- `pollSite()` only reports `"ok" | "fail" | "none"`. `pollAllSites()` decides: if `navigator.onLine` is
+  false, or two or more buildings were asked and all failed, the fault is on this computer (`SELF.off`,
+  banner `#self-off`), and no status changes and no alerts happen. Otherwise a building is marked
+  offline after two failed looks in a row (`MISS`). Tested by `tests/command-offline.test.js`.
+- Command's icon is `command-app/icon.png`, the favicon in `command-center.html`, and
+  `pwa.CMD_ICON_PNG` served at `/command-icon-256.png`. Keep it distinct from Cortex's.

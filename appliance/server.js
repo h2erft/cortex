@@ -893,7 +893,8 @@ app.get('/api/fleet', (_req, res) => { cors(res); res.set('Cache-Control', 'no-s
 app.post('/api/fleet', (req, res) => { cors(res); const n = fleetWatch.setSites((req.body || {}).sites); res.json({ ok: true, sites: n }); });
 app.post('/api/fleet/test', async (req, res) => { cors(res); const ep = String((req.body || {}).endpoint || ''); if (!ep || !push.has(ep)) return res.status(400).json({ err: 'this device is not subscribed' });
   res.json(await push.send({ title: 'Cortex Command', body: 'Test alert. Building alerts will look like this, even with Command closed.', tag: 'test', url: '/command-center.html' }, 'test', ep)); });
-app.get('/command.webmanifest', (_req, res) => { const m = pwa.manifest('Cortex Command'); res.type('application/manifest+json').json(Object.assign({}, m, { name: 'Cortex Command', short_name: 'Command', start_url: '/command-center.html', id: '/command-center.html' })); });
+app.get('/command-icon-256.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400').type('png').send(pwa.CMD_ICON_PNG); });
+app.get('/command.webmanifest', (_req, res) => { const m = pwa.manifest('Cortex Command'); res.type('application/manifest+json').json(Object.assign({}, m, { name: 'Cortex Command', short_name: 'Command', start_url: '/command-center.html', id: '/command-center.html', background_color: '#0f1a24', theme_color: '#0f1a24', icons: [{ src: '/command-icon-256.png', sizes: '256x256', type: 'image/png', purpose: 'any maskable' }] })); });
 // --- clear unit data: start the unit list over without a factory reset ------------------------------
 // Logins, site settings, schedules, floor-plan pictures, notification devices and update settings are
 // not touched here (the page clears the unit-related parts of its own config). The equipment is not

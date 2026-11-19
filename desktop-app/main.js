@@ -12,7 +12,7 @@
  * It only ever READS from a controller on its own (GET /health, /api/units, /api/events, /api/diag).
  * Anything that changes the building happens in the controller's own page, by the person using it.
  */
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, Notification, nativeImage, session, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, Notification, nativeImage, session, powerMonitor, net } = require('electron');
 const path = require('path'), fs = require('fs'), os = require('os'), { spawn } = require('child_process');
 const U = require('./updater'), D = require('./discover'), W = require('./watch'), R = require('./route'), QR = require('./qr');
 U.product({ manifest: 'cortex-desktop-manifest.json', file: /^Cortex-Setup-[0-9A-Za-z.+-]+\.exe$/ });
@@ -122,6 +122,7 @@ async function look() {
   looking = false; if (base !== opts.current) return;                 // the person switched controllers meanwhile
   if (!raw && await reroute()) return look();                         // its other address answers: carry on there
   if (raw && via === 'remote' && !(win && !win.isDestroyed() && win.isFocused())) { if (await reroute()) return look(); }   // back in the building: return to the local address, but never under someone's hands
+  if (!raw) { let online = true; try { online = net.isOnline(); } catch (_) {} if (!online) { trayMenu(); return; } }   // this PC has no network at all: that is not the controller's fault, so no miss is counted and nobody is told
   grabSession();
   const cur = W.snapshot(raw); misses = cur.up ? 0 : misses + 1;
   const notes = W.diff(snap, cur, misses, opts.kinds); notes.slice(0, 4).forEach(notify);

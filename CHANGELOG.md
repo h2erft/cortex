@@ -2,14 +2,30 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.7.1-beta.10 — 2026-11-19 (phone: status bar strip follows the theme)
+## v1.7.1-beta.10 — 2026-11-19 (Command: no false "offline", its own icon; phone status bar)
 
-_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes `cortex.html`._
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes `command-center.html`,
+`command-app/icon.png`, `desktop-app/main.js`, `appliance/pwa.js`, `appliance/server.js`, `cortex.html`,
+`tests/command-offline.test.js`._
 
 **Fixed**
+- **Command no longer calls every building offline when the computer running it loses its connection.**
+  When that computer is offline, or every building fails in the same look (internet or Tailscale down on
+  this side), no building is marked offline and no alert or notification is raised. A strip across the
+  top says the trouble is on this computer and the statuses are the last known ones. Command catches up
+  by itself when the connection returns. A single building must now miss two looks in a row (about 40
+  seconds) before it is called offline.
+- **Cortex for Windows** no longer counts a PC with no network as the controller not answering.
 - **Phone: the strip behind the clock and battery follows the theme.** After beta.9 it stayed light in
   dark mode. It now takes the header's colour in light and dark, and follows the phone when the theme
   is set to automatic.
+
+**Changed**
+- **Cortex Command has its own icon and logo:** the Cortex brain on a dark tile inside a ring of three
+  buildings, so it can be told apart from Cortex on a desktop, taskbar and home screen.
+
+**Known limit:** if every building really is offline at the same moment while this computer is online,
+Command shows the "can't reach any building" strip instead of alerting.
 
 ## v1.7.1-beta.9 — 2026-11-19 (phone: blurred header)
 
