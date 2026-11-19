@@ -3218,7 +3218,7 @@ async function busConnect(){
   const p=PROTOCOLS[bus.proto]||PROTOCOLS.lg;
   try{
     bus.port=await navigator.serial.requestPort();
-  }catch(e){bus.err="No port picked — click Connect, then choose your USB-RS485 adapter (CP210x / Silicon Labs) in the popup.";bus.port=null;renderBusScan();return;}
+  }catch(e){bus.err="No port picked — click Connect, then choose your USB-RS485 adapter in the popup.";bus.port=null;renderBusScan();return;}
   try{
     const es=effSerial();await bus.port.open({baudRate:es.baud,dataBits:es.dataBits,stopBits:es.stopBits,parity:es.parity});
     bus.scanning=true;bus.err="";renderBusScan();
@@ -3312,7 +3312,7 @@ async function busReadLoop(){
      - LISTENS to the bytes while Bus scan is open;
      - may BORROW the wire for the technician tools (discover, raw frames). Only then does bus.port exist,
        so everything written for "this screen holds the adapter" keeps working, and nothing else can transmit. */
-const linkSig=()=>JSON.stringify([LINK.on,LINK.open,LINK.opening,LINK.polling,LINK.master,LINK.holder,LINK.error,LINK.mine,LINK.waiting]);
+const linkSig=()=>JSON.stringify([LINK.adapter&&LINK.adapter.path,LINK.adapter&&LINK.adapter.present,LINK.on,LINK.open,LINK.opening,LINK.polling,LINK.master,LINK.holder,LINK.error,LINK.mine,LINK.waiting]);
 function linkSet(i,fromWs){if(!APPL||!i)return;
   if(!fromWs&&busWsOpen()&&LINK.at)return;                       // the live feed is newer than any polled or posted answer
   const was=linkSig();
@@ -3341,6 +3341,21 @@ function busListen(){if(!APPL||bus.ws)return;
     const gone=()=>{if(bus.ws!==ws)return;bus.ws=null;leaseSync();if(view==="busscan"){renderBusScan();setTimeout(()=>{if(view==="busscan"&&can("busscan"))busListen();},3000);}};
     ws.onclose=gone;ws.onerror=()=>{};
   }catch(e){bus.ws=null;}}
+/* Which adapter on the controller carries the LG bus. An adapter with several channels (the Waveshare 4-channel RS485, for
+   one) is listed once per channel: each channel is its own wire and can carry a different bus. */
+async function busAdapterPick(){let ports=[];
+  try{ports=(await (await fetch("/api/econet/ports",{cache:"no-store"})).json()).ports||[];}catch(e){toast("Couldn’t reach the controller");return;}
+  const cur=LINK.adapter&&LINK.adapter.path;
+  modal(head("LG bus adapter")+`<div class="modal-body">
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Pick the USB adapter, or the channel of a multi-channel adapter, that the <b>LG</b> wires are on. Channel numbers match the numbers printed by the terminals (A1/B1 is channel 1).</div>
+    ${ports.length?`<div id="adp-list">${ports.map(p=>{const eco=p.usedBy&&!p.lg;return `<label style="display:flex;gap:10px;align-items:flex-start;padding:9px 4px;border-top:1px solid var(--border);${eco?"opacity:.55":"cursor:pointer"}"><input type="radio" name="adp" value="${ue(p.path)}" ${p.path===cur||(p.lg&&!ports.some(x=>x.path===cur))?"checked":""} ${eco?"disabled":""} style="margin-top:3px">
+        <span><b>${ue(p.label)}</b>${eco?`<br><span style="font-size:12.5px;color:var(--text-dim)">Used by the Rheem / Ruud system “${ue(p.usedBy)}”</span>`:p.lg?`<br><span style="font-size:12.5px;color:var(--text-dim)">The LG bus is set to this one</span>`:""}<br><span class="mono" style="font-size:11px;color:var(--text-faint)">${ue(p.dev)}</span></span></label>`;}).join("")}</div>`
+      :`<div class="note-box warn">No USB serial adapter is plugged into the controller. Plug one in and open this again.</div>`}
+    ${LINK.on?`<div class="note-box" style="margin-top:12px;font-size:12.5px">The LG bus is connected. Changing the adapter disconnects it for a moment and reconnects on the one you pick.</div>`:""}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Cancel</button>${ports.length?`<button class="btn primary" id="adp-save">Use this adapter</button>`:""}</div></div>`);
+  const sv=document.getElementById("adp-save");if(sv)sv.onclick=async()=>{const r=document.querySelector('input[name="adp"]:checked');if(!r){toast("Pick an adapter first");return;}
+    try{const x=await fetch("/api/bus",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({adapter:r.value})}),j=await x.json();if(!x.ok)throw new Error(j.err||("HTTP "+x.status));
+      closeModal();LINK.at=0;linkSet(j,false);busListen();if(view==="busscan")renderBusScan();toast("LG bus adapter set");}catch(e){toast(e.message);}};}
 async function busLinkSet(on){
   if(on)bus.err="";
   try{const es=effSerial(),r=await fetch("/api/bus",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(on?{on:true,serial:{baud:es.baud,parity:es.parity,stop:es.stopBits,data:es.dataBits}}:{on:false})});
@@ -3699,6 +3714,7 @@ function renderBusScanLg(){
       ${APPL&&LINK.open?(LINK.mine?`<button class="btn go" id="bus-give" title="Give the wire back. The controller carries on polling by itself.">✓ Done — hand back to the controller</button>`:`<button class="btn" id="bus-take" title="Discover, raw frames and the other tools need this screen to talk on the bus. The controller pauses its own polling while you do.">${LINK.holder==="screen"?"⇄ Take over the bus tools":"🛠 Use bus tools on this screen"}</button>`):""}
       <div class="stat"><span class="pulse ${conn?'':'off'}"></span>${APPL?`<span id="bus-link-txt" style="font-weight:600">${ue(linkTxt)}</span><span style="opacity:.5;margin:0 6px">·</span>`:""}<span id="bus-count">${conn?'reading…':'idle'}</span></div>
     </div>
+    ${APPL&&LINK.adapter?`<div style="font-size:12.5px;color:var(--text-dim);margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>LG bus adapter: <b id="bus-adp-txt">${ue(LINK.adapter.label)}</b>${LINK.adapter.present?"":` <span style="color:var(--err)">(not plugged in)</span>`}</span>${can("eco_setup")||isTechView()?`<button class="linklike" id="bus-adp">Choose adapter…</button>`:""}</div>`:""}
     ${APPL?`<div style="font-size:12px;color:var(--text-faint);margin-top:8px">The adapter belongs to the controller, not to this screen. Every screen and app shows this same status, and any technician can connect or disconnect it from any device.</div>`:""}
     ${APPL&&LINK.on&&!LINK.open&&LINK.error?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${ue(LINK.error)}. The controller keeps trying.</span></div>`:""}
     ${bus.err?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${bus.err}</span></div>`:""}
@@ -3782,6 +3798,7 @@ function renderBusScanLg(){
     bus.serial={baud:+g("ser-baud").value,dataBits:+g("ser-data").value,parity:g("ser-par").value,stopBits:+g("ser-stop").value};};
   ["ser-baud","ser-data","ser-par","ser-stop"].forEach(id=>{const el=document.getElementById(id);if(el)el.onchange=setSer;});
   const cc=document.getElementById("bus-con");if(cc)cc.onclick=busConnect;
+  const ba=document.getElementById("bus-adp");if(ba)ba.onclick=busAdapterPick;
   const dd=document.getElementById("bus-dis");if(dd)dd.onclick=busDisconnect;
   const im=document.getElementById("bus-import");if(im)im.onclick=busImport;
   const sc=document.getElementById("bus-scan");if(sc)sc.onclick=busScanNew;

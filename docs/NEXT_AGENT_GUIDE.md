@@ -569,3 +569,12 @@ The user's rule: **one Cortex per building, every make in it together, never a c
   offline after two failed looks in a row (`MISS`). Tested by `tests/command-offline.test.js`.
 - Command's icon is `command-app/icon.png`, the favicon in `command-center.html`, and
   `pwa.CMD_ICON_PNG` served at `/command-icon-256.png`. Keep it distinct from Cortex's.
+
+## Addendum: adapters (v1.7.1-beta.10)
+
+- `appliance/adapters.js`: `describe(names)` (pure) and `list(dir)` turn `/dev/serial/by-id` into named,
+  channel-numbered adapters. `CORTEX_SERIAL_DIR` overrides the folder (tests). Add a chip to `KNOWN`.
+- `POST /api/bus {adapter: <by-id path>}` moves the LG bus; `busInfo().adapter` says where it is.
+  `resolveSerial()` only falls back to "the one adapter" when exactly one port exists: never guess
+  between channels, since a wrong guess would put LG frames on another maker's bus.
+- See `docs/ADAPTERS.md`.

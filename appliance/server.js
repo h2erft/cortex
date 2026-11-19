@@ -226,8 +226,10 @@ app.get('/api/device', async (_req, res) => {
 app.get('/api/serial-ports', async (_req, res) => {
   cors(res);
   try {
-    const ports = await SerialPort.list();
-    res.json({ ports: ports.map(p => ({ path: p.path, manufacturer: p.manufacturer || '', serialNumber: p.serialNumber || '' })) });
+    // the stable names first (they survive a replug, and say which channel of a multi-channel adapter), then anything else the OS lists
+    const stable = ADAPTERS.list(), have = new Set(stable.map(a => a.dev)), ports = await SerialPort.list().catch(() => []);
+    res.json({ ports: stable.map(a => ({ path: a.path, label: a.label, manufacturer: '', serialNumber: '', channel: a.channel, channels: a.channels }))
+      .concat(ports.filter(p => !have.has(p.path)).map(p => ({ path: p.path, manufacturer: p.manufacturer || '', serialNumber: p.serialNumber || '' }))) });
   } catch (e) {
     res.json({ ports: [], err: e.message });
   }
@@ -684,14 +686,13 @@ let busMaster = null;
 // USB adapters don't always come back with the same name after a replug or reboot (ttyUSB0 can
 // become ttyUSB1). If the configured device is gone and exactly ONE USB serial adapter is plugged
 // in, use that one instead of failing until someone edits the config.
+// A multi-channel adapter is several ports at once, each possibly a different bus: Cortex never guesses
+// between them. Someone has to say which channel the LG bus is on (Bus scan ▸ Choose adapter).
+const ADAPTERS = require('./adapters');
 function resolveSerial() {
   const want = readConfig().serial;
   try { if (fs.existsSync(want)) return want; } catch (_) {}
-  try {
-    const dir = '/dev/serial/by-id';
-    const ids = fs.readdirSync(dir);
-    if (ids.length === 1) return fs.realpathSync(path.join(dir, ids[0]));
-  } catch (_) {}
+  try { const ids = ADAPTERS.list(); if (ids.length === 1) return ids[0].dev; } catch (_) {}
   return want;
 }
 
@@ -713,7 +714,10 @@ const link = createLink({
 /* What every screen and app is told about the bus. */
 function busInfo() { const i = link.info(), poll = !!(busMaster && busMaster.state.active);
   return Object.assign(i, { master: masterMode(), polling: poll, alive: !!(busMaster && busMaster.alive()), holder: i.driver ? 'screen' : (poll ? 'controller' : null),
-    pollError: (busMaster && busMaster.state.error) || null, bytes: busRx.bytes, lastMs: busRx.last ? Date.now() - busRx.last : null, units: unitsDoc.units.length, screens: busClients.size }); }
+    pollError: (busMaster && busMaster.state.error) || null, bytes: busRx.bytes, lastMs: busRx.last ? Date.now() - busRx.last : null, units: unitsDoc.units.length, screens: busClients.size, adapter: busAdapter() }); }
+// which adapter the LG bus is set to use, in words
+function busAdapter() { const dev = resolveSerial(), r = (() => { try { return fs.realpathSync(dev); } catch (_) { return dev; } })(), all = ADAPTERS.list(), a = all.find(x => x.dev === r);
+  return { path: a ? a.path : dev, label: a ? a.label : dev, present: (() => { try { return fs.existsSync(dev); } catch (_) { return false; } })(), choices: all.length }; }
 function busTell() { const i = busInfo(), poll = i.polling;
   for (const ws of busClients) { if (ws.readyState !== 1) continue;
     // "mine" only once the controller's own loop is really off the wire, so two masters never overlap
@@ -768,6 +772,10 @@ app.post('/api/master-mode', (req, res) => { cors(res);
 app.get('/api/bus', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json(busInfo()); });
 app.post('/api/bus', (req, res) => { cors(res); const b = req.body || {};
   try { if (b.release === true) { const d = link.state.driver; if (link.release() && d && d.readyState === 1) { try { d.send(JSON.stringify({ lease: false, taken: true })); } catch (_) {} } }
+    if (typeof b.adapter === 'string') {                              // move the LG bus to another adapter, or another channel of the same one
+      const a = ADAPTERS.list().find(x => x.path === b.adapter); if (!a) return res.status(400).json({ err: 'that adapter is not plugged into the controller' });
+      const eco = [...ecoSystems.values()].find(x => realDev(x.cfg.port) === a.dev); if (eco) return res.status(400).json({ err: 'that adapter is used by the Rheem / Ruud system “' + eco.cfg.name + '”' });
+      if (realDev(resolveSerial()) !== a.dev || readConfig().serial !== a.path) { const was = link.state.on; if (was) link.setOn(false); writeConfig({ serial: a.path }); console.log('buslink: LG bus adapter set to ' + a.label); if (was && typeof b.on !== 'boolean') link.setOn(true); } }
     if (typeof b.on === 'boolean') link.setOn(b.on, b.serial && typeof b.serial === 'object' ? b.serial : null);
     superviseBus(); busTell(); res.json(Object.assign({ ok: true }, busInfo())); }
   catch (e) { res.status(500).json({ err: e.message }); } });
@@ -785,7 +793,7 @@ function ecoStart(cfg) {
 function ecoClean(b, old) { b = b || {};
   const name = String(b.name == null ? (old ? old.name : '') : b.name).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60), kind = old ? old.kind : b.kind, port = String(b.port == null ? (old ? old.port : '') : b.port).trim();
   if (!name) return { err: 'give the system a name' }; if (!ECO.KINDS[kind]) return { err: 'pick the kind of equipment' };
-  if (!/^\/dev\/[A-Za-z0-9._\/:+@-]{1,200}$/.test(port) || port.includes('..')) return { err: 'pick the adapter' };
+  if ((!/^\/dev\/[A-Za-z0-9._\/:+@-]{1,200}$/.test(port) || port.includes('..')) && !ADAPTERS.list().some(a => a.path === port)) return { err: 'pick the adapter' };
   for (const x of ecoSystems.values()) if ((!old || x.cfg.id !== old.id) && realDev(x.cfg.port) === realDev(port)) return { err: 'that adapter is already used by “' + x.cfg.name + '”' };
   const tidy = (v, prev) => String(v == null ? (prev || '') : v).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
   return { cfg: { id: old ? old.id : crypto.randomBytes(4).toString('hex'), name, kind, port, group: tidy(b.group, old && old.group), sub: tidy(b.sub, old && old.sub), on: typeof b.on === 'boolean' ? b.on : (old ? !!old.on : true), talk: typeof b.talk === 'boolean' ? b.talk : (old ? !!old.talk : false), src: ECO.ADDR.WIFI } }; }
@@ -794,8 +802,8 @@ app.get('/api/econet', (_req, res) => { cors(res); res.set('Cache-Control', 'no-
 app.get('/api/econet/catalog', (_req, res) => { cors(res); res.json({ kinds: ECO.KINDS }); });
 // The USB serial adapters plugged into this controller, by their stable names, and who uses each.
 app.get('/api/econet/ports', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); const out = [], lg = realDev(resolveSerial());
-  try { const dir = '/dev/serial/by-id'; for (const n of fs.readdirSync(dir).sort()) { const p = path.join(dir, n), r = realDev(p), used = [...ecoSystems.values()].find(x => realDev(x.cfg.port) === r);
-      out.push({ path: p, label: n.replace(/^usb-/, '').replace(/-if\d+.*$/, '').replace(/_/g, ' '), dev: r, usedBy: used ? used.cfg.name : (r === lg && link.state.on ? 'the LG bus' : null), lg: r === lg }); } } catch (_) {}
+  try { for (const a of ADAPTERS.list()) { const used = [...ecoSystems.values()].find(x => realDev(x.cfg.port) === a.dev);
+      out.push({ path: a.path, label: a.label, model: a.model, channel: a.channel, channels: a.channels, dev: a.dev, usedBy: used ? used.cfg.name : (a.dev === lg && link.state.on ? 'the LG bus' : null), lg: a.dev === lg }); } } catch (_) {}
   res.json({ ports: out }); });
 app.post('/api/econet/systems', (req, res) => { cors(res); const b = req.body || {}, old = b.id ? ecoSystems.get(String(b.id)) : null;
   if (b.id && !old) return res.status(404).json({ err: 'no such system' }); if (!old && ecoSystems.size >= ECO_MAX) return res.status(400).json({ err: 'at most ' + ECO_MAX + ' systems on one controller' });

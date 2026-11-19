@@ -2,11 +2,11 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.7.1-beta.10 — 2026-11-19 (Command: no false "offline", its own icon; phone status bar)
+## v1.7.1-beta.10 — 2026-11-19 (multi-channel RS-485 adapters; Command: no false "offline", its own icon)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes `command-center.html`,
 `command-app/icon.png`, `desktop-app/main.js`, `appliance/pwa.js`, `appliance/server.js`, `cortex.html`,
-`tests/command-offline.test.js`._
+`tests/command-offline.test.js`; adds `appliance/adapters.js`, `docs/ADAPTERS.md`, `tests/adapters.test.js`._
 
 **Fixed**
 - **Command no longer calls every building offline when the computer running it loses its connection.**
@@ -26,6 +26,22 @@ _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes 
 
 **Known limit:** if every building really is offline at the same moment while this computer is online,
 Command shows the "can't reach any building" strip instead of alerting.
+
+**Added: multi-channel RS-485 adapters**
+- **Multi-channel USB RS-485 adapters, starting with the Waveshare USB TO 4CH RS485 (CH344).** Each
+  channel is listed by name and number ("channel 2 of 4", matching the terminal numbers on the case), so
+  one adapter can carry the LG bus on one channel and Rheem / Ruud systems on the others. FTDI 2- and
+  4-port adapters are numbered the same way. Two identical adapters are told apart by serial number.
+- **Bus scan ▸ Choose adapter…** A technician can now pick which adapter or channel the LG bus is on from
+  the dashboard. Before, this could only be set on the first-run setup page. The bus reconnects on the
+  new adapter by itself.
+
+**Changed: adapters**
+- Adapters are saved by their stable name, so a replug or restart cannot swap channels.
+- Cortex does not guess between the channels of a multi-channel adapter. A channel in use by a
+  Rheem / Ruud system cannot be given to the LG bus, and the other way round.
+
+**Not verified on real hardware:** the adapter itself, and that the first port is terminals A1/B1.
 
 ## v1.7.1-beta.9 — 2026-11-19 (phone: blurred header)
 

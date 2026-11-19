@@ -61,7 +61,7 @@ async function loadPorts(selected){
   const add = (val, label) => { if(seen.has(val))return; seen.add(val);
     const o=document.createElement('option'); o.value=val; o.textContent=label||val;
     if(val===selected) o.selected=true; sel.appendChild(o); };
-  ports.forEach(p => add(p.path, p.manufacturer ? `${p.path} — ${p.manufacturer}` : p.path));
+  ports.forEach(p => add(p.path, p.label ? p.label : p.manufacturer ? `${p.path} — ${p.manufacturer}` : p.path));
   add(DEFAULT_SERIAL, DEFAULT_SERIAL + ' (default)');
   // allow a manual path if theirs isn't listed
   add('__custom__', 'Other / type a path…');
