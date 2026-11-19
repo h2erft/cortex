@@ -9,7 +9,7 @@ odus = {int(a[1:]) for a in sys.argv[2:] if a.startswith('o')}      # "o20": an 
 master, slave = pty.openpty(); tty.setraw(slave); tty.setraw(master)
 print(os.ttyname(slave), flush=True)
 ck = lambda b: (sum(b) & 0xFF) ^ 0x55
-buf, total = bytearray(), 0
+buf, total, asked = bytearray(), 0, {}
 while True:
     try: d = os.read(master, 256)
     except OSError: continue
@@ -24,5 +24,11 @@ while True:
         elif f[0] == 0xF0 and f[1] == 0xC0 and f[2] == 0xA0 and ck(f[:7]) == f[7]:
             del buf[:8]
             if f[3] in odus:
-                r = [0x40, 0x70, 0xA0, 0x00, f[3], f[4]] + [0] * 57; r.append(ck(r)); os.write(master, bytes(r))
+                r = [0x40, 0x70, 0xA0, 0x00, f[3], f[4]] + [0] * 57
+                if f[4] == 0x30:                       # its list of indoor units: count in byte 11 and 15, (type, address) pairs from 16
+                    asked[f[3]] = asked.get(f[3], 0) + 1
+                    if asked[f[3]] == 1: continue      # like a real one, it does not always answer the first time
+                    mem = sorted(addrs); r[11] = len(mem); r[15] = len(mem)
+                    for k, a in enumerate(mem): r[16 + k * 2] = 0x10; r[17 + k * 2] = a
+                r.append(ck(r)); os.write(master, bytes(r))
         else: del buf[:1]

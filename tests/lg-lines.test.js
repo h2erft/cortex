@@ -75,6 +75,14 @@ const unit = (id, addr, extra) => Object.assign({ id, addr, name: 'U' + addr, la
     ok('the search finds the outdoor unit on each wire', !!r && r.found.join() === '20,33' && r.lines === 2, JSON.stringify(r));
     r = await J('/api/odu'); ok('and remembers which line each one is on, and keeps reading them', r.lineOf['20'] === 0 && r.lineOf['33'] === 2 && r.addrs.includes(20) && r.addrs.includes(33) && !!r.odu['20'] && !!r.odu['33'], JSON.stringify([r.lineOf, r.addrs, Object.keys(r.odu)]));
     ok('units kept updating during the outdoor search', (await J('/api/units')).units.every(x => !x.offline));
+    // --- which indoor units belong to which outdoor unit: asked by the controller on the right wire, with retries
+    await P.evaluate(() => { view = 'cycle'; renderAll(); }); await P.waitForSelector('#odu-group');
+    await P.click('#odu-group'); await P.waitForFunction(() => /Group by outdoor unit/.test((document.querySelector('.modal') || {}).innerText || '') && document.querySelectorAll('.cy-plan').length >= 2, null, { timeout: 200000 });
+    const gp = await P.evaluate(() => document.querySelector('.modal').innerText); r = (await J('/api/odu')).members;
+    const p20 = r.plan.find(x => x.odu === 20), p33 = r.plan.find(x => x.odu === 33);
+    ok('each outdoor unit is asked on its own line and answers, even when its first reply is missed', !!p20 && !!p33 && p20.line === 0 && p33.line === 2 && !!p20.pages && !!p33.pages, JSON.stringify(r.plan.map(x => [x.odu, x.line, !!x.pages])));
+    ok('the screen shows both lists and leaves no unit on those wires unclaimed', /Outdoor unit 0x14[^]*reports 2 indoor units/.test(gp) && /Outdoor unit 0x21[^]*reports 3 indoor units/.test(gp) && !/Not claimed/.test(gp), gp.slice(0, 700));
+    await P.evaluate(() => closeModal());
     await P.evaluate(() => { view = 'busscan'; busBrand = 'lg:2'; renderAll(); });
     // --- a command for a unit on line 2 goes out on wire 2 only
     await sleep(3000); const h1 = heard(1), h2 = heard(2), passes = async () => { await sleep(100); return [heard(1), heard(2)]; };

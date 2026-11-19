@@ -133,6 +133,16 @@ function createMaster(io) {
     if (S.stopping) return;
     await sleep(1100); const f5 = await exchange(oduQuery(addr, 5), rx => findOduPage(rx, addr), REPLY_WAIT); if (f5) io.onOdu(f5);
   }
+  /* An outdoor unit's own list of its indoor units: monitor pages 0x30-0x32 (read-only). Outdoor units answer these
+     slowly and not every time, so each page is asked up to three times with a pause between. */
+  async function oduPageTry(addr, page) { for (let i = 0; i < 3 && !S.stopping; i++) { const f = await exchange(oduQuery(addr, page), rx => findOduPage(rx, addr), REPLY_WAIT); if (f) return f; await sleep(1200); } return null; }
+  async function readInventory(addr) {
+    if (addr === 0xFF || addr < 0 || addr > 0xFE) return null;
+    const p = await oduPageTry(addr, 0x30); if (!p) return null;
+    const frames = [p], count = p[11]; if (!count || count > 64) return frames;
+    for (let k = 1; k < 3 && count > 22 * k && !S.stopping; k++) { await sleep(1100); const q = await oduPageTry(addr, 0x30 + k); if (!q) break; frames.push(q); }
+    return frames;
+  }
   async function loop() {
     while (!S.stopping) {
       const t0 = Date.now(), patches = [];
@@ -163,6 +173,7 @@ function createMaster(io) {
       await drainCommands();
       if (!S.stopping && Date.now() - S.oduAt > ODU_EVERY) { S.oduAt = Date.now();
         for (const oa of (io.oduAddrs() || [])) { if (S.stopping) break; await readOdu(oa); await sleep(TURNAROUND); } }
+      if (io.inventoryNext) { let a, n = 0; while (!S.stopping && n++ < 3 && (a = io.inventoryNext()) != null) { let fr = null; try { fr = await readInventory(a); } catch (_) {} try { io.onInventory(a, fr); } catch (_) {} await sleep(300); } }
       S.passMs = Date.now() - t0; S.lastPassAt = Date.now(); S.passes++;
       if (io.onPass) io.onPass(S.passMs);
       if (S.passMs < MIN_PASS && !S.stopping && !probes.length && !oprobes.length) await sleep(MIN_PASS - S.passMs);

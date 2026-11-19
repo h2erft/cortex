@@ -2,6 +2,32 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.15 — 2026-11-19 (grouping by outdoor unit on every line; welcome tutorial)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.14. Changes `appliance/server.js`,
+`appliance/busmaster.js`, `cortex.html`; adds `tests/tour.test.js`._
+
+**Fixed**
+- **Group by outdoor unit reaches every LG line.** It used to ask only on the wire the screen held, so
+  outdoor units on other lines did not answer and their indoor units showed as unclaimed. The controller
+  now asks each outdoor unit on the line it is on (or on every line, if that is not known yet).
+- **Outdoor units that miss a reply are asked again.** Each list page is asked up to three times, a
+  little over a second apart.
+- **Outdoor units the controller found are included.** Ones found with the new Find button were missing
+  from the grouping list.
+
+**Changed**
+- **The Group by outdoor unit button is always shown.** When it cannot run, pressing it says why and
+  what to do. It no longer needs a screen to hold the adapter.
+- Unclaimed units show which line they are on and why a unit can end up unclaimed.
+
+**Added**
+- **Welcome tutorial.** A person added from now on gets a one-minute, skippable walk around the screen
+  at their first sign-in: units, search, the menu, map, schedule, fault history, the bus light, alerts
+  and settings. It only covers pages that person may open, is remembered per person across devices, and
+  can be replayed from Settings ▸ About ▸ Show the tutorial. People who already had an account are not
+  shown it unless they ask.
+
 ## v1.7.1-beta.14 — 2026-11-19 (find and read outdoor units from the controller)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.13. Changes `appliance/server.js`,

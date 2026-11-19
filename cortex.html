@@ -727,6 +727,12 @@ svg.ug{width:100%;height:100%;display:block}
 #navbtn{display:none}
 @media (hover:none){.btn,.icon-btn,.segmented button{min-height:38px}}
 @media (max-width:560px){.drawer{width:100%}.lrow{grid-template-columns:14px 1.4fr .8fr .8fr}.lrow .lc-hide{display:none}}
+/* first sign-in tour */
+#tour-veil{position:fixed;inset:0;z-index:400;pointer-events:auto}
+#tour-hole{position:fixed;z-index:401;border-radius:12px;box-shadow:0 0 0 9999px rgba(8,12,18,.62),0 0 0 3px var(--accent);pointer-events:none;transition:all .25s ease}
+#tour-card{position:fixed;z-index:402;width:min(360px,calc(100vw - 24px));background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);padding:16px 16px 12px;transition:top .25s ease,left .25s ease}
+#tour-card h4{margin:0 0 6px;font-size:16px}#tour-card p{margin:0;font-size:13.5px;line-height:1.5;color:var(--text-dim)}
+#tour-card .tour-foot{display:flex;align-items:center;gap:8px;margin-top:14px}#tour-card .tour-n{font-size:12px;color:var(--text-faint);flex:1}
 </style>
 </head>
 <body>
@@ -1847,8 +1853,10 @@ function oduFam(code){const r=ODU_FAMS[code],x=(r&&r[3])||{};
   return {code,tag:r?r[0]:null,name:r?r[1]:"unknown family",layout:r?r[2]:"old",s4:!!r&&r[2]==="s4",comps:x.comps||2,gen:x.gen||4,seen:code===0x0E,hex:"0x"+code.toString(16).toUpperCase().padStart(2,"0")};}
 const ODU=new Map();                                            // odu address -> {addr,pages:{replyPage:{f,at}},at}
 let oduDirty=false;
-function oduAddrs(){return (CFG&&Array.isArray(CFG.oduAddrs))?CFG.oduAddrs:[];}
-function oduRemember(a,on){if(!CFG)return;const s=new Set(oduAddrs());const had=s.has(a);if(on)s.add(a);else s.delete(a);
+let ODU_SRV_ADDRS=[];                 // outdoor units the controller found or reads itself (on any LG line)
+function oduAddrs(){const mine=(CFG&&Array.isArray(CFG.oduAddrs))?CFG.oduAddrs:[];return ODU_SRV_ADDRS.length?[...new Set(mine.concat(ODU_SRV_ADDRS))].sort((x,y)=>x-y):mine;}
+function oduRemember(a,on){if(!CFG)return;if(!on&&ODU_SRV_ADDRS.includes(a)){ODU_SRV_ADDRS=ODU_SRV_ADDRS.filter(x=>x!==a);if(APPL)fetch("/api/odu/forget",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({addr:a})}).catch(()=>{});}
+  const s=new Set((CFG&&Array.isArray(CFG.oduAddrs))?CFG.oduAddrs:[]);const had=s.has(a);if(on)s.add(a);else s.delete(a);
   if(had!==s.has(a)){CFG.oduAddrs=[...s].sort((x,y)=>x-y);saveCfg(CFG);}}
 function oduStore(f){const addr=f[4];let o=ODU.get(addr);if(!o){o={addr,pages:{}};ODU.set(addr,o);}
   o.pages[f[5]]={f:Array.from(f),at:Date.now()};o.at=Date.now();oduDirty=true;bus.dirty=true;oduShare(Array.from(f));
@@ -1938,11 +1946,11 @@ function oduControls(){
       <button class="btn" id="odu-sread" title="Ask one outdoor unit now, by its central-control address. Every LG line tries it.">Read</button>
       <button class="btn" id="odu-sfind" title="The controller asks every address on every LG line for an outdoor unit (about three minutes)">${F&&F.running?"■ Stop search":"Find outdoor units"}</button>
       ${F?`<span style="font-size:12px;color:var(--text-dim)" id="odu-find-txt">${F.running?"Searching… "+Math.round(100*F.asked/Math.max(1,F.total))+"%":"Search finished"} · ${F.found.length?("found "+F.found.map(a=>hx(a)).join(", ")):"none found"+(F.running?" yet":"")}</span>`:""}
-      ${tip("Grouping the indoor units by outdoor unit is still done from a screen that holds line 1: Bus scan ▸ Use bus tools on this screen ▸ start polling, then come back here.")}`;}
-  if(!isMaster())return `<span style="font-size:12px;color:var(--text-faint)">${liveTx()?"Fills in as the LG central polls its outdoor units.":(POLLER.active?"Read by the controller about once a minute.":"Outdoor data is read while Cortex is polling the bus.")}${tip("Finding outdoor units, reading one by address and grouping by outdoor unit are done from the screen that holds the adapter: Bus scan ▸ Connect adapter ▸ start polling, then come back here.")}</span>`;
+      <button class="btn primary" id="odu-group" title="The controller asks each outdoor unit, on whichever LG line it is on, which indoor units belong to it, then offers to group them">Group by outdoor unit</button>`;}
+  if(!isMaster())return `<button class="btn" id="odu-group" style="opacity:.6" title="${ue(oduGroupWhyNot())}">Group by outdoor unit</button><span style="font-size:12px;color:var(--text-faint)">${liveTx()?"Fills in as the LG central polls its outdoor units.":(POLLER.active?"Read by the controller about once a minute.":"Outdoor data is read while Cortex is polling the bus.")}${tip(oduGroupWhyNot()||"Find outdoor units, Read and Group by outdoor unit work while live polling is on.")}</span>`;
   return `<input class="inp" id="odu-addr" placeholder="ODU addr (hex)" style="width:128px;margin:0" maxlength="4">
       <button class="btn" id="odu-read">Read</button><button class="btn" id="odu-find" title="Sweep every address for outdoor units (about 2 minutes)">Find outdoor units</button>
-      <button class="btn primary" id="odu-group" ${oduAddrs().length?"":"disabled style=\"opacity:.5\""} title="Ask each outdoor unit which indoor units belong to it, then group them">Group by outdoor unit</button>`;}
+      <button class="btn primary" id="odu-group" ${oduAddrs().length?"":"style=\"opacity:.6\""} title="Ask each outdoor unit which indoor units belong to it, then group them">Group by outdoor unit</button>`;}
 /* ---- component help: what it is, what it is doing, what normal looks like ----
    Normal ranges are LG's "Typical Operating Values — Multi V IV" (steady state, more than 80 % of the
    indoor units calling) and the protection-control tables from LG's Multi V service training.
@@ -2845,6 +2853,7 @@ let POLLER={active:false};
 let ODU_CLEARED=null;
 async function oduPull(){if(IS_FILE||liveTx()||!currentUser)return;
   try{const r=await fetch('/api/odu',{cache:'no-store'});if(!r.ok)return;const j=await r.json();POLLER=j.poller||POLLER;let ch=false;
+    if(Array.isArray(j.addrs)){const a=j.addrs.filter(x=>Number.isInteger(x));if(a.join()!==ODU_SRV_ADDRS.join()){ODU_SRV_ADDRS=a;ch=true;}}
     {const was=JSON.stringify(ODU_FIND);ODU_FIND=j.find||null;if(was!==JSON.stringify(ODU_FIND)&&view==="cycle"&&!document.querySelector(".modal")&&document.activeElement!==document.getElementById("odu-addr"))ch=true;}
     if(typeof j.cleared==="number"){if(ODU_CLEARED!==null&&j.cleared!==ODU_CLEARED&&ODU.size){ODU.clear();ch=true;}ODU_CLEARED=j.cleared;}   // outdoor data was cleared from another screen: drop this screen's copy too
     for(const a of Object.keys(j.odu||{})){const src=j.odu[a];let o=ODU.get(+a);if(!o){o={addr:+a,pages:{}};ODU.set(+a,o);}
@@ -2875,20 +2884,38 @@ function oduApplyPlan(plan,regroup){let n=0;
   plan.forEach(pl=>{if(!pl.inv)return;pl.inv.list.forEach(e=>{const u=units.find(x=>x.addr===e.addr);if(!u)return;
     u.odu=pl.odu;u.system=hx(pl.odu);if(regroup)u.grp=ODU_GROUP(pl.odu);n++;});});
   if(n){saveUnits();renderAll();renderGroupNav();}return n;}
-async function oduReadPlan(){const plan=[];
-  for(const a of oduAddrs()){if(!isMaster())break;const inv=await busExclusive(()=>masterOduInventory(a));plan.push({odu:a,inv});await sleep(300);}
+/* Ask every outdoor unit for its indoor units. A screen that holds line 1 asks on that wire itself; everything else
+   (and every outdoor unit that did not answer there) is asked by the controller, which reaches every LG line and
+   asks each page up to three times. */
+async function oduSrvInventory(addrs,note){if(!APPL||!addrs.length)return new Map();
+  let j;try{j=await oduSrv("members",{addrs});}catch(e){if(note)note(e.message);return new Map();}
+  const t0=Date.now();let m=j.members;
+  while(m&&m.running&&Date.now()-t0<360000){await sleep(2500);try{m=(await (await fetch("/api/odu",{cache:"no-store"})).json()).members;}catch(e){}
+    if(note&&m)note("Asking the outdoor units… "+m.done+" of "+m.total);}
+  const out=new Map();((m&&m.plan)||[]).forEach(p=>{if(!p.pages)return;const pages=p.pages.map(hexBytes),count=pages[0][11];
+    out.set(p.odu,(!count||count>64)?{count,list:[]}:decodeOduInventory(pages));});
+  return out;}
+async function oduReadPlan(note){const plan=[],addrs=oduAddrs();
+  if(isMaster()){for(const a of addrs){if(!isMaster())break;const inv=await busExclusive(()=>masterOduInventory(a));plan.push({odu:a,inv});await sleep(300);}}
+  else addrs.forEach(a=>plan.push({odu:a,inv:null}));
+  const missing=plan.filter(p=>!p.inv).map(p=>p.odu);
+  if(missing.length&&APPL&&(!isMaster()||lgLines().length)){const got=await oduSrvInventory(missing,note);plan.forEach(p=>{if(!p.inv&&got.has(p.odu))p.inv=got.get(p.odu);});}
   return plan;}
+function oduGroupWhyNot(){if(isMaster()||oduCtlOk())return "";
+  if(liveTx())return "This screen has the adapter but is not polling. Start polling in Bus scan, or hand the adapter back to the controller, then press this again.";
+  if(APPL&&LINK.mine)return "This screen has taken the bus tools. Start polling here, or hand the adapter back to the controller, then press this again.";
+  return APPL?"Live polling is off, so nothing can be asked. Start it in Bus scan ▸ LG line 1 ▸ start polling, then press this again.":"Connect the adapter and start polling in Bus scan first.";}
 function oduPlanSane(plan){   // every outdoor unit answered, the lists are complete, and they point at units Cortex knows
   const ok=plan.filter(p=>p.inv&&p.inv.count>0&&p.inv.list.length===p.inv.count);
   const seen=new Set();let dup=false,hit=0;
   ok.forEach(p=>p.inv.list.forEach(e=>{if(seen.has(e.addr))dup=true;seen.add(e.addr);if(units.some(u=>u.addr===e.addr))hit++;}));
   return ok.length===plan.length&&plan.length>0&&!dup&&hit>0&&hit>=Math.ceil(seen.size*0.6);}
 async function oduGroupClick(auto){
-  if(!isMaster()){if(!auto)toast("Grouping by outdoor unit needs Cortex to be the bus master");return 0;}
-  if(!oduAddrs().length){if(!auto)toast("Find the outdoor units first");return 0;}
+  {const why=oduGroupWhyNot();if(why){if(!auto)toast(why);return 0;}}
+  if(!oduAddrs().length){if(!auto)toast("Find the outdoor units first: press Find outdoor units");return 0;}
   if(oduBusy)return 0;oduBusy=true;let plan;
-  if(!auto)toast("Asking each outdoor unit for its indoor units…");
-  try{plan=await oduReadPlan();}finally{oduBusy=false;}
+  if(!auto)toast("Asking each outdoor unit for its indoor units. This can take a minute or two…");
+  try{plan=await oduReadPlan(auto?null:(t=>{const b=document.getElementById("odu-group");if(b)b.textContent=t;}));}finally{oduBusy=false;if(!auto&&view==="cycle")renderCycle();}
   const sane=oduPlanSane(plan);
   if(auto){   // during guided setup: only when the answer is clean, and only for units still in a default group
     if(!sane){mlog("ℹ outdoor-unit inventory was not clean — leaving groups alone (use Outdoor / cycle ▸ Group by outdoor unit)");return 0;}
@@ -2901,7 +2928,8 @@ async function oduGroupClick(auto){
     ${sane?"":`<div class="note-box warn">The answers don’t line up cleanly (an outdoor unit didn’t answer, a list was incomplete, or the addresses don’t match your units). Check the lists below before applying.</div>`}
     ${plan.map(p=>`<div class="cy-plan"><b>Outdoor unit ${hx(p.odu)}</b> ${p.inv?`<span class="dim">reports ${p.inv.count} indoor unit${p.inv.count!==1?"s":""}</span>`:'<span style="color:var(--warn)">no answer</span>'}
       <div>${p.inv&&p.inv.list.length?p.inv.list.map(e=>{const u=units.find(x=>x.addr===e.addr);return `<span class="tagchip" style="${u?"":"opacity:.55"}" title="type 0x${e.type.toString(16)}">${hx(e.addr)}${u?" · "+ue(dispName(u)):" · not in Cortex"}</span>`;}).join(" "):'<span class="dim">—</span>'}</div></div>`).join("")}
-    ${orphans.length?`<div class="cy-plan"><b>Not claimed by any outdoor unit</b><div>${orphans.map(u=>`<span class="tagchip">${hx(u.addr)} · ${ue(dispName(u))}</span>`).join(" ")}</div></div>`:""}
+    ${orphans.length?`<div class="cy-plan"><b>Not claimed by any outdoor unit</b><div>${orphans.map(u=>`<span class="tagchip">${hx(u.addr)} · ${ue(dispName(u))}${lgLines().length?" · "+ue(lgLineOf(u)):""}</span>`).join(" ")}</div>
+      <div class="dim" style="font-size:12px;margin-top:6px">A unit lands here when its outdoor unit did not answer, has not been found yet (press Find outdoor units), or is on a line that is not connected.</div></div>`:""}
     <label style="display:flex;gap:8px;align-items:center;margin:14px 0 4px;font-size:13.5px"><input type="checkbox" id="og-move" checked> Move each unit into a group named after its outdoor unit${tip("Replaces the unit’s current top-level group with “Outdoor unit NN”. Subgroups, names and tags are kept. Leave this off to only record which outdoor unit each indoor unit belongs to.")}</label>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="og-go">Apply</button></div></div>`,true);
   document.getElementById("og-go").onclick=()=>{const n=oduApplyPlan(plan,document.getElementById("og-move").checked);closeModal();toast(n?`Matched ${n} indoor unit${n!==1?"s":""} to their outdoor unit`:"Nothing matched — no change");if(view==="cycle")renderCycle();};
@@ -5203,6 +5231,7 @@ function phoneAppHelp(){const standalone=window.matchMedia&&window.matchMedia("(
   </div>`);}
 function aboutTab(){const isPriv=session.admin||session.tech;return `
   ${row("Product","",`<span style="color:var(--text-dim)">Cortex</span>`)}
+  ${row("Tutorial","A one-minute look around the screen",`<button class="btn" onclick="closeModal();setTimeout(tourStart,250)">Show the tutorial</button>`)}
   ${row("Made by","Local-first HVAC control",`<span style="color:var(--text-dim)">AIROW</span>`)}
   ${row("Version","",`<span class="mono" id="verline" style="color:var(--text-dim);cursor:default">v0.1.0</span>`)}
   ${row("Site","",`<span class="mono" style="color:var(--text-dim)">${ue((CFG&&CFG.site&&CFG.site.name)||'Site')}</span>`)}
@@ -5311,7 +5340,7 @@ function editUser(id){const rl=roles();if(!rl.length){toast("Create a role first
     if(!id&&pw.length<4){bad("Set a password of at least 4 characters.");return;}       // no silent default password
     if(id&&pw&&pw.length<4){bad("The new password needs at least 4 characters.");return;}
     if(id){u.name=name;u.username=un;u.role=role;if(pw)u.passhash=hash(pw);}
-    else{users.push({id:Date.now(),name,username:un,passhash:hash(pw),role});}
+    else{users.push({id:Date.now(),name,username:un,passhash:hash(pw),role,tour:true});}   // tour: show the welcome tutorial at this person's first sign-in
     if(CFG){CFG.users=users;saveCfg(CFG);}
     if(id&&currentUser&&u.username===currentUser.username){currentUser.role=u.role;currentUser.name=u.name;recomputeSession();renderWho();renderAll();}
     drawSettings();};
@@ -5894,8 +5923,58 @@ function enterApp(u){currentUser={name:u.name,role:u.role,username:u.username};u
   elev={admin:false,tech:false};recomputeSession();showScreen("app");renderWho();
   view=(settings.landing&&["units","map","schedule","device","events","cycle"].includes(settings.landing))?settings.landing:"units";if(settings.cycleView)cycView=settings.cycleView;prefsPull();
   if(view==="device"&&!can("device"))view="units";
-  renderAll();loadWeather();enterAnim();}
-function logout(msg){clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;PSET=new Set();closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
+  renderAll();loadWeather();enterAnim();tourMaybe(u);}
+/* ===== Welcome tutorial =====
+   A newly added person gets a short, skippable walk around the screen at their first sign-in. Each step points at the
+   real thing on the page and only steps for things this person is allowed to see are shown. It is remembered per
+   person (in their own settings, which follow them between devices). Anyone can replay it from Settings ▸ About. */
+const TOUR={i:-1,steps:[],on:false};
+function tourSteps(){const mob=()=>innerWidth<=860,S=[
+  {t:"Welcome to Cortex",b:"This is a one-minute look around. You can skip it at any time, and replay it later from Settings ▸ About.",el:null},
+  {t:"Your units",b:"Every indoor unit is a card: what it is set to, the room temperature, and whether it is running. Tap a card to open that unit"+(can("ctl")?" and change its temperature, mode or fan.":" and see its details."),el:()=>document.querySelector("#main .card")||document.getElementById("main"),view:"units"},
+  {t:"Find a unit fast",b:"Type a room or unit name here. The tiles above filter the list too: tap Running, Off or Errors.",el:()=>document.getElementById("q"),view:"units"},
+  {t:"The menu",b:"Move between pages here: the unit list, the building map, schedules and more. Your groups are listed underneath, so you can jump to one floor or area.",el:()=>mob()?document.getElementById("navbtn"):document.querySelector("nav"),nav:false},
+  can("map")?{t:"Building map",b:"See the units laid out on your floor plan, coloured by what they are doing.",el:()=>document.querySelector('.nav-item[data-view="map"]'),nav:true}:null,
+  can("sched")?{t:"Schedule",b:"Set times for units to turn on, off or change temperature by themselves"+(can("sched_edit")?".":". You can view the schedules here."),el:()=>document.querySelector('.nav-item[data-view="schedule"]'),nav:true}:null,
+  can("events")?{t:"Fault history",b:"Every fault the equipment reports is kept here, with a plain explanation of what it means and what to do.",el:()=>document.getElementById("nav-events"),nav:true}:null,
+  {t:"Is everything connected?",b:"This light is green when Cortex is talking to the equipment. If it turns red, tap it to see what is wrong.",el:()=>mob()?null:document.getElementById("bus-health"),nav:false},
+  {t:"Alerts",b:"The bell shows anything that needs attention: a unit in fault, or one that stopped answering. The number is how many.",el:()=>document.getElementById("bell"),nav:false},
+  {t:"Settings and signing out",b:"The gear changes how Cortex looks for you: light or dark, °F or °C, which page opens first. The arrow next to it signs you out.",el:()=>document.getElementById("settingsbtn"),nav:false},
+  {t:"That’s it",b:"You are ready. If you get stuck, the small ⓘ marks explain things in place.",el:null}];
+  return S.filter(Boolean);}
+const tourDue=u=>{const rec=(CFG&&CFG.users||[]).find(x=>x.username===u.username);return !!(rec&&rec.tour&&!settings.tourSeen);};   // added since the tutorial existed, and has not seen it
+function tourMaybe(u){if(DEMO||IS_FILE||navigator.webdriver||!tourDue(u))return;
+  setTimeout(()=>{if(!currentUser||currentUser.username!==u.username||!tourDue(u)||TOUR.on||document.querySelector(".modal"))return;tourStart();},1800);}   // after this person's own settings have arrived
+function tourStart(){if(TOUR.on)return;closeDrawer();if(typeof closeModal==="function")closeModal();TOUR.steps=tourSteps();TOUR.i=-1;TOUR.on=true;
+  const v=document.createElement("div");v.id="tour-veil";const h=document.createElement("div");h.id="tour-hole";const c=document.createElement("div");c.id="tour-card";c.setAttribute("role","dialog");c.setAttribute("aria-label","Welcome tutorial");
+  document.body.append(v,h,c);v.onclick=e=>e.stopPropagation();
+  TOUR.key=e=>{if(!TOUR.on)return;if(e.key==="Escape")tourEnd();else if(e.key==="ArrowRight"||e.key==="Enter")tourGo(1);else if(e.key==="ArrowLeft")tourGo(-1);};document.addEventListener("keydown",TOUR.key,true);
+  TOUR.fit=()=>{if(TOUR.on)tourShow(true);};addEventListener("resize",TOUR.fit);tourGo(1);}
+function tourGo(d){const n=TOUR.i+d;if(n<0)return;if(n>=TOUR.steps.length){tourEnd();return;}TOUR.i=n;const st=TOUR.steps[n];
+  if(st.view&&view!==st.view){view=st.view;document.querySelectorAll(".nav-item[data-view]").forEach(x=>x.classList.toggle("active",x.dataset.view===view));renderAll();}
+  if(innerWidth<=860&&typeof st.nav==="boolean")document.body.classList.toggle("nav-open",st.nav);
+  setTimeout(tourShow,st.view||typeof st.nav==="boolean"?260:0);}
+function tourShow(again){const st=TOUR.steps[TOUR.i],h=document.getElementById("tour-hole"),c=document.getElementById("tour-card");if(!st||!h||!c)return;
+  if(again!==true){const at=TOUR.i;setTimeout(()=>{if(TOUR.on&&TOUR.i===at)tourShow(true);},520);}        // the page may still be sliding into place: measure once more when it has settled
+  let el=null;try{el=st.el?st.el():null;}catch(e){}let r=el&&el.getBoundingClientRect();if(r&&(r.width<4||r.height<4||r.bottom<0||r.top>innerHeight))r=null;
+  if(el&&r&&el.scrollIntoView&&(r.top<60||r.bottom>innerHeight-10)){try{el.scrollIntoView({block:"center"});r=el.getBoundingClientRect();}catch(e){}}
+  const last=TOUR.i===TOUR.steps.length-1;
+  c.innerHTML=`<h4>${st.t}</h4><p>${st.b}</p><div class="tour-foot"><span class="tour-n">${TOUR.i+1} of ${TOUR.steps.length}</span>
+    ${last?"":`<button class="btn" id="tour-skip">Skip</button>`}${TOUR.i>0?`<button class="btn" id="tour-back">Back</button>`:""}<button class="btn primary" id="tour-next">${last?"Done":TOUR.i===0?"Show me":"Next"}</button></div>`;
+  const sk=document.getElementById("tour-skip");if(sk)sk.onclick=tourEnd;const bk=document.getElementById("tour-back");if(bk)bk.onclick=()=>tourGo(-1);document.getElementById("tour-next").onclick=()=>tourGo(1);
+  const cw=c.offsetWidth,chh=c.offsetHeight,pad=6;
+  if(!r){h.style.cssText="left:50%;top:50%;width:0;height:0;box-shadow:0 0 0 9999px rgba(8,12,18,.62)";c.style.left=Math.max(12,(innerWidth-cw)/2)+"px";c.style.top=Math.max(12,(innerHeight-chh)/2)+"px";return;}
+  const x=Math.max(4,r.left-pad),y=Math.max(4,r.top-pad),w=Math.min(innerWidth-8,r.width+pad*2),hh=Math.min(innerHeight-8,r.height+pad*2);
+  h.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${hh}px`;
+  let top=y+hh+12;if(top+chh>innerHeight-8)top=y-chh-12;if(top<8)top=Math.max(8,innerHeight-chh-12);                       // below, else above, else pinned to the bottom
+  let left=Math.min(Math.max(12,x+w/2-cw/2),innerWidth-cw-12);
+  if(hh>innerHeight*0.6){top=Math.max(8,(innerHeight-chh)/2);left=x+w+12+cw<innerWidth?x+w+12:Math.max(12,x-cw-12);}       // a tall thing (the menu): sit beside it
+  c.style.left=left+"px";c.style.top=top+"px";}
+function tourEnd(){if(!TOUR.on)return;TOUR.on=false;["tour-veil","tour-hole","tour-card"].forEach(id=>{const e=document.getElementById(id);if(e)e.remove();});
+  document.removeEventListener("keydown",TOUR.key,true);removeEventListener("resize",TOUR.fit);document.body.classList.remove("nav-open");
+  if(!settings.tourSeen){settings.tourSeen=Date.now();saveSettings();}
+  if(view!=="units"){view="units";document.querySelectorAll(".nav-item[data-view]").forEach(x=>x.classList.toggle("active",x.dataset.view===view));renderAll();}}
+function logout(msg){if(TOUR.on)tourEnd();clearSession();currentUser=null;settingsUser=null;settings=loadSettings();applyTheme();elev={admin:false,tech:false};session.admin=session.tech=false;PSET=new Set();closeDrawer();showLogin(typeof msg==="string"?msg:undefined);}
 /* Clear unit data: start the unit list over without a factory reset. Nothing is sent to the equipment. */
 function clearUnitData(){
   if(!can("reset")){toast("Your role does not include clearing data");return;}

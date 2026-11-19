@@ -591,3 +591,15 @@ The user's rule: **one Cortex per building, every make in it together, never a c
 - Browser: `lgLines()`, `renderLgLine()`, `lgLineAdd()`, `lgApi()`; Bus scan tabs use `busBrand = "lg:<id>"`.
   The screen's own loop and `sendUnits` skip units with `u.bus`. Addresses stay the key everywhere.
 - Tests: `tests/lg-lines.test.js` (two simulated wires, about three minutes). See `docs/LG_LINES.md`.
+
+## Addendum: outdoor work on the controller, and the tutorial (v1.7.1-beta.14 and .15)
+
+- Outdoor units are found, read and asked for their indoor-unit lists by the controller, per line:
+  `POST /api/odu/find`, `/api/odu/read`, `/api/odu/members`; state in `GET /api/odu` (`find`, `members`,
+  `addrs`, `lineOf`). `busmaster.js`: `io.oduScanNext`, `io.onOduFound`, `io.inventoryNext`,
+  `io.onInventory`, `io.oduWanted`. Only read-only cmd14 pages are sent (bytes 5-6 zero).
+- Browser: `oduAddrs()` is the union of `CFG.oduAddrs` and the controller's list; `oduReadPlan()` asks
+  on the screen's own wire when it holds line 1, and the controller for everything else.
+- Tutorial: `tourSteps()`, `tourStart()`, `tourEnd()`, `tourDue(u)`. A user record gets `tour: true`
+  when created; `settings.tourSeen` records that it was seen. It never starts by itself in the demo, from
+  a file, or in an automated browser (`navigator.webdriver`), so UI tests are not covered by an overlay.
