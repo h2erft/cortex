@@ -88,6 +88,8 @@ function commandPatch(state) {
  *   io.onOdu(frame)          one 64-byte monitor page
  *   io.onPass(ms)            end of every pass
  *   io.scanNext(n)           (optional) up to n addresses to look for new units at, a few per pass; [] when no search is on
+ *   io.oduScanNext(n) / io.onOduFound(addr)   (optional) the same, for outdoor units (read-only cmd14 page 0)
+ *   io.oduWanted()           (optional) true when an outdoor read was asked for and there are no indoor units to poll
  *   io.onScanReply(addr, reply|null)   what that address answered (the same safe cmd0 read as polling)
  *   io.log(text)
  */
@@ -136,7 +138,8 @@ function createMaster(io) {
       const t0 = Date.now(), patches = [];
       const addrs = (io.getUnits() || []).map(u => u.addr).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF);
       const probes = io.scanNext ? (io.scanNext(SCAN_STEP) || []).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF) : [];
-      if (!addrs.length && !probes.length) { await sleep(1000); continue; }
+      const oprobes = io.oduScanNext ? (io.oduScanNext(12) || []).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF) : [];
+      if (!addrs.length && !probes.length && !oprobes.length && !(io.oduWanted && io.oduWanted())) { await sleep(1000); continue; }
       for (const a of addrs) {
         if (S.stopping) break;
         const f = await exchange(readQuery(a), rx => findReply16(rx, a), REPLY_WAIT);
@@ -151,13 +154,18 @@ function createMaster(io) {
         const f = await exchange(readQuery(a), rx => findReply16(rx, a), SCAN_WAIT);
         try { io.onScanReply(a, f ? parseReply(f) : null); } catch (_) {}
         await sleep(TURNAROUND); }
+      // a search for outdoor units: the read-only monitor page 0, a few addresses each pass
+      for (const a of oprobes) { if (S.stopping) break;
+        const f = await exchange(oduQuery(a, 0), rx => findOduPage(rx, a), 350);
+        if (f) { try { io.onOdu(f); if (io.onOduFound) io.onOduFound(a); } catch (_) {} }
+        await sleep(TURNAROUND); }
       if (S.stopping) break;
       await drainCommands();
       if (!S.stopping && Date.now() - S.oduAt > ODU_EVERY) { S.oduAt = Date.now();
         for (const oa of (io.oduAddrs() || [])) { if (S.stopping) break; await readOdu(oa); await sleep(TURNAROUND); } }
       S.passMs = Date.now() - t0; S.lastPassAt = Date.now(); S.passes++;
       if (io.onPass) io.onPass(S.passMs);
-      if (S.passMs < MIN_PASS && !S.stopping && !probes.length) await sleep(MIN_PASS - S.passMs);
+      if (S.passMs < MIN_PASS && !S.stopping && !probes.length && !oprobes.length) await sleep(MIN_PASS - S.passMs);
     }
   }
   async function start() {

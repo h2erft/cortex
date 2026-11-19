@@ -15,7 +15,7 @@ const unit = (id, addr, extra) => Object.assign({ id, addr, name: 'U' + addr, la
 (async () => {
   let srv, browser;
   try {
-    const d1 = await sim(1, [5, 6]), d2 = await sim(2, [9, 10, 5]);             // address 5 answers on both wires: a clash to be reported
+    const d1 = await sim(1, [5, 6, 'o20']), d2 = await sim(2, [9, 10, 5, 'o33']);             // address 5 answers on both wires: a clash to be reported
     const names = ['-if00', '-if02', '-if04', '-if06'].map(x => 'usb-1a86_USB_Quad_Serial_TEST001234' + x), spare = path.join(tmp, 'spare'); fs.writeFileSync(spare, '');
     [d1, d2, spare, spare + '2'].forEach((t, i) => { if (i === 3) fs.writeFileSync(t, ''); fs.symlinkSync(t, path.join(dir, names[i])); });
     const ch = names.map(n => path.join(dir, n));
@@ -68,6 +68,14 @@ const unit = (id, addr, extra) => Object.assign({ id, addr, name: 'U' + addr, la
     ok('the line page shows its units and that it is polling', await until(async () => P.evaluate(() => { renderBusScan(); return /Polling/.test(document.getElementById('lgl-state').textContent) && document.querySelectorAll('[data-lglu]').length === 2; }), 8000));
     ok('no page errors', errs.length === 0, errs.join(' | '));
     r = await J('/api/bus'); ok('every screen is told about every line', Array.isArray(r.lines) && r.lines.length === 1 && r.lines[0].open && r.polling, JSON.stringify(r.lines));
+    // --- outdoor units: the controller searches every line itself; no screen holds the adapter
+    await P.evaluate(() => { view = 'cycle'; renderAll(); }); await P.waitForSelector('#odu-sfind', { timeout: 20000 });
+    ok('the Outdoor page offers Read and Find without a screen holding the adapter', await P.evaluate(() => !!document.getElementById('odu-sread') && /Find outdoor units/.test(document.getElementById('odu-sfind').textContent)));
+    await P.click('#odu-sfind'); r = await until(async () => { const x = (await J('/api/odu')).find; return x && !x.running ? x : null; }, 240000);
+    ok('the search finds the outdoor unit on each wire', !!r && r.found.join() === '20,33' && r.lines === 2, JSON.stringify(r));
+    r = await J('/api/odu'); ok('and remembers which line each one is on, and keeps reading them', r.lineOf['20'] === 0 && r.lineOf['33'] === 2 && r.addrs.includes(20) && r.addrs.includes(33) && !!r.odu['20'] && !!r.odu['33'], JSON.stringify([r.lineOf, r.addrs, Object.keys(r.odu)]));
+    ok('units kept updating during the outdoor search', (await J('/api/units')).units.every(x => !x.offline));
+    await P.evaluate(() => { view = 'busscan'; busBrand = 'lg:2'; renderAll(); });
     // --- a command for a unit on line 2 goes out on wire 2 only
     await sleep(3000); const h1 = heard(1), h2 = heard(2), passes = async () => { await sleep(100); return [heard(1), heard(2)]; };
     await post('/api/cmd', { addr: 9, state: { on: true, mode: 'cool', coolC: 21 } });

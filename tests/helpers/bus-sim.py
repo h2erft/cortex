@@ -4,7 +4,8 @@ Prints the serial device path to give the controller, then answers safe cmd0 rea
 (80 00 A0 <addr> 00 00 00 ck) for the addresses given on the command line with a valid 16-byte reply.
 Every byte it receives is counted in the file given as the first argument."""
 import os, pty, sys, tty
-count_file, addrs = sys.argv[1], {int(a) for a in sys.argv[2:]}
+count_file, addrs = sys.argv[1], {int(a) for a in sys.argv[2:] if not a.startswith('o')}
+odus = {int(a[1:]) for a in sys.argv[2:] if a.startswith('o')}      # "o20": an outdoor unit that answers its monitor page at address 20
 master, slave = pty.openpty(); tty.setraw(slave); tty.setraw(master)
 print(os.ttyname(slave), flush=True)
 ck = lambda b: (sum(b) & 0xFF) ^ 0x55
@@ -20,4 +21,8 @@ while True:
             del buf[:8]
             if f[3] in addrs:
                 r = [0x10, 0x01, 0xA0, 0x40, f[3], 0, 0x04, 0x18, 0x60, 0, 0, 0, 0, 0, 0]; r.append(ck(r)); os.write(master, bytes(r))
+        elif f[0] == 0xF0 and f[1] == 0xC0 and f[2] == 0xA0 and ck(f[:7]) == f[7]:
+            del buf[:8]
+            if f[3] in odus:
+                r = [0x40, 0x70, 0xA0, 0x00, f[3], f[4]] + [0] * 57; r.append(ck(r)); os.write(master, bytes(r))
         else: del buf[:1]

@@ -1922,7 +1922,23 @@ function cyFmt(){const F=settings.unit!=="C";return {
   dt:k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*9/5*10)/10:k)+"°",          // a temperature DIFFERENCE (superheat / subcooling)
   pr:k=>(k==null||!isFinite(k))?"—":(F?Math.round(k*0.145038):k),
   pu:F?"psi":"kPa"};}
+/* Outdoor units are searched for and read by the controller itself, on every LG line, so no screen has to hold the adapter. */
+let ODU_FIND=null;
+function oduCtlOk(){return APPL&&!liveTx()&&(POLLER.active||(LINK.lines||[]).some(l=>l.polling)||LINK.polling);}
+async function oduSrv(path,body){const r=await fetch("/api/odu/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.err||("HTTP "+r.status));return j;}
+async function oduSrvRead(){const el=document.getElementById("odu-addr");const a=parseInt(((el&&el.value)||"").trim().replace(/^0x/i,""),16);
+  if(!Number.isFinite(a)||a<0||a>0xFE){toast("Enter the outdoor unit's central address in hex (00–FE)");return;}
+  try{await oduSrv("read",{addr:a});const t0=Date.now();toast("Asking outdoor unit "+hx(a)+" on every line…");
+    setTimeout(async()=>{await oduPull();const o=ODU.get(a),ok=o&&Object.values(o.pages).some(p=>p.at>=t0-1000);toast(ok?("Outdoor unit "+hx(a)+" answered"):("No answer from "+hx(a)+" yet. Is that the outdoor unit's central-control address?"));if(view==="cycle")renderCycle();},9000);}catch(e){toast(e.message);}}
+async function oduSrvFind(){try{if(ODU_FIND&&ODU_FIND.running){ODU_FIND=(await oduSrv("find",{stop:true})).find;}
+    else{if(!confirm("Search for outdoor units?\n\nThe controller asks every address on every connected LG line (about three minutes). The indoor units keep updating meanwhile."))return;ODU_FIND=(await oduSrv("find",{})).find;toast("Searching for outdoor units on every line…");}}
+  catch(e){toast(e.message);}if(view==="cycle")renderCycle();}
 function oduControls(){
+  if(!isMaster()&&oduCtlOk()){const F=ODU_FIND;return `<input class="inp" id="odu-addr" placeholder="ODU addr (hex)" style="width:128px;margin:0" maxlength="4">
+      <button class="btn" id="odu-sread" title="Ask one outdoor unit now, by its central-control address. Every LG line tries it.">Read</button>
+      <button class="btn" id="odu-sfind" title="The controller asks every address on every LG line for an outdoor unit (about three minutes)">${F&&F.running?"■ Stop search":"Find outdoor units"}</button>
+      ${F?`<span style="font-size:12px;color:var(--text-dim)" id="odu-find-txt">${F.running?"Searching… "+Math.round(100*F.asked/Math.max(1,F.total))+"%":"Search finished"} · ${F.found.length?("found "+F.found.map(a=>hx(a)).join(", ")):"none found"+(F.running?" yet":"")}</span>`:""}
+      ${tip("Grouping the indoor units by outdoor unit is still done from a screen that holds line 1: Bus scan ▸ Use bus tools on this screen ▸ start polling, then come back here.")}`;}
   if(!isMaster())return `<span style="font-size:12px;color:var(--text-faint)">${liveTx()?"Fills in as the LG central polls its outdoor units.":(POLLER.active?"Read by the controller about once a minute.":"Outdoor data is read while Cortex is polling the bus.")}${tip("Finding outdoor units, reading one by address and grouping by outdoor unit are done from the screen that holds the adapter: Bus scan ▸ Connect adapter ▸ start polling, then come back here.")}</span>`;
   return `<input class="inp" id="odu-addr" placeholder="ODU addr (hex)" style="width:128px;margin:0" maxlength="4">
       <button class="btn" id="odu-read">Read</button><button class="btn" id="odu-find" title="Sweep every address for outdoor units (about 2 minutes)">Find outdoor units</button>
@@ -2829,12 +2845,14 @@ let POLLER={active:false};
 let ODU_CLEARED=null;
 async function oduPull(){if(IS_FILE||liveTx()||!currentUser)return;
   try{const r=await fetch('/api/odu',{cache:'no-store'});if(!r.ok)return;const j=await r.json();POLLER=j.poller||POLLER;let ch=false;
+    {const was=JSON.stringify(ODU_FIND);ODU_FIND=j.find||null;if(was!==JSON.stringify(ODU_FIND)&&view==="cycle"&&!document.querySelector(".modal")&&document.activeElement!==document.getElementById("odu-addr"))ch=true;}
     if(typeof j.cleared==="number"){if(ODU_CLEARED!==null&&j.cleared!==ODU_CLEARED&&ODU.size){ODU.clear();ch=true;}ODU_CLEARED=j.cleared;}   // outdoor data was cleared from another screen: drop this screen's copy too
     for(const a of Object.keys(j.odu||{})){const src=j.odu[a];let o=ODU.get(+a);if(!o){o={addr:+a,pages:{}};ODU.set(+a,o);}
       for(const pg of Object.keys(src.pages)){const p=src.pages[pg];if(!o.pages[pg]||o.pages[pg].at<p.at){o.pages[pg]={f:hexBytes(p.hex),at:p.at};ch=true;}}
       o.at=Math.max(o.at||0,src.at||0);}
     if(ch){oduDirty=true;}}catch(e){}}
 setInterval(()=>{if(BOOTED&&(view==="cycle"||!ODU.size))oduPull();},15000);
+setInterval(()=>{if(BOOTED&&view==="cycle"&&ODU_FIND&&ODU_FIND.running&&document.visibilityState==="visible")oduPull().then(()=>{if(oduDirty&&view==="cycle"&&!document.querySelector(".modal")&&document.activeElement!==document.getElementById("odu-addr")){oduDirty=false;renderCycle();}});},3000);
 /* ---- which indoor units belong to which outdoor unit ----
    An outdoor unit keeps its own list of indoor units and serves it on monitor pages 0x30–0x32 as
    (type, address) pairs, with the count in byte 11 (outside reference, graded "likely" — so the result
@@ -3940,6 +3958,7 @@ function renderCycle(){renderGroupNav();
   const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(units.map(u=>u.id).slice(0,10),{odu:true});
   const orr=document.getElementById("odu-read");if(orr)orr.onclick=oduReadClick;
   const off=document.getElementById("odu-find");if(off)off.onclick=oduFindClick;
+  const osr=document.getElementById("odu-sread");if(osr)osr.onclick=oduSrvRead;const osf=document.getElementById("odu-sfind");if(osf)osf.onclick=oduSrvFind;
   const og=document.getElementById("odu-group");if(og)og.onclick=()=>oduGroupClick(false);
   main.querySelectorAll("[data-otrend]").forEach(b=>b.onclick=()=>openOduTrends(+b.dataset.otrend));
   main.querySelectorAll("details.cy-dx").forEach(d=>d.ontoggle=()=>{d.open?cyDxOpen.add(d.dataset.dx):cyDxOpen.delete(d.dataset.dx);});

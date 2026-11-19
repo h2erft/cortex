@@ -2,6 +2,20 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.14 — 2026-11-19 (find and read outdoor units from the controller)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.13. Changes `appliance/server.js`,
+`appliance/busmaster.js`, `cortex.html`, tests._
+
+**Fixed**
+- **Outdoor / cycle: Read and Find outdoor units are back, and no longer need a screen to hold the
+  adapter.** The controller does both itself, on every connected LG line at once. Find asks each address
+  for the read-only monitor page (about three minutes) while the indoor units keep updating; what
+  answers is remembered, with the line it is on, and read about once a minute from then on. Read asks
+  one address now on every line.
+
+**Still from a screen holding line 1:** grouping the indoor units by outdoor unit.
+
 ## v1.7.1-beta.13 — 2026-11-19 (several LG lines at once)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.12. Changes `appliance/server.js`,

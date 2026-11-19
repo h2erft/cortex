@@ -37,6 +37,7 @@ Repeat 2 to 5 for each wire.
 
 ## Not done yet
 
-- A raw byte view and an outdoor-unit finder for extra lines. Outdoor addresses can be entered by hand;
-  every line tries a known outdoor address until one gets the answer.
+- A raw byte view for extra lines.
+- Outdoor units (since beta.14): Outdoor / cycle ▸ **Find outdoor units** runs on the controller, on every
+  line at once (`POST /api/odu/find`, `/api/odu/read`). Found addresses are kept in `data/odu-addrs.json`.
 - Not yet proven on a real multi-line site.

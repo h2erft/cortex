@@ -977,7 +977,7 @@ function ecoWatch() { const t = Date.now();
     else continue;
     try { recorder.external('econet', i.id, i.name, list, { sysKind: i.kind }, t); } catch (e) { console.error('econet events:', e.message); } } }
 setInterval(ecoWatch, 5000);
-app.get('/api/odu', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ odu: recorder.oduState(), poller: pollerInfo(), cleared: recorder.oduClearedAt() }); });
+app.get('/api/odu', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ odu: recorder.oduState(), poller: Object.assign(pollerInfo(), { active: pollerInfo().active || [...lgLines.values()].some(L => L.master.state.active) }), cleared: recorder.oduClearedAt(), find: oduFindInfo(), addrs: oduAddrsAll(), lineOf: Object.fromEntries(oduLine) }); });
 // --- cycle diagnosis on the controller: persistent findings become advisories ------------------------
 const { createDiagWatch } = require('./diagwatch');
 const diagWatch = createDiagWatch({ dataDir: DATA, htmlPath: fs.existsSync(path.join(DIR, 'cortex.html')) ? path.join(DIR, 'cortex.html') : path.join(DIR, '..', 'cortex.html'), log: (t) => console.log('diagnosis:', t),
@@ -1018,6 +1018,7 @@ busMaster = createMaster({
   patchUnits,
   drain: () => drainFor(0),
   oduAddrs: () => oduAddrsFor(0),
+  oduScanNext: (n) => oduScanNext(0, n), onOduFound: (a) => oduFound(0, a), oduWanted: () => oduNow,
   onOdu: (f) => { oduLine.set(f[4], 0); recorder.onOdu(f); },
   onPass: passDone,
   onEnd: () => { pollerEndedAt = Date.now(); setTimeout(() => { superviseBus(); busTell(); }, 0); },
@@ -1025,7 +1026,35 @@ busMaster = createMaster({
 });
 // Outdoor units: nobody says which line one is on, so every line asks for an address until one of them gets an answer.
 const oduLine = new Map();
-function oduAddrsFor(line) { const c = readJsonSafe(APPCFG) || {}; return (Array.isArray(c.oduAddrs) ? c.oduAddrs : []).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF && (!oduLine.has(a) || oduLine.get(a) === line)); }
+// Outdoor addresses the controller found or was asked to read itself, kept beside the ones saved from a screen.
+const ODUAF = path.join(DATA, 'odu-addrs.json');
+const oduOwn = new Set(((readJsonSafe(ODUAF) || {}).addrs || []).filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF));
+const oduOwnSave = () => { try { writeFileAtomic(ODUAF, JSON.stringify({ addrs: [...oduOwn].sort((a, b) => a - b) })); } catch (_) {} };
+function oduAddrsAll() { const c = readJsonSafe(APPCFG) || {}; return [...new Set((Array.isArray(c.oduAddrs) ? c.oduAddrs : []).concat([...oduOwn]))].filter(a => Number.isInteger(a) && a >= 0 && a < 0xFF); }
+function oduAddrsFor(line) { return oduAddrsAll().filter(a => !oduLine.has(a) || oduLine.get(a) === line); }
+/* Find outdoor units from the controller, on every LG line at once: the read-only monitor page, asked of each
+   address in turn. Any screen can start it; no screen has to hold the adapter. */
+let oduFind = null;                          // { at, per: Map(line -> {cur, done}), found: Set }
+const oduLinesNow = () => [0].concat([...lgLines.keys()]).filter(l => { const m = l ? lgLines.get(l).master : busMaster, lk = l ? lgLines.get(l).link : link; return lk.state.port && (l ? true : !lk.state.driver) && m; });
+function oduScanNext(line, n) { const F = oduFind; if (!F) return []; const st = F.per.get(line); if (!st || st.done) return [];
+  const out = []; while (out.length < n && st.cur <= 0xFE) out.push(st.cur++);
+  if (!out.length) { st.done = true; if ([...F.per.values()].every(x => x.done)) { F.endedAt = Date.now(); console.log('outdoor search finished: ' + F.found.size + ' found'); } }
+  return out; }
+function oduFound(line, a) { oduLine.set(a, line); if (!oduOwn.has(a)) { oduOwn.add(a); oduOwnSave(); } if (oduFind) oduFind.found.add(a); }
+const oduFindInfo = () => { const F = oduFind; if (!F) return null; const per = [...F.per.values()]; return { running: !F.endedAt, asked: per.reduce((s, x) => s + Math.min(255, x.cur), 0), total: per.length * 255, lines: per.length, found: [...F.found].sort((a, b) => a - b), at: F.at }; };
+app.post('/api/odu/find', (req, res) => { cors(res); const b = req.body || {};
+  if (b.stop === true) { if (oduFind && !oduFind.endedAt) { oduFind.per.forEach(x => { x.done = true; }); oduFind.endedAt = Date.now(); } return res.json({ ok: true, find: oduFindInfo() }); }
+  if (!masterMode()) return res.status(409).json({ err: 'live polling is off. Start it first: Cortex only talks on a line when it is the master on this site' });
+  const lines = oduLinesNow(); if (!lines.length) return res.status(409).json({ err: 'no LG line is connected' });
+  oduFind = { at: Date.now(), per: new Map(lines.map(l => [l, { cur: 0, done: false }])), found: new Set(), endedAt: 0 }; superviseBus(); res.json({ ok: true, find: oduFindInfo() }); });
+// Read one outdoor unit now, by its central-control address: it joins the list every line tries, and the next pass reads it.
+let oduNow = false;
+app.post('/api/odu/read', (req, res) => { cors(res); const a = Number((req.body || {}).addr);
+  if (!Number.isInteger(a) || a < 0 || a > 0xFE) return res.status(400).json({ err: 'need the outdoor unit address (0-254)' });
+  if (!masterMode()) return res.status(409).json({ err: 'live polling is off' });
+  if (!oduOwn.has(a)) { oduOwn.add(a); oduOwnSave(); } oduLine.delete(a); oduNow = true; setTimeout(() => { oduNow = false; }, 20000);
+  if (busMaster) busMaster.state.oduAt = 0; for (const L of lgLines.values()) L.master.state.oduAt = 0; superviseBus(); res.json({ ok: true }); });
+app.post('/api/odu/forget', (req, res) => { cors(res); const a = Number((req.body || {}).addr); if (oduOwn.delete(a)) oduOwnSave(); oduLine.delete(a); res.json({ ok: true }); });
 let passAt = 0;
 function passDone() { if (Date.now() - passAt < 2000) return; passAt = Date.now(); histSample(); recorder.sample(unitsDoc.units); }   // several lines finish passes; the history is sampled once
 
@@ -1059,6 +1088,7 @@ function lgStart(cfg) {
     patchUnits,
     drain: () => drainFor(cfg.id),
     oduAddrs: () => oduAddrsFor(cfg.id),
+    oduScanNext: (n) => oduScanNext(cfg.id, n), onOduFound: (a) => oduFound(cfg.id, a), oduWanted: () => oduNow,
     onOdu: (f) => { oduLine.set(f[4], cfg.id); recorder.onOdu(f); },
     onPass: passDone,
     onEnd: () => { L.endedAt = Date.now(); setTimeout(() => { superviseBus(); busTell(); }, 0); },
@@ -1111,7 +1141,8 @@ let pollerEndedAt = 0;
 // site, there are units to ask, and no screen is using the bus tools. Anything else: stay off the wire.
 function superviseBus() {
   if (!busMaster) return;
-  const want = !!link.state.port && !link.state.driver && masterMode() && unitsDoc.units.length > 0;
+  const oduBusy = () => oduNow || (oduFind && !oduFind.endedAt);
+  const want = !!link.state.port && !link.state.driver && masterMode() && (unitsDoc.units.some(u => u && !u.bus) || oduBusy());
   if (busMaster.state.active) { if (!want && !busMaster.state.stopping) busMaster.stop().then(() => busTell(), () => {}); return; }
   if (!want) return;
   if (busMaster.state.error && Date.now() - pollerEndedAt < 15000) return;      // failing: try again shortly, not in a tight loop
@@ -1120,7 +1151,7 @@ function superviseBus() {
 const superviseFirst = superviseBus;
 // every line by the same rule; an extra line also runs while it is searching for its units
 superviseBus = function () { superviseFirst();
-  for (const L of lgLines.values()) { const m = L.master, want = !!L.link.state.port && masterMode() && (lgUnits(L.cfg.id).length > 0 || (L.scan && !L.scan.done));
+  for (const L of lgLines.values()) { const m = L.master, want = !!L.link.state.port && masterMode() && (lgUnits(L.cfg.id).length > 0 || (L.scan && !L.scan.done) || oduNow || (oduFind && !oduFind.endedAt));
     if (m.state.active) { if (!want && !m.state.stopping) m.stop().then(() => busTell(), () => {}); continue; }
     if (!want) continue; if (m.state.error && Date.now() - L.endedAt < 15000) continue;
     m.start(); busTell(); } };
