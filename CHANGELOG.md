@@ -2,9 +2,9 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.7.1-beta.10 — 2026-11-19 (phone: blurred header)
+## v1.7.1-beta.9 — 2026-11-19 (phone: blurred header)
 
-_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes `cortex.html`._
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.8. Changes `cortex.html`._
 
 **Fixed**
 - **Phone: the top of the page could look blurred on Indoor units.** Cortex has no blur of its own; iOS
@@ -12,9 +12,32 @@ _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes 
   now pinned so only the list inside it scrolls, and a pull past the end stays inside the list.
   Not reproduced off the phone, so this one needs confirming on the device.
 
-## v1.7.1-beta.9 — 2026-11-18 (one light for every bus, Rheem / Ruud fault guides)
+## v1.7.1-beta.8 — 2026-11-18 (one home for every manufacturer)
 
-_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.8. Changes `cortex.html`,
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.7. Changes `cortex.html`,
+`appliance/server.js`, `appliance/econetlink.js`, `tests/econet-ui.test.js`._
+
+**Changed**
+- **Rheem / Ruud systems are units like any other.** The separate Rheem / Ruud tab is gone. Each system
+  is a card on Indoor units and a tile or marker on the Building map, in whatever group it is given,
+  and counts in the Running / Off / Errors tiles. Tapping it opens its panel.
+- **Manufacturer filter and split.** When a building has more than one make, Indoor units gets
+  "All makes / LG / Rheem / Ruud" and a switch between mixing the makes in your groups and giving each
+  make its own section.
+- **Bus scan shows any wire.** A switch at the top picks the LG bus or a Rheem / Ruud system's bus,
+  with live messages, who is talking, and the connect / listen / talk controls.
+- **Settings ▸ Equipment** lists every make: set up (with Manage), not set up (with Set up now), or
+  coming soon. The Rheem / Ruud setup page is reached from there.
+
+**Added**
+- A Rheem / Ruud system can be given a group and sub-group, kept on the controller.
+
+**Not changed yet**: All on / All off, Select and schedules still act on LG units only; Rheem / Ruud
+systems are changed from their own panel.
+
+### Also in v1.7.1-beta.8: one light for every bus, Rheem / Ruud fault guides
+
+_Published as part of v1.7.1-beta.8. Changes `cortex.html`,
 `command-center.html`, `appliance/server.js`, `appliance/recorder.js`, `desktop-app/watch.js`, tests._
 
 **Added**
@@ -42,29 +65,6 @@ _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.8. Changes 
 
 **Not verified on real equipment:** the exact text a Rheem / Ruud system reports for an alarm. The
 guides are found by the code word (for example `A021_A`) anywhere in that text.
-
-## v1.7.1-beta.8 — 2026-11-18 (one home for every manufacturer)
-
-_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.7. Changes `cortex.html`,
-`appliance/server.js`, `appliance/econetlink.js`, `tests/econet-ui.test.js`._
-
-**Changed**
-- **Rheem / Ruud systems are units like any other.** The separate Rheem / Ruud tab is gone. Each system
-  is a card on Indoor units and a tile or marker on the Building map, in whatever group it is given,
-  and counts in the Running / Off / Errors tiles. Tapping it opens its panel.
-- **Manufacturer filter and split.** When a building has more than one make, Indoor units gets
-  "All makes / LG / Rheem / Ruud" and a switch between mixing the makes in your groups and giving each
-  make its own section.
-- **Bus scan shows any wire.** A switch at the top picks the LG bus or a Rheem / Ruud system's bus,
-  with live messages, who is talking, and the connect / listen / talk controls.
-- **Settings ▸ Equipment** lists every make: set up (with Manage), not set up (with Set up now), or
-  coming soon. The Rheem / Ruud setup page is reached from there.
-
-**Added**
-- A Rheem / Ruud system can be given a group and sub-group, kept on the controller.
-
-**Not changed yet**: All on / All off, Select and schedules still act on LG units only; Rheem / Ruud
-systems are changed from their own panel.
 
 ## v1.7.1-beta.7 — 2026-11-18 (roles you define: name a role, tick its permissions)
 

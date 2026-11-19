@@ -542,7 +542,7 @@ The user's rule: **one Cortex per building, every make in it together, never a c
   `brandOf(u)==="lg"` (`ctlAllowed()` already refuses other makes).
 - Brands not built yet stay listed as "Coming soon" in Settings ▸ Equipment.
 
-## Addendum: fault guides and events for every make (v1.7.1-beta.9)
+## Addendum: fault guides and events for every make (v1.7.1-beta.8)
 
 - Fault guides are one machine for every make: `ERRORS`, `DIAG`, `FIG`, `errInfo`, `openError`,
   `openDiagnose`. Rheem / Ruud entries live under namespaced keys: `R:A021_A` (heating and cooling) and
