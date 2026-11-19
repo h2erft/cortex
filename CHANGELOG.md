@@ -10,7 +10,9 @@ _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.8. Changes 
 - **Phone: the top of the page could look blurred on Indoor units.** Cortex has no blur of its own; iOS
   lays one over the top of the screen when the whole page scrolls or stretches. On a phone the page is
   now pinned so only the list inside it scrolls, and a pull past the end stays inside the list.
-  Not reproduced off the phone, so this one needs confirming on the device.
+  Confirmed on an iPhone.
+- **Phone: the strip behind the clock and battery follows the theme.** It takes the header's colour in
+  light and dark, instead of staying light.
 
 ## v1.7.1-beta.8 — 2026-11-18 (one home for every manufacturer)
 
