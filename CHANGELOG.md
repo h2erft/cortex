@@ -2,6 +2,15 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.10 — 2026-11-19 (phone: status bar strip follows the theme)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.9. Changes `cortex.html`._
+
+**Fixed**
+- **Phone: the strip behind the clock and battery follows the theme.** After beta.9 it stayed light in
+  dark mode. It now takes the header's colour in light and dark, and follows the phone when the theme
+  is set to automatic.
+
 ## v1.7.1-beta.9 — 2026-11-19 (phone: blurred header)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.8. Changes `cortex.html`._
@@ -11,8 +20,6 @@ _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.8. Changes 
   lays one over the top of the screen when the whole page scrolls or stretches. On a phone the page is
   now pinned so only the list inside it scrolls, and a pull past the end stays inside the list.
   Confirmed on an iPhone.
-- **Phone: the strip behind the clock and battery follows the theme.** It takes the header's colour in
-  light and dark, instead of staying light.
 
 ## v1.7.1-beta.8 — 2026-11-18 (one home for every manufacturer)
 
