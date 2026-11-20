@@ -166,7 +166,7 @@ function createMaster(io) {
         await sleep(TURNAROUND); }
       // a search for outdoor units: the read-only monitor page 0, a few addresses each pass
       for (const a of oprobes) { if (S.stopping) break;
-        const f = await exchange(oduQuery(a, 0), rx => findOduPage(rx, a), 350);
+        const f = await exchange(oduQuery(a, 0), rx => findOduPage(rx, a), 450);
         if (f) { try { io.onOdu(f); if (io.onOduFound) io.onOduFound(a); } catch (_) {} }
         await sleep(TURNAROUND); }
       if (S.stopping) break;

@@ -23,6 +23,7 @@ function cleanSerial(s) { s = s || {};
 /* createLink(io)
  *   io.open(serial)   -> Promise<port>  (serialport-like: write(buf,cb), drain(cb), on('data'|'error'|'close'), close(cb), isOpen)
  *   io.load()         -> { on, serial } or null        io.save({ on, serial })
+ *   io.onTx(buf)      (optional) every frame sent
  *   io.onBytes(buf)   every byte heard                 io.onChange()   something in info() changed
  *   io.log(text)      io.retryMs   io.leaseIdle
  */
@@ -65,7 +66,8 @@ function createLink(io) {
     const prev = S.driver && S.driver !== who ? S.driver : null; S.driver = who; S.driverAt = Date.now(); changed(); return { ok: true, prev };
   }
   function release(who) { if (!S.driver || (who && S.driver !== who)) return false; S.driver = null; changed(); return true; }
-  function write(who, buf) { if (!S.port || !who || S.driver !== who) return false; S.driverAt = Date.now(); try { S.port.write(Buffer.from(buf)); return true; } catch (_) { return false; } }
+  const tx = (b) => { try { if (io.onTx) io.onTx(Buffer.from(b)); } catch (_) {} };
+  function write(who, buf) { if (!S.port || !who || S.driver !== who) return false; S.driverAt = Date.now(); try { S.port.write(Buffer.from(buf)); tx(buf); return true; } catch (_) { return false; } }
   function tick() { if (S.driver && Date.now() - S.driverAt > (io.leaseIdle || LEASE_IDLE)) { log('bus tools idle: handed back to the controller'); release(); } if (S.on && !S.port && !S.opening) retry(); }
   /* The controller's own loop talks through this. It never closes the real adapter. */
   function facade() {
@@ -73,14 +75,14 @@ function createLink(io) {
     const L = { data: [], error: [], close: [] }, t = { emit: (ev, x) => L[ev].slice().forEach(f => { try { f(x); } catch (_) {} }) }; taps.add(t);
     const live = () => S.port === p && taps.has(t) && p.isOpen !== false, dead = new Error('port closed');
     return { get isOpen() { return live(); }, on: (ev, f) => { if (L[ev]) L[ev].push(f); },
-      write: (b, cb) => (live() && !S.driver ? p.write(b, cb) : cb && cb(dead)), drain: (cb) => (live() ? p.drain(cb) : cb && cb(dead)),
+      write: (b, cb) => (live() && !S.driver ? (tx(b), p.write(b, cb)) : cb && cb(dead)), drain: (cb) => (live() ? p.drain(cb) : cb && cb(dead)),
       close: (cb) => { taps.delete(t); if (cb) cb(); } };
   }
   /* A schedule's frames when nothing is polling: each frame three times, with room for the replies. */
   async function transmit(frames, wait) {
     if (!S.port || S.driver || S.tx || !frames || !frames.length) return false; S.tx = true; const p = S.port, sleep = wait || ((ms) => new Promise(r => setTimeout(r, ms)));
     try { for (const f of frames) { for (let i = 0; i < 3; i++) { if (S.port !== p || S.driver) return false;
-          await new Promise((res, rej) => p.write(Buffer.from(f), (e) => e ? rej(e) : p.drain((e2) => e2 ? rej(e2) : res()))); await sleep(350); } await sleep(250); }
+          tx(f); await new Promise((res, rej) => p.write(Buffer.from(f), (e) => e ? rej(e) : p.drain((e2) => e2 ? rej(e2) : res()))); await sleep(350); } await sleep(250); }
       return true; } finally { S.tx = false; }
   }
   const info = () => ({ on: S.on, open: !!S.port, opening: S.opening, error: S.on ? S.error : null, serial: S.serial, driver: !!S.driver });

@@ -727,6 +727,15 @@ svg.ug{width:100%;height:100%;display:block}
 #navbtn{display:none}
 @media (hover:none){.btn,.icon-btn,.segmented button{min-height:38px}}
 @media (max-width:560px){.drawer{width:100%}.lrow{grid-template-columns:14px 1.4fr .8fr .8fr}.lrow .lc-hide{display:none}}
+/* outdoor unit tiles */
+.odu-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-top:14px;align-items:start}
+.odu-tile{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--sc,var(--accent));border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;cursor:pointer;min-width:0;transition:transform .12s ease,box-shadow .12s ease}
+.odu-tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.odu-tile h4{margin:0;font-size:15px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.odu-tile .ot-sub{font-size:12px;color:var(--text-dim);margin-top:2px;overflow-wrap:anywhere}
+.odu-tile .ot-vals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.odu-tile .ot-v{background:var(--surface-2);border-radius:9px;padding:7px 9px;min-width:0}.odu-tile .ot-v small{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.odu-tile .ot-v b{font-size:17px;font-weight:650;white-space:nowrap}.odu-tile .ot-v b i{font-style:normal;font-size:11px;color:var(--text-dim);font-weight:500;margin-left:2px}
+.odu-tile .ot-foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--text-dim)}
 /* first sign-in tour */
 #tour-veil{position:fixed;inset:0;z-index:400;pointer-events:auto}
 #tour-hole{position:fixed;z-index:401;border-radius:12px;box-shadow:0 0 0 9999px rgba(8,12,18,.62),0 0 0 3px var(--accent);pointer-events:none;transition:all .25s ease}
@@ -1934,22 +1943,26 @@ function cyFmt(){const F=settings.unit!=="C";return {
 let ODU_FIND=null;
 function oduCtlOk(){return APPL&&!liveTx()&&(POLLER.active||(LINK.lines||[]).some(l=>l.polling)||LINK.polling);}
 async function oduSrv(path,body){const r=await fetch("/api/odu/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.err||("HTTP "+r.status));return j;}
-async function oduSrvRead(){const el=document.getElementById("odu-addr");const a=parseInt(((el&&el.value)||"").trim().replace(/^0x/i,""),16);
-  if(!Number.isFinite(a)||a<0||a>0xFE){toast("Enter the outdoor unit's central address in hex (00–FE)");return;}
+function oduBoxAddr(){const el=document.getElementById("odu-addr");const a=parseInt(((el&&el.value)||"").trim().replace(/^0x/i,""),16);
+  if(!Number.isFinite(a)||a<0||a>0xFE){toast("Type the outdoor unit's central address in hex first (00–FE)");return null;}return a;}
+async function oduSrvRead(){{const why=oduGroupWhyNot();if(why){toast(why);return;}}const a=oduBoxAddr();if(a==null)return;
   try{await oduSrv("read",{addr:a});const t0=Date.now();toast("Asking outdoor unit "+hx(a)+" on every line…");
     setTimeout(async()=>{await oduPull();const o=ODU.get(a),ok=o&&Object.values(o.pages).some(p=>p.at>=t0-1000);toast(ok?("Outdoor unit "+hx(a)+" answered"):("No answer from "+hx(a)+" yet. Is that the outdoor unit's central-control address?"));if(view==="cycle")renderCycle();},9000);}catch(e){toast(e.message);}}
-async function oduSrvFind(){try{if(ODU_FIND&&ODU_FIND.running){ODU_FIND=(await oduSrv("find",{stop:true})).find;}
+async function oduSrvFind(){{const why=oduGroupWhyNot();if(why){toast(why);return;}}try{if(ODU_FIND&&ODU_FIND.running){ODU_FIND=(await oduSrv("find",{stop:true})).find;}
     else{if(!confirm("Search for outdoor units?\n\nThe controller asks every address on every connected LG line (about three minutes). The indoor units keep updating meanwhile."))return;ODU_FIND=(await oduSrv("find",{})).find;toast("Searching for outdoor units on every line…");}}
   catch(e){toast(e.message);}if(view==="cycle")renderCycle();}
 function oduControls(){
   if(!isMaster()&&oduCtlOk()){const F=ODU_FIND;return `<input class="inp" id="odu-addr" placeholder="ODU addr (hex)" style="width:128px;margin:0" maxlength="4">
-      <button class="btn" id="odu-sread" title="Ask one outdoor unit now, by its central-control address. Every LG line tries it.">Read</button>
+      <button class="btn" id="odu-sread" title="Look for just this outdoor unit, by its central-control address. Every LG line tries it, and it is remembered once it answers.">Find this one</button>
+      <button class="btn" id="odu-ask1" title="Ask only this outdoor unit which indoor units belong to it, instead of asking every outdoor unit again">Ask it for its indoor units</button>
       <button class="btn" id="odu-sfind" title="The controller asks every address on every LG line for an outdoor unit (about three minutes)">${F&&F.running?"■ Stop search":"Find outdoor units"}</button>
       ${F?`<span style="font-size:12px;color:var(--text-dim)" id="odu-find-txt">${F.running?"Searching… "+Math.round(100*F.asked/Math.max(1,F.total))+"%":"Search finished"} · ${F.found.length?("found "+F.found.map(a=>hx(a)).join(", ")):"none found"+(F.running?" yet":"")}</span>`:""}
       <button class="btn primary" id="odu-group" title="The controller asks each outdoor unit, on whichever LG line it is on, which indoor units belong to it, then offers to group them">Group by outdoor unit</button>`;}
-  if(!isMaster())return `<button class="btn" id="odu-group" style="opacity:.6" title="${ue(oduGroupWhyNot())}">Group by outdoor unit</button><span style="font-size:12px;color:var(--text-faint)">${liveTx()?"Fills in as the LG central polls its outdoor units.":(POLLER.active?"Read by the controller about once a minute.":"Outdoor data is read while Cortex is polling the bus.")}${tip(oduGroupWhyNot()||"Find outdoor units, Read and Group by outdoor unit work while live polling is on.")}</span>`;
+  if(!isMaster())return `<input class="inp" id="odu-addr" placeholder="ODU addr (hex)" style="width:128px;margin:0" maxlength="4"><button class="btn" id="odu-sread" style="opacity:.6" title="${ue(oduGroupWhyNot())}">Find this one</button><button class="btn" id="odu-ask1" style="opacity:.6" title="${ue(oduGroupWhyNot())}">Ask it for its indoor units</button><button class="btn" id="odu-sfind" style="opacity:.6" title="${ue(oduGroupWhyNot())}">Find outdoor units</button><button class="btn" id="odu-group" style="opacity:.6" title="${ue(oduGroupWhyNot())}">Group by outdoor unit</button><span style="font-size:12px;color:var(--text-faint)">${liveTx()?"Fills in as the LG central polls its outdoor units.":(POLLER.active?"Read by the controller about once a minute.":"Outdoor data is read while Cortex is polling the bus.")}${tip(oduGroupWhyNot()||"Find outdoor units, Read and Group by outdoor unit work while live polling is on.")}</span>`;
   return `<input class="inp" id="odu-addr" placeholder="ODU addr (hex)" style="width:128px;margin:0" maxlength="4">
-      <button class="btn" id="odu-read">Read</button><button class="btn" id="odu-find" title="Sweep every address for outdoor units (about 2 minutes)">Find outdoor units</button>
+      <button class="btn" id="odu-read" title="Look for just this outdoor unit, by its central-control address">Find this one</button>
+      <button class="btn" id="odu-ask1" title="Ask only this outdoor unit which indoor units belong to it, instead of asking every outdoor unit again">Ask it for its indoor units</button>
+      <button class="btn" id="odu-find" title="Sweep every address for outdoor units (about 2 minutes)">Find outdoor units</button>
       <button class="btn primary" id="odu-group" ${oduAddrs().length?"":"style=\"opacity:.6\""} title="Ask each outdoor unit which indoor units belong to it, then group them">Group by outdoor unit</button>`;}
 /* ---- component help: what it is, what it is doing, what normal looks like ----
    Normal ranges are LG's "Typical Operating Values — Multi V IV" (steady state, more than 80 % of the
@@ -2064,14 +2077,40 @@ function oduChecks(us,idus){const all=[];us.forEach((u,k)=>oduAdvice(u,k===0?idu
   if(!any)return `<div class="cy-checks idle">System is idle — readings aren't checked against running ranges.${note}</div>`;
   if(!all.length)return `<div class="cy-checks ok">✓ Readings are inside LG's typical running ranges.${note}</div>`;
   return `<div class="cy-checks"><b>Worth a look</b>${note}${all.map(a=>`<div class="${a.sev}"><span>${a.sev==="bad"?"●":"▲"}</span><span><b>${a.who}:</b> ${a.t}</span></div>`).join("")}</div>`;}
+/* One tile per outdoor unit with only what matters at a glance. Tapping one opens everything it reports, with its own
+   indoor units listed right underneath. cyOdu is the address that is open (null = the tiles). */
+let cyOdu=null;
+const oduLineName=a=>{const l=ODU_LINE_OF[a];if(l==null||!lgLines().length)return "";return l===0?"LG line 1":((lgLines().find(x=>x.id===l)||{}).name||"");};
+let ODU_LINE_OF={};
+function oduTiles(list){const f=cyFmt(),known=new Set(list.map(o=>o.addr)),quiet=oduAddrs().filter(a=>!known.has(a));
+  const tiles=list.map((o,i)=>{const col=CY_SYS_COL[i%CY_SYS_COL.length],mine=units.filter(u=>u.odu===o.addr),ot=oduOther(o),us=ot?[]:oduUnits(o),m=us[0],ln=oduLineName(o.addr);
+    const age=Math.max(0,...Object.values(o.pages).map(p=>p.at||0)),foot=`<div class="ot-foot"><span>${mine.length?mine.length+" indoor unit"+(mine.length!==1?"s":"")+" · "+mine.filter(u=>u.on).length+" on":"indoor units not grouped yet"}</span><span style="flex:1"></span>${ln?`<span>${ue(ln)}</span>`:""}<span>${age?ago(age):""}</span></div>`;
+    if(!m)return `<div class="odu-tile" data-odu="${o.addr}" style="--sc:${col}"><h4>Outdoor unit ${hx(o.addr)}</h4><div class="ot-sub">${ot?ue(ot.name)+" · data map not known yet":"waiting for its first full reading"}</div>${foot}</div>`;
+    const hz=us.reduce((t,u)=>t+Math.max(0,u.inv1Hz||0)+Math.max(0,u.inv2Hz||0),0),h=sysHealth(o),run=us.some(u=>u.running);
+    return `<div class="odu-tile" data-odu="${o.addr}" style="--sc:${col}">
+      <h4>Outdoor unit ${hx(o.addr)} <span class="cy-pill ${run?"run":""}">${run?"running":"idle"}</span><span class="cy-pill ${m.mode==="heat"?"heat":m.mode==="cool"?"cool":""}">${ue(m.mode)}</span>${us.some(u=>u.defrost)?'<span class="cy-pill warn">defrost</span>':""}${m.err?`<span class="cy-pill bad">error ${m.err}</span>`:""}</h4>
+      <div class="ot-sub">${ue(m.fam.name)} ${ue(m.product)}${m.subs?" · main + "+m.subs+" sub":""}</div>
+      <div class="ot-vals"><div class="ot-v"><small>High pressure</small><b>${f.pr(m.hp)}<i>${f.pu}</i></b></div><div class="ot-v"><small>Low pressure</small><b>${f.pr(m.lp)}<i>${f.pu}</i></b></div>
+        <div class="ot-v"><small>Outdoor air</small><b>${f.tt(m.air)}</b></div><div class="ot-v"><small>Compressor</small><b>${hz}<i>Hz</i></b></div></div>
+      <div class="ot-foot" style="margin-top:8px">${h==null?"":`<span class="cy-pill ${h>=85?"run":h>=65?"warn":"bad"}">health ${h}</span>`}<span style="flex:1"></span><span style="color:var(--accent);font-weight:600">Open ›</span></div>${foot}</div>`;}).join("");
+  const q=quiet.map(a=>`<div class="odu-tile" data-oduq="${a}" style="--sc:var(--border-strong);cursor:default;opacity:.8"><h4>Outdoor unit ${hx(a)} <span class="cy-pill warn">no reading yet</span></h4><div class="ot-sub">Known address${oduLineName(a)?" on "+ue(oduLineName(a)):""}, but it has not answered since Cortex started.</div></div>`).join("");
+  const loose=units.filter(u=>u.odu==null||!oduAddrs().includes(u.odu)).length;
+  return (tiles||q)?`<div class="odu-tiles">${tiles}${q}</div>${loose?iduSection("none"):""}`
+    :`<div class="cyc-note" style="margin-top:14px;display:block">No outdoor-unit data yet. Press <b>Find outdoor units</b>, or type an outdoor unit's central address and press <b>Find this one</b>.</div>${iduSection("all")}`;}
+function oduDetail(list){const o=list.find(x=>x.addr===cyOdu);if(!o){cyOdu=null;return oduTiles(list);}
+  return `<div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap"><button class="btn" id="odu-back">‹ All outdoor units</button>
+      <span style="color:var(--text-dim);font-size:13px">${oduLineName(o.addr)?ue(oduLineName(o.addr))+" · ":""}${units.filter(u=>u.odu===o.addr).length} indoor units grouped to it</span><span style="flex:1"></span>
+      <button class="btn" data-oduask="${o.addr}" title="Ask only this outdoor unit which indoor units belong to it">Ask it for its indoor units</button></div>
+    ${oduCards([o])}${iduSection(o.addr)}`;}
 function oduCards(list){
   const cards=list.map((o,i)=>{const ot=oduOther(o);
     if(ot)return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[i%CY_SYS_COL.length]}"><div class="cy-head"><div class="cy-badge">${hx(o.addr)}</div><div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)}</div><div class="cy-subt">${ue(ot.name)} · family ${ot.hex}</div></div></div><div class="cy-checks idle">This outdoor unit answers, but its family (${ue(ot.name)}${ot.tag?", LG tag "+ue(ot.tag):""}) packs its data differently from Multi V IV, and Cortex does not have that map yet. Nothing is shown rather than showing wrong numbers. Indoor-unit control and monitoring are not affected.</div></div>`;
     const us=oduUnits(o);if(!us.length)return "";const idus=units.filter(u=>u.odu===o.addr);
     return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[i%CY_SYS_COL.length]}">${oduHead(o,us[0],i,list.length)}${oduChecks(us,idus)}${oduDiagnosis(o)}<div class="cy-units">${us.map((u,k)=>oduUnitPanel(u,k,idus)).join("")}</div></div>`;}).join("");
   return cards||`<div class="cyc-note" style="margin-top:14px;display:block">No outdoor-unit data yet. ${isMaster()?"Use <b>Find outdoor units</b> (or type the outdoor unit's central address and press Read).":"It appears here once an outdoor unit has been read."}</div>`;}
-function iduSection(){
-  const us=units.filter(u=>groupFilter==="all"||catVals(u,gdim()).includes(groupFilter));
+function iduSection(only){const known=oduAddrs();
+  const us=units.filter(u=>typeof only==="number"?u.odu===only:only==="none"?(u.odu==null||!known.includes(u.odu)):(groupFilter==="all"||catVals(u,gdim()).includes(groupFilter)));
+  if(typeof only==="number"&&!us.length)return `<div class="cyc-note" style="margin-top:14px;display:block">No indoor units are grouped to this outdoor unit yet. Press <b>Ask it for its indoor units</b> above.</div>`;
   const t=v=>(v==null||!isFinite(v))?"—":tnum(v)+"°";
   const tone=(v,room)=>(v==null||room==null)?"":(v<room-4?"color:var(--cool)":v>room+4?"color:var(--heat)":"");
   const row=u=>{const dT=(u.pipeIn!=null&&u.pipeOut!=null)?tnum(u.pipeOut)-tnum(u.pipeIn):null;const eevPct=u.eev!=null?Math.max(0,Math.min(100,Math.round((u.eev-40)/(1350-40)*100))):null;
@@ -2853,6 +2892,7 @@ let POLLER={active:false};
 let ODU_CLEARED=null;
 async function oduPull(){if(IS_FILE||liveTx()||!currentUser)return;
   try{const r=await fetch('/api/odu',{cache:'no-store'});if(!r.ok)return;const j=await r.json();POLLER=j.poller||POLLER;let ch=false;
+    if(j.lineOf&&JSON.stringify(j.lineOf)!==JSON.stringify(ODU_LINE_OF)){ODU_LINE_OF=j.lineOf;ch=true;}
     if(Array.isArray(j.addrs)){const a=j.addrs.filter(x=>Number.isInteger(x));if(a.join()!==ODU_SRV_ADDRS.join()){ODU_SRV_ADDRS=a;ch=true;}}
     {const was=JSON.stringify(ODU_FIND);ODU_FIND=j.find||null;if(was!==JSON.stringify(ODU_FIND)&&view==="cycle"&&!document.querySelector(".modal")&&document.activeElement!==document.getElementById("odu-addr"))ch=true;}
     if(typeof j.cleared==="number"){if(ODU_CLEARED!==null&&j.cleared!==ODU_CLEARED&&ODU.size){ODU.clear();ch=true;}ODU_CLEARED=j.cleared;}   // outdoor data was cleared from another screen: drop this screen's copy too
@@ -2887,15 +2927,18 @@ function oduApplyPlan(plan,regroup){let n=0;
 /* Ask every outdoor unit for its indoor units. A screen that holds line 1 asks on that wire itself; everything else
    (and every outdoor unit that did not answer there) is asked by the controller, which reaches every LG line and
    asks each page up to three times. */
+let ODU_ASKED={};                        // for the result window: which line each outdoor unit was asked on
+const lineNm=l=>l===0?"LG line 1":((lgLines().find(x=>x.id===l)||{}).name||("line "+l));
 async function oduSrvInventory(addrs,note){if(!APPL||!addrs.length)return new Map();
   let j;try{j=await oduSrv("members",{addrs});}catch(e){if(note)note(e.message);return new Map();}
   const t0=Date.now();let m=j.members;
   while(m&&m.running&&Date.now()-t0<360000){await sleep(2500);try{m=(await (await fetch("/api/odu",{cache:"no-store"})).json()).members;}catch(e){}
     if(note&&m)note("Asking the outdoor units… "+m.done+" of "+m.total);}
+  ODU_ASKED={};((m&&m.plan)||[]).forEach(p=>{ODU_ASKED[p.odu]={line:p.line,asked:p.asked||[]};});
   const out=new Map();((m&&m.plan)||[]).forEach(p=>{if(!p.pages)return;const pages=p.pages.map(hexBytes),count=pages[0][11];
     out.set(p.odu,(!count||count>64)?{count,list:[]}:decodeOduInventory(pages));});
   return out;}
-async function oduReadPlan(note){const plan=[],addrs=oduAddrs();
+async function oduReadPlan(note,only){const plan=[],addrs=only&&only.length?only:oduAddrs();
   if(isMaster()){for(const a of addrs){if(!isMaster())break;const inv=await busExclusive(()=>masterOduInventory(a));plan.push({odu:a,inv});await sleep(300);}}
   else addrs.forEach(a=>plan.push({odu:a,inv:null}));
   const missing=plan.filter(p=>!p.inv).map(p=>p.odu);
@@ -2910,12 +2953,12 @@ function oduPlanSane(plan){   // every outdoor unit answered, the lists are comp
   const seen=new Set();let dup=false,hit=0;
   ok.forEach(p=>p.inv.list.forEach(e=>{if(seen.has(e.addr))dup=true;seen.add(e.addr);if(units.some(u=>u.addr===e.addr))hit++;}));
   return ok.length===plan.length&&plan.length>0&&!dup&&hit>0&&hit>=Math.ceil(seen.size*0.6);}
-async function oduGroupClick(auto){
+async function oduGroupClick(auto,only){
   {const why=oduGroupWhyNot();if(why){if(!auto)toast(why);return 0;}}
-  if(!oduAddrs().length){if(!auto)toast("Find the outdoor units first: press Find outdoor units");return 0;}
+  if(!(only&&only.length)&&!oduAddrs().length){if(!auto)toast("Find the outdoor units first: press Find outdoor units");return 0;}
   if(oduBusy)return 0;oduBusy=true;let plan;
-  if(!auto)toast("Asking each outdoor unit for its indoor units. This can take a minute or two…");
-  try{plan=await oduReadPlan(auto?null:(t=>{const b=document.getElementById("odu-group");if(b)b.textContent=t;}));}finally{oduBusy=false;if(!auto&&view==="cycle")renderCycle();}
+  if(!auto)toast(only&&only.length?("Asking outdoor unit "+hx(only[0])+" for its indoor units…"):"Asking each outdoor unit for its indoor units. This can take a minute or two…");
+  try{plan=await oduReadPlan(auto?null:(t=>{const b=document.getElementById("odu-group");if(b)b.textContent=t;}),only);}finally{oduBusy=false;if(!auto&&view==="cycle")renderCycle();}
   const sane=oduPlanSane(plan);
   if(auto){   // during guided setup: only when the answer is clean, and only for units still in a default group
     if(!sane){mlog("ℹ outdoor-unit inventory was not clean — leaving groups alone (use Outdoor / cycle ▸ Group by outdoor unit)");return 0;}
@@ -2923,10 +2966,11 @@ async function oduGroupClick(auto){
       if(/^(New units|System \S+|Outdoor unit \S+)$/.test(grpOf(u))){u.grp=ODU_GROUP(pl.odu);}n++;}));
     if(n){saveUnits();renderAll();renderGroupNav();mlog("✓ grouped "+n+" indoor unit(s) by outdoor unit");}return n;}
   const claimed=new Set();plan.forEach(p=>p.inv&&p.inv.list.forEach(e=>claimed.add(e.addr)));
-  const orphans=units.filter(u=>!claimed.has(u.addr));
-  modal(head("Group by outdoor unit")+`<div class="modal-body">
+  const orphans=only&&only.length?[]:units.filter(u=>!claimed.has(u.addr));
+  const where=p=>{const a=ODU_ASKED[p.odu];if(!a||!lgLines().length)return "";return p.inv?(a.line!=null?` <span class="dim">· on ${ue(lineNm(a.line))}</span>`:""):(a.asked.length?` <span class="dim">· asked on ${a.asked.map(l=>ue(lineNm(l))).join(", ")}, three times each</span>`:"");};
+  modal(head(only&&only.length?"Indoor units of outdoor unit "+hx(only[0]):"Group by outdoor unit")+`<div class="modal-body">
     ${sane?"":`<div class="note-box warn">The answers don’t line up cleanly (an outdoor unit didn’t answer, a list was incomplete, or the addresses don’t match your units). Check the lists below before applying.</div>`}
-    ${plan.map(p=>`<div class="cy-plan"><b>Outdoor unit ${hx(p.odu)}</b> ${p.inv?`<span class="dim">reports ${p.inv.count} indoor unit${p.inv.count!==1?"s":""}</span>`:'<span style="color:var(--warn)">no answer</span>'}
+    ${plan.map(p=>`<div class="cy-plan"><b>Outdoor unit ${hx(p.odu)}</b> ${p.inv?`<span class="dim">reports ${p.inv.count} indoor unit${p.inv.count!==1?"s":""}${p.inv.list.length!==p.inv.count?` <span style="color:var(--warn)">(only ${p.inv.list.length} came through: ask this one again)</span>`:""}</span>`:'<span style="color:var(--warn)">no answer</span>'}${where(p)}
       <div>${p.inv&&p.inv.list.length?p.inv.list.map(e=>{const u=units.find(x=>x.addr===e.addr);return `<span class="tagchip" style="${u?"":"opacity:.55"}" title="type 0x${e.type.toString(16)}">${hx(e.addr)}${u?" · "+ue(dispName(u)):" · not in Cortex"}</span>`;}).join(" "):'<span class="dim">—</span>'}</div></div>`).join("")}
     ${orphans.length?`<div class="cy-plan"><b>Not claimed by any outdoor unit</b><div>${orphans.map(u=>`<span class="tagchip">${hx(u.addr)} · ${ue(dispName(u))}${lgLines().length?" · "+ue(lgLineOf(u)):""}</span>`).join(" ")}</div>
       <div class="dim" style="font-size:12px;margin-top:6px">A unit lands here when its outdoor unit did not answer, has not been found yet (press Find outdoor units), or is on a line that is not connected.</div></div>`:""}
@@ -3366,7 +3410,7 @@ async function busReadLoop(){
      - LISTENS to the bytes while Bus scan is open;
      - may BORROW the wire for the technician tools (discover, raw frames). Only then does bus.port exist,
        so everything written for "this screen holds the adapter" keeps working, and nothing else can transmit. */
-const linkSig=()=>JSON.stringify([(LINK.lines||[]).map(l=>[l.id,l.name,l.on,l.open,l.error,l.polling,l.units,l.label,l.scan&&[l.scan.running,l.scan.asked],l.found&&l.found.length]),LINK.adapter&&LINK.adapter.path,LINK.adapter&&LINK.adapter.present,LINK.on,LINK.open,LINK.opening,LINK.polling,LINK.master,LINK.holder,LINK.error,LINK.mine,LINK.waiting]);
+const linkSig=()=>JSON.stringify([(LINK.lines||[]).map(l=>[l.id,l.name,l.on,l.open,l.error,l.label]),LINK.adapter&&LINK.adapter.path,LINK.adapter&&LINK.adapter.present,LINK.on,LINK.open,LINK.opening,LINK.polling,LINK.master,LINK.holder,LINK.error,LINK.mine,LINK.waiting]);
 function linkSet(i,fromWs){if(!APPL||!i)return;
   if(!fromWs&&busWsOpen()&&LINK.at)return;                       // the live feed is newer than any polled or posted answer
   const was=linkSig();
@@ -3417,6 +3461,86 @@ async function lgLineAdd(){let ports=[];
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Cancel</button>${ports.some(p=>!p.usedBy&&!p.lg)?`<button class="btn primary" id="lgl-save">Add line</button>`:""}</div></div>`);
   const sel=document.getElementById("lgl-p");if(sel){const f=[...sel.options].find(o=>!o.disabled);if(f)sel.value=f.value;}
   const sv=document.getElementById("lgl-save");if(sv)sv.onclick=async()=>{try{const j=await lgApi("",{name:document.getElementById("lgl-n").value,port:sel.value});closeModal();busBrand="lg:"+j.line.id;renderBusScan();toast("Line added. It is listening; nothing has been sent on it.");}catch(e){toast(e.message);}};}
+/* ---- every LG channel on one page ----
+   A table of the channels, one search that walks them in turn, and a live box of what is being said on all of them
+   (or on one, when a channel is picked). Filled in place so it can refresh without redrawing the technician tools below. */
+let lgChan="all",LGT={seq:0,rows:[],paused:false,busy:false};
+const lgChans=()=>[{id:0,name:lgLines().length?"LG line 1":"LG bus",label:(LINK.adapter&&LINK.adapter.label)||"",on:!!LINK.on,open:!!LINK.open,error:LINK.error||null,polling:!!LINK.polling,units:LINK.line1?LINK.line1.units:units.filter(u=>!u.bus).length,
+    passMs:LINK.line1?LINK.line1.passMs:0,scan:LINK.line1?LINK.line1.scan:null,found:LINK.line1?LINK.line1.found:[],bytes:LINK.bytes||0,screen:!!LINK.driver||LINK.holder==="screen"}].concat(lgLines());
+const lgChName=id=>(lgChans().find(c=>c.id===id)||{}).name||("channel "+id);
+function lgSay(r){const b=hexBytes(r.hex),who=a=>{const u=units.find(x=>x.addr===a);return hx(a)+(u?" · "+ue(dispName(u)).slice(0,22):"");};
+  if(r.dir==="tx"){if(b[0]===0x80&&b.length===8)return (b[4]||b[5]||b[6])?"Command to "+who(b[3]):"Ask "+who(b[3]);
+    if(b[0]===0xF0&&b[1]===0xC0)return "Ask outdoor unit "+hx(b[3])+(b[4]>=0x30?" for its indoor units":" (page "+b[4]+")");return "Sent "+b.length+" bytes";}
+  if(b.length>=64&&b[0]===0x40&&b[1]===0x70)return "Outdoor unit "+hx(b[4])+" answered";
+  if(b.length>=16)return "Answer from "+who(b[4]);return "Heard "+b.length+" byte"+(b.length===1?"":"s");}
+function lgFmtLeft(ms){const s=Math.ceil(ms/1000);return s>=90?("about "+Math.round(s/60)+" min left"):s>5?("about "+s+" s left"):"almost done";}
+function lgChFill(full){const el=document.getElementById("lgch");if(!el)return;const C=lgChans(),S=LINK.search,setup=can("eco_setup")||isTechView(),multi=C.length>1;
+  if(lgChan!=="all"&&!C.some(c=>c.id===lgChan))lgChan="all";
+  const st=c=>!c.on?["Not connected","stop"]:!c.open?[c.error?"Adapter problem":"Opening…","err"]:c.screen&&c.id===0&&!c.polling?["Bus tools on a screen","stop"]:c.polling?[c.scan&&c.scan.running?"Searching":"Polling","run"]:["Listening","stop"];
+  const allFound=[];C.forEach(c=>(c.found||[]).forEach(f=>allFound.push(Object.assign({ch:c.id},f))));
+  const fresh=allFound.filter(f=>!f.onLine&&!units.some(u=>u.addr===f.addr)),clash=allFound.filter(f=>f.onLine&&f.onLine!==(f.ch||1));
+  const one=C.find(c=>c.scan&&c.scan.running&&!(S&&S.running));
+  const prog=S?`<div style="margin-top:12px"><div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:13px"><b>${S.running?"Searching every channel":"Search finished"}</b>
+        <span style="color:var(--text-dim)" id="lgch-eta">${S.running?(()=>{const r=S.rows.find(x=>x.state==="now");return (r?"channel "+(S.rows.indexOf(r)+1)+" of "+S.rows.length+" · "+ue(r.name)+" · ":"")+lgFmtLeft(S.etaMs);})():("took "+Math.round(S.elapsedMs/1000)+" s · "+allFound.length+" answered")}</span></div>
+      <div style="height:7px;border-radius:4px;background:var(--border);overflow:hidden;margin:7px 0 8px"><div style="height:100%;width:${S.toProbe?Math.round(100*S.probed/S.toProbe):100}%;background:var(--accent);transition:width .4s"></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px">${S.rows.map(r=>`<span class="tagchip" style="${r.state==="now"?"border-color:var(--accent);color:var(--accent)":r.state==="next"?"opacity:.6":""}">${r.state==="done"?"✓ ":r.state==="now"?"▶ ":""}${ue(r.name)} · ${r.state==="next"?r.total+" addresses to ask":r.found+" found"}</span>`).join("")}${(S.skipped||[]).map(id=>`<span class="tagchip" style="opacity:.6">${ue(lgChName(id))} · not connected, skipped</span>`).join("")}</div></div>`
+    :one?`<div style="margin-top:12px;font-size:13px"><b>Searching ${ue(one.name)}</b> <span style="color:var(--text-dim)">address ${one.scan.asked} of ${one.scan.total}</span>
+      <div style="height:7px;border-radius:4px;background:var(--border);overflow:hidden;margin:7px 0 0"><div style="height:100%;width:${Math.round(100*one.scan.asked/one.scan.total)}%;background:var(--accent)"></div></div></div>`:"";
+  const foundHtml=allFound.length?`<div style="margin-top:12px"><table class="pd-list" style="width:100%;font-size:13px"><tr><th style="text-align:left">Address</th>${multi?`<th style="text-align:left">Channel</th>`:""}<th style="text-align:left">Now</th><th style="text-align:left"></th></tr>
+      ${allFound.map(f=>`<tr><td class="mono">${hx(f.addr)}</td>${multi?`<td>${ue(lgChName(f.ch))}</td>`:""}<td>${f.on?"On":"Off"} · ${ue(f.mode||"")}${f.room!=null?" · room "+Math.round(f.room*9/5+32)+"°F":""}${f.err?" · CH"+String(f.err).padStart(2,"0"):""}</td>
+        <td>${!f.onLine?(units.some(u=>u.addr===f.addr)?"Added":`<span style="color:var(--ok)">New</span>`):f.onLine===(f.ch||1)?"Already on this channel":`<span style="color:var(--warn)">Already in Cortex as “${ue(f.unit||hx(f.addr))}” on ${ue(lgChName(f.onLine===1?0:f.onLine))}</span>${setup?` <button class="linklike" data-lgmove="${f.addr}:${f.ch}">It is on this wire: move it here</button>`:""}`}</td></tr>`).join("")}</table>
+      ${clash.length?`<div class="note-box warn" style="margin-top:10px;font-size:12.5px"><b>${clash.length} address${clash.length===1?" answers":"es answer"} on a channel other than the one Cortex has ${clash.length===1?"it":"them"} on.</b> If the unit really is on that wire, move it there. If two different units share an address, one has to be re-addressed at the unit.</div>`:""}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">${setup?`<button class="btn" id="lgch-clear">Clear results</button>`:""}${setup&&fresh.length?`<button class="btn primary" id="lgch-imp">Add ${fresh.length} new unit${fresh.length===1?"":"s"} to Cortex</button>`:""}</div></div>`
+    :(S&&!S.running?`<div style="margin-top:10px;color:var(--text-dim);font-size:13px">Nothing new answered. Units already in Cortex are not asked again.</div>`:"");
+  const sig=JSON.stringify([C.map(c=>[c.id,c.name,c.label,st(c),c.units,c.passMs,c.error]),S&&[S.running,S.probed,S.toProbe,S.rows.map(r=>[r.state,r.found])],one&&one.scan.asked,allFound.length,fresh.length,lgChan,setup,!!LINK.master,units.length]);
+  if(!full&&el.dataset.sig===sig){const e=document.getElementById("lgch-eta");if(e&&S&&S.running){const r=S.rows.find(x=>x.state==="now");e.textContent=(r?"channel "+(S.rows.indexOf(r)+1)+" of "+S.rows.length+" · "+r.name+" · ":"")+lgFmtLeft(S.etaMs);}return;}
+  el.dataset.sig=sig;const keep=document.getElementById("lgt-rows"),keepHtml=keep?keep.innerHTML:"";
+  el.innerHTML=`<div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="dot ${C.some(c=>c.polling)?"":"idle"}"></span><b>LG channels</b>${tip("Each separate LG wire in the building is a channel with its own adapter, or its own channel of a multi-channel adapter. The controller reads all of them at the same time. Connecting only listens; Cortex talks on a channel only while live polling is on.")}
+        <span style="margin-left:auto;font-size:12px;color:var(--text-dim)">${C.reduce((n,c)=>n+c.units,0)} units on ${C.length} channel${C.length===1?"":"s"}</span></div><div class="labbody">
+      <table class="pd-list" style="width:100%;font-size:13px">${C.map(c=>{const t=st(c);return `<tr><td style="white-space:nowrap"><span class="pill ${t[1]}">${t[0]}</span></td><td><b>${ue(c.name)}</b><div class="mono" style="font-size:11.5px;color:var(--text-faint);overflow-wrap:anywhere">${ue(c.label||"")}${c.error?` · <span style="color:var(--err)">${ue(c.error)}</span>`:""}</div></td>
+          <td style="white-space:nowrap">${c.units} unit${c.units===1?"":"s"}${c.polling&&c.passMs?`<div style="font-size:11.5px;color:var(--text-faint)">a pass takes ${(c.passMs/1000).toFixed(1)} s</div>`:""}</td>
+          <td style="text-align:right;white-space:nowrap">${setup&&c.id?`<button class="linklike" data-lgc="on:${c.id}">${c.on?"Disconnect":"Connect"}</button> · <button class="linklike" data-lgc="scan:${c.id}" ${c.open?"":"disabled"}>Search</button> · <button class="linklike" data-lgc="ren:${c.id}">Rename</button> · <button class="linklike" data-lgc="del:${c.id}">Remove</button>`:setup?`<button class="linklike" data-lgc="adp:0">Choose adapter</button>`:""}</td></tr>`;}).join("")}</table>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">
+        ${setup?`<button class="btn primary" id="lgch-search" title="Asks every address on channel 1, then channel 2 without the addresses channel 1 answered on, and so on. Units already in Cortex are not asked again.">${S&&S.running?"■ Stop search":"🔍 Search every channel for units"}</button><button class="btn" id="lgch-add">＋ Add another LG line</button>`:""}
+        ${!LINK.master?`<span style="font-size:12.5px;color:var(--warn)">Live polling is off, so Cortex is not talking on any channel. Start it below.</span>`:""}</div>
+      ${prog}${foundHtml}
+    </div></div>
+    <div class="lab" style="margin-bottom:14px"><div class="labhead"><span class="dot ${C.some(c=>c.open)?"":"idle"}"></span><b>Live data</b>${tip("What the controller sends and hears on the LG channels, as it happens. Pick a channel to see only that wire.")}
+        <div class="segmented" id="lgt-ch" style="margin-left:auto;flex-wrap:wrap">${[["all","All channels"]].concat(multi?C.map(c=>[c.id,c.name]):[]).map(([k,l])=>`<button class="${String(lgChan)===String(k)?"on":""}" data-lgt="${k}">${ue(l)}</button>`).join("")}</div>
+        <button class="btn sm" id="lgt-pause" style="margin-left:8px">${LGT.paused?"▶ Resume":"⏸ Pause"}</button></div>
+      <div class="labbody" style="padding:0"><div id="lgt-rows" style="max-height:260px;overflow:auto;font-size:12px">${keepHtml}</div></div></div>`;
+  const act=async(f,msg)=>{try{await f();if(msg)toast(msg);}catch(e){toast(e.message);}lgChFill(true);};
+  el.querySelectorAll("[data-lgt]").forEach(b=>b.onclick=()=>{lgChan=b.dataset.lgt==="all"?"all":+b.dataset.lgt;LGT.rows=[];LGT.seq=0;const r=document.getElementById("lgt-rows");if(r)r.innerHTML="";lgChFill(true);lgTraffic();});
+  const pz=document.getElementById("lgt-pause");if(pz)pz.onclick=()=>{LGT.paused=!LGT.paused;pz.textContent=LGT.paused?"▶ Resume":"⏸ Pause";};
+  const sb=document.getElementById("lgch-search");if(sb)sb.onclick=()=>{if(S&&S.running)return act(()=>lgApi("/search-all",{stop:true}));
+    if(!confirm("Search every connected LG channel for units?\n\nThe controller asks each address on channel 1, then moves to the next channel and skips the addresses that already answered. Do this only if no LG central controller is still connected to any of these wires."))return;
+    act(()=>lgApi("/search-all",{}),"Searching. Units already known keep updating meanwhile.");};
+  const ab=document.getElementById("lgch-add");if(ab)ab.onclick=lgLineAdd;
+  const cl=document.getElementById("lgch-clear");if(cl)cl.onclick=()=>act(()=>lgApi("/search-all",{clear:true}));
+  const ib=document.getElementById("lgch-imp");if(ib)ib.onclick=()=>{let nextId=Math.max(0,...units.map(u=>typeof u.id==="number"?u.id:0))+1,n=0;
+    fresh.forEach(f=>{if(units.some(u=>u.addr===f.addr))return;const u=makeDiscoveredUnit(f.addr,"New units",nextId++);if(f.ch)u.bus=f.ch;u.on=!!f.on;if(["cool","heat","auto","dry","fan"].includes(f.mode))u.mode=f.mode;u.offline=false;units.push(u);n++;if(typeof ignoreAddr==="function")ignoreAddr(f.addr,false);});
+    saveUnits();pushUnits(true);renderGroupNav();act(()=>lgApi("/search-all",{clear:true}),n?("Added "+n+" unit(s). Their readings fill in on the next pass."):"Nothing new to add");};
+  el.querySelectorAll("[data-lgmove]").forEach(b=>b.onclick=()=>{const [a,ch]=b.dataset.lgmove.split(":").map(Number),u=units.find(x=>x.addr===a);if(!u)return;if(!confirm("Move “"+dispName(u)+"” ("+hx(a)+") to "+lgChName(ch)+"?\n\nCortex will ask for it on that wire from now on."))return;if(ch)u.bus=ch;else delete u.bus;saveUnits();pushUnits(true);toast("Moved to "+lgChName(ch));setTimeout(()=>lgChFill(true),700);});
+  el.querySelectorAll("[data-lgc]").forEach(b=>b.onclick=()=>{const [k,idS]=b.dataset.lgc.split(":"),id=+idS,c=C.find(x=>x.id===id);if(!c)return;
+    if(k==="adp")return busAdapterPick();
+    if(k==="on")return act(()=>lgApi("",{id,on:!c.on}),c.on?"Channel disconnected. The others carry on.":"Channel connected (listening)");
+    if(k==="scan"){if(!confirm("Search “"+c.name+"” for units?\n\nEvery address on this wire is asked once, including addresses Cortex has on other channels (about two minutes)."))return;return act(()=>lgApi("/"+id+"/scan",{}),"Searching "+c.name);}
+    if(k==="ren"){const v=prompt("Name for this channel",c.name);if(v&&v.trim())act(()=>lgApi("",{id,name:v.trim()}));return;}
+    if(k==="del"){if(!confirm("Remove “"+c.name+"”?\n\nIts adapter is released. Its "+c.units+" unit(s) stay in Cortex but will show as not responding until you delete them or move them to another channel."))return;if(lgChan===id)lgChan="all";act(()=>lgApi("/"+id,{},"DELETE"),"Channel removed");}});
+  lgTraffic();}
+async function lgTraffic(){const box=document.getElementById("lgt-rows");if(!box||LGT.busy||LGT.paused)return;LGT.busy=true;
+  try{const j=await (await fetch("/api/lg-traffic?since="+LGT.seq+(lgChan==="all"?"":"&line="+lgChan),{cache:"no-store"})).json();
+    if(j.seq<LGT.seq){LGT.seq=0;LGT.rows=[];}
+    if(j.rows&&j.rows.length){LGT.seq=j.rows[j.rows.length-1].n;LGT.rows=LGT.rows.concat(j.rows).slice(-150);const multi=lgChans().length>1,atEnd=box.scrollTop+box.clientHeight>=box.scrollHeight-30;
+      box.innerHTML=LGT.rows.map(r=>`<div style="display:grid;grid-template-columns:70px ${multi?"110px ":""}minmax(150px,1.1fr) minmax(0,2fr);gap:8px;padding:4px 12px;border-top:1px solid var(--lab-line,var(--border));align-items:baseline">
+          <span class="mono" style="color:var(--lab-dim,var(--text-faint))">${new Date(r.t).toLocaleTimeString([], {hour12:false})}</span>${multi?`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ue(lgChName(r.line))}</span>`:""}
+          <span style="color:${r.dir==="tx"?"var(--lab-txc,var(--accent))":"var(--lab-text,var(--text))"}">${r.dir==="tx"?"→ ":"← "}${lgSay(r)}</span><span class="mono" style="color:var(--lab-dim,var(--text-faint));overflow-wrap:anywhere">${r.hex.replace(/(..)/g,"$1 ").trim().toUpperCase()}</span></div>`).join("");
+      if(atEnd)box.scrollTop=box.scrollHeight;}
+    else if(!LGT.rows.length&&!box.innerHTML)box.innerHTML=`<div style="padding:12px;color:var(--lab-dim,var(--text-faint))">Nothing has been said on ${lgChan==="all"?"any channel":"this channel"} yet. Traffic appears here while live polling is on.</div>`;
+  }catch(e){}finally{LGT.busy=false;}}
+setInterval(()=>{if(BOOTED&&APPL&&view==="busscan"&&busBrand==="lg"&&document.visibilityState==="visible"&&document.getElementById("lgch")){lgTraffic();
+  const S=LINK.search,busy=(S&&S.running)||lgChans().some(c=>c.scan&&c.scan.running);
+  if(busy||Date.now()%5000<1300)fetch("/api/bus",{cache:"no-store"}).then(r=>r.json()).then(b=>{LINK.at=0;linkSet(b,false);lgChFill(false);}).catch(()=>{});}},1200);
 function renderLgLine(){const m=document.getElementById("main"),L=lgLines().find(x=>"lg:"+x.id===busBrand);if(!L){busBrand="lg";return renderBusScan();}
   const mine=units.filter(u=>u.bus===L.id),sc=L.scan,found=L.found||[],fresh=found.filter(f=>!f.onLine),clash=found.filter(f=>f.onLine&&f.onLine!==L.id),setup=can("eco_setup")||isTechView();
   const st=!L.on?["Not connected","stop"]:!L.open?[L.error?"Adapter problem":"Opening…","err"]:L.polling?[sc&&sc.running?"Searching":"Polling","run"]:["Listening","stop"];
@@ -3779,10 +3903,11 @@ const ECO_WHO={0x340:"Cortex",0x380:"Thermostat",0x400:"Outdoor unit",0x1C0:"Fur
 const lgLines=()=>(APPL&&LINK&&Array.isArray(LINK.lines))?LINK.lines:[];
 const lgLineOf=u=>{const L=u&&u.bus?lgLines().find(x=>x.id===u.bus):null;return L?L.name:(lgLines().length?"LG line 1":"");};
 function busSwitchHtml(){const ll=lgLines();if(!(APPL&&((can("eco_setup")&&ECOS.systems.length)||ll.length)))return "";
-  return `<div class="segmented" id="bus-brand" style="margin-bottom:12px;flex-wrap:wrap">${[["lg",ll.length?"LG line 1":"LG bus"]].concat(ll.map(x=>["lg:"+x.id,x.name])).concat(can("eco_setup")?ECOS.systems.map(x=>[x.id,BRANDS.econet.short+" · "+x.name]):[]).map(o=>`<button data-bb="${ue(o[0])}" class="${busBrand===o[0]?'on':''}">${ue(o[1])}</button>`).join("")}</div>`;}
+  if(!(can("eco_setup")&&ECOS.systems.length))return "";
+  return `<div class="segmented" id="bus-brand" style="margin-bottom:12px;flex-wrap:wrap">${[["lg",ll.length?"LG · "+(ll.length+1)+" channels":"LG bus"]].concat(can("eco_setup")?ECOS.systems.map(x=>[x.id,BRANDS.econet.short+" · "+x.name]):[]).map(o=>`<button data-bb="${ue(o[0])}" class="${busBrand===o[0]?'on':''}">${ue(o[1])}</button>`).join("")}</div>`;}
 function busSwitchBind(){document.querySelectorAll("#bus-brand button").forEach(b=>b.onclick=()=>{busBrand=b.dataset.bb;ecoBusPaused=false;renderBusScan();});}
 function renderBusScan(){
-  if(/^lg:/.test(busBrand)){if(lgLines().some(x=>"lg:"+x.id===busBrand)){renderLgLine();return;}busBrand="lg";}
+  if(/^lg:/.test(busBrand)){const id=+busBrand.slice(3);busBrand="lg";if(lgLines().some(x=>x.id===id))lgChan=id;}      // every LG channel lives on the one LG page now
   if(busBrand!=="lg"&&!(APPL&&can("eco_setup")&&ECOS.systems.some(x=>x.id===busBrand)))busBrand="lg";
   if(busBrand!=="lg"){renderEcoBus();return;}
   renderBusScanLg();
@@ -3833,13 +3958,14 @@ function renderBusScanLg(){
       ${APPL&&LINK.open?(LINK.mine?`<button class="btn go" id="bus-give" title="Give the wire back. The controller carries on polling by itself.">✓ Done — hand back to the controller</button>`:`<button class="btn" id="bus-take" title="Discover, raw frames and the other tools need this screen to talk on the bus. The controller pauses its own polling while you do.">${LINK.holder==="screen"?"⇄ Take over the bus tools":"🛠 Use bus tools on this screen"}</button>`):""}
       <div class="stat"><span class="pulse ${conn?'':'off'}"></span>${APPL?`<span id="bus-link-txt" style="font-weight:600">${ue(linkTxt)}</span><span style="opacity:.5;margin:0 6px">·</span>`:""}<span id="bus-count">${conn?'reading…':'idle'}</span></div>
     </div>
-    ${APPL&&LINK.adapter?`<div style="font-size:12.5px;color:var(--text-dim);margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>LG bus adapter: <b id="bus-adp-txt">${ue(LINK.adapter.label)}</b>${LINK.adapter.present?"":` <span style="color:var(--err)">(not plugged in)</span>`}</span>${can("eco_setup")||isTechView()?`<button class="linklike" id="bus-adp">Choose adapter…</button><span style="opacity:.4">·</span><button class="linklike" id="bus-addline" title="A building with several separate LG wires: give each wire its own adapter or channel. They are all read at the same time.">Add another LG line…</button>`:""}</div>`:""}
+    ${APPL&&LINK.adapter?`<div style="font-size:12.5px;color:var(--text-dim);margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>LG bus adapter: <b id="bus-adp-txt">${ue(LINK.adapter.label)}</b>${LINK.adapter.present?"":` <span style="color:var(--err)">(not plugged in)</span>`}</span>${can("eco_setup")||isTechView()?`<button class="linklike" id="bus-adp">Choose adapter…</button>`:""}</div>`:""}
     ${APPL?`<div style="font-size:12px;color:var(--text-faint);margin-top:8px">The adapter belongs to the controller, not to this screen. Every screen and app shows this same status, and any technician can connect or disconnect it from any device.</div>`:""}
     ${APPL&&LINK.on&&!LINK.open&&LINK.error?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${ue(LINK.error)}. The controller keeps trying.</span></div>`:""}
     ${bus.err?`<div class="warnband" style="margin:10px 0 0">⚠ <span>${bus.err}</span></div>`:""}
     </div></div>
     ${p.phys!=="RS485"?`<div class="note-box" style="margin-bottom:12px;font-size:12.5px">${p.note} <b>Note:</b> not plain RS485 — needs the adapter noted above.</div>`:''}
     ${!supported?`<div class="note-box" style="margin-bottom:12px">This hosted copy can't open the serial port. Open your <b>local</b> Cortex in Chrome to Connect — or paste a capture in Debug.</div>`:""}
+    ${APPL?`<div id="lgch"></div>`:""}
     <div id="scanbanner"></div>`;
   /* ---- LG view: one place — discover/import, live monitoring, Master/CC, and capture ---- */
   const foc=bus.focus&&bus.focus.size?[...bus.focus].sort((a,b)=>a-b):[];
@@ -3919,6 +4045,7 @@ function renderBusScanLg(){
   const cc=document.getElementById("bus-con");if(cc)cc.onclick=busConnect;
   const ba=document.getElementById("bus-adp");if(ba)ba.onclick=busAdapterPick;
   const bl=document.getElementById("bus-addline");if(bl)bl.onclick=lgLineAdd;
+  lgChFill(true);
   const dd=document.getElementById("bus-dis");if(dd)dd.onclick=busDisconnect;
   const im=document.getElementById("bus-import");if(im)im.onclick=busImport;
   const sc=document.getElementById("bus-scan");if(sc)sc.onclick=busScanNew;
@@ -3980,8 +4107,11 @@ function renderCycle(){renderGroupNav();
       <div style="flex:1"></div>
       ${oduControls()}
     </div>
-    ${cycView==="diagram"?oduDiagrams(list):oduCards(list)}
-    ${cycView==="data"?iduSection():""}`;
+    ${cycView==="diagram"?oduDiagrams(list):(cyOdu!=null?oduDetail(list):oduTiles(list))}`;
+  main.querySelectorAll("[data-odu]").forEach(t=>t.onclick=()=>{cyOdu=+t.dataset.odu;renderCycle();main.scrollTop=0;});
+  const ob=document.getElementById("odu-back");if(ob)ob.onclick=()=>{cyOdu=null;renderCycle();};
+  main.querySelectorAll("[data-oduask]").forEach(b=>b.onclick=()=>oduGroupClick(false,[+b.dataset.oduask]));
+  const oa1=document.getElementById("odu-ask1");if(oa1)oa1.onclick=()=>{const a=oduBoxAddr();if(a!=null)oduGroupClick(false,[a]);};
   document.querySelectorAll("[data-cyv]").forEach(b=>b.onclick=()=>{cycView=b.dataset.cyv;renderCycle();});
   const ot=document.getElementById("odutrend");if(ot)ot.onclick=()=>openTrends(units.map(u=>u.id).slice(0,10),{odu:true});
   const orr=document.getElementById("odu-read");if(orr)orr.onclick=oduReadClick;
