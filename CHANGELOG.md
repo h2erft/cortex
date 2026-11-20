@@ -2,6 +2,47 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.17 — 2026-11-20 (settings page, role colours, calmer Command)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.16. Changes `cortex.html`,
+`command-center.html`, `appliance/server.js`, `appliance/busmaster.js`, `appliance/fleetwatch.js`, tests._
+
+**Cortex**
+- **Asking every outdoor unit for its indoor units got few answers.** They were asked back to back.
+  Now one outdoor unit is asked per pass, after a quiet moment on the wire, with a longer wait for the
+  reply, and any that stay quiet are asked a second time at the end. Asking all takes longer but
+  behaves like asking one at a time.
+- **Settings is a page, not a popup.** Tabs run down the side; wide screens show two columns. The Layout
+  tab shows each outdoor unit's indoor units as a card, side by side.
+- **Every role has its own colour.** People get their role's accent colour by default (set it in the role
+  editor); anyone can still choose their own in Settings ▸ Display, or go back to the role colour.
+  Thirteen colours to choose from.
+- **The big outdoor temperature comes from the outdoor units.** By default it is the average of the
+  outdoor units' own air sensors. Settings ▸ Display can switch it to one sensor or the weather service.
+  With no fresh sensor reading it falls back to the weather service.
+- **Refrigerant diagram moved inside an outdoor unit.** The separate diagram page is gone: open an
+  outdoor unit's tile and switch between Data and Refrigerant diagram there.
+- **Menu:** long group names wrap instead of being cut off, and the menu's edge can be dragged wider or
+  narrower (double-click to reset). The width is remembered per person.
+- **Fault history no longer jumps to the top.** It refreshes quietly, redraws only when the list of
+  faults changes, and keeps its place and any advisories that were open.
+
+**Command**
+- **Choose what interrupts you** (Settings ▸ Alerts): a controller offline, a unit in error, a unit that
+  stopped answering, a new diagnosis advisory. The last two are now off unless switched on. Everything
+  still shows on the Alerts tab. The same choices apply to alerts sent to a phone.
+- **A controller is reported offline only after it has been offline for a while:** 15 minutes unless
+  changed, from immediately up to 24 hours. Starting or quitting Command, a restart at the site, or a
+  short drop says nothing. "Back online" is only said if "offline" was.
+- Windows notifications are gathered and sent at most once every two minutes.
+- **Acknowledge several alerts at once:** tick alerts or Select all, then Acknowledge selected, with one
+  optional note for all of them.
+- **Roles:** add, rename and delete roles, pick a colour and tick what each may do, and give each person
+  a role. Command still has one sign-in (the owner), so a role is the record of what each person is
+  trusted with until people get their own sign-in.
+- Thirteen accent colours. Buttons at the foot of a window (the daily briefing's "Start the day") have
+  proper spacing.
+
 ## v1.7.1-beta.16 — 2026-11-20 (one page for every LG channel, outdoor tiles, remote access and console from the dashboard)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.15. Changes `appliance/server.js`,

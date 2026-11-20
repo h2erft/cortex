@@ -105,7 +105,8 @@ h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--t
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{flex:1;min-width:60px;padding:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);border-radius:9px;font-size:13px}
 .seg button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
-.mf{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.mf{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+.modal>.mf{margin-top:0;padding:14px 18px 18px;border-top:1px solid var(--border)}   /* a footer that sits outside the scrolling body needs its own padding */
 .note{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:12.5px;color:var(--text-dim);line-height:1.5}
 /* login */
 .login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:80;padding:20px}
@@ -280,15 +281,21 @@ function genRecovery(name){const base=(name||"CMD").toUpperCase().replace(/[^A-Z
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 let DB=load()||seed();DB.acks=DB.acks||{};DB.snooze=DB.snooze||{};
 /* per-user preferences (scoped to the signed-in owner account) */
-const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites",idleMin:15,accent:"slate",textSize:"normal",showHealth:true,popAlerts:true,cardArt:true,motion:true,briefing:true,briefHour:4,winNotify:true};
+const PREF_DEFAULTS={theme:"auto",layout:"grid",density:"comfortable",showOffline:true,clock24:false,autorefresh:true,confirmOpen:false,compactNums:false,soundAlerts:false,landing:"sites",idleMin:15,accent:"slate",textSize:"normal",showHealth:true,popAlerts:true,cardArt:true,motion:true,briefing:true,briefHour:4,winNotify:true,
+  nOffline:true,nError:true,nSilent:false,nAdvisory:false,offlineAfterMin:15};      // which kinds of alert reach you, and how long a controller must be offline before you are told
 let PREFS=loadPrefs();
 function prefsKey(){return "cortex_cmd_prefs_"+OWNER.user;}
 function loadPrefs(){try{return Object.assign({},PREF_DEFAULTS,JSON.parse(localStorage.getItem(prefsKey())||localStorage.getItem("cortex_cmd_prefs_owner"))||{});}catch(e){return Object.assign({},PREF_DEFAULTS);}}
-function savePrefs(){try{localStorage.setItem(prefsKey(),JSON.stringify(PREFS));}catch(e){}}
+function savePrefs(){try{localStorage.setItem(prefsKey(),JSON.stringify(PREFS));}catch(e){}if(typeof fleetSync==="function")fleetSync();}
 function applyTheme(){if(PREFS.theme==="auto"){if(matchMedia("(prefers-color-scheme:dark)").matches)document.documentElement.setAttribute("data-theme","dark");else document.documentElement.removeAttribute("data-theme");}else document.documentElement.setAttribute("data-theme",PREFS.theme);
   const dark=document.documentElement.getAttribute("data-theme")==="dark",a=CMD_ACCENTS[PREFS.accent]||CMD_ACCENTS.slate,v=dark?a.d:a.l,r=document.documentElement.style;r.setProperty("--accent",v[0]);r.setProperty("--accent-ink",v[1]);r.setProperty("--accent-soft",v[2]);
   if(document.body)document.body.style.zoom=PREFS.textSize==="large"?"1.12":"";}
-const CMD_ACCENTS={slate:{n:"Slate",l:["#0e7c66","#0b5f4e","#d9efe9"],d:["#2fb79a","#8fe6d4","#143029"]},arctic:{n:"Arctic",l:["#1f74c4","#15568f","#e2eefb"],d:["#5aa6e8","#bcd8f5","#13263a"]},ember:{n:"Ember",l:["#d2652a","#9a4718","#faeadf"],d:["#e8955a","#f4c7a6","#33251a"]},violet:{n:"Violet",l:["#6b4fd0","#4c359c","#ebe6fb"],d:["#9d86ee","#d3c8fa","#231c3d"]}};
+const CMD_ACCENTS={slate:{n:"Slate",l:["#0e7c66","#0b5f4e","#d9efe9"],d:["#2fb79a","#8fe6d4","#143029"]},arctic:{n:"Arctic",l:["#1f74c4","#15568f","#e2eefb"],d:["#5aa6e8","#bcd8f5","#13263a"]},ember:{n:"Ember",l:["#d2652a","#9a4718","#faeadf"],d:["#e8955a","#f4c7a6","#33251a"]},violet:{n:"Violet",l:["#6b4fd0","#4c359c","#ebe6fb"],d:["#9d86ee","#d3c8fa","#231c3d"]},
+  forest:{n:"Forest",l:["#2f9e44","#1f6e30","#e4f3e6"],d:["#51c866","#b7e8c0","#15301b"]},ocean:{n:"Ocean",l:["#0891b2","#0b6b83","#dcf3f8"],d:["#3cc3df","#a9e6f2","#10303a"]},
+  indigo:{n:"Indigo",l:["#4f55d6","#363a9c","#e5e6fb"],d:["#8f94f2","#cfd1fa","#1d1f40"]},rose:{n:"Rose",l:["#d6336c","#a02250","#fbe3ec"],d:["#f0709b","#f8c2d4","#3a1826"]},
+  crimson:{n:"Crimson",l:["#c92a2a","#932020","#fbe2e2"],d:["#f07272","#f7c1c1","#3a1818"]},amber:{n:"Amber",l:["#b47c00","#7f5800","#fbf0d2"],d:["#e9b949","#f5dfa3","#33290f"]},
+  lime:{n:"Lime",l:["#5c940d","#40680a","#ebf5d8"],d:["#94d82d","#cdeea0","#22300f"]},magenta:{n:"Magenta",l:["#ae3ec9","#7c2b90","#f5e3fa"],d:["#d27be8","#e9c4f3","#321a3a"]},
+  graphite:{n:"Graphite",l:["#495057","#2f3439","#e9ecef"],d:["#adb5bd","#dee2e6","#26292d"]}};
 function seed(){
   // Real deployments start empty — add each building by its Cortex appliance address.
   return {sites:[],techs:[],grants:[],audit:[{t:Date.now(),m:"Fleet console provisioned"}]};
@@ -327,15 +334,37 @@ async function pollSite(s){const base=siteUrl(s);if(!base){s.online=false;return
   try{const d=await getJ(base+"/api/diag");L.adv=(d.advisories||[]).filter(a=>!a.cleared);const hs=Object.values(d.health||{}).filter(h=>Date.now()-h.at<600000).map(h=>h.score);L.health=hs.length?Math.min(...hs):null;L.healthAll=Object.entries(d.health||{}).filter(([a,h])=>h&&Date.now()-h.at<600000).map(([a,h])=>({addr:"0x"+(+a).toString(16).toUpperCase(),score:h.score}));}catch(e){L.adv=L.adv||null;L.health=null;}
   L.at=Date.now();s.seen=L.at;return "ok";}
 function siteSig(s){const L=LIVE[s.id]||{};return [s.online,s.err||0,(L.adv||[]).length,L.offline||0].join("|");}
-function fleetNotice(before){const msgs=[];DB.sites.forEach((s,i)=>{if(snoozed(s))return;const b=before[i].split("|"),a=siteSig(s).split("|");
-    if(b[0]==="true"&&a[0]==="false")msgs.push(s.name+" went offline");else if(+a[1]>+b[1])msgs.push(s.name+": "+(+a[1])+" unit"+(+a[1]>1?"s":"")+" in error");else if(+a[2]>+b[2])msgs.push(s.name+": new diagnosis advisory");else if(+a[3]>+b[3])msgs.push(s.name+": a unit stopped answering");});
+/* What to tell the person about, and when.
+   - Each kind can be switched off (Settings ▸ Alerts). Advisories and "a unit stopped answering" are off unless asked for.
+   - A controller is only reported offline once it has BEEN offline for the chosen time (15 minutes unless changed), so
+     starting or quitting Command, a restart at the site, or a short internet drop says nothing. s.offSince and
+     s.offTold are kept with the building, so the wait survives a restart of Command.
+   - Windows notifications are gathered and sent at most once every two minutes. */
+const NOTE_Q=[];let noteAt=0,noteT=null;
+function noteFlush(){clearTimeout(noteT);noteT=null;if(!NOTE_Q.length)return;const wait=120000-(Date.now()-noteAt);if(wait>0){noteT=setTimeout(noteFlush,wait+50);return;}
+  const m=NOTE_Q.splice(0);noteAt=Date.now();try{APP.notify(m.length>1?m.length+" building alerts":"Cortex Command",m.slice(0,3).join("\n")+(m.length>3?"\n+"+(m.length-3)+" more":""));}catch(e){}}
+function offlineDue(now){const out=[],wait=Math.max(0,+PREFS.offlineAfterMin||0)*60000;
+  DB.sites.forEach(s=>{if(!siteUrl(s))return;
+    if(s.online!==false){if(s.offSince||s.offTold){delete s.offSince;delete s.offTold;}return;}
+    if(!s.offSince)s.offSince=now;
+    if(!s.offTold&&now-s.offSince>=wait){s.offTold=now;if(PREFS.nOffline!==false&&!snoozed(s))out.push(s.name+(wait>=60000?" has been offline for "+durShort(now-s.offSince):" went offline"));}});
+  return out;}
+const durShort=ms=>{const m=Math.round(ms/60000);return m<60?m+" min":(Math.round(m/6)/10)+" h";};
+function fleetNotice(before){const msgs=fleetPrimed?offlineDue(Date.now()):(offlineDue.prime(),[]);DB.sites.forEach((s,i)=>{if(snoozed(s))return;const b=before[i].split("|"),a=siteSig(s).split("|");
+    if(a[0]==="false"||b[0]==="false")return;                                          // counts only mean something while the building is answering
+    if(+a[1]>+b[1]){if(PREFS.nError!==false)msgs.push(s.name+": "+(+a[1])+" unit"+(+a[1]>1?"s":"")+" in error");}
+    else if(+a[2]>+b[2]){if(PREFS.nAdvisory===true)msgs.push(s.name+": new diagnosis advisory");}
+    else if(+a[3]>+b[3]){if(PREFS.nSilent===true)msgs.push(s.name+": a unit stopped answering");}});
   if(!msgs.length||!fleetPrimed)return;
-  if(APP&&PREFS.winNotify!==false&&(document.hidden||!document.hasFocus())){try{APP.notify(msgs.length>1?msgs.length+" building alerts":"Cortex Command",msgs.slice(0,3).join("\n")+(msgs.length>3?"\n+"+(msgs.length-3)+" more":""));}catch(e){}}
+  if(APP&&PREFS.winNotify!==false&&(document.hidden||!document.hasFocus())){NOTE_Q.push(...msgs);noteFlush();}
   if(!sessionStorage.getItem("cortex_cmd_in"))return;
   if(PREFS.popAlerts!==false)toast(msgs[0]+(msgs.length>1?" (+"+(msgs.length-1)+" more)":""));
   if(PREFS.soundAlerts){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.frequency.value=880;g.gain.value=.06;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.18);}catch(e){}}
   if(document.hidden){document.title="("+msgs.length+") Cortex Command · AIROW";}
   msgs.forEach(m=>log("Alert: "+m));}
+// First look after Command starts: a building that is already offline starts its wait now, and one that was already
+// reported before Command was closed is not reported again.
+offlineDue.prime=()=>{const now=Date.now();DB.sites.forEach(s=>{if(!siteUrl(s))return;if(s.online===false){if(!s.offSince)s.offSince=now;}else{delete s.offSince;delete s.offTold;}});};
 let fleetPrimed=false;document.addEventListener("visibilitychange",()=>{if(!document.hidden)document.title="Cortex Command · AIROW";});
 let pollBusyAt=0;
 function brandMark(busy){const b=$("brand");if(!b)return;const want=busy?"live":"calm";if(b.dataset.m===want)return;b.dataset.m=want;b.innerHTML=`<span class="blogo">${brainMark(busy?30:28,want)}</span>Cortex Command <small>Fleet</small>`;}
@@ -454,13 +483,16 @@ function renderAlerts(){
     return `<div class="agroup ${snz?"snz":""}"><div class="ag-h"><b>${esc(s.name)}</b>${snz?`<span class="pill off">Snoozed until ${fmtTime(DB.snooze[s.id])}</span>`:""}<span style="flex:1"></span>
         ${snz?`<button class="btn sm" data-wake="${s.id}">Wake</button>`:`<select class="inp sm-sel" data-snz="${s.id}" title="Stop alerts from this building for a while"><option value="">Snooze…</option><option value="1">1 hour</option><option value="4">4 hours</option><option value="am">Until 7 am</option><option value="24">24 hours</option></select>`}
         <button class="btn primary sm" data-open="${s.id}" ${s.online?'':'disabled style="opacity:.5"'}>Open ↗</button></div>
-      ${g.map(i=>`<div class="trow ${i.ack?"acked":""}"><span class="pill ${i.cls}"><span class="pdot"></span>${esc(i.tag)}</span>
+      ${g.map(i=>`<div class="trow ${i.ack?"acked":""}">${i.ack?`<span style="width:18px;flex:none"></span>`:`<input type="checkbox" class="ack-pick" data-pick="${esc(i.key)}" ${ACK_SEL.has(i.key)?"checked":""} aria-label="Select this alert" style="width:18px;height:18px;flex:none;accent-color:var(--accent)">`}<span class="pill ${i.cls}"><span class="pdot"></span>${esc(i.tag)}</span>
         <div class="tinfo"><div class="tname">${esc(i.t)}</div><div class="tsub">${esc(i.sub)}${i.ack?`<br>✓ Seen by ${esc(i.ack.by)}, ${fmtTime(i.ack.at)}${i.ack.note?" · “"+esc(i.ack.note)+"”":""}`:""}</div></div>
         ${i.ack?`<button class="btn sm" data-unack="${esc(i.key)}">Undo</button>`:`<button class="btn sm" data-ack="${esc(i.key)}">Acknowledge</button>`}</div>`).join("")}</div>`;}).join("")
     :'<div class="panel"><div class="trow"><div class="tsub">✓ No active alerts across the fleet.</div></div></div>';
   const spark=h=>{const mx=Math.max(1,...h);return `<svg width="150" height="26" viewBox="0 0 150 26">${h.map((v,i)=>`<rect x="${i*5}" y="${26-Math.max(v/mx*24,v?3:1)}" width="4" height="${Math.max(v/mx*24,v?3:1)}" fill="${v>0?'var(--err)':'var(--border)'}" rx="1"/>`).join("")}</svg>`;};
   const off=offenders(30),omx=Math.max(1,...off.map(o=>o.n)),open=items.filter(i=>!i.ack&&!i.snz).length;
-  $("tab-alerts").innerHTML=`<h2 class="sec" style="margin-top:4px">Active alerts${items.length?` · ${open} new${items.length-open?", "+(items.length-open)+" in hand":""}`:""}</h2>${rows}
+  const pickable=items.filter(i=>!i.ack).map(i=>i.key);[...ACK_SEL].forEach(k=>{if(!pickable.includes(k))ACK_SEL.delete(k);});
+  $("tab-alerts").innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px"><h2 class="sec" style="margin:0;flex:1">Active alerts${items.length?` · ${open} new${items.length-open?", "+(items.length-open)+" in hand":""}`:""}</h2>
+      ${pickable.length?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer"><input type="checkbox" id="ack-all" ${ACK_SEL.size===pickable.length?"checked":""} style="width:17px;height:17px;accent-color:var(--accent)">Select all</label>
+        <button class="btn primary sm" id="ack-many" ${ACK_SEL.size?"":"disabled style=\"opacity:.5\""}>Acknowledge ${ACK_SEL.size||""} selected</button>`:""}</div><div style="height:10px"></div>${rows}
     <h2 class="sec">Repeat offenders · last 30 days</h2><div class="panel">${off.length?off.map(o=>`<div class="trow"><div class="tinfo"><div class="tname">${esc(o.ext?o.ext:o.odu?"Outdoor unit 0x"+Number(o.addr).toString(16).toUpperCase():unitName(o.s,o.addr))} <span class="tsub" style="font-weight:400">· ${esc(o.s.name)}</span></div>
         <div class="tsub">${[...o.codes.entries()].sort((a,b)=>b[1]-a[1]).map(c=>esc(c[0])+(c[1]>1?" ×"+c[1]:"")).join(" · ")} · last ${fmtTime(o.last)}</div></div>
         <div class="obar"><i style="width:${Math.round(o.n/omx*100)}%"></i></div><b style="min-width:54px;text-align:right">${o.n} faults</b></div>`).join(""):'<div class="trow"><div class="tsub">Nothing has faulted twice in the last 30 days.</div></div>'}</div>
@@ -470,26 +502,68 @@ function renderAlerts(){
   const T=$("tab-alerts"),q=(sel,fn)=>T.querySelectorAll(sel).forEach(b=>b.onclick=()=>fn(b));
   q("[data-open]",b=>{const s=DB.sites.find(x=>x.id===b.dataset.open),u=siteUrl(s);if(!u)return;window.open(u,"_blank","noopener");log(`Opened ${s.name} from an alert`);renderAudit();});
   q("[data-ack]",b=>ackModal(b.dataset.ack));
+  T.querySelectorAll("[data-pick]").forEach(c=>c.onchange=()=>{c.checked?ACK_SEL.add(c.dataset.pick):ACK_SEL.delete(c.dataset.pick);renderAlerts();});
+  {const all=$("ack-all");if(all)all.onchange=()=>{ACK_SEL.clear();if(all.checked)alertItems().filter(i=>!i.ack).forEach(i=>ACK_SEL.add(i.key));renderAlerts();};
+   const many=$("ack-many");if(many)many.onclick=()=>ackManyModal();}
   q("[data-unack]",b=>{delete DB.acks[b.dataset.unack];save();renderAlerts();});
   q("[data-wake]",b=>{const s=DB.sites.find(x=>x.id===b.dataset.wake);delete DB.snooze[s.id];log(`Woke alerts for ${s.name}`);renderAlerts();renderAudit();});
   T.querySelectorAll("[data-snz]").forEach(sel=>sel.onchange=()=>{if(!sel.value)return;const s=DB.sites.find(x=>x.id===sel.dataset.snz);DB.snooze[s.id]=snoozeUntil(sel.value);log(`Snoozed alerts for ${s.name} until ${fmtTime(DB.snooze[s.id])}`);renderAlerts();renderAudit();toast("Snoozed until "+fmtTime(DB.snooze[s.id]));});
   tabBadges();
 }
-function renderTechs(){
+/* ---- roles ----
+   A role is a name, a colour and a list of what people with it may do. Each person in Command has one. Command still
+   has a single sign-in (the owner), so today a role is the record of what each person is trusted with; it is what
+   their own sign-in will follow when Command gets one. */
+const CMD_PERMS=[["view","See the buildings they are assigned","Status, alerts and reports for those buildings"],["open","Open a building's dashboard","Go into Cortex at the building"],["ack","Acknowledge and snooze alerts",""],["notes","Write building notes and the log",""],
+  ["update","Send updates to controllers","Install a new Cortex version at a building"],["grant","Grant temporary access","Lend a building to another person for a set time"],["people","Manage people and roles",""],["sites","Add, edit and remove buildings",""],["settings","Change Command's settings","Sync, alerts, backups"]];
+const CMD_ROLE_SEED=()=>[{id:"tech",name:"Technician",accent:"amber",perms:["view","open","ack","notes"]},{id:"lead",name:"Lead technician",accent:"arctic",perms:["view","open","ack","notes","update","grant"]},{id:"manager",name:"Manager",accent:"indigo",perms:["view","open","ack","notes","update","grant","people","sites","settings"]},{id:"viewer",name:"View only",accent:"graphite",perms:["view"]}];
+function cmdRoles(){if(!Array.isArray(DB.roles)||!DB.roles.length)DB.roles=CMD_ROLE_SEED();return DB.roles;}
+const cmdRole=id=>cmdRoles().find(r=>r.id===id)||cmdRoles()[0];
+const roleCol=r=>{const a=CMD_ACCENTS[r&&r.accent]||CMD_ACCENTS.slate;return document.documentElement.getAttribute("data-theme")==="dark"?a.d[0]:a.l[0];};
+const roleChip=r=>`<span class="chip" style="border-color:${roleCol(r)};color:${roleCol(r)}"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${roleCol(r)};margin-right:6px"></span>${esc(r.name)}</span>`;
+function roleModal(id){const r=id?cmdRoles().find(x=>x.id===id):null,have=new Set(r?r.perms:["view","open","ack","notes"]);let acc=r?r.accent:"ocean";
+  openModal(`<div class="mh"><h3>${r?"Edit role":"New role"}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb"><label class="flabel">Role name</label><input class="inp" id="ro-name" maxlength="30" value="${r?esc(r.name):""}" placeholder="e.g. Apprentice, Service manager" autocomplete="off">
+      <label class="flabel">Colour</label><div class="swatches" id="ro-acc" style="flex-wrap:wrap">${Object.entries(CMD_ACCENTS).map(([k,a])=>`<button class="swatch ${acc===k?"on":""}" data-v="${k}" title="${a.n}" aria-label="${a.n}" style="background:${a.l[0]}"></button>`).join("")}</div>
+      <label class="flabel" style="margin-top:12px">What people with this role may do</label>
+      ${CMD_PERMS.map(p=>`<label style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border);cursor:pointer"><input type="checkbox" data-rp="${p[0]}" ${have.has(p[0])?"checked":""} style="width:17px;height:17px;margin-top:2px;accent-color:var(--accent)"><span><b style="font-weight:600">${p[1]}</b>${p[2]?`<span class="tsub" style="display:block">${p[2]}</span>`:""}</span></label>`).join("")}
+      <div class="tsub" id="ro-err" style="color:var(--err);margin-top:8px"></div></div>
+    <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="ro-save">Save role</button></div>`);
+  document.querySelectorAll("#ro-acc button").forEach(b=>b.onclick=()=>{acc=b.dataset.v;document.querySelectorAll("#ro-acc button").forEach(x=>x.classList.toggle("on",x===b));});
+  $("ro-save").onclick=()=>{const name=$("ro-name").value.replace(/[<>]/g,"").trim(),perms=[...document.querySelectorAll("[data-rp]")].filter(b=>b.checked).map(b=>b.dataset.rp);
+    if(!name){$("ro-err").textContent="Give the role a name.";return;}
+    if(cmdRoles().some(x=>x.name.toLowerCase()===name.toLowerCase()&&x!==r)){$("ro-err").textContent="There is already a role with that name.";return;}
+    if(r){const was=r.name;r.name=name;r.perms=perms;r.accent=acc;log(was===name?`Changed the role “${name}”`:`Renamed the role “${was}” to “${name}”`);}
+    else{DB.roles.push({id:"r"+Date.now().toString(36),name,accent:acc,perms});log(`Created the role “${name}”`);}
+    save();closeModal();render();toast("Role saved");};}
+function roleDelete(id){const r=cmdRoles().find(x=>x.id===id);if(!r)return;const n=DB.techs.filter(t=>(t.role||cmdRoles()[0].id)===id).length;
+  if(cmdRoles().length<=1){toast("Keep at least one role");return;}if(n){toast(n+" "+(n===1?"person has":"people have")+" this role. Give them another role first.");return;}
+  DB.roles=DB.roles.filter(x=>x.id!==id);log(`Deleted the role “${r.name}”`);save();render();toast("Role deleted");}
+function renderTechs(){cmdRoles();
   $("tab-techs").innerHTML=`<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px"><button class="btn sm" id="addtech">+ Add technician</button><button class="btn primary sm" id="newgrant">+ Grant temporary access</button></div>
    <div class="panel">`+(DB.techs.length?DB.techs.map(t=>{
     const {perm,temp}=techAccess(t.id);
     const chips=perm.map(id=>`<span class="chip">${siteName(id)}</span>`).join("")
       +activeGrants().filter(g=>g.tech===t.id).map(g=>`<span class="chip temp" data-rev="${g.id}">${siteName(g.site)} · <b data-until="${g.until}"></b> · revoke ✕</span>`).join("");
     return `<div class="trow"><div class="ava">${initials(t.name)}</div>
-      <div class="tinfo"><div class="tname">${t.name}</div><div class="tsub">${t.email} · ${perm.length} permanent${temp.length?` · ${temp.length} temporary`:''}</div>
+      <div class="tinfo"><div class="tname">${t.name} ${roleChip(cmdRole(t.role))}</div><div class="tsub">${t.email} · ${perm.length} permanent${temp.length?` · ${temp.length} temporary`:''}</div>
         <div class="chips">${chips||'<span class="tsub">no buildings assigned</span>'}</div></div>
+      <select class="inp sm-sel" data-trole="${t.id}" title="This person's role" style="max-width:150px">${cmdRoles().map(r=>`<option value="${r.id}" ${cmdRole(t.role).id===r.id?"selected":""}>${esc(r.name)}</option>`).join("")}</select>
       <button class="btn sm" data-edit="${t.id}">Buildings</button>
       <button class="btn sm danger" data-deltech="${t.id}">Remove</button></div>`;
   }).join(""):`<div class="trow"><div class="tsub">No technicians yet. Add one to start assigning buildings.</div></div>`)+`</div>
+   <div style="display:flex;align-items:center;gap:10px;margin:22px 0 10px"><h2 class="sec" style="margin:0;flex:1">Roles</h2><button class="btn sm" id="addrole">+ New role</button></div>
+   <div class="panel">${cmdRoles().map(r=>{const n=DB.techs.filter(t=>cmdRole(t.role).id===r.id).length;return `<div class="trow"><div class="tinfo"><div class="tname">${roleChip(r)} <span class="tsub" style="font-weight:400">${n} ${n===1?"person":"people"}</span></div>
+       <div class="tsub">${r.perms.length?r.perms.map(k=>(CMD_PERMS.find(p=>p[0]===k)||[k,k])[1]).join(" · "):"Nothing ticked: this role can do nothing"}</div></div>
+     <button class="btn sm" data-redit="${r.id}">Edit</button><button class="btn sm danger" data-rdel="${r.id}">Delete</button></div>`;}).join("")}</div>
+   <div class="note" style="margin-top:10px">A role is a name, a colour and what people with it may do. Command has one sign-in today, yours, so a role is the record of what each person is trusted with. It is what their own sign-in will follow when that is added.</div>
    <div class="note" style="margin-top:12px">Permanent assignments are the buildings a tech owns day-to-day. <b>Temporary access</b> is for covering someone else's site — it auto-expires at the countdown with no cleanup needed, so Bob never keeps a key to Joe's building. You (owner) always have every building.</div>`;
   const ng=$("newgrant");if(ng)ng.onclick=()=>grantModal(null);
   const at=$("addtech");if(at)at.onclick=addTechModal;
+  const ar=$("addrole");if(ar)ar.onclick=()=>roleModal(null);
+  document.querySelectorAll("#tab-techs [data-redit]").forEach(b=>b.onclick=()=>roleModal(b.dataset.redit));
+  document.querySelectorAll("#tab-techs [data-rdel]").forEach(b=>b.onclick=()=>roleDelete(b.dataset.rdel));
+  document.querySelectorAll("#tab-techs [data-trole]").forEach(sel=>sel.onchange=()=>{const t=DB.techs.find(x=>x.id===sel.dataset.trole);if(!t)return;t.role=sel.value;log(`${t.name} is now ${cmdRole(t.role).name}`);save();render();toast(t.name+" is now "+cmdRole(t.role).name);});
   document.querySelectorAll("#tab-techs [data-rev]").forEach(c=>c.onclick=()=>revoke(c.dataset.rev));
   document.querySelectorAll("#tab-techs [data-edit]").forEach(b=>b.onclick=()=>editTech(b.dataset.edit));
   document.querySelectorAll("#tab-techs [data-deltech]").forEach(b=>b.onclick=()=>removeTech(b.dataset.deltech));
@@ -721,8 +795,15 @@ function renderSettings(){const el=$("tab-settings");if(!el)return;if(!SET_SECS.
   const o=(APPINFO&&APPINFO.options)||{},u=(APPINFO&&APPINFO.update)||{};let body="";
   if(setSec==="look")body=srow("Theme","Auto follows this computer.",segc("st-theme",PREFS.theme,[["auto","Auto"],["light","Light"],["dark","Dark"]]))+srow("Colour",(CMD_ACCENTS[PREFS.accent]||CMD_ACCENTS.slate).n,`<div class="swatches" id="st-accent">${Object.entries(CMD_ACCENTS).map(([k,a])=>`<button class="swatch ${PREFS.accent===k?"on":""}" data-v="${k}" title="${a.n}" aria-label="${a.n}" style="background:${document.documentElement.getAttribute("data-theme")==="dark"?a.d[0]:a.l[0]}"></button>`).join("")}</div>`)+srow("Text size","",segc("st-text",PREFS.textSize,[["normal","Normal"],["large","Large"]]))+srow("24-hour clock","",sw("clock24"))+srow("Compact large numbers","Show 1.2k instead of 1,200.",sw("compactNums"))+srow("Animations","Screens ease in, numbers count up, windows twinkle and the Cortex mark sparks while it works. Turn off for a still screen.",sw("motion"));
   if(setSec==="sites")body=srow("Layout","",segc("st-layout",PREFS.layout,[["grid","Cards"],["list","List"]]))+srow("Density","",segc("st-density",PREFS.density,[["comfortable","Comfortable"],["compact","Compact"]]))+srow("Picture on each card","The skyline with lit windows and the 24-hour line.",sw("cardArt"))+srow("Show health score","",sw("showHealth"))+srow("Show offline buildings","",sw("showOffline"))+srow("Refresh automatically","Reads every building about every 20 seconds.",sw("autorefresh"))+srow("Ask before opening a building","",sw("confirmOpen"))+srow("Opens on","The tab you land on after signing in.",segc("st-land",PREFS.landing,[["sites","Buildings"],["alerts","Alerts"],["techs","Technicians"]]));
-  if(setSec==="alerts")body=srow("Pop up a message","When a building raises an alert while Command is on screen.",sw("popAlerts"))+srow("Play a sound","",sw("soundAlerts"))
-    +(APP?srow("Windows notifications","A notification from Windows when a building goes offline or comes back, a unit goes into error or stops answering, or a new advisory appears.",sw("winNotify"))+srow("Keep watching after the window is closed","Command stays in the tray by the clock and keeps checking the buildings. Right-click the tray icon to quit.",sw("background",o))+srow("Start with Windows","Starts hidden in the tray when you sign in to Windows.",sw("autoStart",o))
+  if(setSec==="alerts")body=`<h2 class="sec" style="margin-top:0">What to tell me about</h2>`
+      +srow("A controller goes offline","",sw("nOffline"))
+      +srow("…after it has been offline for","A short drop, a restart at the site, or starting and quitting Command says nothing.",`<select class="inp sm-sel" id="st-offmin" style="min-width:150px">${[[0,"Immediately"],[5,"5 minutes"],[15,"15 minutes"],[30,"30 minutes"],[60,"1 hour"],[120,"2 hours"],[240,"4 hours"],[480,"8 hours"],[720,"12 hours"],[1440,"24 hours"]].map(o=>`<option value="${o[0]}" ${(+PREFS.offlineAfterMin||0)===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select>`)
+      +srow("A unit goes into error","",sw("nError"))
+      +srow("A unit stops answering","Common and usually short-lived. Off unless you want it.",sw("nSilent"))
+      +srow("A new diagnosis advisory","A pattern the controller noticed. Off unless you want it. Advisories are always listed on the Alerts tab.",sw("nAdvisory"))
+      +`<div class="tsub" style="margin:6px 2px 14px">These choices also apply to the alerts sent to your phone. Everything still appears on the Alerts tab; this only decides what interrupts you.</div><h2 class="sec">How to tell me</h2>`
+      +srow("Pop up a message","When a building raises an alert while Command is on screen.",sw("popAlerts"))+srow("Play a sound","",sw("soundAlerts"))
+    +(APP?srow("Windows notifications","For the kinds chosen above, when Command is not the window in front. At most one every two minutes.",sw("winNotify"))+srow("Keep watching after the window is closed","Command stays in the tray by the clock and keeps checking the buildings. Right-click the tray icon to quit.",sw("background",o))+srow("Start with Windows","Starts hidden in the tray when you sign in to Windows.",sw("autoStart",o))
       :`<div class="srow" style="display:block"><div class="tname">Alerts while Command is closed</div><div id="fleet-push" class="note" style="margin:8px 0 0">Checking…</div></div>`);
   if(setSec==="brief")body=srow("Show the daily briefing","The first time you sign in each day: what needs attention, what changed since you were last here, and what is fine.",sw("briefing"))+srow("Earliest time","A sign-in before this hour counts as the day before, for night shifts.",segc("st-bhour",PREFS.briefHour,[[0,"Midnight"],[4,"4 am"],[6,"6 am"]]))+srow("See it now","",`<button class="btn sm" id="st-brief">Open briefing</button>`);
   if(setSec==="security")body=srow("Sign out after no activity","",segc("st-idle",+PREFS.idleMin||0,[[5,"5 min"],[15,"15 min"],[30,"30 min"],[60,"1 hour"],[0,"Never"]]))+srow("Signed in as",esc(OWNER.name)+" ("+esc(OWNER.user)+")",`<button class="btn sm" id="st-out">Sign out</button>`)+`<div class="note" style="margin-top:12px">Forgot the password? Use <b>Recover account</b> on the sign-in screen with the recovery code you saved when this console was set up.</div>`;
@@ -743,6 +824,7 @@ function renderSettings(){const el=$("tab-settings");if(!el)return;if(!SET_SECS.
       if(k==="beta"&&cur&&APP.leaveBeta&&/-/.test((APPINFO&&APPINFO.version)||"")){leaveBetaModal();return;}   // on a beta build: ask what to do, as a controller does
       try{APPINFO.options=await APP.setOptions({[k]:!cur});}catch(e){}if(k==="beta")toast(!cur?"Beta testing on. Checking for a pre-release…":"Beta testing off. Stable versions only.");renderSettings();return;}
     PREFS[k]=!(PREFS[k]!==false&&!!PREFS[k]);savePrefs();applyTheme();renderSites();renderSettings();});
+  {const om=$("st-offmin");if(om)om.onchange=()=>{PREFS.offlineAfterMin=+om.value;savePrefs();toast(+om.value?"You will be told after "+om.options[om.selectedIndex].text+" offline":"You will be told as soon as a controller is offline");};}
   const on=(id,fn)=>{const x=$(id);if(x)x.onclick=fn;};
   on("st-brief",()=>briefing(true));on("st-out",()=>signOut());on("st-chk",async()=>{toast("Checking for updates…");try{APPINFO.update=await APP.checkUpdate();}catch(e){}renderSettings();});on("st-inst",()=>APP.installUpdate());
   on("sy-on",()=>{const h=$("sy-home");let v=h?h.value.trim():"";if(APP&&!v){toast("Enter the home controller's address");return;}if(v&&!/^https?:\/\//i.test(v))v="http://"+v;syncEnable(v.replace(/\/+$/,""));});
@@ -809,6 +891,17 @@ function ackPrune(){let ch=false;const live=new Set(alertItems().map(i=>i.key)),
   Object.keys(DB.snooze||{}).forEach(id=>{if(DB.snooze[id]<=now||!DB.sites.find(x=>x.id===id)){delete DB.snooze[id];ch=true;}});
   if(ch)save();}
 function tabBadges(){const b=document.querySelector('.tab[data-tab="alerts"]');if(!b)return;const n=openAlertCount();b.innerHTML="Alerts"+(n?` <span class="tbadge">${n}</span>`:"");}
+/* Several alerts acknowledged in one go, with one optional note for all of them. */
+const ACK_SEL=new Set();
+function ackManyModal(){const its=alertItems().filter(i=>ACK_SEL.has(i.key)&&!i.ack);if(!its.length)return;const sites=new Set(its.map(i=>i.s.name));
+  openModal(`<div class="mh"><h3>Acknowledge ${its.length} alert${its.length===1?"":"s"}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="mb"><div class="tsub" style="margin-bottom:10px">${its.length} alert${its.length===1?"":"s"} at ${sites.size} building${sites.size===1?"":"s"}: ${esc([...sites].slice(0,4).join(", "))}${sites.size>4?" and "+(sites.size-4)+" more":""}.</div>
+      <div style="max-height:180px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-bottom:12px">${its.map(i=>`<div class="tsub" style="padding:3px 0"><b>${esc(i.s.name)}</b> · ${esc(i.t)}</div>`).join("")}</div>
+      <label class="flabel">Note for all of them (optional)</label><input class="inp" id="ackm-note" maxlength="140" placeholder="e.g. Known, parts on order" autocomplete="off">
+      <div class="note" style="margin-top:12px">This marks them as seen so they stop counting as new, here and on every computer that shares this Command. Each one clears by itself when its fault clears.</div></div>
+    <div class="mf"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="ackm-go">Acknowledge ${its.length}</button></div>`);
+  const go=()=>{const note=$("ackm-note").value.trim(),at=Date.now();its.forEach(i=>{DB.acks[i.key]={by:OWNER.name,at,note};});log(`Acknowledged ${its.length} alert${its.length===1?"":"s"} at ${[...sites].slice(0,3).join(", ")}${sites.size>3?" and more":""}`);ACK_SEL.clear();save();closeModal();renderAlerts();renderAudit();toast("Acknowledged "+its.length);};
+  $("ackm-go").onclick=go;$("ackm-note").addEventListener("keydown",e=>{if(e.key==="Enter")go();});setTimeout(()=>{const n=$("ackm-note");if(n)n.focus();},50);}
 function ackModal(key){const i=alertItems().find(x=>x.key===key);if(!i)return;
   openModal(`<div class="mh"><h3>Acknowledge</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
     <div class="mb"><div class="tname">${esc(i.s.name)} · ${esc(i.t)}</div><div class="tsub" style="margin-bottom:12px">${esc(i.sub)}</div>
@@ -1072,7 +1165,7 @@ async function homeCheck(){if(HOME.checked)return HOME.ok;HOME.checked=true;if(!
 let fleetSyncT=null;
 function fleetSync(){if(!HOME.ok)return;clearTimeout(fleetSyncT);fleetSyncT=setTimeout(()=>{
   const sites=DB.sites.map(s=>({id:s.id,name:s.name,url:siteUrl(s)})).filter(s=>s.url);
-  fetch("/api/fleet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sites})}).catch(()=>{});},800);}
+  fetch("/api/fleet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sites,opts:{offlineMin:Math.max(0,+PREFS.offlineAfterMin||0),offline:PREFS.nOffline!==false,error:PREFS.nError!==false,silent:PREFS.nSilent===true,advisory:PREFS.nAdvisory===true}})}).catch(()=>{});},800);}
 function pushCan(){return window.isSecureContext&&"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;}
 async function pushSub(){try{const reg=await navigator.serviceWorker.getRegistration("/");return reg?await reg.pushManager.getSubscription():null;}catch(e){return null;}}
 async function fleetPushState(){if(!pushCan())return {can:false};const sub=await pushSub();if(!sub)return {can:true,on:false};

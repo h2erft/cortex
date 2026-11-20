@@ -37,6 +37,9 @@ function createFleetWatch(opts) {
   if (!st || !Array.isArray(st.sites)) st = { sites: [], state: {} };
   if (!st.state || typeof st.state !== 'object') st.state = {};
   let timer = null, busy = false, lastRun = 0;
+  // What to tell the person about (chosen in Command's settings). Until Command says otherwise: offline after 15 minutes
+  // and units in error; advisories and "a unit stopped answering" only when asked for.
+  const O = () => Object.assign({ offlineMin: 15, offline: true, error: true, silent: false, advisory: false }, st.opts || {});
   function save() { try { fs.mkdirSync(opts.dataDir, { recursive: true }); const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(st)); fs.renameSync(tmp, FILE); } catch (e) { log('fleet: could not save: ' + e.message); } }
   async function getJ(url) { const r = await doFetch(url, { signal: AbortSignal.timeout(5000), headers: { Accept: 'application/json' } }); if (!r.ok) throw new Error('http ' + r.status); return r.json(); }
 
@@ -53,16 +56,20 @@ function createFleetWatch(opts) {
     const msgs = [], p = prev || {}, next = Object.assign({}, p, { at: now() });
     if (!cur.up) {
       next.fails = (p.fails || 0) + 1;
-      if (next.fails >= FAILS && p.online !== false) { next.online = false; if (p.online === true) msgs.push('went offline (the controller is not answering)'); }
+      // Told only once it has BEEN offline for the chosen time, so a restart at the site or a short drop says nothing.
+      if (next.fails >= FAILS && p.online !== false) { next.online = false; next.offAt = now(); next.offTell = p.online === true; next.offTold = false; }
+      if (next.online === false && next.offTell && !next.offTold && now() - (next.offAt || now()) >= O().offlineMin * 60000) { next.offTold = true;
+        if (O().offline) msgs.push(O().offlineMin ? 'has been offline for ' + (O().offlineMin >= 60 ? Math.round(O().offlineMin / 6) / 10 + ' h' : O().offlineMin + ' min') + ' (the controller is not answering)' : 'went offline (the controller is not answering)'); }
       return { next, msgs };
     }
     next.fails = 0; next.online = true;
-    if (p.online === false) msgs.push('is back online');
+    if (p.online === false && p.offTold && O().offline) msgs.push('is back online');          // only if its going offline was reported
+    delete next.offAt; delete next.offTell; delete next.offTold;
     for (const k of ['err', 'silent', 'adv']) if (cur[k] != null) next[k] = cur[k];
     if (prev && p.online !== false) {
-      if (cur.err != null && cur.err > (p.err || 0)) msgs.push(cur.err + ' unit' + (cur.err > 1 ? 's' : '') + ' in error');
-      if (cur.silent != null && cur.silent > (p.silent || 0)) msgs.push(cur.silent > 1 ? cur.silent + ' units are not answering' : 'a unit stopped answering');
-      if (cur.adv != null && cur.adv > (p.adv || 0)) msgs.push('new diagnosis advisory');
+      if (O().error && cur.err != null && cur.err > (p.err || 0)) msgs.push(cur.err + ' unit' + (cur.err > 1 ? 's' : '') + ' in error');
+      if (O().silent && cur.silent != null && cur.silent > (p.silent || 0)) msgs.push(cur.silent > 1 ? cur.silent + ' units are not answering' : 'a unit stopped answering');
+      if (O().advisory && cur.adv != null && cur.adv > (p.adv || 0)) msgs.push('new diagnosis advisory');
     }
     return { next, msgs };
   }
@@ -81,12 +88,13 @@ function createFleetWatch(opts) {
     } finally { busy = false; }
     return sent;
   }
-  function setSites(list) {
+  function setSites(list, o) {
+    if (o && typeof o === 'object') st.opts = { offlineMin: Math.max(0, Math.min(1440, Number(o.offlineMin) || 0)), offline: o.offline !== false, error: o.error !== false, silent: o.silent === true, advisory: o.advisory === true };
     st.sites = cleanSites(list); const ids = new Set(st.sites.map(s => s.id));
     for (const k of Object.keys(st.state)) if (!ids.has(k)) delete st.state[k];
     save(); return st.sites.length;
   }
-  return { run, setSites, sites: () => st.sites.slice(), state: () => Object.assign({}, st.state),
+  return { run, setSites, opts: O, sites: () => st.sites.slice(), state: () => Object.assign({}, st.state),
     start() { if (!timer) { timer = setInterval(() => run().catch(e => log('fleet: ' + e.message)), EVERY); if (timer.unref) timer.unref(); } },
     stop() { if (timer) clearInterval(timer); timer = null; } };
 }

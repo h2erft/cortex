@@ -28,9 +28,23 @@ try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = requ
   r = await pass(['alpha', 'bravo'], true); ok('every building failing at once is treated as this side\'s connection (Tailscale, VPN): no alert', r.a === true && r.b === true && r.self && /can’t reach any building/.test(r.banner) && !r.alerts, JSON.stringify(r));
   r = await pass([], true);
   r = await pass(['alpha'], true); ok('one building missing one look is not yet offline', r.a === true && r.b === true && !r.self && !r.alerts, JSON.stringify(r));
-  r = await pass(['alpha'], true); ok('missing two looks in a row: offline, with one alert', r.a === false && r.b === true && /Alpha went offline/.test(r.alerts) && !/Bravo/.test(r.alerts), JSON.stringify(r));
-  r = await pass(['alpha'], false); ok('the computer dropping out afterwards does not take Bravo down too', r.a === false && r.b === true && r.self && (r.alerts.match(/went offline/g) || []).length === 1, JSON.stringify(r));
+  r = await pass(['alpha'], true); ok('missing two looks in a row: shown offline, but nobody is told yet (15 minutes by default)', r.a === false && r.b === true && !r.alerts, JSON.stringify(r));
+  r = await pass(['alpha'], true); r = await pass(['alpha'], true); ok('still nothing a few looks later', !r.alerts, JSON.stringify(r));
+  await page.evaluate(() => { DB.sites[0].offSince = Date.now() - 16 * 60000; });
+  r = await pass(['alpha'], true); ok('once it has been offline for 15 minutes, one alert', /Alpha has been offline for 16 min/.test(r.alerts) && !/Bravo/.test(r.alerts) && (r.alerts.match(/offline/g) || []).length === 1, JSON.stringify(r));
+  r = await pass(['alpha'], true); ok('and only one', (r.alerts.match(/offline/g) || []).length === 1, r.alerts);
+  r = await pass(['alpha'], false); ok('the computer dropping out afterwards does not take Bravo down too', r.a === false && r.b === true && r.self && (r.alerts.match(/offline/g) || []).length === 1, JSON.stringify(r));
   r = await pass([], true); ok('Alpha answering again is online at once', r.a === true && r.b === true && !r.self);
+  // "immediately" tells you on the second missed look; switching the kind off tells you nothing
+  await page.evaluate(() => { PREFS.offlineAfterMin = 0; DB.audit = []; }); r = await pass(['bravo'], true); r = await pass(['bravo'], true);
+  ok('set to immediately, the alert comes with the second missed look', /Bravo went offline/.test(r.alerts), JSON.stringify(r));
+  r = await pass([], true); await page.evaluate(() => { PREFS.nOffline = false; DB.audit = []; }); r = await pass(['bravo'], true); r = await pass(['bravo'], true);
+  ok('with "a controller goes offline" switched off, nothing is said', r.b === false && !r.alerts, JSON.stringify(r));
+  // a building that was already offline and already reported before Command was closed is not reported again on start
+  ok('a restart of Command does not repeat an offline alert', await page.evaluate(() => { PREFS.nOffline = true; PREFS.offlineAfterMin = 15; const s = DB.sites[1]; s.online = false; s.offSince = Date.now() - 3600000; s.offTold = Date.now() - 3000000; offlineDue.prime(); return offlineDue(Date.now()).length === 0 && !!s.offTold; }));
+  ok('one that went offline while Command was closed starts its wait at start-up', await page.evaluate(() => { const s = DB.sites[0]; s.online = false; delete s.offSince; delete s.offTold; offlineDue.prime(); return offlineDue(Date.now()).length === 0 && !!s.offSince; }));
+  // advisories and silent units are off unless asked for
+  ok('advisories and "a unit stopped answering" are off by default; errors are on', await page.evaluate(() => PREF_DEFAULTS.nAdvisory === false && PREF_DEFAULTS.nSilent === false && PREF_DEFAULTS.nError === true && PREF_DEFAULTS.offlineAfterMin === 15));
   ok('no page errors', errors.length === 0, errors.join(' | '));
   await browser.close(); console.log(fail ? fail + ' FAILED' : 'all passed'); process.exit(fail ? 1 : 0);
 })();

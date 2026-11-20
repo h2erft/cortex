@@ -618,3 +618,18 @@ The user's rule: **one Cortex per building, every make in it together, never a c
 - `docs/CONSOLE_AND_REMOTE.md` covers `/api/remote` and `/api/console`. Never add a sudo rule that runs
   a script under `/opt/cortex` (owned by the service user), and never weaken the console's server-side
   password check: the rest of the API is open to the LAN by design, the console must not be.
+
+## Addendum: settings page, role colours, calmer Command (v1.7.1-beta.17)
+
+- Settings is `view === "settings"`, drawn by `drawSettings()` into `#setpage`; `renderAll()` leaves it
+  alone once drawn (periodic refreshes would wipe what someone is doing). Settings code must query
+  `#setpage`, not `mroot`. Sub-dialogs (edit role, edit user) are still modals and call `drawSettings()`
+  to go back, which closes them.
+- Accent: `myAccent()` = the person's own pick (`settings.accent` + `accentPicked`) or `roleAccent(role)`.
+- Weather card: `outdoorNow()` / `settings.outdoorSrc` (`odu`, `odu:<addr>`, `weather`).
+- Outdoor page: `cycView` is now the view inside one outdoor unit's detail; there is no diagram page.
+- Outdoor list reads: one per pass (`busmaster.js`), second round in `onInventory` (`r.round`).
+- Command: `offlineDue()` with `s.offSince` / `s.offTold`, `PREFS.nOffline|nError|nSilent|nAdvisory`,
+  `PREFS.offlineAfterMin`; `fleetwatch.js` takes the same as `opts` through `POST /api/fleet`.
+  `ACK_SEL` + `ackManyModal()`; roles in `DB.roles`, `cmdRoles()`, `roleModal()`. Command roles are
+  not enforced by anything yet: there is no per-person sign-in.

@@ -58,7 +58,8 @@ const until = async (f, ms) => { const t0 = Date.now(); let v; while (!(v = awai
     // --- any technician can disconnect, from any device; it sticks across a restart
     const C = await open(); a = await st(C); ok('a screen opened later reads the same status straight away', a.dis && /controller polling/.test(a.txt), JSON.stringify(a));
     await C.click('#bus-dis'); a = await until(async () => { const x = await st(A); return x.con && /not connected/.test(x.txt) ? x : null; });
-    b0 = await J('/api/bus'); await sleep(3200); const quiet = heard(); await sleep(2500);
+    b0 = await until(async () => { const x = await J('/api/bus'); return !x.polling ? x : null; }, 6000) || await J('/api/bus');   // the poll loop finishes the exchange it is in before it stops
+    await sleep(3200); const quiet = heard(); await sleep(2500);
     ok('Disconnect from one device shows on the others, and the wire goes silent', !!a && !b0.on && !b0.open && !b0.polling && heard() === quiet && /Bus offline/.test((await st(A)).pill), JSON.stringify([a, b0]));
     srv.kill(); await sleep(500); await start(); b0 = await J('/api/bus'); ok('still disconnected after the controller restarts', b0.on === false && b0.open === false);
     await post('/api/bus', { on: true }); await until(async () => (await J('/api/bus')).polling, 10000); srv.kill(); await sleep(500); await start();

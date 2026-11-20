@@ -15,7 +15,7 @@ let fail = 0; const ok = (n, c) => { console.log((c ? 'ok   ' : 'FAIL ') + n); i
   const fw = createFleetWatch({ dataDir: dir, fetch: fake, now: () => clock, wanted: () => wanted, notify: n => notes.push(n.site.id + ': ' + n.text) });
   const step = async () => { clock += 60000; return fw.run(); };
   ok('nothing to watch, nothing fetched', await fw.run() === 0 && calls.length === 0);
-  fw.setSites([{ id: 'a', name: 'Alpha', url: 'http://a' }, { id: 'b', name: 'Beta', url: 'b' }]);
+  fw.setSites([{ id: 'a', name: 'Alpha', url: 'http://a' }, { id: 'b', name: 'Beta', url: 'b' }], { offlineMin: 0, offline: true, error: true, silent: true, advisory: true });   // everything on, told at once
   await step(); ok('first look only records state', notes.length === 0 && fw.state().a.online === true && fw.state().a.err === 0);
   ok('only read-only paths are requested', calls.every(u => /\/(health|api\/units|api\/diag)$/.test(u)));
   await step(); ok('no change, no alert', notes.length === 0);
@@ -30,6 +30,21 @@ let fail = 0; const ok = (n, c) => { console.log((c ? 'ok   ' : 'FAIL ') + n); i
   delete world.a.units[0].code; await step(); world.a.units[0].code = 'CH05'; await step(); ok('a fault that cleared and came back is new again', notes[4] === 'a: 1 unit in error');
   wanted = false; world.a.up = false; await step(); await step(); ok('idle while no device is subscribed', notes.length === 5);
   wanted = true; clock += 3600000; await fw.run(); await step(); ok('after a long pause the first look is silent', notes.length === 5);
+  // --- the choices made in Command: a wait before "offline", and kinds that can be switched off
+  { const d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'cxfleet2-')); let c2 = 2e12; const n2 = [], w2 = { x: { up: true, units: [{}, {}], adv: [] } };
+    const fake2 = async (url) => { const k = url.replace(/^https?:\/\//, '').split('/')[0], s = w2[k], pth = url.slice(url.indexOf('/', 8)); if (!s || !s.up) throw new Error('down'); return { ok: true, json: async () => pth === '/health' ? { ok: true } : pth === '/api/units' ? { units: s.units } : { advisories: s.adv } }; };
+    const f2 = createFleetWatch({ dataDir: d2, fetch: fake2, now: () => c2, notify: n => n2.push(n.text) }), st2 = async () => { c2 += 60000; return f2.run(); };
+    f2.setSites([{ id: 'x', name: 'X', url: 'http://x' }]);
+    ok('until Command says otherwise: offline after 15 minutes, errors on, advisories and silent units off', JSON.stringify(f2.opts()) === '{"offlineMin":15,"offline":true,"error":true,"silent":false,"advisory":false}', JSON.stringify(f2.opts()));
+    await st2(); w2.x.units[0].offline = true; w2.x.adv = [{ title: 'a' }]; await st2(); ok('a silent unit and an advisory say nothing by default', n2.length === 0, n2.join(' | '));
+    w2.x.units[1].code = 'CH05'; await st2(); ok('a unit in error still does', n2.join() === '1 unit in error', n2.join(' | '));
+    w2.x.up = false; for (let i = 0; i < 12; i++) await st2(); ok('ten minutes offline: nothing yet', n2.length === 1, n2.join(' | '));
+    for (let i = 0; i < 6; i++) await st2(); ok('past fifteen minutes: told once', n2.length === 2 && /has been offline for 15 min/.test(n2[1]), n2.join(' | '));
+    for (let i = 0; i < 5; i++) await st2(); w2.x.up = true; await st2(); ok('and told when it is back', n2.length === 3 && /back online/.test(n2[2]), n2.join(' | '));
+    w2.x.up = false; for (let i = 0; i < 5; i++) await st2(); w2.x.up = true; await st2(); ok('a five-minute drop says nothing at all, going or coming back', n2.length === 3, n2.join(' | '));
+    f2.setSites(f2.sites(), { offlineMin: 60, offline: false, error: false, silent: true, advisory: true }); ok('Command can change the choices', f2.opts().offlineMin === 60 && f2.opts().offline === false && f2.opts().advisory === true);
+    ok('and they survive a restart', createFleetWatch({ dataDir: d2, fetch: fake2 }).opts().offlineMin === 60);
+    fs.rmSync(d2, { recursive: true, force: true }); }
   world.c = { up: false }; fw.setSites(fw.sites().concat([{ id: 'c', name: 'Never up', url: 'c' }])); await step(); await step(); await step();
   ok('a building never seen online does not alert', !notes.some(n => /^c:/.test(n)));
   ok('state survives a restart; removed sites are forgotten', createFleetWatch({ dataDir: dir, fetch: fake }).sites().length === 3 && (fw.setSites([{ id: 'a', url: 'a' }]), Object.keys(fw.state()).join() === 'a'));

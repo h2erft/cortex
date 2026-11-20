@@ -998,7 +998,7 @@ const fleetWatch = createFleetWatch({ dataDir: DATA, log: (t) => console.log(t),
   notify: ({ site, text }) => { push.send({ title: site.name, body: text.charAt(0).toUpperCase() + text.slice(1), tag: 'fleet:' + site.id, url: '/command-center.html' }, 'fleet').catch(e => console.error('fleet push failed:', e.message)); } });
 fleetWatch.start();
 app.get('/api/fleet', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ ok: true, sites: fleetWatch.sites(), state: fleetWatch.state(), devices: push.fleetCount() }); });
-app.post('/api/fleet', (req, res) => { cors(res); const n = fleetWatch.setSites((req.body || {}).sites); res.json({ ok: true, sites: n }); });
+app.post('/api/fleet', (req, res) => { cors(res); const n = fleetWatch.setSites((req.body || {}).sites, (req.body || {}).opts); res.json({ ok: true, sites: n, opts: fleetWatch.opts() }); });
 app.post('/api/fleet/test', async (req, res) => { cors(res); const ep = String((req.body || {}).endpoint || ''); if (!ep || !push.has(ep)) return res.status(400).json({ err: 'this device is not subscribed' });
   res.json(await push.send({ title: 'Cortex Command', body: 'Test alert. Building alerts will look like this, even with Command closed.', tag: 'test', url: '/command-center.html' }, 'test', ep)); });
 app.get('/command-icon-256.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400').type('png').send(pwa.CMD_ICON_PNG); });
