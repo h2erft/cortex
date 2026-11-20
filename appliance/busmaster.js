@@ -135,7 +135,7 @@ function createMaster(io) {
   }
   /* An outdoor unit's own list of its indoor units: monitor pages 0x30-0x32 (read-only). Outdoor units answer these
      slowly and not every time, so each page is asked up to three times with a pause between. */
-  async function oduPageTry(addr, page) { for (let i = 0; i < 3 && !S.stopping; i++) { const f = await exchange(oduQuery(addr, page), rx => findOduPage(rx, addr), REPLY_WAIT); if (f) return f; await sleep(1200); } return null; }
+  async function oduPageTry(addr, page) { for (let i = 0; i < 3 && !S.stopping; i++) { const f = await exchange(oduQuery(addr, page), rx => findOduPage(rx, addr), 1600); if (f) return f; await sleep(1200); } return null; }
   async function readInventory(addr) {
     if (addr === 0xFF || addr < 0 || addr > 0xFE) return null;
     const p = await oduPageTry(addr, 0x30); if (!p) return null;
@@ -173,7 +173,9 @@ function createMaster(io) {
       await drainCommands();
       if (!S.stopping && Date.now() - S.oduAt > ODU_EVERY) { S.oduAt = Date.now();
         for (const oa of (io.oduAddrs() || [])) { if (S.stopping) break; await readOdu(oa); await sleep(TURNAROUND); } }
-      if (io.inventoryNext) { let a, n = 0; while (!S.stopping && n++ < 3 && (a = io.inventoryNext()) != null) { let fr = null; try { fr = await readInventory(a); } catch (_) {} try { io.onInventory(a, fr); } catch (_) {} await sleep(300); } }
+      // One outdoor unit per pass, after a quiet moment on the wire. Asking several back to back got far fewer answers
+      // than asking one at a time, so they are spaced out with a normal pass of the indoor units in between.
+      if (io.inventoryNext && !S.stopping) { const a = io.inventoryNext(); if (a != null) { await sleep(700); let fr = null; try { fr = await readInventory(a); } catch (_) {} try { io.onInventory(a, fr); } catch (_) {} await sleep(500); } }
       S.passMs = Date.now() - t0; S.lastPassAt = Date.now(); S.passes++;
       if (io.onPass) io.onPass(S.passMs);
       if (S.passMs < MIN_PASS && !S.stopping && !probes.length && !oprobes.length) await sleep(MIN_PASS - S.passMs);

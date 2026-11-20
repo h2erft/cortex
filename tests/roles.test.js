@@ -49,7 +49,7 @@ const SHOTS = process.env.SHOTS || '';
     let n = await nav(); ok('they see only the pages the role allows', n.includes('units') && n.includes('schedule') && n.includes('events') && !n.includes('map') && !n.includes('busscan') && !n.includes('cycle') && !n.includes('econet') && await E(() => document.getElementById('devbtn').classList.contains('hide')), n.join());
     ok('they can control a unit but not use All on / All off or locks', await E(() => ctlAllowed(units[0]) && !document.getElementById('allon') && !can('locks')), await E(() => !!document.getElementById('allon') + ''));
     await E(() => { view = 'schedule'; renderAll(); }); ok('they can see schedules but not change them', await E(() => !document.getElementById('newsch') && !document.querySelector('[data-sedit]')));
-    await E(() => { setTab = 'users'; drawSettings(); }); t = await text('.modal'); ok('Users and Advanced are locked for them', /does not include managing users/.test(t) && await E(() => { setTab = 'advanced'; drawSettings(); return /does not include Advanced/.test(document.querySelector('.modal').innerText); })); await E(() => closeModal());
+    await E(() => { setTab = 'users'; drawSettings(); }); t = await text('#setpage'); ok('Users and Advanced are locked for them', /does not include managing users/.test(t) && await E(() => { setTab = 'advanced'; drawSettings(); return /does not include Advanced/.test(document.getElementById('setpage').innerText); })); await E(() => { view = 'units'; renderAll(); });
     // --- look but not touch
     await E((id) => { roleOf(id).perms = ['map']; saveCfg(CFG); }, FD); await as('dana');
     await E(() => openDrawer(units[0].id)); await page.waitForTimeout(200);
@@ -58,7 +58,7 @@ const SHOTS = process.env.SHOTS || '';
     // --- a technician-style custom role, and a backup-only one
     await E((id) => { roleOf(id).perms = ['busscan', 'techdata', 'backup']; saveCfg(CFG); }, FD); await as('dana'); n = await nav();
     ok('one tool can be given without the rest', n.includes('busscan') && !n.includes('cycle') && !n.includes('events') && await E(() => isTechView() && !can('service')), n.join());
-    await E(() => { setTab = 'advanced'; drawSettings(); }); t = await text('.modal'); ok('Advanced shows only the part the role includes', /Back up configuration/.test(t) && !/Factory reset/.test(t) && !/Admin access code/.test(t) && !/Site name/.test(t), t.slice(0, 300)); await E(() => closeModal());
+    await E(() => { setTab = 'advanced'; drawSettings(); }); t = await text('#setpage'); ok('Advanced shows only the part the role includes', /Back up configuration/.test(t) && !/Factory reset/.test(t) && !/Admin access code/.test(t) && !/Site name/.test(t), t.slice(0, 300)); await E(() => { view = 'units'; renderAll(); });
     // --- an access code still works, for this session
     await E(() => { elev.tech = true; recomputeSession(); renderWho(); }); ok('a technician access code adds the technician tools until locked again', await E(() => can('cycle') && can('service') && !can('users') && document.getElementById('lockbtn').classList.contains('lit')));
     await E(() => document.getElementById('lockbtn').click()); ok('locking takes them away', await E(() => !can('cycle') && can('busscan')));

@@ -1152,11 +1152,12 @@ app.post('/api/odu/read', (req, res) => { cors(res); const a = Number((req.body 
 /* Which indoor units belong to which outdoor unit: each outdoor unit is asked for its own list, on the line it is
    on (an outdoor unit whose line is not known yet is asked on every line). Run here so it reaches every line. */
 let oduInv = null;      // { at, lines, q: Map(line -> [addr]), res: Map(addr -> { want:Set, tried:Set, frames, line }), endedAt }
-const invDone = (r) => !!r.frames || [...r.want].every(l => r.tried.has(l));
+const invDone = (r) => !!r.frames || (r.round >= 2 && [...r.want].every(l => r.tried.has(l)));      // every outdoor unit that stays quiet gets a second go at the end
 function inventoryNext(line) { const J = oduInv; if (!J || J.endedAt) return null; const q = J.q.get(line) || [];
   while (q.length) { const a = q.shift(); if (!J.res.get(a).frames) return a; J.res.get(a).tried.add(line); } invCheck(); return null; }
 function onInventory(line, a, frames) { const J = oduInv; if (!J) return; const r = J.res.get(a); if (!r) return; r.tried.add(line);
   if (frames && frames.length && !r.frames) { r.frames = frames.map(f => Buffer.from(f).toString('hex')); r.line = line; oduOnLine(a, line); }
+  else if (!r.frames && [...r.want].every(l => r.tried.has(l)) && !(r.round >= 2) && (r.widened || J.lines.length <= r.want.size)) { r.round = 2; r.tried.clear(); for (const l of r.want) J.q.get(l).push(a); superviseBus(); }
   else if (!r.frames && !r.widened && J.lines.length > r.want.size) { r.widened = true;                       // no answer where we thought it was: it may have been moved, so try the other lines too
     for (const l of J.lines) if (!r.want.has(l)) { r.want.add(l); J.q.get(l).push(a); } superviseBus(); }
   invCheck(); }
@@ -1172,7 +1173,7 @@ app.post('/api/odu/members', (req, res) => { cors(res); const b = req.body || {}
   if (!addrs.length) return res.status(400).json({ err: 'find the outdoor units first' });
   const J = { at: Date.now(), lines, q: new Map(lines.map(l => [l, []])), res: new Map(), endedAt: 0 };
   for (const a of addrs) { const known = oduLine.has(a) && lines.includes(oduLine.get(a)) ? [oduLine.get(a)] : lines; J.res.set(a, { want: new Set(known), tried: new Set(), frames: null, line: null }); known.forEach(l => J.q.get(l).push(a)); }
-  oduInv = J; setTimeout(() => { if (oduInv === J && !J.endedAt) J.endedAt = Date.now(); }, 6 * 60000); superviseBus(); res.json({ ok: true, members: invInfo() }); });
+  oduInv = J; setTimeout(() => { if (oduInv === J && !J.endedAt) J.endedAt = Date.now(); }, 20 * 60000); superviseBus(); res.json({ ok: true, members: invInfo() }); });
 app.post('/api/odu/forget', (req, res) => { cors(res); const a = Number((req.body || {}).addr); if (oduOwn.delete(a)) oduOwnSave(); oduLine.delete(a); res.json({ ok: true }); });
 let passAt = 0;
 function passDone() { if (Date.now() - passAt < 2000) return; passAt = Date.now(); histSample(); recorder.sample(unitsDoc.units); }   // several lines finish passes; the history is sampled once

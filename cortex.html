@@ -93,7 +93,7 @@ header{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var
 .icon-btn.lit{border-color:var(--accent);color:var(--accent)}
 
 .shell{flex:1;display:flex;min-height:0}
-nav{flex:0 0 212px;background:var(--surface);border-right:1px solid var(--border);padding:14px 12px;overflow:auto}
+nav{flex:0 0 var(--navw,212px);position:relative;background:var(--surface);border-right:1px solid var(--border);padding:14px 12px;overflow:auto}
 .nav-group{margin-bottom:18px}
 .nav-label{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--text-faint);padding:0 8px 6px}
 .nav-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;color:var(--text-dim);font-size:14px;border:none;background:none;width:100%;text-align:left}
@@ -103,7 +103,7 @@ nav{flex:0 0 212px;background:var(--surface);border-right:1px solid var(--border
 .nav-item .tech-tag{font-size:10px;font-weight:600;color:var(--warn)}
 .nav-item .exp-tag{font-size:9.5px;font-weight:700;color:#1a1205;background:var(--warn);border-radius:4px;padding:1px 4px;letter-spacing:.3px}
 .upd-notes{font-size:12.5px;color:var(--text-dim);margin-top:8px;white-space:pre-wrap;max-height:230px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:9px 11px;line-height:1.5}
-.nav-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
+.nav-item .nm{overflow-wrap:anywhere;white-space:normal;line-height:1.25;flex:1 1 auto;min-width:0}
 .nav-item.sub{padding-left:28px;font-size:13px}
 .nav-item.row{cursor:pointer}
 .nav-arrow{flex:0 0 14px;text-align:center;color:var(--text-faint);cursor:pointer;font-size:10px;user-select:none}
@@ -727,6 +727,20 @@ svg.ug{width:100%;height:100%;display:block}
 #navbtn{display:none}
 @media (hover:none){.btn,.icon-btn,.segmented button{min-height:38px}}
 @media (max-width:560px){.drawer{width:100%}.lrow{grid-template-columns:14px 1.4fr .8fr .8fr}.lrow .lc-hide{display:none}}
+#navgrip{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:5}#navgrip:hover,#navgrip.drag{background:var(--accent);opacity:.35}
+@media (max-width:860px){#navgrip{display:none}}
+/* settings as a page */
+#setpage{display:grid;grid-template-columns:200px minmax(0,1fr);gap:22px;align-items:start}
+#setpage .set-tabs{position:sticky;top:0;display:flex;flex-direction:column;gap:4px}
+#setpage .set-tabs button{display:flex;gap:8px;align-items:center;justify-content:space-between;text-align:left;padding:10px 12px;border-radius:9px;border:none;background:none;color:var(--text-dim);font-size:14px;cursor:pointer}
+#setpage .set-tabs button:hover{background:var(--surface-2);color:var(--text)}#setpage .set-tabs button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+#setbody{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;min-width:0}
+#setbody.cols{column-width:430px;column-gap:40px}#setbody.cols .setrow,#setbody.cols .note-box,#setbody.cols .sys-card{break-inside:avoid}
+.sys-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;align-items:start}
+.sys-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:0;background:var(--surface-2)}.sys-card h5{margin:0 0 6px;font-size:13.5px;display:flex;justify-content:space-between;gap:8px}
+.sys-card .sys-row{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:3px 0;border-top:1px solid var(--border)}.sys-card .sys-row span:first-child{min-width:0;overflow-wrap:anywhere}
+@media (max-width:860px){#setpage{grid-template-columns:minmax(0,1fr);gap:12px}#setpage .set-tabs{position:static;flex-direction:row;overflow-x:auto;padding-bottom:4px}#setpage .set-tabs button{white-space:nowrap;flex:none}#setbody{padding:14px}#setbody.cols{column-width:auto}}
+.role-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline}
 /* nothing may spill out of its box: long names, paths and addresses wrap instead */
 body{overflow-wrap:break-word}
 .gauge{min-width:0}.gauge .gv,.gauge .gl{overflow-wrap:anywhere}.gauge .gv.long{font-size:17px;line-height:1.25}.gauge .gv.xlong{font-size:14px;line-height:1.3}
@@ -768,6 +782,7 @@ body{overflow-wrap:break-word}
 </header>
 <div class="shell">
   <nav>
+    <div id="navgrip" title="Drag to make the menu wider or narrower. Double-click to reset."></div>
     <div class="nav-mob"><div class="nm-site" id="nm-site">Cortex</div><div class="nm-who" id="nm-who"></div>
       <div class="nm-row"><button id="nm-theme">◐ Theme</button><button id="nm-dev" class="hide">📈 Health</button></div></div>
     <div class="nav-group"><div class="nav-label">Views</div>
@@ -943,7 +958,23 @@ const ACCENTS={
   arctic:{n:"Arctic",c:"#1f74c4",l:["#1f74c4","#15568f","#e2eefb"],d:["#5aa6e8","#bcd8f5","#13263a"]},
   ember:{n:"Ember",c:"#d2652a",l:["#d2652a","#9a4718","#faeadf"],d:["#e8955a","#f4c7a6","#33251a"]},
   forest:{n:"Forest",c:"#2f9e44",l:["#2f9e44","#1f6e30","#e4f3e6"],d:["#51c866","#b7e8c0","#15301b"]},
-  grape:{n:"Grape",c:"#7a4fd0",l:["#7a4fd0","#55369a","#ece4fb"],d:["#a98cf0","#d7c8f7","#241a3a"]}};
+  grape:{n:"Grape",c:"#7a4fd0",l:["#7a4fd0","#55369a","#ece4fb"],d:["#a98cf0","#d7c8f7","#241a3a"]},
+  ocean:{n:"Ocean",c:"#0891b2",l:["#0891b2","#0b6b83","#dcf3f8"],d:["#3cc3df","#a9e6f2","#10303a"]},
+  indigo:{n:"Indigo",c:"#4f55d6",l:["#4f55d6","#363a9c","#e5e6fb"],d:["#8f94f2","#cfd1fa","#1d1f40"]},
+  rose:{n:"Rose",c:"#d6336c",l:["#d6336c","#a02250","#fbe3ec"],d:["#f0709b","#f8c2d4","#3a1826"]},
+  crimson:{n:"Crimson",c:"#c92a2a",l:["#c92a2a","#932020","#fbe2e2"],d:["#f07272","#f7c1c1","#3a1818"]},
+  amber:{n:"Amber",c:"#c98a00",l:["#b47c00","#7f5800","#fbf0d2"],d:["#e9b949","#f5dfa3","#33290f"]},
+  lime:{n:"Lime",c:"#5c940d",l:["#5c940d","#40680a","#ebf5d8"],d:["#94d82d","#cdeea0","#22300f"]},
+  magenta:{n:"Magenta",c:"#ae3ec9",l:["#ae3ec9","#7c2b90","#f5e3fa"],d:["#d27be8","#e9c4f3","#321a3a"]},
+  graphite:{n:"Graphite",c:"#495057",l:["#495057","#2f3439","#e9ecef"],d:["#adb5bd","#dee2e6","#26292d"]}};
+/* Every role has its own accent colour, so one look at the screen says what level of access is signed in.
+   A person can still pick their own in Settings; "role colour" there goes back to this. */
+const ROLE_ACCENT={owner:"indigo",technician:"amber",admin:"arctic",customer:"slate"};
+function roleAccent(roleId){const r=typeof roleOf==="function"?roleOf(roleId):null;if(r&&r.accent&&ACCENTS[r.accent])return r.accent;if(ROLE_ACCENT[roleId])return ROLE_ACCENT[roleId];
+  const pool=["ocean","indigo","rose","lime","magenta","ember","grape","forest","graphite"];let h=0;for(const ch of String(roleId||""))h=(h*31+ch.charCodeAt(0))>>>0;return pool[h%pool.length];}
+// A colour counts as the person's own only if they picked it ("slate" used to be everyone's built-in default).
+const accentPicked=()=>!!(settings.accent&&ACCENTS[settings.accent]&&(settings.accentPicked||settings.accent!=="slate"));
+const myAccent=()=>accentPicked()?settings.accent:(currentUser?roleAccent(currentUser.role):"slate");
 const DIMS=[["location","Groups (your layout)"],["system","System (physical)"],["floor","Floor"],["suite","Suite"],["tag","Tag"]];
 const TREESEP=" ▸ ";                                       // separates group ▸ subgroup in a leaf key
 /* ===== One home for every manufacturer =====
@@ -1280,7 +1311,14 @@ function applyTheme(){const r=document.documentElement;
   // the phone's own status bar takes its colour from the page: keep it the same as the header in either theme
   try{const c=getComputedStyle(r).getPropertyValue("--surface").trim(),m=document.querySelector('meta[name="theme-color"]');if(c&&m)m.setAttribute("content",c);}catch(_){}}
 try{matchMedia("(prefers-color-scheme:dark)").addEventListener("change",()=>{if(settings.theme==="auto")applyTheme();});}catch(_){}
-function applyAccent(){const a=ACCENTS[settings.accent]||ACCENTS.slate;
+/* The menu's width can be dragged; each person's choice is kept with their settings. */
+function applyNavW(){const w=+settings.navW;document.documentElement.style.setProperty("--navw",(w>=160&&w<=460?w:212)+"px");}
+(function(){const g=document.getElementById("navgrip");if(!g)return;let on=false;
+  g.addEventListener("pointerdown",e=>{on=true;g.classList.add("drag");g.setPointerCapture(e.pointerId);e.preventDefault();});
+  g.addEventListener("pointermove",e=>{if(!on)return;const nv=document.querySelector("nav"),w=Math.max(160,Math.min(460,Math.round(e.clientX-nv.getBoundingClientRect().left)));settings.navW=w;applyNavW();});
+  const end=()=>{if(!on)return;on=false;g.classList.remove("drag");saveSettings();};g.addEventListener("pointerup",end);g.addEventListener("pointercancel",end);
+  g.addEventListener("dblclick",()=>{delete settings.navW;applyNavW();saveSettings();});})();
+function applyAccent(){applyNavW();const a=ACCENTS[myAccent()]||ACCENTS.slate;
   const dm=document.documentElement.getAttribute("data-theme")==="dark"||(settings.theme==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);
   const s=dm?a.d:a.l,st=document.documentElement.style;
   st.setProperty("--accent",s[0]);st.setProperty("--accent-ink",s[1]);st.setProperty("--accent-soft",s[2]);}
@@ -1291,7 +1329,7 @@ function renderWho(){
     else if(!IS_FILE)fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.name)sn.textContent=j.name;}).catch(()=>{});}
   const name=currentUser?currentUser.name:"Guest";
   const role=currentUser?roleName(currentUser.role):"guest";
-  document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${ue(name)} <span class="rolebadge">${ue(role)}</span>`;
+  document.getElementById("who").innerHTML=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> ${ue(name)} <span class="rolebadge">${currentUser?`<span class="role-dot" style="background:${ACCENTS[roleAccent(currentUser.role)].c}"></span>`:""}${ue(role)}</span>`;
   const base=currentUser?rolePerms(currentUser.role):new Set();
   const over=[...PSET].some(k=>!base.has(k));                    // an access code is adding something this user's role does not have
   document.getElementById("lockbtn").classList.toggle("hide",!over);
@@ -1406,9 +1444,18 @@ function unitRow(u){
 function applyFilters(l){return l.filter(u=>statusFilter==="all"||statusOf(u)===statusFilter)
   .filter(u=>!query||(dispName(u)+" "+getMeta(u).tags.join(" ")+" "+BRANDS[brandOf(u)].label+(isTechView()&&u.addr!=null?" "+u.name+" "+hx(u.addr):"")).toLowerCase().includes(query.toLowerCase()));}
 function filtered(){const base=groupFilter==="all"?allU():unitsInCat(groupFilter,gdim());return applyFilters(base);}
+/* The big outdoor temperature: by default the average of what the outdoor units' own air sensors read (it is the
+   temperature at this building, right now); one sensor or the weather service can be chosen in Settings. */
+const outSrc=()=>settings.outdoorSrc||"odu";
+function oduAirList(){const out=[];try{[...ODU.values()].forEach(o=>{if(oduOther(o))return;const m=oduUnits(o)[0];const age=Math.max(0,...Object.values(o.pages).map(p=>p.at||0));if(m&&isFinite(m.air)&&m.air>-45&&m.air<70&&Date.now()-age<20*60000)out.push({addr:o.addr,c:m.air});});}catch(e){}return out.sort((a,b)=>a.addr-b.addr);}
+function outdoorNow(){const src=outSrc(),F=settings.unit!=="C",conv=c=>Math.round(F?c*9/5+32:c);
+  if(src!=="weather"){const L=oduAirList(),one=/^odu:/.test(src)?L.find(o=>o.addr===+src.slice(4)):null;
+    if(one)return {t:conv(one.c),from:"Outdoor unit "+hx(one.addr)+" sensor"};
+    if(L.length&&!/^odu:/.test(src))return {t:conv(L.reduce((s,o)=>s+o.c,0)/L.length),from:L.length===1?"Outdoor unit sensor":"Average of "+L.length+" outdoor unit sensors"};}
+  return {t:WEATHER.now,from:null};}                                   // no fresh sensor reading: fall back to the weather service
 function weatherCard(){const w=WEATHER;const loc=(CFG&&CFG.site&&CFG.site.location)||w.place;
-  const t=w.now==null?"—":w.now+"°"+settings.unit;
-  return `<div class="weather"><div><div class="wt mono">${t}</div><div class="wmeta">${ue(w.cond)} · ${ue(loc)}</div></div>
+  const o=outdoorNow(),t=o.t==null?"—":o.t+"°"+settings.unit;
+  return `<div class="weather"><div><div class="wt mono">${t}</div><div class="wmeta">${o.from?ue(o.from)+" · ":""}${ue(w.cond)} · ${ue(loc)}</div></div>
     <div class="whr">${w.hours.map(h=>`<div class="wh">${h[0]}<b class="mono">${h[1]}°</b></div>`).join("")}${w.hi!=null?`<div class="wh">Hi / Lo<b class="mono">${w.hi} / ${w.lo}°</b></div>`:""}</div>
     ${w.live?"":`<span class="wsample">${w.now==null?"no data":"offline"}</span>`}</div>`;}
 function renderCards(list){if(!list.length)return '<div style="color:var(--text-faint);padding:8px 2px">None</div>';
@@ -2106,8 +2153,9 @@ function oduTiles(list){const f=cyFmt(),known=new Set(list.map(o=>o.addr)),quiet
 function oduDetail(list){const o=list.find(x=>x.addr===cyOdu);if(!o){cyOdu=null;return oduTiles(list);}
   return `<div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap"><button class="btn" id="odu-back">‹ All outdoor units</button>
       <span style="color:var(--text-dim);font-size:13px">${oduLineName(o.addr)?ue(oduLineName(o.addr))+" · ":""}${units.filter(u=>u.odu===o.addr).length} indoor units grouped to it</span><span style="flex:1"></span>
+      <div class="segmented"><button class="${cycView!=="diagram"?"on":""}" data-cyv="data">Data</button><button class="${cycView==="diagram"?"on":""}" data-cyv="diagram">Refrigerant diagram</button></div>
       <button class="btn" data-oduask="${o.addr}" title="Ask only this outdoor unit which indoor units belong to it">Ask it for its indoor units</button></div>
-    ${oduCards([o])}${iduSection(o.addr)}`;}
+    ${cycView==="diagram"?oduDiagrams([o]):oduCards([o])}${iduSection(o.addr)}`;}
 function oduCards(list){
   const cards=list.map((o,i)=>{const ot=oduOther(o);
     if(ot)return `<div class="cy-card cy-sys" style="--sc:${CY_SYS_COL[i%CY_SYS_COL.length]}"><div class="cy-head"><div class="cy-badge">${hx(o.addr)}</div><div style="min-width:0"><div class="cy-title">Outdoor unit ${hx(o.addr)}</div><div class="cy-subt">${ue(ot.name)} · family ${ot.hex}</div></div></div><div class="cy-checks idle">This outdoor unit answers, but its family (${ue(ot.name)}${ot.tag?", LG tag "+ue(ot.tag):""}) packs its data differently from Multi V IV, and Cortex does not have that map yet. Nothing is shown rather than showing wrong numbers. Indoor-unit control and monitoring are not affected.</div></div>`;
@@ -2775,11 +2823,17 @@ function evTitle(e){if(e.brand)return e.kind==="silent"?`${ue(e.name||"A system"
   return e.kind==="odu"?`${ue(e.code)} · Outdoor unit ${hx(e.addr)}`:e.kind==="silent"?`${ue(u?dispName(u):(e.name||hx(e.addr)))} stopped responding`:`${ue(e.code)} · ${ue(u?dispName(u):(e.name||hx(e.addr)))}`;}
 function evDur(e){if(!e.cleared)return '<span style="color:var(--err);font-weight:600">still active</span>';const m=Math.max(1,Math.round((e.cleared-e.at)/60000));return "lasted "+(m<90?m+" min":(m<2880?Math.round(m/60)+" h":Math.round(m/1440)+" days"));}
 async function renderEvents(){renderGroupNav();
-  main.innerHTML=`<div class="cyc-note">${brainLoader(40,"Loading fault history…")}</div>`;
+  // Already showing: refresh quietly. The page is only redrawn when the list of faults has actually changed, and then
+  // it keeps its place and whatever was opened, instead of jumping back to the top every few seconds.
+  const quiet=!!main.querySelector(".ev-strip");
+  if(!quiet)main.innerHTML=`<div class="cyc-note">${brainLoader(40,"Loading fault history…")}</div>`;
   let list=[];
   if(IS_FILE){main.innerHTML='<div class="cyc-note">Fault history is recorded by the Cortex controller. This copy was opened as a file, so there is nothing to show.</div>';return;}
-  try{const r=await fetch('/api/events',{cache:'no-store'});list=(await r.json()).events||[];}catch(e){main.innerHTML='<div class="cyc-note">Couldn’t reach the controller to load the fault history.</div>';return;}
+  try{const r=await fetch('/api/events',{cache:'no-store'});list=(await r.json()).events||[];}catch(e){if(!quiet)main.innerHTML='<div class="cyc-note">Couldn’t reach the controller to load the fault history.</div>';return;}
   if(view!=="events")return;
+  const evSig=JSON.stringify(list.map(e=>[e.id,e.cleared||0]));
+  if(quiet&&main.dataset.evsig===evSig){eventsAdvisories();return;}
+  const keepTop=quiet?main.scrollTop:0;
   const now=Date.now(),span=30*86400000,act=list.filter(e=>!e.cleared&&e.kind!=="silent").length;
   const col=e=>e.kind==="silent"?"var(--warn)":"var(--err)";
   const strip=`<svg viewBox="0 0 1000 54" style="width:100%;height:auto;display:block" class="ev-strip">
@@ -2800,14 +2854,17 @@ async function renderEvents(){renderGroupNav();
         <div style="min-width:0;flex:1"><div class="ev-t">${evTitle(e)}</div><div class="ev-s">${EV_KIND[e.kind]||e.kind}${e.kind!=="silent"&&e.code?" · "+ue(e.brand&&errInfo(evCode(e)).unknown?e.code:(errInfo(evCode(e)).t||"")):""} · ${evDur(e)}</div></div>
         <button class="btn sm">View the data</button></div>`).join("")}</div>`).join("")
       :'<div class="cyc-note" style="margin-top:14px;display:block">No faults recorded in the last 30 days. When one happens it appears here with the readings that led up to it.</div>'}`;
+  main.dataset.evsig=evSig;if(quiet)main.scrollTop=keepTop;
   main.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>openEvent(b.dataset.ev));eventsAdvisories();}
+const evAdvOpen=new Set();
 async function eventsAdvisories(){let d;try{d=await (await fetch('/api/diag',{cache:'no-store'})).json();}catch(_){return;}
   if(view!=="events"||document.getElementById("ev-adv"))return;const g=main.querySelector(".gauges");if(!g)return;const list=d.advisories||[],st=d.state||{};
   const when=t=>new Date(t).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
   g.insertAdjacentHTML("afterend",`<div class="cy-card" id="ev-adv" style="margin-bottom:12px;padding:12px 14px"><div style="font-weight:650;font-size:14px">Diagnosis advisories ${tip("The controller runs the cycle-diagnosis rules once a minute, with or without a screen open. A pattern has to be present for about ten minutes before it is listed here, and absent for ten before it clears. Pointers for where to look, not verdicts.")}
     <span style="font-weight:400;font-size:12px;color:var(--text-faint);margin-left:6px">${st.enabled?(st.lastRun?"last checked "+when(st.lastRun):"waiting for outdoor readings"):"not running"+(st.error?": "+ue(st.error):"")}</span></div>
-    ${list.length?list.slice(0,40).map(a=>`<details class="cy-dx ${a.lvl}" style="margin:8px 0 0"><summary><span class="cy-pill ${a.cleared?"":a.lvl==="likely"?"bad":"warn"}">${a.cleared?"cleared":a.lvl}</span><b>${ue(a.title)}</b><span class="cy-dxn">${hx(a.addr)} · ${when(a.at)}${a.cleared?" → "+when(a.cleared):" · still present"}</span></summary>
-      <div class="cy-dxb"><div class="cy-dxs">${(a.signs||[]).map(x=>`<div class="hit"><span>●</span><span>${ue(x)}</span></div>`).join("")}</div><p><b>What it means:</b> ${ue(a.what)}</p><p><b>What to do:</b> ${ue(a.todo)}</p></div></details>`).join(""):'<div style="font-size:13px;color:var(--text-dim);margin-top:6px">None in the last 30 days.</div>'}</div>`);}
+    ${list.length?list.slice(0,40).map(a=>`<details class="cy-dx ${a.lvl}" data-advk="${ue(a.addr+":"+a.title+":"+a.at)}" ${evAdvOpen.has(a.addr+":"+a.title+":"+a.at)?"open":""} style="margin:8px 0 0"><summary><span class="cy-pill ${a.cleared?"":a.lvl==="likely"?"bad":"warn"}">${a.cleared?"cleared":a.lvl}</span><b>${ue(a.title)}</b><span class="cy-dxn">${hx(a.addr)} · ${when(a.at)}${a.cleared?" → "+when(a.cleared):" · still present"}</span></summary>
+      <div class="cy-dxb"><div class="cy-dxs">${(a.signs||[]).map(x=>`<div class="hit"><span>●</span><span>${ue(x)}</span></div>`).join("")}</div><p><b>What it means:</b> ${ue(a.what)}</p><p><b>What to do:</b> ${ue(a.todo)}</p></div></details>`).join(""):'<div style="font-size:13px;color:var(--text-dim);margin-top:6px">None in the last 30 days.</div>'}</div>`);
+  document.querySelectorAll("#ev-adv details[data-advk]").forEach(d=>d.ontoggle=()=>{d.open?evAdvOpen.add(d.dataset.advk):evAdvOpen.delete(d.dataset.advk);});}
 async function openEvent(id){
   modal(head("Fault record")+`<div class="modal-body" id="ev-body">${brainLoader(60,"Loading the recording…")}</div>`,true);
   let d;try{const r=await fetch('/api/events/'+encodeURIComponent(id),{cache:'no-store'});if(!r.ok)throw 0;d=await r.json();}catch(e){const el=document.getElementById("ev-body");if(el)el.innerHTML='<div class="note-box">This recording is no longer available.</div>';return;}
@@ -2907,6 +2964,7 @@ async function oduPull(){if(IS_FILE||liveTx()||!currentUser)return;
       o.at=Math.max(o.at||0,src.at||0);}
     if(ch){oduDirty=true;}}catch(e){}}
 setInterval(()=>{if(BOOTED&&(view==="cycle"||!ODU.size))oduPull();},15000);
+setInterval(()=>{if(BOOTED&&currentUser&&view==="units"&&outSrc()!=="weather"&&settings.showWeather&&document.visibilityState==="visible")oduPull();},60000);   // keep the outdoor sensors fresh for the weather card
 setInterval(()=>{if(BOOTED&&view==="cycle"&&ODU_FIND&&ODU_FIND.running&&document.visibilityState==="visible")oduPull().then(()=>{if(oduDirty&&view==="cycle"&&!document.querySelector(".modal")&&document.activeElement!==document.getElementById("odu-addr")){oduDirty=false;renderCycle();}});},3000);
 /* ---- which indoor units belong to which outdoor unit ----
    An outdoor unit keeps its own list of indoor units and serves it on monitor pages 0x30–0x32 as
@@ -2938,7 +2996,7 @@ const lineNm=l=>l===0?"LG line 1":((lgLines().find(x=>x.id===l)||{}).name||("lin
 async function oduSrvInventory(addrs,note){if(!APPL||!addrs.length)return new Map();
   let j;try{j=await oduSrv("members",{addrs});}catch(e){if(note)note(e.message);return new Map();}
   const t0=Date.now();let m=j.members;
-  while(m&&m.running&&Date.now()-t0<360000){await sleep(2500);try{m=(await (await fetch("/api/odu",{cache:"no-store"})).json()).members;}catch(e){}
+  while(m&&m.running&&Date.now()-t0<1200000){await sleep(2500);try{m=(await (await fetch("/api/odu",{cache:"no-store"})).json()).members;}catch(e){}
     if(note&&m)note("Asking the outdoor units… "+m.done+" of "+m.total);}
   ODU_ASKED={};((m&&m.plan)||[]).forEach(p=>{ODU_ASKED[p.odu]={line:p.line,asked:p.asked||[]};});
   const out=new Map();((m&&m.plan)||[]).forEach(p=>{if(!p.pages)return;const pages=p.pages.map(hexBytes),count=pages[0][11];
@@ -4106,14 +4164,13 @@ function renderCycle(){renderGroupNav();
         ${isMaster()&&MASTER.cycleMs?`<div class="gauge cy-g"><div class="gv mono">${(MASTER.cycleMs/1000).toFixed(1)}<small> s</small></div><div class="gl">One full pass</div></div>`:''}
       </div></div>
     <div class="cy-bar">
-      <div class="segmented"><button class="${cycView==='data'?'on':''}" data-cyv="data">Data</button><button class="${cycView==='diagram'?'on':''}" data-cyv="diagram">Refrigerant diagram</button></div>
       <span class="cy-live ${live?'on':''}">${live?'● live':'○ last known readings'}</span>
       ${tip("Everything here is <b>real data read from the equipment</b>, not a simulation. Outdoor values come from each outdoor unit's monitor pages (re-read about once a minute while Cortex is polling); indoor values come from each unit's status reply on every pass. Tables are for Multi V IV — treat values on other families as approximate. Heat-recovery box (HRU) data is not carried on this bus; it is only on the outdoor unit's service port (see the UART page).")}
       <button class="btn sm" id="cy-fieldref">📖 Field reference</button>
       <div style="flex:1"></div>
       ${oduControls()}
     </div>
-    ${cycView==="diagram"?oduDiagrams(list):(cyOdu!=null?oduDetail(list):oduTiles(list))}`;
+    ${cyOdu!=null?oduDetail(list):oduTiles(list)}`;
   main.querySelectorAll("[data-odu]").forEach(t=>t.onclick=()=>{cyOdu=+t.dataset.odu;renderCycle();main.scrollTop=0;});
   const ob=document.getElementById("odu-back");if(ob)ob.onclick=()=>{cyOdu=null;renderCycle();};
   main.querySelectorAll("[data-oduask]").forEach(b=>b.onclick=()=>oduGroupClick(false,[+b.dataset.oduask]));
@@ -4368,6 +4425,8 @@ function renderAll(){
   if(view==="trends")view="units";
   if(view==="device"&&!can("device"))view="units";
   const _db=document.getElementById("devbtn");if(_db)_db.classList.toggle("lit",view==="device");
+  const _sb=document.getElementById("settingsbtn");if(_sb)_sb.classList.toggle("lit",view==="settings");
+  if(view==="settings"){if(!document.getElementById("setpage"))drawSettings();updateBell();return;}     // drawn once; it redraws itself when something on it changes
   if(view==="units")renderUnits();else if(view==="cycle")renderCycle();else if(view==="uart")renderUart();else if(view==="events")renderEvents();else if(view==="updates")renderUpdates();
   else if(view==="device")renderDevice();else if(view==="map")renderMap();else if(view==="busscan")renderBusScan();else if(view==="econet")renderEconet();else renderSchedule();
   updateBell();}
@@ -5109,7 +5168,8 @@ function organizeUnit(u){const m=getMeta(u);
 
 /* ---- settings ---- */
 let setTab="display";
-function openSettings(){setTab="display";drawSettings();}
+let setPrev="units";
+function openSettings(){if(view==="settings"){view=setPrev||"units";renderAll();return;}setTab="display";drawSettings();}
 function drawSettings(){
   if(setTab==="layout"&&!can("map_edit"))setTab="display";            // physical wiring (addresses) is not a customer page
   const tabs=[["display","🎨 Display",false]].concat(can("map_edit")?[["layout","🔌 Layout",false]]:[],(can("busscan")||can("eco_setup")||can("settings_adv"))?[["equipment","🏭 Equipment",false]]:[],[["updates","⬇ Updates",false],["advanced","⚙ Advanced",!canAdvTab()],["users","👥 Users",!can("users")],["about","ℹ About",false]]);
@@ -5121,8 +5181,17 @@ function drawSettings(){
   else if(setTab==="advanced")body=canAdvTab()?advancedTab():lockedTab("Your role does not include Advanced settings.","admin");
   else if(setTab==="users")body=can("users")?usersTab():lockedTab("Your role does not include managing users and roles.","admin");
   else body=aboutTab();
-  modal(head("Settings")+`<div class="tabs">${tabs.map(t=>`<button class="tab ${setTab===t[0]?'on':''}" data-tab="${t[0]}">${t[1]}${t[2]?' <span class="lock">🔒</span>':''}</button>`).join("")}</div><div class="modal-body" id="setbody">${body}</div>`,true);
-  mroot.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{setTab=b.dataset.tab;drawSettings();});
+  // A whole page, not a popup: more fits on screen, and the tabs stay down the side.
+  if(view!=="settings"){setPrev=view;view="settings";}
+  closeModal();closeDrawer();
+  const had=document.getElementById("setbody"),keep=(had&&main.dataset.settab===setTab)?main.scrollTop:0;
+  document.querySelectorAll("nav .nav-item[data-view]").forEach(b=>b.classList.remove("active"));
+  main.innerHTML=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><button class="btn" id="set-back">‹ Back</button><h2 style="margin:0;font-size:20px">Settings</h2></div>
+    <div id="setpage"><div class="set-tabs">${tabs.map(t=>`<button class="${setTab===t[0]?'on':''}" data-tab="${t[0]}"><span>${t[1]}</span>${t[2]?'<span class="lock">🔒</span>':''}</button>`).join("")}</div>
+    <div id="setbody" class="${["display","advanced","about"].includes(setTab)?"cols":""}">${body}</div></div>`;
+  main.dataset.settab=setTab;main.scrollTop=keep;
+  document.getElementById("set-back").onclick=()=>{view=setPrev||"units";renderAll();};
+  main.querySelectorAll("#setpage [data-tab]").forEach(b=>b.onclick=()=>{setTab=b.dataset.tab;drawSettings();});
   wireSettings();
   if(setTab==="updates")loadSettingsUpdates();
 }
@@ -5222,11 +5291,15 @@ function displayTab(){setTimeout(drawPushRow,0);const nk=(k,l,d)=>row(l,d,`<butt
   ${row("Density","",`<div class="segmented"><button data-set="density" data-val="comfortable" class="${settings.density==='comfortable'?'on':''}">Comfort</button><button data-set="density" data-val="compact" class="${settings.density==='compact'?'on':''}">Compact</button></div>`)}
   ${row("Temperature unit","",`<div class="segmented"><button data-set="unit" data-val="F" class="${settings.unit==='F'?'on':''}">°F</button><button data-set="unit" data-val="C" class="${settings.unit==='C'?'on':''}">°C</button></div>`)}
   ${row("Theme","",`<select class="sel-box" data-set="theme"><option value="auto" ${settings.theme==='auto'?'selected':''}>Auto</option><option value="light" ${settings.theme==='light'?'selected':''}>Light</option><option value="dark" ${settings.theme==='dark'?'selected':''}>Dark</option></select>`)}
-  ${row("Color theme","Accent across the app",`<div class="swatches">${Object.entries(ACCENTS).map(([k,a])=>`<button class="swatch ${settings.accent===k?'sel':''}" data-accent="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div>`)}
+  ${row("Color theme",accentPicked()?"Your own choice":"Your role’s colour ("+ue(ACCENTS[myAccent()].n)+")",`<div class="swatches" style="flex-wrap:wrap;justify-content:flex-end;max-width:330px"><button class="btn sm ${accentPicked()?"":"primary"}" data-accent="" title="Use the colour that goes with your role">Role colour</button>${Object.entries(ACCENTS).map(([k,a])=>`<button class="swatch ${accentPicked()&&settings.accent===k?'sel':''}" data-accent="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div>`)}
+  ${row("Outdoor temperature shown","The big number on the weather card",`<select class="sel-box" onchange="settings.outdoorSrc=this.value;saveSettings();drawSettings();" style="max-width:260px">
+      <option value="odu" ${outSrc()==="odu"?"selected":""}>Average of the outdoor units' sensors</option>
+      ${oduAirList().map(o=>`<option value="odu:${o.addr}" ${outSrc()==="odu:"+o.addr?"selected":""}>Outdoor unit ${hx(o.addr)} sensor</option>`).join("")}
+      <option value="weather" ${outSrc()==="weather"?"selected":""}>Weather service</option></select>`)}
   ${row("Group units by","Organize the dashboard",`<select class="sel-box" data-set="groupBy">${userDims().map(d=>`<option value="${d[0]}" ${gdim()===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select>`)}
   ${row("Clock format","",`<div class="segmented"><button class="${!settings.clock24?'on':''}" onclick="settings.clock24=false;saveSettings();drawSettings();tick();">12-hour</button><button class="${settings.clock24?'on':''}" onclick="settings.clock24=true;saveSettings();drawSettings();tick();">24-hour</button></div>`)}
   ${row("Start page","Page shown when you sign in",`<select class="sel-box" onchange="settings.landing=this.value;saveSettings();">${[["units","Indoor units"],["map","Building map"],["schedule","Schedule"]].filter(o=>o[0]==="units"||(o[0]==="map"&&can("map"))||(o[0]==="schedule"&&can("sched"))).concat(can("events")?[["events","Fault history"]]:[],can("device")?[["device","Device health"]]:[],can("cycle")?[["cycle","Outdoor / cycle"]]:[]).map(o=>`<option value="${o[0]}" ${settings.landing===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>`)}
-  ${can("cycle")?row("Outdoor / cycle opens on","",`<div class="segmented"><button data-set="cycleView" data-val="data" class="${settings.cycleView!=='diagram'?'on':''}">Data</button><button data-set="cycleView" data-val="diagram" class="${settings.cycleView==='diagram'?'on':''}">Diagram</button></div>`):""}
+  ${can("cycle")?row("An outdoor unit opens on","Its readings, or its refrigerant diagram",`<div class="segmented"><button data-set="cycleView" data-val="data" class="${settings.cycleView!=='diagram'?'on':''}">Data</button><button data-set="cycleView" data-val="diagram" class="${settings.cycleView==='diagram'?'on':''}">Diagram</button></div>`):""}
   ${row("Text size","",`<div class="segmented"><button data-set="textSize" data-val="normal" class="${settings.textSize!=='large'?'on':''}">Normal</button><button data-set="textSize" data-val="large" class="${settings.textSize==='large'?'on':''}">Large</button></div>`)}
   ${row("Animations","Screens easing in, numbers counting up, spinning fans, moving refrigerant",tog("motion",settings.motion!==false))}
   ${row("Summary tiles","Running / off / errors row",tog("showTiles",settings.showTiles))}
@@ -5238,9 +5311,9 @@ function displayTab(){setTimeout(drawPushRow,0);const nk=(k,l,d)=>row(l,d,`<butt
   ${row("Tags","",tog("tags",settings.show.tags))}`;}
 function layoutTab(){
   const systems=[...new Set(units.map(u=>String(u.system)))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
-  const block=(name,arr)=>`<div class="mini-lbl">${ue(name)} · ${arr.length} unit${arr.length!==1?"s":""}</div>${arr.slice().sort((a,b)=>a.addr-b.addr).map(u=>`<div class="sys-row"><span>${ue(dispName(u))}</span><span class="mono" style="color:var(--text-faint)">${hx(u.addr)} · ${ue(u.ch)}</span></div>`).join("")}`;
+  const block=(name,arr)=>`<div class="sys-card"><h5><span>${/^0x/i.test(name)?"Outdoor unit "+ue(name):ue(name==="undefined"||name==="null"?"Outdoor unit not known":name)}</span><span style="color:var(--text-faint);font-weight:400">${arr.length} unit${arr.length!==1?"s":""}</span></h5>${arr.slice().sort((a,b)=>a.addr-b.addr).map(u=>`<div class="sys-row"><span>${ue(dispName(u))}</span><span class="mono" style="color:var(--text-faint);white-space:nowrap">${hx(u.addr)}${lgLines().length?" · "+ue(lgLineOf(u)):""}</span></div>`).join("")}</div>`;
   return `<div class="note-box">Physical wiring — which indoor units hang off which outdoor unit, with each unit's bus address and channel. Set by the equipment and shown read-only (technicians and admins only). Everyone else organizes the dashboard with groups, names and tags.</div>
-    ${systems.length?systems.map(s=>block(s,units.filter(u=>String(u.system)===s))).join(""):'<div style="color:var(--text-faint);font-size:13px">No units yet.</div>'}`;}
+    ${systems.length?`<div class="sys-grid" style="margin-top:12px">${systems.map(s=>block(s,units.filter(u=>String(u.system)===s))).join("")}</div>`:'<div style="color:var(--text-faint);font-size:13px">No units yet.</div>'}`;}
 function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];const i=CFG.protocols.indexOf(k);
   if(i>=0){if(CFG.protocols.length>1)CFG.protocols.splice(i,1);}else CFG.protocols.push(k);saveCfg(CFG);drawSettings();}
 /* ===== Remote access (Tailscale) switched on from the dashboard =====
@@ -5368,7 +5441,7 @@ function usersTab(){const count=id=>users.filter(u=>u.role===id).length,orphans=
   ${orphans?`<div class="note-box warn" style="margin-bottom:8px">${orphans} user${orphans===1?" has":"s have"} a role that no longer exists and can only look at units. Edit ${orphans===1?"that user":"them"} and pick a role.</div>`:""}
   <div style="margin-bottom:6px">${users.map(u=>`<div class="urow">
     <div><div style="font-weight:500">${ue(u.name)}</div><div style="font-size:12px;color:var(--text-faint)">${u.protected?'Root account — every permission, cannot be removed':ue(u.username||'')}</div></div>
-    <div style="display:flex;align-items:center;gap:8px"><span class="rchip ${ue(String(u.role).replace(/[^a-z0-9_-]/gi,""))}">${ue(roleName(u.role))}</span>
+    <div style="display:flex;align-items:center;gap:8px"><span class="rchip ${ue(String(u.role).replace(/[^a-z0-9_-]/gi,""))}"><span class="role-dot" style="background:${ACCENTS[roleAccent(u.role)].c}"></span>${ue(roleName(u.role))}</span>
       ${u.protected?'':`<button class="linklike" data-edit="${u.id}">Edit</button><button class="linklike" style="color:var(--err)" data-del="${u.id}">Remove</button>`}</div></div>`).join("")}</div>
   <button class="btn primary" id="adduser" style="margin-top:10px">+ Add user</button>
   <div style="margin:22px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Roles</div>
@@ -5382,12 +5455,15 @@ function editRole(id,copyOf){const src=id?roleOf(id):(copyOf?roleOf(copyOf):null
   const have=new Set(src?rolePerms(src.id):ROLE_DEFAULTS.customer),groups=[...new Set(PERMS.map(p=>p[3]))];
   modal(head(isNew?"New role":"Edit role")+`<div class="modal-body">
     <div class="field"><div class="lbl">Role name</div><input id="rname" class="inp" maxlength="30" value="${ue(isNew?(copyOf&&src?src.name+" copy":""):src.name)}" placeholder="e.g. Front desk, Maintenance, Property manager"></div>
+    <div class="field"><div class="lbl">Role colour${tip("People with this role get this accent colour across Cortex, so one look says what level of access is signed in. Each person can still pick their own in Settings ▸ Display.")}</div>
+      <div class="swatches" id="racc" style="flex-wrap:wrap">${Object.entries(ACCENTS).map(([k,a])=>`<button type="button" class="swatch ${(isNew?(copyOf&&src?roleAccent(src.id):"ocean"):roleAccent(src.id))===k?"sel":""}" data-racc="${k}" title="${a.n}" style="background:${a.c}"></button>`).join("")}</div></div>
     <div class="sd">Tick what people with this role may see and do. Anything not ticked is hidden from them or switched off.</div>
     ${groups.map(g=>`<div class="permgrp"><span>${g}</span><button class="linklike" data-pall="${g}">all</button><button class="linklike" data-pnone="${g}">none</button></div>
       ${PERMS.filter(p=>p[3]===g).map(p=>`<label class="perm"><input type="checkbox" data-perm="${p[0]}" data-grp="${g}" ${have.has(p[0])?"checked":""}><div><b>${p[1]}</b><span>${p[2]}</span></div></label>`).join("")}`).join("")}
     <div class="note-box" id="rwarn" style="margin-top:12px;font-size:12.5px;display:none"></div>
     <div class="err-text" id="rerr"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="drawSettings()">Cancel</button><button class="btn primary" id="rsave">Save role</button></div></div>`,true);
+  mroot.querySelectorAll("[data-racc]").forEach(b=>b.onclick=()=>{mroot.querySelectorAll("[data-racc]").forEach(x=>x.classList.toggle("sel",x===b));});
   const boxes=()=>[...mroot.querySelectorAll("[data-perm]")],picked=()=>boxes().filter(b=>b.checked).map(b=>b.dataset.perm);
   const warn=()=>{const p=new Set(picked()),w=[];
       if(p.has("users"))w.push("People with this role can edit every role, including their own, so they can give themselves any permission.");
@@ -5404,9 +5480,10 @@ function editRole(id,copyOf){const src=id?roleOf(id):(copyOf?roleOf(copyOf):null
     const perms=picked();
     // never let someone remove their own way back in to this page
     if(id&&currentUser&&currentUser.role===id&&!perms.includes("users")){bad("This is your own role. Keep “Users and roles” ticked, or you would lock yourself out of this page.");return;}
-    if(id){const r=roleOf(id);r.name=name;r.perms=perms;}
-    else CFG.roles.push({id:"r_"+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),name,perms});
-    saveCfg(CFG);recomputeSession();renderWho();renderAll();drawSettings();toast(isNew?"Role “"+name+"” created":"Role “"+name+"” saved");};}
+    const acc=(document.querySelector("#racc .swatch.sel")||{dataset:{}}).dataset.racc||"ocean";
+    if(id){const r=roleOf(id);r.name=name;r.perms=perms;r.accent=acc;}
+    else CFG.roles.push({id:"r_"+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36),name,perms,accent:acc});
+    saveCfg(CFG);recomputeSession();applyTheme();renderWho();drawSettings();toast(isNew?"Role “"+name+"” created":"Role “"+name+"” saved");};}
 function deleteRole(id,btn){const r=roleOf(id);if(!r)return;const n=users.filter(u=>u.role===id).length;
   if(n){toast(n+" user"+(n===1?" has":"s have")+" the role “"+r.name+"”. Give "+(n===1?"that user":"them")+" another role first.");return;}
   if(btn.dataset.armed!=="1"){btn.dataset.armed="1";btn.textContent="Tap again to delete";return;}
@@ -5494,32 +5571,32 @@ function fillVersion(){const el=document.getElementById('verline');if(!el)return
   if(IS_FILE){el.textContent="local file (no controller)";return;}
   fetch('/version',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.version)el.textContent='v'+j.version;}).catch(()=>{});}
 function wireSettings(){fillVersion();
-  mroot.querySelectorAll("[data-set]").forEach(el=>{
+  document.querySelectorAll("#setpage "+"[data-set]").forEach(el=>{
     if(el.tagName==="SELECT")el.onchange=()=>{settings[el.dataset.set]=el.value;if(el.dataset.set==="groupBy")groupFilter="all";saveSettings();applyTheme();drawSettings();refreshBackground();};
     else el.onclick=()=>{settings[el.dataset.set]=el.dataset.val;saveSettings();applyTheme();drawSettings();refreshBackground();if(el.dataset.set==="unit"){WEATHER.ts=0;loadWeather();}};});
-  mroot.querySelectorAll("[data-tog]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#setpage "+"[data-tog]").forEach(b=>b.onclick=()=>{
     const k=b.dataset.tog;
     if(["mode","room","fan","tags"].includes(k))settings.show[k]=!settings.show[k];
     else if(["showTiles","showWeather"].includes(k))settings[k]=!settings[k];
     else if(k==="motion"){settings.motion=settings.motion===false;applyTheme();}
     else if(k==="custctl"||k==="custall"){return;}
     saveSettings();b.classList.toggle("on");refreshBackground();});
-  mroot.querySelectorAll("[data-accent]").forEach(b=>b.onclick=()=>{settings.accent=b.dataset.accent;saveSettings();applyTheme();drawSettings();refreshBackground();});
+  document.querySelectorAll("#setpage [data-accent]").forEach(b=>b.onclick=()=>{if(b.dataset.accent){settings.accent=b.dataset.accent;settings.accentPicked=true;}else{delete settings.accent;delete settings.accentPicked;}saveSettings();applyTheme();drawSettings();refreshBackground();});
   const ver=document.getElementById("verline");
   if(ver)ver.onclick=()=>{aboutTaps++;if(aboutTaps>=7){aboutTaps=0;askPin("tech");}};
-  mroot.querySelectorAll("[data-eq]").forEach(b=>b.onclick=()=>{closeModal();view=b.dataset.eq==="lg"?"busscan":"econet";if(view==="busscan")busBrand="lg";renderAll();});
+  document.querySelectorAll("#setpage "+"[data-eq]").forEach(b=>b.onclick=()=>{view=b.dataset.eq==="lg"?"busscan":"econet";if(view==="busscan")busBrand="lg";renderAll();});
   const add=document.getElementById("adduser");if(add)add.onclick=()=>editUser(null);
   const addr=document.getElementById("addrole");if(addr)addr.onclick=()=>editRole(null);
-  mroot.querySelectorAll("[data-redit]").forEach(b=>b.onclick=()=>editRole(b.dataset.redit));
-  mroot.querySelectorAll("[data-rcopy]").forEach(b=>b.onclick=()=>editRole(null,b.dataset.rcopy));
-  mroot.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>deleteRole(b.dataset.rdel,b));
-  mroot.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editUser(+b.dataset.edit));
-  mroot.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const t=users.find(u=>u.id===+b.dataset.del);if(!t||t.protected)return;
+  document.querySelectorAll("#setpage "+"[data-redit]").forEach(b=>b.onclick=()=>editRole(b.dataset.redit));
+  document.querySelectorAll("#setpage "+"[data-rcopy]").forEach(b=>b.onclick=()=>editRole(null,b.dataset.rcopy));
+  document.querySelectorAll("#setpage "+"[data-rdel]").forEach(b=>b.onclick=()=>deleteRole(b.dataset.rdel,b));
+  document.querySelectorAll("#setpage "+"[data-edit]").forEach(b=>b.onclick=()=>editUser(+b.dataset.edit));
+  document.querySelectorAll("#setpage "+"[data-del]").forEach(b=>b.onclick=()=>{const t=users.find(u=>u.id===+b.dataset.del);if(!t||t.protected)return;
     if(currentUser&&t.username===currentUser.username){toast("You can’t remove the account you are signed in with");return;}
     if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="Tap again to remove";return;}
     users=users.filter(u=>u.id!==t.id);if(CFG){CFG.users=users;saveCfg(CFG);}drawSettings();toast("Removed "+t.name);});
 }
-function refreshBackground(){if(mroot.innerHTML===""){/*no modal*/}renderAll();}
+function refreshBackground(){if(view==="settings")return;renderAll();}
 
 function editUser(id){const rl=roles();if(!rl.length){toast("Create a role first, then add the user to it");return;}
   const u=id?users.find(x=>x.id===id):{name:"",username:"",role:(roleOf("customer")?"customer":rl[0].id)};
