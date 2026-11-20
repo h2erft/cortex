@@ -7,15 +7,20 @@ every unit appears together in the dashboard.
 
 ## Setting it up
 
-1. **Line 1** is the LG bus Cortex always had. Bus scan ▸ LG line 1 ▸ **Choose adapter…** picks its channel.
-2. Bus scan ▸ LG line 1 ▸ **Add another LG line…** Name it, pick a free adapter or channel. It connects
-   and only listens.
-3. Make sure live polling is on (line 1 ▸ start polling). It is one switch for the whole site.
-4. Open the new line's tab ▸ **Find units on this line**. The controller asks each address on that wire
-   once. Units already known keep updating meanwhile.
-5. **Add N new units to Cortex.** They land in "New units", on that line. Name and group them as usual.
+Everything is on one page: Bus scan ▸ **LG channels**.
 
-Repeat 2 to 5 for each wire.
+1. **Line 1** is the LG bus Cortex always had. **Choose adapter** on its row picks its channel.
+2. **Add another LG line** for each further wire: name it, pick a free adapter or channel. It connects
+   and only listens.
+3. Make sure live polling is on. It is one switch for the whole site.
+4. **Search every channel for units.** The controller asks every address on channel 1, then channel 2
+   without the addresses that already answered, and so on. Units already in Cortex are not asked
+   again. One bar and one time-left figure cover all channels (`POST /api/lg-lines/search-all`).
+5. **Add N new units to Cortex.** Each lands in "New units" on the channel that found it.
+
+**Search** on a single row asks every address on that one wire, including addresses Cortex has on
+other channels. Use it to find a unit that is recorded on the wrong channel, or two units sharing an
+address. The **Live data** box shows what is said on every channel, or on one (`GET /api/lg-traffic`).
 
 ## Rules
 
@@ -37,7 +42,6 @@ Repeat 2 to 5 for each wire.
 
 ## Not done yet
 
-- A raw byte view for extra lines.
 - Outdoor units (since beta.14): Outdoor / cycle ▸ **Find outdoor units** runs on the controller, on every
   line at once (`POST /api/odu/find`, `/api/odu/read`). Found addresses are kept in `data/odu-addrs.json`.
 - Not yet proven on a real multi-line site.

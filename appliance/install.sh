@@ -127,6 +127,9 @@ systemctl enable cortex-appliance
 systemctl restart cortex-appliance
 systemctl enable --now cortex-updater.timer
 
+# 6a) remote access can be switched on from the dashboard: make the service user Tailscale's operator
+command -v tailscale >/dev/null 2>&1 && tailscale set --operator=cortex >/dev/null 2>&1 || true
+
 # 6b) sudoers: let the service reboot/power off the box from the UI (scoped, validated)
 if [ -f "$HERE/cortex.sudoers" ] && visudo -cf "$HERE/cortex.sudoers" >/dev/null 2>&1; then
   install -m 0440 "$HERE/cortex.sudoers" /etc/sudoers.d/cortex

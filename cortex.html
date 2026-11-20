@@ -727,6 +727,12 @@ svg.ug{width:100%;height:100%;display:block}
 #navbtn{display:none}
 @media (hover:none){.btn,.icon-btn,.segmented button{min-height:38px}}
 @media (max-width:560px){.drawer{width:100%}.lrow{grid-template-columns:14px 1.4fr .8fr .8fr}.lrow .lc-hide{display:none}}
+/* nothing may spill out of its box: long names, paths and addresses wrap instead */
+body{overflow-wrap:break-word}
+.gauge{min-width:0}.gauge .gv,.gauge .gl{overflow-wrap:anywhere}.gauge .gv.long{font-size:17px;line-height:1.25}.gauge .gv.xlong{font-size:14px;line-height:1.3}
+.setrow>*{min-width:0;max-width:100%}.setrow>div:first-child{flex:1 1 0;min-width:min(160px,100%)}
+.note-box,.modal-body,.pd-list td,.tile,.cy-tile,.labbody,.warnband,.toast{overflow-wrap:anywhere}
+.modal-body table{max-width:100%}.modal-body pre{white-space:pre-wrap;overflow-wrap:anywhere}
 /* outdoor unit tiles */
 .odu-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-top:14px;align-items:start}
 .odu-tile{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--sc,var(--accent));border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;cursor:pointer;min-width:0;transition:transform .12s ease,box-shadow .12s ease}
@@ -4308,7 +4314,8 @@ function renderUpdates(){renderGroupNav();
 
 /* ---- device health ---- */
 function healthBadge(ok){return ok?'<span class="badge-ok">Healthy</span>':'<span class="badge-new" style="background:var(--warn-soft);color:var(--warn)">Attention</span>';}
-function devStat(label,val,sub){return `<div class="gauge"><div class="gv mono">${val}</div><div class="gl">${label}${sub?` · ${sub}`:""}</div></div>`;}
+function devStat(label,val,sub){const n=String(val).replace(/<[^>]*>/g,"").length;      // a long value gets smaller type instead of running out of the tile
+  return `<div class="gauge"><div class="gv mono ${n>22?"xlong":n>13?"long":""}">${val}</div><div class="gl">${label}${sub?` · ${sub}`:""}</div></div>`;}
 let DEVLIVE=null,DEVERR=null,DEVLOADING=false;
 async function loadDevice(){
   DEVLIVE=null;DEVERR=null;DEVLOADING=true;
@@ -4339,14 +4346,14 @@ function renderDevice(){renderGroupNav();
   const ok=tempOk&&diskOk&&d.serialPresent!==false;
   const v=(x,suf)=>x==null?"n/a":x+(suf||"");
   const busTxt=d.serialPresent===false?"adapter not found":(d.busActive?"streaming":(d.busBytes>0?"idle":"no traffic yet"));
-  const busSub=d.serial?d.serial+(d.serialPresent===false?" · missing":""):"";
+  const busSub=d.serial?ue((LINK.adapter&&LINK.adapter.label&&LINK.adapter.label!==LINK.adapter.path)?LINK.adapter.label:String(d.serial).replace(/^\/dev\/serial\/by-id\/usb-/,"").replace(/_/g," "))+(d.serialPresent===false?" · missing":"")+(lgLines().length?" · +"+lgLines().length+" more LG line"+(lgLines().length===1?"":"s"):""):"";
   main.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
     <div><div style="font-weight:600;font-size:15px">${ue(d.host||"appliance")} ${healthBadge(ok)}</div>
       <div style="font-size:12.5px;color:var(--text-dim)">${ue(d.os||"")} · up ${ue(d.uptime||"?")} · v${ue(d.version||"?")}</div></div>${refBtn}</div>
    <div class="gauges">
      ${devStat("CPU load",v(d.cpu,"%"),d.cores?d.cores+" cores":"")}${devStat("CPU temp",d.temp==null?"no sensor":d.temp+"°C")}
      ${devStat("Memory",v(d.mem,"%"))}${devStat("Disk",v(d.disk,"%"))}
-     ${devStat("Remote access",d.tailscale?"Tailscale · up":"Local only",d.tailscale?ue(d.tailscale):(d.tailscale===undefined?"":"run “sudo tailscale up” on the controller"))}
+     ${devStat("Remote access",d.tailscale?"Tailscale · up":"Local only",d.tailscale?ue(d.tailscale):(d.tailscale===undefined?"":(can("settings_adv")?`<button class="linklike" onclick="openRemote()">turn it on</button>`:"ask a technician to turn it on")))}
      ${devStat("Bus adapter",busTxt,busSub)}
      ${devStat("Live link to equipment",d.masterAlive?"Polling":"Not polling",d.masterAlive?"a Cortex screen is connected":"no screen is connected to the equipment")}
      ${httpsStat}
@@ -5236,11 +5243,78 @@ function layoutTab(){
     ${systems.length?systems.map(s=>block(s,units.filter(u=>String(u.system)===s))).join(""):'<div style="color:var(--text-faint);font-size:13px">No units yet.</div>'}`;}
 function toggleSiteProto(k){if(!CFG)return;CFG.protocols=CFG.protocols||["lg"];const i=CFG.protocols.indexOf(k);
   if(i>=0){if(CFG.protocols.length>1)CFG.protocols.splice(i,1);}else CFG.protocols.push(k);saveCfg(CFG);drawSettings();}
+/* ===== Remote access (Tailscale) switched on from the dashboard =====
+   The controller runs `tailscale up` itself. The first time, Tailscale answers with a sign-in page: open it on any
+   device, approve, and the controller joins your tailnet. No keyboard on the controller is needed. */
+let REMOTE=null,remoteT=null;
+async function remotePull(){try{REMOTE=await (await fetch("/api/remote",{cache:"no-store"})).json();}catch(e){REMOTE=null;}return REMOTE;}
+function remoteHtml(){const r=REMOTE;
+  if(!APPL)return `<div class="note-box">Remote access is switched on at the controller. This copy of Cortex is not running on one.</div>`;
+  if(!r)return `<div style="color:var(--text-dim);font-size:13px">Checking…</div>`;
+  if(!r.installed)return `<div class="note-box warn">Tailscale is not installed on this controller. Re-run the Cortex installer, which adds it.</div>`;
+  if(r.up)return `<div class="note-box" style="border-color:var(--ok)"><b>Remote access is on.</b><div style="margin-top:6px;font-size:13px">This controller is <span class="mono" style="overflow-wrap:anywhere">${ue(r.name||"")}</span>${r.ip?` (${ue(r.ip)})`:""}${r.tailnet?` on the tailnet ${ue(r.tailnet)}`:""}. Install Tailscale on your phone or laptop with the same account to reach Cortex from anywhere. A trusted https certificate is fetched automatically within a few minutes.</div></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn danger" data-remote="off">Turn remote access off</button></div>`;
+  if(r.authUrl)return `<div class="note-box"><b>One step left: approve this controller.</b>
+      <ol style="margin:8px 0 0 18px;padding:0;font-size:13.5px;line-height:1.6"><li>Open the Tailscale sign-in page: <a class="btn primary" style="text-decoration:none;display:inline-flex;margin:4px 0" href="${ue(r.authUrl)}" target="_blank" rel="noopener">Open sign-in page ↗</a></li><li>Sign in to your Tailscale account (or create one) and approve the device.</li><li>Come back here. This box turns green by itself.</li></ol>
+      <div class="mono" style="font-size:11.5px;color:var(--text-faint);margin-top:8px;overflow-wrap:anywhere;user-select:all">${ue(r.authUrl)}</div></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn" data-remote="off">Cancel</button></div>`;
+  if(r.starting)return `<div style="color:var(--text-dim);font-size:13px">Starting Tailscale on the controller…</div>`;
+  return `${r.error?`<div class="note-box warn" style="margin-bottom:10px">${ue(r.error)}</div>`:""}<div style="font-size:13.5px;color:var(--text-dim)">Remote access is off. Turning it on starts Tailscale on the controller: a private network with no port forwarding, so the controller never sits on the open internet.</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn primary" data-remote="on">Turn remote access on</button></div>`;}
+function remoteFill(){const el=document.getElementById("remote-box");if(!el){clearInterval(remoteT);remoteT=null;return;}
+  const h=remoteHtml();if(el.dataset.h!==h){el.dataset.h=h;el.innerHTML=h;el.querySelectorAll("[data-remote]").forEach(b=>b.onclick=()=>remoteSet(b.dataset.remote==="on"));}}
+async function remoteSet(on){const el=document.getElementById("remote-box");if(el){el.dataset.h="";el.innerHTML=`<div style="color:var(--text-dim);font-size:13px">${on?"Starting Tailscale on the controller…":"Turning remote access off…"}</div>`;}
+  try{const r=await fetch("/api/remote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on})}),j=await r.json();if(!r.ok)throw new Error(j.err||("HTTP "+r.status));REMOTE=j;
+    if(CFG&&CFG.remote&&CFG.remote.enabled!==on&&can("settings_adv")){CFG.remote.enabled=on;saveCfg(CFG);}}catch(e){toast(e.message);await remotePull();}
+  remoteFill();}
+function remoteWatch(){clearInterval(remoteT);remotePull().then(remoteFill);remoteT=setInterval(()=>{if(!document.getElementById("remote-box")){clearInterval(remoteT);remoteT=null;return;}remotePull().then(remoteFill);},3000);}
+function openRemote(){modal(head("Remote access")+`<div class="modal-body"><div id="remote-box"></div></div>`);remoteWatch();}
+
+/* ===== The controller's own console =====
+   Runs commands on the controller for the rare job that needs it. It has its own password, kept on the controller
+   and checked there, separate from the sign-in to this dashboard. */
+const CONS={token:null,cwd:"",hist:[],hi:0,user:"cortex"};
+async function consApi(path,body){const r=await fetch("/api/console"+path,{method:body?"POST":"GET",headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined,cache:"no-store"}),j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.err||("HTTP "+r.status));return j;}
+async function openConsole(){if(!APPL){toast("The console is on the controller. This copy of Cortex is not running on one.");return;}if(!can("settings_adv")){toast("Your role cannot open the console");return;}
+  let st;try{st=await consApi("");}catch(e){toast(e.message);return;}CONS.user=st.user||"cortex";
+  if(CONS.token)return consTerm();
+  modal(head("Controller console")+`<div class="modal-body">
+    <div class="note-box warn" style="font-size:13px"><b>For technicians.</b> This runs commands on the controller itself. A wrong command can stop Cortex. It has its own password, kept on the controller and separate from your sign-in${st.set?"":". Whoever sets it first owns it, and changing it needs the old one, so set it now and keep it safe"}.</div>
+    ${st.locked?`<div class="note-box warn" style="margin-top:10px">Too many wrong tries. The console is locked for five minutes.</div>`:st.set?`
+      <label style="font-size:12.5px;color:var(--text-dim);display:block;margin-top:12px">Console password</label><input class="inp" type="password" id="cs-pw" autocomplete="off">
+      <div style="display:flex;gap:8px;justify-content:space-between;margin-top:12px;flex-wrap:wrap"><button class="linklike" id="cs-change">Change the console password</button><span style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="cs-open">Open console</button></span></div>`:`
+      <label style="font-size:12.5px;color:var(--text-dim);display:block;margin-top:12px">Choose a console password (at least 10 characters)</label><input class="inp" type="password" id="cs-new" autocomplete="new-password">
+      <label style="font-size:12.5px;color:var(--text-dim)">Type it again</label><input class="inp" type="password" id="cs-new2" autocomplete="new-password">
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="cs-set">Set password and open</button></div>`}
+    <div id="cs-err" style="color:var(--err);font-size:13px;margin-top:8px"></div></div>`);
+  const err=t=>{const e=document.getElementById("cs-err");if(e)e.textContent=t;},go=async pw=>{try{const j=await consApi("/open",{password:pw});CONS.token=j.token;CONS.cwd=j.cwd;consTerm();}catch(e){err(e.message);}};
+  const o=document.getElementById("cs-open");if(o){const p=document.getElementById("cs-pw");o.onclick=()=>go(p.value);p.onkeydown=e=>{if(e.key==="Enter")go(p.value);};setTimeout(()=>p.focus(),50);}
+  const sset=document.getElementById("cs-set");if(sset)sset.onclick=async()=>{const a=document.getElementById("cs-new").value,b=document.getElementById("cs-new2").value;if(a!==b){err("The two do not match.");return;}
+    try{await consApi("/password",{password:a});await go(a);}catch(e){err(e.message);}};
+  const ch=document.getElementById("cs-change");if(ch)ch.onclick=async()=>{const old=prompt("Current console password");if(old==null)return;const nw=prompt("New console password (at least 10 characters)");if(nw==null)return;
+    try{await consApi("/password",{password:nw,old});toast("Console password changed");}catch(e){err(e.message);}};}
+const consCwd=p=>{p=String(p||"");return p.length>30?"…"+p.slice(-29):p;};
+function consTerm(){modal(head("Controller console")+`<div class="modal-body" style="padding:0">
+    <div id="cs-out" class="mono" style="background:#0b1016;color:#cfe3d8;font-size:12.5px;line-height:1.45;padding:12px 14px;height:min(52vh,460px);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere">Commands run on the controller as “${ue(CONS.user)}”, one at a time, for up to two minutes each. Programs that need a live screen (nano, top) do not work here.
+Useful: sudo journalctl -u cortex-appliance -n 300 --no-pager · sudo systemctl restart cortex-appliance · tailscale status · df -h
+</div>
+    <div style="display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--border)"><span class="mono" id="cs-cwd" style="font-size:12px;color:var(--text-dim);white-space:nowrap" title="${ue(CONS.cwd)}">${ue(consCwd(CONS.cwd))}</span><span class="mono" style="color:var(--accent)">$</span>
+      <input class="inp mono" id="cs-in" style="margin:0;flex:1;font-size:13px" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type a command, press Enter"><button class="btn" id="cs-end">Close session</button></div></div>`,true);
+  const out=document.getElementById("cs-out"),inp=document.getElementById("cs-in"),add=(t,col)=>{const sp=document.createElement("span");if(col)sp.style.color=col;sp.textContent=t;out.appendChild(sp);out.scrollTop=out.scrollHeight;};
+  inp.onkeydown=async e=>{if(e.key==="ArrowUp"){if(CONS.hi>0){CONS.hi--;inp.value=CONS.hist[CONS.hi]||"";}e.preventDefault();return;}
+    if(e.key==="ArrowDown"){if(CONS.hi<CONS.hist.length){CONS.hi++;inp.value=CONS.hist[CONS.hi]||"";}e.preventDefault();return;}
+    if(e.key!=="Enter"||inp.disabled)return;const cmd=inp.value;if(!cmd.trim())return;CONS.hist.push(cmd);CONS.hi=CONS.hist.length;inp.value="";inp.disabled=true;add("\n$ "+cmd+"\n","#7fd6b4");
+    try{const j=await consApi("/run",{token:CONS.token,cmd});if(j.out)add(j.out+"\n");if(j.code)add("[exit "+j.code+"]\n","#e6a23c");CONS.cwd=j.cwd;const c=document.getElementById("cs-cwd");if(c){c.textContent=consCwd(j.cwd);c.title=j.cwd;}}
+    catch(er){add(er.message+"\n","#f08a8a");if(/session has ended/.test(er.message)){CONS.token=null;}}
+    inp.disabled=false;inp.focus();};
+  document.getElementById("cs-end").onclick=()=>{consApi("/close",{token:CONS.token}).catch(()=>{});CONS.token=null;closeModal();};setTimeout(()=>inp.focus(),80);}
 function advancedTab(){const sp=(CFG&&CFG.protocols)||["lg"],A=can("settings_adv");return `${A?`
   <div style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Site</div>
   ${row("Site name",ue((CFG&&CFG.site&&CFG.site.name)||"—"),canAdmin()?"<button class=\"linklike\" onclick=\"setSiteName()\">Rename</button>":"<span style=\"color:var(--text-faint);font-size:12px\">admins only</span>")}
   ${row("Manufacturers","Which makes of equipment this controller runs, and setting up another one",`<button class="linklike" onclick="setTab='equipment';drawSettings()">Open</button>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Controller</div>
+  ${APPL?row("Remote access","Reach this controller from anywhere over Tailscale. Switched on right here, no keyboard on the controller needed",`<button class="linklike" onclick="openRemote()">Open</button>`):""}
+  ${APPL?row("Controller console","Run commands on the controller itself. Has its own password",`<button class="linklike" onclick="openConsole()">Open</button>`):""}
   ${row("Roles and permissions","What each kind of user can see and do, including whether customers can control units",`<button class="linklike" onclick="setTab='users';drawSettings()">Open</button>`)}
   ${row("Setup wizard","Run the first-time setup again. Keeps your units, names, schedules and floor plans; replaces the site details, logins and access codes.",`<button class="linklike" onclick="closeModal();startWizard()">Re-run setup</button>`)}
   <div style="margin:16px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint)">Security</div>
@@ -6606,10 +6680,12 @@ const WSTEPS=[
   save:()=>null},
  {title:"Remote access",sub:"Reach this controller securely from anywhere.",
   body:()=>`<div class="note-box">Recommended: <b>Tailscale</b> — a private network with no port forwarding, so the controller never sits on the open internet. (WireGuard works too.)</div>
-   <div class="setrow"><div><div class="sl">I'll use remote access at this site</div><div class="sd">Just a note for your records — it changes nothing on the controller</div></div><button class="toggle ${WZ.remote.enabled?'on':''}" id="rm-tog"></button></div>
+   <div class="setrow"><div><div class="sl">Turn on remote access</div><div class="sd">${APPL?"Starts Tailscale on the controller now. You approve it once on a sign-in page; nothing to type on the controller":"A note for your records. Switch it on later from the controller's own dashboard"}</div></div><button class="toggle ${WZ.remote.enabled?'on':''}" id="rm-tog"></button></div>
    <div id="rm-detail" class="${WZ.remote.enabled?'':'hide'}" style="margin-top:12px">
-     <div class="note-box" style="margin-top:12px">Tailscale is already installed on the controller. To switch it on, sign in to the controller once (keyboard or SSH) and run <span class="mono">sudo tailscale up</span>, then open the link it prints and approve the device. Install Tailscale on your phone or laptop with the same account and you can reach this dashboard from anywhere — no public IP, no open ports. Device health shows “Tailscale · up” once it is connected.</div></div>`,
-  wire:()=>{const t=document.getElementById("rm-tog");if(t)t.onclick=()=>{WZ.remote.enabled=!WZ.remote.enabled;renderWizard();};},
+     ${APPL?`<div id="remote-box"></div>`:`<div class="note-box" style="margin-top:12px">Open Cortex on the controller itself, then Settings ▸ Advanced ▸ Remote access.</div>`}
+     <div style="font-size:12.5px;color:var(--text-faint);margin-top:10px">Then install Tailscale on your phone or laptop with the same account and you can reach this dashboard from anywhere: no public IP, no open ports. You can skip this and do it later from Settings ▸ Advanced ▸ Remote access.</div></div>`,
+  wire:()=>{const t=document.getElementById("rm-tog");if(t)t.onclick=()=>{WZ.remote.enabled=!WZ.remote.enabled;renderWizard();if(APPL&&WZ.remote.enabled)remoteSet(true);};      // switching the note off in the wizard never cuts a link that is already up
+    if(APPL&&WZ.remote.enabled&&document.getElementById("remote-box"))remoteWatch();},
   save:()=>null},
  {title:"Equipment manufacturer",sub:"Which system are you installing on? This sets how Cortex listens to the bus.",
   body:()=>{WZ.protocols=["lg"];const soon=["samsung_nasa","samsung_non","mit_cn105","daikin_s21","daikin_p1p2","fujitsu"];

@@ -2,6 +2,55 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.16 — 2026-11-20 (one page for every LG channel, outdoor tiles, remote access and console from the dashboard)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.15. Changes `appliance/server.js`,
+`appliance/busmaster.js`, `appliance/buslink.js`, `appliance/cortex.sudoers`, `appliance/install.sh`,
+`appliance/cortex-update.sh`, `cortex.html`; adds `docs/CONSOLE_AND_REMOTE.md`, `tests/console-remote.test.js`._
+
+**Bus scan**
+- **Every LG channel is on one page.** A table of the channels (state, adapter, units, pass time) with
+  connect, search, rename and remove on each row. The separate tab per line is gone.
+- **Search every channel for units.** One button: the controller asks every address on channel 1, then
+  moves to channel 2 and skips the addresses that already answered, and so on. Units already in Cortex
+  are not asked again. One progress bar and one time-left figure cover all the channels.
+- **Live data from every channel.** One box shows what the controller sends and hears on all channels,
+  in plain words with the raw bytes. Pick a channel to see only that wire. Pause to read.
+
+**Outdoor / cycle**
+- **Outdoor units are tiles**, like indoor units: state, mode, the two pressures, outdoor air,
+  compressor speed, health, and how many indoor units it has. Tapping one opens everything it reports.
+- **Its indoor units are listed directly under it**, not all together at the bottom of the page.
+- **Find this one** and **Ask it for its indoor units** work on the address typed in the box, so one
+  outdoor unit can be found or asked without asking all of them again.
+- **Grouping asks each outdoor unit only on its own channel.** The channel each outdoor unit is on is
+  now remembered across restarts. If it does not answer there, the other channels are tried. The result
+  window says which channel each one was asked on, and flags a list that came through incomplete.
+
+**Fixed**
+- **Renaming or regrouping while the controller is polling was thrown away.** The controller refused any
+  edit made since the screen's last refresh, which with several lines polling was nearly always. An
+  edit is now kept and the controller's newer readings are laid over it.
+- **Text no longer spills out of its box.** Long adapter names, addresses and host names wrap or shrink
+  inside their tiles (Device health showed it most). Device health shows the adapter's plain name.
+
+**Added**
+- **Remote access is switched on from the dashboard,** in the setup wizard and in Settings ▸ Advanced.
+  The controller runs `tailscale up` itself and shows Tailscale's sign-in page to approve. No keyboard on
+  the controller. The https certificate is fetched right after.
+- **Controller console** (Settings ▸ Advanced): run commands on the controller from the dashboard. It
+  has its own password, stored hashed on the controller and checked there; five wrong tries lock it for
+  five minutes; commands run as the unprivileged service user, one at a time, for up to two minutes;
+  every command is logged.
+
+**Know before using**
+- The console is not a root shell. `sudo` works only for: restarting Cortex, reading its log, reboot
+  and power off, starting the updater, and Tailscale up and down.
+- Existing controllers get the new sudo rules when they install this update. If "turn remote access on"
+  says the controller has not been updated to allow it, run the updater once more.
+- Anyone who can reach the dashboard before a console password is set can set it. Set it straight away
+  on a controller you intend to use it on.
+
 ## v1.7.1-beta.15 — 2026-11-19 (grouping by outdoor unit on every line; welcome tutorial)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.14. Changes `appliance/server.js`,

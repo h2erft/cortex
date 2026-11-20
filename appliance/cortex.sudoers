@@ -2,3 +2,8 @@
 # and nothing else. Installed to /etc/sudoers.d/cortex (mode 0440) by install.sh and kept in
 # sync by cortex-update.sh. Validated with `visudo -c` before being put in place.
 cortex ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /bin/systemctl reboot, /bin/systemctl poweroff, /usr/bin/systemctl start cortex-updater.service, /bin/systemctl start cortex-updater.service
+# Remote access from the dashboard: bring Tailscale up / down and make the service user its operator.
+# Exact commands only. (Scripts under /opt/cortex are owned by the service user, so none of them is ever run as root from here.)
+cortex ALL=(root) NOPASSWD: /usr/bin/tailscale up --operator=cortex, /usr/bin/tailscale set --operator=cortex, /usr/bin/tailscale down
+# The in-app console: restart the service and read its log.
+cortex ALL=(root) NOPASSWD: /usr/bin/systemctl restart cortex-appliance, /bin/systemctl restart cortex-appliance, /usr/bin/journalctl -u cortex-appliance -n 300 --no-pager

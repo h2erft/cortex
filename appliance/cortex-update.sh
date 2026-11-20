@@ -194,6 +194,9 @@ else
   chown -R cortex:cortex "$REL/$NEW" 2>/dev/null || true
 fi
 
+# --- let the dashboard switch remote access on: the service user becomes Tailscale's operator (harmless if already so)
+if command -v tailscale >/dev/null 2>&1; then tailscale set --operator=cortex >/dev/null 2>&1 && log "tailscale: service user is the operator" || true; fi
+
 # --- reconcile system config shipped in the release (sudoers for UI power control) ----
 # Lets privilege/policy changes ride in over OTA. Validated before install; never fatal.
 if [ -f "$REL/$NEW/cortex.sudoers" ] && command -v visudo >/dev/null 2>&1; then

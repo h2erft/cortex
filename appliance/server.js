@@ -618,6 +618,74 @@ function powerAction(kind, res) {
     });
   }, 500);
 }
+/* --- remote access (Tailscale) from the dashboard -------------------------------------------------
+   Turning it on runs `tailscale up`. The first time, Tailscale answers with a sign-in link: the dashboard shows
+   it (and a QR code), the owner opens it on any device and approves, and the controller joins their tailnet.
+   Nobody needs a keyboard on the controller. The service user is made Tailscale's operator on the way, so
+   later starts and stops need no sudo. */
+const { spawn: spawnProc } = require('child_process'), cryptoMod = require('crypto');
+const run = (cmd, args, ms) => new Promise((resolve) => { execFile(cmd, args, { timeout: ms || 6000, maxBuffer: 1 << 20 }, (err, out, er) => resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, out: String(out || ''), err: String(er || (err && err.message) || '') })); });
+const remote = { job: null, url: null, error: null, at: 0, wasUp: false };
+async function remoteState() {
+  const st = await run('tailscale', ['status', '--json'], 5000); let j = null; try { j = JSON.parse(st.out); } catch (_) {}
+  if (!j) return { installed: !/ENOENT|not found/i.test(st.err), state: 'unknown', error: /ENOENT|not found/i.test(st.err) ? null : (st.err.trim().split('\n')[0] || null) };
+  const self = j.Self || {}, state = j.BackendState || 'unknown', up = state === 'Running';
+  if (up && !remote.wasUp) { remote.wasUp = true; remote.url = null; remote.error = null; execFile('sudo', ['-n', 'systemctl', 'start', 'cortex-updater.service'], () => {}); }   // fetch the https certificate now, not in half an hour
+  if (!up) remote.wasUp = false;
+  return { installed: true, state, up, authUrl: (!up && (j.AuthURL || remote.url)) || null, name: String(self.DNSName || '').replace(/\.$/, '') || null, ip: (self.TailscaleIPs || [])[0] || null,
+    starting: !!remote.job, error: up ? null : remote.error, tailnet: (j.CurrentTailnet && j.CurrentTailnet.Name) || null }; }
+function remoteUp() { if (remote.job) return; remote.error = null; remote.url = null; remote.at = Date.now();
+  const start = (viaSudo) => { const args = ['up', '--operator=cortex'], p = viaSudo ? spawnProc('sudo', ['-n', '/usr/bin/tailscale'].concat(args)) : spawnProc('tailscale', args); let buf = '';
+    remote.job = p; const eat = (d) => { buf += String(d); const m = /https:\/\/login\.tailscale\.com\/[^\s]+/.exec(buf); if (m) remote.url = m[0]; };
+    p.stdout.on('data', eat); p.stderr.on('data', eat);
+    p.on('error', (e) => { if (remote.job === p) { remote.job = null; remote.error = e.message; } });
+    p.on('exit', (code) => { if (remote.job !== p) return; remote.job = null;
+      if (code && !viaSudo && /access denied|must be root|permission denied|operator/i.test(buf)) return start(true);                    // not the operator yet: once, through the scoped sudo rule
+      if (code) remote.error = /a password is required|not allowed|sudo:/i.test(buf) ? 'this controller has not been updated to allow that yet. Run the updater once, or run “sudo tailscale up” on the controller' : (buf.trim().split('\n').pop() || ('tailscale up ended with code ' + code)); });
+    setTimeout(() => { if (remote.job === p) { try { p.kill(); } catch (_) {} } }, 15 * 60000); };
+  start(false); }
+app.get('/api/remote', async (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json(await remoteState()); });
+app.post('/api/remote', async (req, res) => { cors(res); const b = req.body || {};
+  if (b.on === true) { const st = await remoteState(); if (!st.installed) return res.status(409).json({ err: 'Tailscale is not installed on this controller' }); if (!st.up) remoteUp(); await new Promise(r => setTimeout(r, 2500)); return res.json(await remoteState()); }
+  if (b.on === false) { if (remote.job) { try { remote.job.kill(); } catch (_) {} remote.job = null; } let r = await run('tailscale', ['down'], 8000); if (r.code) r = await run('sudo', ['-n', '/usr/bin/tailscale', 'down'], 8000);
+    if (r.code) return res.status(500).json({ err: (r.err || r.out).trim().split('\n').pop() || 'could not stop Tailscale' }); return res.json(await remoteState()); }
+  res.status(400).json({ err: 'need on: true or false' }); });
+
+/* --- the controller's own console ------------------------------------------------------------------
+   A way to run commands on the controller from the dashboard, for the rare job that needs it. Everything else in
+   Cortex trusts whoever can reach it; this does not. It has its own password, kept here on the controller (scrypt),
+   never in the shared settings, so the dashboard's open settings API cannot be used to get in. Whoever sets the
+   password first owns it; changing it needs the old one. Five wrong tries lock it for five minutes. Commands run as
+   the unprivileged service user, one at a time, with a time limit, and every command is written to the log. */
+const CONF = path.join(DATA, 'console.json'), cons = { tokens: new Map(), fails: 0, lockedUntil: 0, cwd: os.homedir && fs.existsSync(DATA) ? DATA : '/' };
+const consDoc = () => readJsonSafe(CONF) || null;
+const consHash = (pw, salt) => cryptoMod.scryptSync(String(pw), Buffer.from(salt, 'hex'), 32).toString('hex');
+const consCheck = (pw) => { const d = consDoc(); if (!d || !d.hash) return false; const a = Buffer.from(consHash(pw, d.salt), 'hex'), b = Buffer.from(d.hash, 'hex'); return a.length === b.length && cryptoMod.timingSafeEqual(a, b); };
+const consLocked = () => Date.now() < cons.lockedUntil;
+const consFail = () => { if (++cons.fails >= 5) { cons.fails = 0; cons.lockedUntil = Date.now() + 5 * 60000; console.log('console: locked for 5 minutes after wrong passwords'); } };
+const consTok = (t) => { const x = cons.tokens.get(String(t || '')); if (!x || Date.now() - x.last > 15 * 60000) { cons.tokens.delete(String(t || '')); return null; } x.last = Date.now(); return x; };
+app.get('/api/console', (_req, res) => { cors(res); res.set('Cache-Control', 'no-store'); res.json({ set: !!(consDoc() || {}).hash, locked: consLocked(), user: (() => { try { return os.userInfo().username; } catch (_) { return ''; } })() }); });
+app.post('/api/console/password', (req, res) => { cors(res); const b = req.body || {}, d = consDoc(), pw = String(b.password || '');
+  if (consLocked()) return res.status(429).json({ err: 'too many wrong tries. Wait five minutes' });
+  if (pw.length < 10) return res.status(400).json({ err: 'use at least 10 characters' });
+  if (d && d.hash && !consCheck(b.old)) { consFail(); return res.status(403).json({ err: 'the current console password is wrong' }); }
+  const salt = cryptoMod.randomBytes(16).toString('hex'); try { writeFileAtomic(CONF, JSON.stringify({ salt, hash: consHash(pw, salt), at: Date.now() })); fs.chmodSync(CONF, 0o600); } catch (e) { return res.status(500).json({ err: e.message }); }
+  cons.tokens.clear(); console.log('console: password ' + (d && d.hash ? 'changed' : 'set')); res.json({ ok: true }); });
+app.post('/api/console/open', (req, res) => { cors(res); if (consLocked()) return res.status(429).json({ err: 'too many wrong tries. Wait five minutes' });
+  if (!consCheck((req.body || {}).password)) { consFail(); return res.status(403).json({ err: 'wrong console password' }); }
+  cons.fails = 0; const t = cryptoMod.randomBytes(24).toString('hex'); cons.tokens.set(t, { last: Date.now() }); console.log('console: opened'); res.json({ ok: true, token: t, cwd: cons.cwd }); });
+app.post('/api/console/run', (req, res) => { cors(res); const b = req.body || {}; if (!consTok(b.token)) return res.status(403).json({ err: 'the console session has ended. Enter the console password again' });
+  const cmd = String(b.cmd || '').slice(0, 2000); if (!cmd.trim()) return res.json({ out: '', code: 0, cwd: cons.cwd }); if (cons.busy) return res.status(409).json({ err: 'a command is still running' });
+  cons.busy = true; console.log('console: $ ' + cmd.replace(/\s+/g, ' ').slice(0, 300));
+  const MARK = '__CORTEX_CWD__', p = spawnProc('bash', ['-c', cmd + '\nprintf "\\n' + MARK + '%s" "$PWD"'], { cwd: fs.existsSync(cons.cwd) ? cons.cwd : '/', env: Object.assign({}, process.env, { TERM: 'dumb', NO_COLOR: '1', LC_ALL: 'C.UTF-8' }) });
+  let out = '', done = false; const eat = (d) => { if (out.length < 400000) out += String(d); }; p.stdout.on('data', eat); p.stderr.on('data', eat);
+  const end = (code, note) => { if (done) return; done = true; cons.busy = false; clearTimeout(kill);
+    const i = out.lastIndexOf(MARK); if (i >= 0) { const d = out.slice(i + MARK.length).trim(); if (d && fs.existsSync(d)) cons.cwd = d; out = out.slice(0, i).replace(/\n$/, ''); }
+    res.json({ out: out.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '') + (note || ''), code, cwd: cons.cwd }); };
+  const kill = setTimeout(() => { try { p.kill('SIGKILL'); } catch (_) {} end(124, '\n[stopped: a command may run for two minutes at most]'); }, 120000);
+  p.on('error', (e) => end(127, String(e.message))); p.on('exit', (code) => setTimeout(() => end(code == null ? 1 : code), 30)); });
+app.post('/api/console/close', (req, res) => { cors(res); cons.tokens.delete(String((req.body || {}).token || '')); res.json({ ok: true }); });
+
 app.post('/api/power/reboot',   (_req, res) => powerAction('reboot', res));
 app.post('/api/power/shutdown', (_req, res) => powerAction('poweroff', res));
 

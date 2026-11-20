@@ -603,3 +603,18 @@ The user's rule: **one Cortex per building, every make in it together, never a c
 - Tutorial: `tourSteps()`, `tourStart()`, `tourEnd()`, `tourDue(u)`. A user record gets `tour: true`
   when created; `settings.tourSeen` records that it was seen. It never starts by itself in the demo, from
   a file, or in an automated browser (`navigator.webdriver`), so UI tests are not covered by an overlay.
+
+## Addendum: one LG page, outdoor tiles, remote access, console (v1.7.1-beta.16)
+
+- Bus scan: `lgChFill()` draws the LG channels panel and the live data box into `#lgch` and refreshes in
+  place; `lgChans()` is line 1 plus `lgLines()`. Server: `L0` is line 1 for searching, `scanBegin`,
+  `scanNextFor`, `searchAll` (`POST /api/lg-lines/search-all`), `traffic` ring (`GET /api/lg-traffic`,
+  only collected while a screen asks for it; `buslink` gained `io.onTx`). `CORTEX_SCAN_MAX` shortens
+  searches in tests. `linkSig()` must not include search progress, or the whole page redraws.
+- `PUT /api/units` with a stale `base` is merged (the poll loops' `liveKeys` laid over the edit) unless
+  the list itself changed since (`structRev`). This is what makes renames stick during polling.
+- Outdoor page: `oduTiles()`, `oduDetail()`, `cyOdu`, `iduSection(only)`; `oduGroupClick(auto, only)`;
+  the line of each outdoor unit persists in `data/odu-addrs.json`.
+- `docs/CONSOLE_AND_REMOTE.md` covers `/api/remote` and `/api/console`. Never add a sudo rule that runs
+  a script under `/opt/cortex` (owned by the service user), and never weaken the console's server-side
+  password check: the rest of the API is open to the LAN by design, the console must not be.
