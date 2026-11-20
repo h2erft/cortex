@@ -2,6 +2,16 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.18 — 2026-11-20 (Command header on small screens)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.17. Changes `command-center.html`._
+
+**Fixed**
+- **Command: the top bar ran off the right edge on a narrow window or phone,** cutting off the sign-out
+  button. On small screens the "signed in as" chip is hidden and the title truncates, so the briefing,
+  settings and sign-out buttons always fit. (The tab row and the settings section list were already
+  horizontal scroll strips — those were never clipped.)
+
 ## v1.7.1-beta.17 — 2026-11-20 (settings page, role colours, calmer Command)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.16. Changes `cortex.html`,
