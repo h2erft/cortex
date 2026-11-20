@@ -2,9 +2,9 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
-## v1.7.1-beta.19 — 2026-11-20 (sweep: toggle overflow on phones)
+## Unreleased — on `main`, not yet tagged
 
-_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.18. Changes `cortex.html`._
+_Sits on top of v1.7.1-beta.18. Changes `cortex.html`. Give it a version number when you cut the next release._
 
 A full sweep of Cortex and Cortex Command: all 31 test suites pass, every page and settings
 tab was checked for text spilling out of its box and for script errors at desktop, tablet and
