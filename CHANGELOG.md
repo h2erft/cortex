@@ -2,6 +2,20 @@
 
 All notable changes to Cortex. Dates are when the work landed on `main`.
 
+## v1.7.1-beta.19 — 2026-11-20 (sweep: toggle overflow on phones)
+
+_Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.18. Changes `cortex.html`._
+
+A full sweep of Cortex and Cortex Command: all 31 test suites pass, every page and settings
+tab was checked for text spilling out of its box and for script errors at desktop, tablet and
+phone widths, and both server bundles pass a syntax check. One real issue turned up and is fixed.
+
+**Fixed**
+- **Cortex: the on/off toggle switches spilled a few pixels past the right edge of their row on
+  phone widths.** The cause was the invisible larger tap area around each switch extending past the
+  edge; it now grows taller instead of wider, so the touch target stays generous without pushing the
+  row over. Affected the Display, Updates and Advanced settings rows.
+
 ## v1.7.1-beta.18 — 2026-11-20 (Command header on small screens)
 
 _Beta — publish as a GitHub **pre-release**. Builds on v1.7.1-beta.17. Changes `command-center.html`._
